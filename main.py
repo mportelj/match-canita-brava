@@ -9,10 +9,11 @@ PAR_RIA_VIGO = {
     10: 4, 11: 3, 12: 4, 13: 3, 14: 5, 15: 4, 16: 5, 17: 4, 18: 5
 }
 TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
-HISTORICO_PUNTOS = 3.5 # Puntos base iniciales
+HISTORICO_PUNTOS = 3.5
 
 def get_connection():
-    return sqlite3.connect('canita_brava_v9.db', check_same_thread=False)
+    # Actualizado a v10 para asegurar que los cambios de estructura previos se mantengan
+    return sqlite3.connect('canita_brava_v10.db', check_same_thread=False)
 
 def init_db():
     conn = get_connection()
@@ -65,13 +66,11 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳")
 st.title("⛳ CAÑITA BRAVA")
 
-menu = st.sidebar.radio("Menú", ["Inicio", "Anotar Partido", "Historial / Borrar"])
+# --- CAMBIO DE TEXTOS EN EL MENÚ ---
+menu = st.sidebar.radio("Menú", ["Inicio", "Jugar Partido", "Admin"])
 
 if menu == "Inicio":
     conn = get_connection()
-    
-    # --- SELECTOR DE AÑO EN LA PANTALLA PRINCIPAL ---
-    # Obtenemos los años que tienen datos, sumando el año actual por defecto
     anios_db = pd.read_sql_query("SELECT DISTINCT temporada FROM historial", conn)['temporada'].tolist()
     anio_actual_str = str(datetime.now().year)
     if anio_actual_str not in anios_db:
@@ -84,31 +83,28 @@ if menu == "Inicio":
 
     st.divider()
 
-    # --- BALANCE DE MATCH DEL AÑO SELECCIONADO ---
     df_h = pd.read_sql_query(f"SELECT resultado_a, resultado_b FROM historial WHERE temporada = '{temp_seleccionada}'", conn)
     wins_a = len(df_h[df_h['resultado_a'] > df_h['resultado_b']])
     wins_b = len(df_h[df_h['resultado_b'] > df_h['resultado_a']])
     
     st.write(f"**Balance Match {temp_seleccionada}:**")
     c1, c2 = st.columns(2)
-    # Mostramos los puntos históricos solo si es 2024/2025 (puedes ajustar esta lógica si el histórico solo aplica a un año concreto)
     c1.metric("MANUEL & JOSE", f"{HISTORICO_PUNTOS + wins_a} Pts")
     c2.metric("ROGE & LALO", f"{HISTORICO_PUNTOS + wins_b} Pts")
     
-    # --- RANKING MVP DEL AÑO SELECCIONADO ---
     st.subheader(f"🏆 Ranking MVP {temp_seleccionada}")
     df_mvp = pd.read_sql_query(f"SELECT nombre as Jugador, partidos as PJ, puntos_mvp as Puntos FROM puntos_anuales WHERE temporada = '{temp_seleccionada}' ORDER BY Puntos DESC", conn)
     
     if not df_mvp.empty:
         st.table(df_mvp)
     else:
-        st.info(f"No hay registros de puntos individuales para la temporada {temp_seleccionada}.")
+        st.info(f"No hay registros para la temporada {temp_seleccionada}.")
 
-elif menu == "Anotar Partido":
-    # (El código de Anotar Partido se mantiene igual para permitir la entrada de datos)
+elif menu == "Jugar Partido":
     if 'game' not in st.session_state:
         st.subheader("Datos del Partido")
-        f = st.date_input("Fecha:", datetime.now())
+        # Formato de visualización de fecha dd/mm/aaaa en el selector
+        f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
         h = st.selectbox("Inicio:", [1, 10])
         if st.button("🚀 Iniciar"):
             st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'temp': str(f.year), 'hoyo': h, 'logs': {}}
@@ -125,7 +121,8 @@ elif menu == "Anotar Partido":
         m2.metric("R&L", cur_match_b)
         
         with st.container(border=True):
-            st.write("**Entrada de golpes:**")
+            # --- CAMBIO DE TEXTO: INTRODUCIR GOLPES ---
+            st.write("**Introducir golpes:**")
             c = st.columns(4)
             s1 = c[0].number_input("MANUEL", 1, 10, PAR_RIA_VIGO[g['hoyo']])
             s2 = c[1].number_input("JOSE", 1, 10, PAR_RIA_VIGO[g['hoyo']])
@@ -157,15 +154,19 @@ elif menu == "Anotar Partido":
                 st.balloons()
                 st.rerun()
 
-elif menu == "Historial / Borrar":
-    # Mantenemos el historial para ver detalles y borrar si es necesario
+elif menu == "Admin":
     conn = get_connection()
-    st.subheader("📜 Historial de Partidos")
+    st.subheader("⚙️ Administración de Partidos")
     df = pd.read_sql_query("SELECT * FROM historial ORDER BY id DESC", conn)
+    
+    if df.empty:
+        st.write("No hay partidos registrados.")
+    
     for index, row in df.iterrows():
+        # La fecha ya se guarda como dd/mm/aaaa en el proceso de guardado
         with st.expander(f"📅 {row['fecha']} | M&J {row['resultado_a']} - {row['resultado_b']} R&L"):
-            st.write(f"**MVP:** {row['mvp']} | Temp: {row['temporada']}")
-            if st.button(f"🗑️ Eliminar", key=f"del_{row['id']}"):
+            st.write(f"**MVP:** {row['mvp']} | Año: {row['temporada']}")
+            if st.button(f"🗑️ Eliminar Partido", key=f"del_{row['id']}"):
                 cur = conn.cursor()
                 pts_map = {"MANUEL": row['p1_pts'], "JOSE": row['p2_pts'], "ROGE": row['p3_pts'], "LALO": row['p4_pts']}
                 for p, pts in pts_map.items():
