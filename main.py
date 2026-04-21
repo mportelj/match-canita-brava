@@ -131,3 +131,78 @@ elif menu == "Jugar Partido":
 
         if st.button("💾 Finalizar y Guardar"):
             conn = get_connection()
+            cur = conn.cursor()
+            p_mj, p_rl = (1.0, 0.0) if m['score_mj'] > m['score_rl'] else (0.0, 1.0) if m['score_rl'] > m['score_mj'] else (0.5, 0.5)
+            
+            mvp_win = max(m['mvp'], key=m['mvp'].get)
+            cur.execute("""INSERT INTO historial (fecha, res_mj, res_rl, puntos_temporada_mj, puntos_temporada_rl, mvp,
+                           p1_inc, p2_inc, p3_inc, p4_inc, b1_inc, b2_inc, b3_inc, b4_inc, e1_inc, e2_inc, e3_inc, e4_inc) 
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                      (datetime.now().strftime("%d/%m/%Y"), m['score_mj'], m['score_rl'], p_mj, p_rl, mvp_win,
+                       m['mvp']["MANUEL"], m['mvp']["JOSE"], m['mvp']["ROGE"], m['mvp']["LALO"],
+                       m['birdies']["MANUEL"], m['birdies']["JOSE"], m['birdies']["ROGE"], m['birdies']["LALO"],
+                       m['eagles']["MANUEL"], m['eagles']["JOSE"], m['eagles']["ROGE"], m['eagles']["LALO"]))
+            
+            cur.execute("UPDATE temporada SET puntos_ganados = puntos_ganados + ? WHERE equipo = 'MANUEL_JOSE'", (p_mj,))
+            cur.execute("UPDATE temporada SET puntos_ganados = puntos_ganados + ? WHERE equipo = 'ROGE_LALO'", (p_rl,))
+            
+            for p in ["MANUEL", "JOSE", "ROGE", "LALO"]:
+                cur.execute("INSERT OR IGNORE INTO jugadores (nombre) VALUES (?,0,0,0)", (p,))
+                cur.execute("UPDATE jugadores SET puntos_mvp = puntos_mvp + ?, birdies_totales = birdies_totales + ?, eagles_totales = eagles_totales + ? WHERE nombre = ?", (m['mvp'][p], m['birdies'][p], m['eagles'][p], p))
+            
+            conn.commit()
+            del st.session_state.match
+            st.success("¡Partido guardado!")
+            st.rerun()
+
+elif menu == "Historial":
+    st.header("📅 Historial Temporada 2026")
+    df_h = pd.read_sql_query("SELECT fecha as Fecha, res_mj as 'Hoy M/J', res_rl as 'Hoy R/L', puntos_temporada_mj as 'Temp M/J', puntos_temporada_rl as 'Temp R/L', mvp as MVP FROM historial ORDER BY id DESC", get_connection())
+    df_h['Temp M/J'] = df_h['Temp M/J'].map('{:.1f}'.format)
+    df_h['Temp R/L'] = df_h['Temp R/L'].map('{:.1f}'.format)
+    st.table(df_h)
+
+elif menu == "Administración":
+    st.header("⚙️ Zona de Control")
+    st.write("Selecciona qué partido deseas eliminar permanentemente.")
+    
+    conn = get_connection()
+    # Cargamos todos los partidos para el selector
+    df_hist = pd.read_sql_query("SELECT id, fecha, res_mj, res_rl FROM historial ORDER BY id DESC", conn)
+    
+    if not df_hist.empty:
+        # Creamos una lista de opciones descriptivas para el selectbox
+        opciones = {row['id']: f"ID: {row['id']} | {row['fecha']} | MJ: {row['res_mj']} - RL: {row['res_rl']}" for index, row in df_hist.iterrows()}
+        seleccion_id = st.selectbox("Partido a borrar:", options=list(opciones.keys()), format_func=lambda x: opciones[x])
+        
+        # Mostrar detalle del seleccionado
+        partido_selec = df_hist[df_hist['id'] == seleccion_id].iloc[0]
+        st.info(f"Vas a eliminar el partido del día {partido_selec['fecha']}.")
+        
+        confirmar = st.checkbox("Confirmo que quiero borrar este partido y revertir sus puntos.")
+        
+        if st.button("🗑️ Eliminar Partido Seleccionado"):
+            if confirmar:
+                cur = conn.cursor()
+                # Obtener los datos completos de ese partido para revertir
+                datos_partido = pd.read_sql_query(f"SELECT * FROM historial WHERE id = {seleccion_id}", conn).iloc[0]
+                
+                # 1. Revertir puntos temporada
+                cur.execute("UPDATE temporada SET puntos_ganados = puntos_ganados - ? WHERE equipo = 'MANUEL_JOSE'", (float(datos_partido['puntos_temporada_mj']),))
+                cur.execute("UPDATE temporada SET puntos_ganados = puntos_ganados - ? WHERE equipo = 'ROGE_LALO'", (float(datos_partido['puntos_temporada_rl']),))
+                
+                # 2. Revertir estadísticas jugadores
+                nombres = ["MANUEL", "JOSE", "ROGE", "LALO"]
+                for i, p in enumerate(nombres):
+                    cur.execute(f"UPDATE jugadores SET puntos_mvp = puntos_mvp - ?, birdies_totales = birdies_totales - ?, eagles_totales = eagles_totales - ? WHERE nombre = ?", 
+                                (int(datos_partido[f'p{i+1}_inc']), int(datos_partido[f'b{i+1}_inc']), int(datos_partido[f'e{i+1}_inc']), p))
+                
+                # 3. Borrar de la tabla historial
+                cur.execute("DELETE FROM historial WHERE id = ?", (seleccion_id,))
+                conn.commit()
+                st.success(f"Partido {seleccion_id} eliminado con éxito.")
+                st.rerun()
+            else:
+                st.warning("Debes marcar la casilla de confirmación.")
+    else:
+        st.info("No hay partidos en el historial.")
