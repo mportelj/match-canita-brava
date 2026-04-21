@@ -10,7 +10,7 @@ PAR_RIA_VIGO = {
 }
 
 def get_connection():
-    return sqlite3.connect('canita_brava_v3.db', check_same_thread=False)
+    return sqlite3.connect('canita_brava_2026.db', check_same_thread=False)
 
 def init_db():
     conn = get_connection()
@@ -25,7 +25,7 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS historial 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, res_mj INTEGER, res_rl INTEGER, puntos_temporada_mj REAL, puntos_temporada_rl REAL, mvp TEXT)''')
     
-    # Inicializar marcador de Enero (3.5 - 3.5) si la tabla está vacía
+    # Inicializar marcador acumulado (3.5 - 3.5)
     c.execute("SELECT COUNT(*) FROM temporada")
     if c.fetchone()[0] == 0:
         c.execute("INSERT INTO temporada VALUES ('MANUEL_JOSE', 3.5)")
@@ -40,6 +40,7 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
     b_a, w_a = (s1, s2) if s1 <= s2 else (s2, s1)
     b_b, w_b = (s3, s4) if s3 <= s4 else (s4, s3)
 
+    # Mejor Bola: +2 MVP
     if b_a < b_b: 
         pts_a += 1
         mvp_inc["MANUEL" if s1 == b_a else "JOSE"] += 2
@@ -47,6 +48,7 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
         pts_b += 1
         mvp_inc["ROGE" if s3 == b_b else "LALO"] += 2
 
+    # Peor Bola: +1 MVP
     if w_a < w_b: 
         pts_a += 1
         mvp_inc["MANUEL" if s1 == w_a else "JOSE"] += 1
@@ -54,8 +56,9 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
         pts_b += 1
         mvp_inc["ROGE" if s3 == w_b else "LALO"] += 1
 
+    # Bonos Birdie (+1) y Eagle (+2)
+    js = ["MANUEL", "JOSE", "ROGE", "LALO"]
     for i, s in enumerate([s1, s2, s3, s4]):
-        js = ["MANUEL", "JOSE", "ROGE", "LALO"]
         if s == par - 1:
             mvp_inc[js[i]] += 1
             if i < 2: pts_a += 1
@@ -67,14 +70,16 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
     return pts_a, pts_b, mvp_inc
 
 # --- INTERFAZ ---
-st.set_page_config(page_title="MATCH CAÑITA BRAVA", page_icon="🍺")
-st.title("🍺 MATCH CAÑITA BRAVA")
+st.set_page_config(page_title="MATCH CAÑITA BRAVA 2026", page_icon="🍺")
+st.title("🍺 MATCH CAÑITA BRAVA 2026")
 
 menu = st.sidebar.radio("Ir a:", ["Marcador Temporada", "Jugar Partido", "Historial de Fechas"])
 
 if menu == "Marcador Temporada":
-    st.header("🏆 Clasificación General 2024")
-    df_temp = pd.read_sql_query("SELECT equipo as Equipo, puntos_ganados as 'Puntos Totales' FROM temporada", get_connection())
+    st.header("🏆 Clasificación General 2026")
+    df_temp = pd.read_sql_query("SELECT equipo as Equipo, puntos_ganados as Puntos FROM temporada", get_connection())
+    # Formatear a 1 decimal
+    df_temp['Puntos'] = df_temp['Puntos'].map('{:.1f}'.format)
     st.table(df_temp)
     
     st.subheader("🥇 Ranking MVP (Individual)")
@@ -111,7 +116,6 @@ elif menu == "Jugar Partido":
         if st.button("💾 Finalizar y Repartir Puntos"):
             conn = get_connection()
             cur = conn.cursor()
-            # Lógica de puntos de temporada
             p_mj, p_rl = 0.0, 0.0
             if m['score_mj'] > m['score_rl']: p_mj = 1.0
             elif m['score_rl'] > m['score_mj']: p_rl = 1.0
@@ -120,7 +124,6 @@ elif menu == "Jugar Partido":
             mvp_win = max(m['mvp'], key=m['mvp'].get)
             fecha_hoy = datetime.now().strftime("%d/%m/%Y")
             
-            # Actualizar DB
             cur.execute("UPDATE temporada SET puntos_ganados = puntos_ganados + ? WHERE equipo = 'MANUEL_JOSE'", (p_mj,))
             cur.execute("UPDATE temporada SET puntos_ganados = puntos_ganados + ? WHERE equipo = 'ROGE_LALO'", (p_rl,))
             cur.execute("INSERT INTO historial (fecha, res_mj, res_rl, puntos_temporada_mj, puntos_temporada_rl, mvp) VALUES (?,?,?,?,?,?)",
@@ -131,10 +134,13 @@ elif menu == "Jugar Partido":
             
             conn.commit()
             del st.session_state.match
-            st.success(f"Partido guardado. Puntos temporada: M&J {p_mj} - R&L {p_rl}")
+            st.success(f"Guardado. Puntos temporada: M&J {p_mj:.1f} - R&L {p_rl:.1f}")
             st.balloons()
 
 elif menu == "Historial de Fechas":
-    st.header("📅 Crónica de la Temporada")
-    df_h = pd.read_sql_query("SELECT fecha as Fecha, res_mj as 'Pts Hoy M/J', res_rl as 'Pts Hoy R/L', puntos_temporada_mj as 'Temporada M/J', puntos_temporada_rl as 'Temporada R/L', mvp as MVP FROM historial ORDER BY id DESC", get_connection())
+    st.header("📅 Historial 2026")
+    df_h = pd.read_sql_query("SELECT fecha as Fecha, res_mj as 'Pts Hoy M/J', res_rl as 'Pts Hoy R/L', puntos_temporada_mj as 'Temp M/J', puntos_temporada_rl as 'Temp R/L', mvp as MVP FROM historial ORDER BY id DESC", get_connection())
+    # Formatear columnas de puntos de temporada a 1 decimal
+    df_h['Temp M/J'] = df_h['Temp M/J'].map('{:.1f}'.format)
+    df_h['Temp R/L'] = df_h['Temp R/L'].map('{:.1f}'.format)
     st.table(df_h)
