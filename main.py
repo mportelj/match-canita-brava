@@ -12,7 +12,8 @@ TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
 HISTORICO_PUNTOS = 3.5
 
 def get_connection():
-    return sqlite3.connect('canita_brava_v12.db', check_same_thread=False)
+    # Cambiamos a v13 para asegurar una estructura limpia tras los cambios de lógica
+    return sqlite3.connect('canita_brava_v13.db', check_same_thread=False)
 
 def init_db():
     conn = get_connection()
@@ -33,27 +34,23 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
     pts_a, pts_b = 0.0, 0.0
     mvp_inc = {"p1": 0.0, "p2": 0.0, "p3": 0.0, "p4": 0.0}
     
-    # Identificar mejores y peores
     best_a, worst_a = (s1, s2) if s1 <= s2 else (s2, s1)
     best_b, worst_b = (s3, s4) if s3 <= s4 else (s4, s3)
     
-    # REGLA MEJOR BOLA: Ganar o Empatar = 1 punto MVP
     if best_a <= best_b:
-        pts_a += 1
+        pts_a += 1.0
         mvp_inc["p1" if s1 == best_a else "p2"] += 1.0
     if best_b <= best_a:
-        pts_b += 1
+        pts_b += 1.0
         mvp_inc["p3" if s3 == best_b else "p4"] += 1.0
 
-    # REGLA PEOR BOLA: Ganar o Empatar = 0.5 puntos MVP
     if worst_a <= worst_b:
-        pts_a += 1
+        pts_a += 0.5
         mvp_inc["p1" if s1 == worst_a else "p2"] += 0.5
     if worst_b <= worst_a:
-        pts_b += 1
+        pts_b += 0.5
         mvp_inc["p3" if s3 == worst_b else "p4"] += 0.5
         
-    # BONOS CALIDAD (Suman al MVP y al Match)
     scores = [s1, s2, s3, s4]
     p_ids = ["p1", "p2", "p3", "p4"]
     for i, s in enumerate(scores):
@@ -61,7 +58,7 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
             mvp_inc[p_ids[i]] += 1.0
             if i < 2: pts_a += 1
             else: pts_b += 1
-        elif s <= par - 2: # Eagle o mejor
+        elif s <= par - 2: # Eagle
             mvp_inc[p_ids[i]] += 2.0
             if i < 2: pts_a += 2
             else: pts_b += 2
@@ -109,21 +106,39 @@ elif menu == "Jugar Partido":
     else:
         g = st.session_state.game
         h_opciones = list(range(1, 19))
-        h_idx = g['h_sel'] - 1
+        h_idx = g.get('h_sel', 1) - 1
         nuevo_h = st.selectbox("Hoyo a anotar/editar:", h_opciones, format_func=lambda x: f"Hoyo {x} {'✅' if x in g['logs'] else ''}", index=h_idx)
         
-        if nuevo_h != g['h_sel']:
+        if nuevo_h != g.get('h_sel'):
             g['h_sel'] = nuevo_h
             st.rerun()
 
-        cur_match_a = sum(v['pts'][0] for v in g['logs'].values())
-        cur_match_b = sum(v['pts'][1] for v in g['logs'].values())
-        cur_mvp = {p: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i, p in enumerate(TODOS)}
+        # --- CÁLCULO DE RESULTADOS ---
+        puntos_hoyo_a = g['logs'][g['h_sel']]['pts'][0] if g['h_sel'] in g['logs'] else 0.0
+        puntos_hoyo_b = g['logs'][g['h_sel']]['pts'][1] if g['h_sel'] in g['logs'] else 0.0
         
+        total_acum_a = sum(v['pts'][0] for v in g['logs'].values())
+        total_acum_b = sum(v['pts'][1] for v in g['logs'].values())
+        
+        # Lógica de diferencia para el Match (Match Play style)
+        diff = total_acum_a - total_acum_b
+        match_mj = diff if diff > 0 else 0.0
+        match_rl = abs(diff) if diff < 0 else 0.0
+        status_text = "Empatados" if diff == 0 else ("M&J arriba" if diff > 0 else "R&L arriba")
+
         st.markdown(f"### Hoyo {g['h_sel']} (Par {PAR_RIA_VIGO[g['h_sel']]})")
-        m1, m2 = st.columns(2)
-        m1.metric("M&J", cur_match_a)
-        m2.metric("R&L", cur_match_b)
+        
+        # 1. Resultado del Hoyo actual
+        st.write("**Resultado del Hoyo:**")
+        c_h1, c_h2 = st.columns(2)
+        c_h1.metric("M&J (Hoyo)", puntos_hoyo_a)
+        c_h2.metric("R&L (Hoyo)", puntos_hoyo_b)
+        
+        # 2. Resultado del Match (Diferencia)
+        st.write(f"**Resultado del Match ({status_text}):**")
+        c_m1, c_m2 = st.columns(2)
+        c_m1.metric("M&J (Match)", f"+{match_mj}" if match_mj > 0 else "0")
+        c_m2.metric("R&L (Match)", f"+{match_rl}" if match_rl > 0 else "0")
         
         val_def = g['logs'][g['h_sel']]['s'] if g['h_sel'] in g['logs'] else [PAR_RIA_VIGO[g['h_sel']]]*4
 
@@ -143,6 +158,7 @@ elif menu == "Jugar Partido":
 
         if g['logs']:
             st.subheader("⭐ MVP del Partido (Actual)")
+            cur_mvp = {p: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i, p in enumerate(TODOS)}
             df_live_mvp = pd.DataFrame([{"Jugador": p, "Puntos": cur_mvp[p]} for p in TODOS]).sort_values(by="Puntos", ascending=False)
             st.dataframe(df_live_mvp, hide_index=True, use_container_width=True)
 
@@ -151,7 +167,7 @@ elif menu == "Jugar Partido":
                 cur = conn.cursor()
                 mvp_win = max(cur_mvp, key=cur_mvp.get)
                 cur.execute("INSERT INTO historial (fecha, temporada, pareja_a, pareja_b, resultado_a, resultado_b, mvp, p1_pts, p2_pts, p3_pts, p4_pts) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                           (g['fecha'], g['temp'], "M&J", "R&L", cur_match_a, cur_match_b, mvp_win, cur_mvp["MANUEL"], cur_mvp["JOSE"], cur_mvp["ROGE"], cur_mvp["LALO"]))
+                           (g['fecha'], g['temp'], "M&J", "R&L", total_acum_a, total_acum_b, mvp_win, cur_mvp["MANUEL"], cur_mvp["JOSE"], cur_mvp["ROGE"], cur_mvp["LALO"]))
                 for p in TODOS:
                     cur.execute("INSERT OR IGNORE INTO puntos_anuales (nombre, temporada) VALUES (?,?)", (p, g['temp']))
                     cur.execute("UPDATE puntos_anuales SET partidos = partidos + 1, puntos_mvp = puntos_mvp + ? WHERE nombre = ? AND temporada = ?", (cur_mvp[p], p, g['temp']))
@@ -166,7 +182,7 @@ elif menu == "Admin":
     df = pd.read_sql_query("SELECT * FROM historial ORDER BY id DESC", conn)
     for index, row in df.iterrows():
         with st.expander(f"📅 {row['fecha']} | M&J {row['resultado_a']} - {row['resultado_b']} R&L"):
-            st.write(f"**MVP del día:** {row['mvp']}")
+            st.write(f"**MVP:** {row['mvp']}")
             if st.button(f"🗑️ Eliminar Partido", key=f"del_{row['id']}"):
                 cur = conn.cursor()
                 pts_map = {"MANUEL": row['p1_pts'], "JOSE": row['p2_pts'], "ROGE": row['p3_pts'], "LALO": row['p4_pts']}
