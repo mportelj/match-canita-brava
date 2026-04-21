@@ -76,7 +76,7 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
 
 # --- INTERFAZ ---
 st.set_page_config(page_title="MATCH CAÑITA BRAVA 2026", page_icon="🍺")
-st.title("🍺 MATCH CAÑITA BRAVA 2026")
+st.title("🍺 Match CAÑITA BRAVA")
 
 menu = st.sidebar.radio("Ir a:", ["Marcador Temporada", "Jugar Partido", "Historial", "Administración"])
 
