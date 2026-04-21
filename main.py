@@ -97,10 +97,10 @@ elif menu == "Jugar Partido":
         par = PAR_RIA_VIGO[m['hoyo']]
         st.subheader(f"Hoyo {m['hoyo']} (Par {par})")
         c1, c2 = st.columns(2)
-        s1 = c1.number_input("MANUEL", 1, 10, par)
-        s2 = c1.number_input("JOSE", 1, 10, par)
-        s3 = c2.number_input("ROGE", 1, 10, par)
-        s4 = c2.number_input("LALO", 1, 10, par)
+        s1 = c1.number_input("MANUEL", 1, 10, par, key="s1")
+        s2 = c1.number_input("JOSE", 1, 10, par, key="s2")
+        s3 = c2.number_input("ROGE", 1, 10, par, key="s3")
+        s4 = c2.number_input("LALO", 1, 10, par, key="s4")
         
         if st.button("➕ Anotar Hoyo"):
             pa, pb, minc, binc, einc = calcular_puntos_hoyo(s1, s2, s3, s4, m['hoyo'])
@@ -112,8 +112,8 @@ elif menu == "Jugar Partido":
             
         st.divider()
         col_res1, col_res2 = st.columns(2)
-        col_res1.metric("M&J", f"{m['score_mj']} pts")
-        col_res2.metric("R&L", f"{m['score_rl']} pts")
+        col_res1.metric("M&J Today", f"{m['score_mj']} pts")
+        col_res2.metric("R&L Today", f"{m['score_rl']} pts")
         
         st.subheader("🔥 MVP de la Jornada")
         df_hoy = pd.DataFrame([m['mvp']]).T.reset_index()
@@ -123,8 +123,8 @@ elif menu == "Jugar Partido":
         if st.button("💾 Finalizar y Guardar Match"):
             cur = conn.cursor()
             p_mj, p_rl = (1.0, 0.0) if m['score_mj'] > m['score_rl'] else (0.0, 1.0) if m['score_rl'] > m['score_mj'] else (0.5, 0.5)
-            cur.execute("INSERT OR IGNORE INTO temporadas_global VALUES ('MANUEL_JOSE', ?, 0)", (anio_actual,))
-            cur.execute("INSERT OR IGNORE INTO temporadas_global VALUES ('ROGE_LALO', ?, 0)", (anio_actual,))
+            cur.execute("INSERT OR IGNORE INTO temporadas_global (equipo, anio, puntos_ganados) VALUES ('MANUEL_JOSE', ?, 0)", (anio_actual,))
+            cur.execute("INSERT OR IGNORE INTO temporadas_global (equipo, anio, puntos_ganados) VALUES ('ROGE_LALO', ?, 0)", (anio_actual,))
             cur.execute("""INSERT INTO historial (fecha, anio, res_mj, res_rl, puntos_temp_mj, puntos_temp_rl, mvp, p1_inc, p2_inc, p3_inc, p4_inc, b1_inc, b2_inc, b3_inc, b4_inc, e1_inc, e2_inc, e3_inc, e4_inc) 
                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                         (datetime.now().strftime("%d/%m/%Y"), anio_actual, m['score_mj'], m['score_rl'], p_mj, p_rl, max(m['mvp'], key=m['mvp'].get), m['mvp']["MANUEL"], m['mvp']["JOSE"], m['mvp']["ROGE"], m['mvp']["LALO"], m['birdies']["MANUEL"], m['birdies']["JOSE"], m['birdies']["ROGE"], m['birdies']["LALO"], m['eagles']["MANUEL"], m['eagles']["JOSE"], m['eagles']["ROGE"], m['eagles']["LALO"]))
@@ -133,7 +133,7 @@ elif menu == "Jugar Partido":
             for p in ["MANUEL", "JOSE", "ROGE", "LALO"]:
                 cur.execute("INSERT OR IGNORE INTO jugadores (nombre, anio, puntos_mvp, birdies_totales, eagles_totales) VALUES (?,?,0,0,0)", (p, anio_actual))
                 cur.execute("UPDATE jugadores SET puntos_mvp = puntos_mvp + ?, birdies_totales = birdies_totales + ?, eagles_totales = eagles_totales + ? WHERE nombre = ? AND anio = ?", (m['mvp'][p], m['birdies'][p], m['eagles'][p], p, anio_actual))
-            conn.commit(); del st.session_state.match; st.success("¡Partido Guardado!"); st.rerun()
+            conn.commit(); del st.session_state.match; st.success("¡Guardado!"); st.rerun()
 
 elif menu == "Historial":
     st.header(f"📅 Partidos de {anio_actual}")
@@ -141,7 +141,26 @@ elif menu == "Historial":
     if not df_h.empty:
         df_h['Temp M/J'] = df_h['Temp M/J'].map('{:.1f}'.format); df_h['Temp R/L'] = df_h['Temp R/L'].map('{:.1f}'.format)
         st.table(df_h)
+    else:
+        st.info("No hay partidos en este año.")
 
 elif menu == "Administración":
     st.header("⚙️ Administración")
-    df_hist = pd.read_sql_query(f"SELECT id, fecha, res_mj, res_rl FROM historial WHERE anio = {anio_actual
+    df_hist = pd.read_sql_query(f"SELECT id, fecha, res_mj, res_rl FROM historial WHERE anio = {anio_actual} ORDER BY id DESC", conn)
+    if not df_hist.empty:
+        opciones = {row['id']: f"ID: {row['id']} | {row['fecha']} | MJ: {row['res_mj']} - RL: {row['res_rl']}" for index, row in df_hist.iterrows()}
+        seleccion_id = st.selectbox("Borrar partido:", options=list(opciones.keys()), format_func=lambda x: opciones[x])
+        if st.button("🗑️ Eliminar"):
+            cur = conn.cursor()
+            datos = pd.read_sql_query(f"SELECT * FROM historial WHERE id = {seleccion_id}", conn).iloc[0]
+            cur.execute("UPDATE temporadas_global SET puntos_ganados = puntos_ganados - ? WHERE equipo = 'MANUEL_JOSE' AND anio = ?", (float(datos['puntos_temp_mj']), anio_actual))
+            cur.execute("UPDATE temporadas_global SET puntos_ganados = puntos_ganados - ? WHERE equipo = 'ROGE_LALO' AND anio = ?", (float(datos['puntos_temp_rl']), anio_actual))
+            nombres = ["MANUEL", "JOSE", "ROGE", "LALO"]
+            for i, p in enumerate(nombres):
+                cur.execute(f"UPDATE jugadores SET puntos_mvp = puntos_mvp - ?, birdies_totales = birdies_totales - ?, eagles_totales = eagles_totales - ? WHERE nombre = ? AND anio = ?", (int(datos[f'p{i+1}_inc']), int(datos[f'b{i+1}_inc']), int(datos[f'e{i+1}_inc']), p, anio_actual))
+            cur.execute("DELETE FROM historial WHERE id = ?", (seleccion_id,))
+            conn.commit()
+            st.success("Eliminado correctamente.")
+            st.rerun()
+    else:
+        st.info("Nada que borrar.")
