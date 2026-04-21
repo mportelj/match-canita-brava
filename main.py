@@ -1,6 +1,6 @@
 import streamlit as st
 import sqlite3
-import pd
+import pandas as pd
 from datetime import datetime
 
 # --- CONFIGURACIÓN OFICIAL GOLF RÍA DE VIGO ---
