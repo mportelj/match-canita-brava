@@ -15,19 +15,18 @@ def get_connection():
 def init_db():
     conn = get_connection()
     c = conn.cursor()
-    # Tabla de jugadores con Puntos, Birdies y Eagles
     c.execute('''CREATE TABLE IF NOT EXISTS jugadores 
                  (nombre TEXT PRIMARY KEY, puntos_mvp INTEGER DEFAULT 0, 
                   birdies_totales INTEGER DEFAULT 0, eagles_totales INTEGER DEFAULT 0)''')
-    # Tabla de clasificación general
     c.execute('''CREATE TABLE IF NOT EXISTS temporada 
                  (equipo TEXT PRIMARY KEY, puntos_ganados REAL DEFAULT 0)''')
-    # Tabla de historial
     c.execute('''CREATE TABLE IF NOT EXISTS historial 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, res_mj INTEGER, res_rl INTEGER, 
-                  puntos_temporada_mj REAL, puntos_temporada_rl REAL, mvp TEXT)''')
+                  puntos_temporada_mj REAL, puntos_temporada_rl REAL, mvp TEXT,
+                  p1_inc INTEGER, p2_inc INTEGER, p3_inc INTEGER, p4_inc INTEGER,
+                  b1_inc INTEGER, b2_inc INTEGER, b3_inc INTEGER, b4_inc INTEGER,
+                  e1_inc INTEGER, e2_inc INTEGER, e3_inc INTEGER, e4_inc INTEGER)''')
     
-    # Marcador acumulado inicial 3.5 - 3.5
     c.execute("SELECT COUNT(*) FROM temporada")
     if c.fetchone()[0] == 0:
         c.execute("INSERT INTO temporada VALUES ('MANUEL_JOSE', 3.5)")
@@ -46,7 +45,6 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
     b_a, w_a = (s1, s2) if s1 <= s2 else (s2, s1)
     b_b, w_b = (s3, s4) if s3 <= s4 else (s4, s3)
 
-    # Mejor Bola (+2 MVP)
     if b_a < b_b: 
         pts_a += 1
         mvp_inc["MANUEL" if s1 == b_a else "JOSE"] += 2
@@ -54,7 +52,6 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
         pts_b += 1
         mvp_inc["ROGE" if s3 == b_b else "LALO"] += 2
 
-    # Peor Bola (+1 MVP)
     if w_a < w_b: 
         pts_a += 1
         mvp_inc["MANUEL" if s1 == w_a else "JOSE"] += 1
@@ -62,15 +59,14 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
         pts_b += 1
         mvp_inc["ROGE" if s3 == w_b else "LALO"] += 1
 
-    # Bonos Calidad
     js = ["MANUEL", "JOSE", "ROGE", "LALO"]
     for i, s in enumerate([s1, s2, s3, s4]):
-        if s == par - 1: # BIRDIE
+        if s == par - 1:
             mvp_inc[js[i]] += 1
             birdies_inc[js[i]] += 1
             if i < 2: pts_a += 1
             else: pts_b += 1
-        elif s <= par - 2: # EAGLE
+        elif s <= par - 2:
             mvp_inc[js[i]] += 2
             eagles_inc[js[i]] += 1
             if i < 2: pts_a += 2
@@ -82,7 +78,7 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
 st.set_page_config(page_title="MATCH CAÑITA BRAVA 2026", page_icon="🍺")
 st.title("🍺 MATCH CAÑITA BRAVA 2026")
 
-menu = st.sidebar.radio("Ir a:", ["Marcador Temporada", "Jugar Partido", "Historial"])
+menu = st.sidebar.radio("Ir a:", ["Marcador Temporada", "Jugar Partido", "Historial", "Administración"])
 
 if menu == "Marcador Temporada":
     st.header("🏆 Clasificación General 2026")
@@ -91,7 +87,6 @@ if menu == "Marcador Temporada":
     st.table(df_temp)
     
     st.subheader("🥇 Ranking MVP")
-    # Ordenado por Puntos, luego Eagles, luego Birdies
     df_mvp = pd.read_sql_query("""SELECT nombre as Jugador, puntos_mvp as Puntos, 
                                   eagles_totales as Eagles, birdies_totales as Birdies 
                                   FROM jugadores 
@@ -136,30 +131,3 @@ elif menu == "Jugar Partido":
 
         if st.button("💾 Finalizar y Guardar"):
             conn = get_connection()
-            cur = conn.cursor()
-            p_mj, p_rl = (1.0, 0.0) if m['score_mj'] > m['score_rl'] else (0.0, 1.0) if m['score_rl'] > m['score_mj'] else (0.5, 0.5)
-            
-            mvp_win = max(m['mvp'], key=m['mvp'].get)
-            cur.execute("UPDATE temporada SET puntos_ganados = puntos_ganados + ? WHERE equipo = 'MANUEL_JOSE'", (p_mj,))
-            cur.execute("UPDATE temporada SET puntos_ganados = puntos_ganados + ? WHERE equipo = 'ROGE_LALO'", (p_rl,))
-            cur.execute("INSERT INTO historial (fecha, res_mj, res_rl, puntos_temporada_mj, puntos_temporada_rl, mvp) VALUES (?,?,?,?,?,?)",
-                      (datetime.now().strftime("%d/%m/%Y"), m['score_mj'], m['score_rl'], p_mj, p_rl, mvp_win))
-            
-            for p in ["MANUEL", "JOSE", "ROGE", "LALO"]:
-                cur.execute("INSERT OR IGNORE INTO jugadores (nombre) VALUES (?,0,0,0)", (p,))
-                cur.execute("""UPDATE jugadores SET puntos_mvp = puntos_mvp + ?, 
-                               birdies_totales = birdies_totales + ?, 
-                               eagles_totales = eagles_totales + ? 
-                               WHERE nombre = ?""", (m['mvp'][p], m['birdies'][p], m['eagles'][p], p))
-            
-            conn.commit()
-            del st.session_state.match
-            st.success(f"Partido guardado. Puntos temporada: M&J {p_mj:.1f} - R&L {p_rl:.1f}")
-            st.balloons()
-
-elif menu == "Historial":
-    st.header("📅 Historial Temporada 2026")
-    df_h = pd.read_sql_query("SELECT fecha as Fecha, res_mj as 'Hoy M/J', res_rl as 'Hoy R/L', puntos_temporada_mj as 'Temp M/J', puntos_temporada_rl as 'Temp R/L', mvp as MVP FROM historial ORDER BY id DESC", get_connection())
-    df_h['Temp M/J'] = df_h['Temp M/J'].map('{:.1f}'.format)
-    df_h['Temp R/L'] = df_h['Temp R/L'].map('{:.1f}'.format)
-    st.table(df_h)
