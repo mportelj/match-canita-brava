@@ -1,6 +1,6 @@
 import streamlit as st
 import sqlite3
-import pandas as pd
+import pd
 from datetime import datetime
 
 # --- CONFIGURACIÓN OFICIAL GOLF RÍA DE VIGO ---
@@ -14,8 +14,11 @@ PAREJA_A = ["MANUEL", "JOSE"]
 PAREJA_B = ["ROGE", "LALO"]
 TODOS = PAREJA_A + PAREJA_B
 
+# PUNTUACIÓN HISTÓRICA (Enero - Abril)
+HISTORICO_PUNTOS = 3.5
+
 def get_connection():
-    return sqlite3.connect('canita_brava_final.db', check_same_thread=False)
+    return sqlite3.connect('canita_brava_v5.db', check_same_thread=False)
 
 def init_db():
     conn = get_connection()
@@ -67,36 +70,36 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
 
 # --- INTERFAZ ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="🍻")
-
-# TÍTULO SIEMPRE VISIBLE
 st.title("🍻 CAÑITA BRAVA")
 
 menu = st.sidebar.radio("Ir a:", ["Inicio (Estadísticas)", "Anotar Partido", "Historial Detallado"])
 
 if menu == "Inicio (Estadísticas)":
     conn = get_connection()
+    st.subheader("📊 Balance de Temporada (Desde Enero)")
     
-    # 1. RESUMEN ACUMULADO MATCH
-    st.subheader("📊 Balance de Temporada")
+    # Cálculo de victorias desde la base de datos
     df_h = pd.read_sql_query("SELECT resultado_a, resultado_b FROM historial", conn)
+    wins_a_db = len(df_h[df_h['resultado_a'] > df_h['resultado_b']])
+    wins_b_db = len(df_h[df_h['resultado_b'] > df_h['resultado_a']])
     
-    wins_a = len(df_h[df_h['resultado_a'] > df_h['resultado_b']])
-    wins_b = len(df_h[df_h['resultado_b'] > df_h['resultado_a']])
-    empates = len(df_h[df_h['resultado_a'] == df_h['resultado_b']])
+    # Suma del histórico 3.5 vs 3.5
+    total_a = HISTORICO_PUNTOS + wins_a_db
+    total_b = HISTORICO_PUNTOS + wins_b_db
     
-    c1, c2, c3 = st.columns(3)
-    c1.metric("MANUEL & JOSE", f"{wins_a} Vict.")
-    c2.metric("ROGE & LALO", f"{wins_b} Vict.")
-    c3.metric("Empates", empates)
+    c1, c2 = st.columns(2)
+    c1.metric("MANUEL & JOSE", f"{total_a} Pts", delta=f"+{wins_a_db} desde app" if wins_a_db > 0 else None)
+    c2.metric("ROGE & LALO", f"{total_b} Pts", delta=f"+{wins_b_db} desde app" if wins_b_db > 0 else None)
     
-    # 2. CLASIFICACIÓN MVP DETALLADA
-    st.subheader("🏆 Ranking MVP")
+    st.info(f"Puntuación base inicial: 3,5 - 3,5 (Enero-Abril)")
+
+    st.subheader("🏆 Ranking MVP Global")
     df_mvp = pd.read_sql_query("SELECT nombre as Jugador, partidos as PJ, puntos_mvp as Puntos FROM jugadores ORDER BY Puntos DESC", conn)
     st.table(df_mvp)
 
 elif menu == "Anotar Partido":
     if 'game' not in st.session_state:
-        st.subheader("Nueva Jornada en Ría de Vigo")
+        st.subheader("Nueva Jornada")
         salida = st.selectbox("Hoyo de inicio:", [1, 10])
         if st.button("🚀 Empezar Partido"):
             st.session_state.game = {
@@ -127,9 +130,15 @@ elif menu == "Anotar Partido":
             st.rerun()
 
         st.divider()
+        st.subheader("📊 Marcador del Partido")
         m1, m2 = st.columns(2)
         m1.metric("MANUEL & JOSE", g['score_a'])
         m2.metric("ROGE & LALO", g['score_b'])
+        
+        st.write("**⭐ Puntos MVP del día:**")
+        df_mvp_dia = pd.DataFrame([{"Jugador": p, "Puntos": pts} for p, pts in g['mvp'].items()]).sort_values(by="Puntos", ascending=False)
+        st.dataframe(df_mvp_dia, hide_index=True, use_container_width=True)
+
         if g['last_res']: st.success(g['last_res'])
 
         st.divider()
