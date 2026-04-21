@@ -71,7 +71,7 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
     return pts_a, pts_b, mvp_inc, birdies_inc, eagles_inc
 
 st.set_page_config(page_title="MATCH CAÑITA BRAVA", page_icon="🍺")
-st.title("🍺 Match CAÑITA BRAVA")
+st.title("🍺 CAÑITA BRAVA")
 anio_actual = st.sidebar.selectbox("Seleccionar Temporada:", [2026, 2027, 2028], index=0)
 menu = st.sidebar.radio("Ir a:", ["Marcador Temporada", "Jugar Partido", "Historial", "Administración"])
 conn = get_connection()
