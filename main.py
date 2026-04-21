@@ -12,7 +12,7 @@ TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
 HISTORICO_PUNTOS = 3.5
 
 def get_connection():
-    return sqlite3.connect('canita_brava_final_v5.db', check_same_thread=False)
+    return sqlite3.connect('canita_brava_final_v6.db', check_same_thread=False)
 
 def init_db():
     conn = get_connection()
@@ -31,57 +31,63 @@ init_db()
 
 def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
     par = PAR_RIA_VIGO[hoyo_num]
-    # 0 significa bola levantada -> Valor 99
-    v1 = s1 if s1 > 0 else 99
-    v2 = s2 if s2 > 0 else 99
-    v3 = s3 if s3 > 0 else 99
-    v4 = s4 if s4 > 0 else 99
-
-    pts_match_a, pts_match_b = 0.0, 0.0
-    mvp_inc = {"p1": 0.0, "p2": 0.0, "p3": 0.0, "p4": 0.0}
+    # Normalización de bola levantada (0 -> 99)
+    scores = [s1 if s1 > 0 else 99, s2 if s2 > 0 else 99, 
+              s3 if s3 > 0 else 99, s4 if s4 > 0 else 99]
     
+    v1, v2, v3, v4 = scores
     best_a, worst_a = (v1, v2) if v1 <= v2 else (v2, v1)
     best_b, worst_b = (v3, v4) if v3 <= v4 else (v4, v3)
     
-    # LÓGICA MATCH
+    pts_match_a, pts_match_b = 0.0, 0.0
+    mvp_inc = {"p1": 0.0, "p2": 0.0, "p3": 0.0, "p4": 0.0}
+
+    # --- LÓGICA MATCH (Bando contra Bando) ---
     if best_a < best_b: pts_match_a += 1.0
     elif best_b < best_a: pts_match_b += 1.0
+    
     if worst_a < worst_b: pts_match_a += 1.0
     elif worst_b < worst_a: pts_match_b += 1.0
 
-    # MVP - Mejor bola (1 solo / 0.5 empate)
-    if best_a < best_b and best_a != 99:
-        mvp_inc["p1" if v1 == best_a else "p2"] += 1.0
-    elif best_b < best_a and best_b != 99:
-        mvp_inc["p3" if v3 == best_b else "p4"] += 1.0
-    elif best_a == best_b and best_a != 99:
-        mvp_inc["p1" if v1 == best_a else "p2"] += 0.5
-        mvp_inc["p3" if v3 == best_b else "p4"] += 0.5
+    # --- LÓGICA MVP CORREGIDA (Suma a todos los empatados) ---
+    # 1. Mejor Bola Absoluta
+    min_golpe = min(scores)
+    if min_golpe != 99:
+        ganadores_mejor = [i for i, s in enumerate(scores) if s == min_golpe]
+        puntos_a_repartir = 1.0 if len(ganadores_mejor) == 1 else 0.5
+        for idx in ganadores_mejor:
+            mvp_inc[f"p{idx+1}"] += puntos_a_repartir
 
-    # MVP - Peor bola (0.5 solo / 0.25 empate)
-    if worst_a < worst_b and worst_a != 99:
-        mvp_inc["p1" if v1 == worst_a else "p2"] += 0.5
-    elif worst_b < worst_a and worst_b != 99:
-        mvp_inc["p3" if v3 == worst_b else "p4"] += 0.5
-    elif worst_a == worst_b and worst_a != 99:
-        mvp_inc["p1" if v1 == worst_a else "p2"] += 0.25
-        mvp_inc["p3" if v3 == worst_b else "p4"] += 0.25
+    # 2. Peor Bola (Comparación de las peores de cada bando)
+    min_peor = min(worst_a, worst_b)
+    if min_peor != 99:
+        # Identificamos quiénes de entre los 4 igualan el valor de la "mejor peor" bola
+        ganadores_peor = [i for i, s in enumerate(scores) if s == min_peor]
+        # IMPORTANTE: Solo sumamos si su bando ha ganado o empatado la peor bola
+        puntos_peor = 0.5 if (worst_a != worst_b) else 0.25
         
-    # Bonus Calidad
-    raw_scores = [s1, s2, s3, s4]
-    p_ids = ["p1", "p2", "p3", "p4"]
-    for i, s in enumerate(raw_scores):
+        # Repartimos a los jugadores del bando ganador (o ambos si empatan) que tengan ese score
+        if worst_a <= worst_b:
+            if v1 == worst_a: mvp_inc["p1"] += puntos_peor
+            if v2 == worst_a: mvp_inc["p2"] += puntos_peor
+        if worst_b <= worst_a:
+            if v3 == worst_b: mvp_inc["p3"] += puntos_peor
+            if v4 == worst_b: mvp_inc["p4"] += puntos_peor
+        
+    # --- BONUS CALIDAD ---
+    for i, s in enumerate([s1, s2, s3, s4]):
         if s > 0:
             bonus = 0.0
-            if s == par - 1: bonus = 1.0
-            elif s <= par - 2: bonus = 2.0
+            if s == par - 1: bonus = 1.0   # Birdie
+            elif s <= par - 2: bonus = 2.0 # Eagle
             if bonus > 0:
-                mvp_inc[p_ids[i]] += bonus
+                mvp_inc[f"p{i+1}"] += bonus
                 if i < 2: pts_match_a += bonus
                 else: pts_match_b += bonus
             
     return pts_match_a, pts_match_b, mvp_inc
 
+# --- INTERFAZ STREAMLIT ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳")
 st.title("⛳ CAÑITA BRAVA")
 
@@ -98,7 +104,6 @@ if menu == "Inicio":
     anios_db.sort(reverse=True)
     
     col_tit, col_sel = st.columns([2, 1])
-    # --- CAMBIO AQUÍ: De Estadísticas a RESULTADOS ---
     col_tit.subheader("📊 RESULTADOS") 
     temp_sel = col_sel.selectbox("Año", anios_db)
     st.divider()
