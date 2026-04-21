@@ -12,8 +12,7 @@ TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
 HISTORICO_PUNTOS = 3.5
 
 def get_connection():
-    # Actualizado a v10 para asegurar que los cambios de estructura previos se mantengan
-    return sqlite3.connect('canita_brava_v10.db', check_same_thread=False)
+    return sqlite3.connect('canita_brava_v11.db', check_same_thread=False)
 
 def init_db():
     conn = get_connection()
@@ -66,7 +65,6 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳")
 st.title("⛳ CAÑITA BRAVA")
 
-# --- CAMBIO DE TEXTOS EN EL MENÚ ---
 menu = st.sidebar.radio("Menú", ["Inicio", "Jugar Partido", "Admin"])
 
 if menu == "Inicio":
@@ -87,52 +85,67 @@ if menu == "Inicio":
     wins_a = len(df_h[df_h['resultado_a'] > df_h['resultado_b']])
     wins_b = len(df_h[df_h['resultado_b'] > df_h['resultado_a']])
     
-    st.write(f"**Balance Match {temp_seleccionada}:**")
     c1, c2 = st.columns(2)
     c1.metric("MANUEL & JOSE", f"{HISTORICO_PUNTOS + wins_a} Pts")
     c2.metric("ROGE & LALO", f"{HISTORICO_PUNTOS + wins_b} Pts")
     
     st.subheader(f"🏆 Ranking MVP {temp_seleccionada}")
     df_mvp = pd.read_sql_query(f"SELECT nombre as Jugador, partidos as PJ, puntos_mvp as Puntos FROM puntos_anuales WHERE temporada = '{temp_seleccionada}' ORDER BY Puntos DESC", conn)
-    
     if not df_mvp.empty:
         st.table(df_mvp)
-    else:
-        st.info(f"No hay registros para la temporada {temp_seleccionada}.")
 
 elif menu == "Jugar Partido":
     if 'game' not in st.session_state:
         st.subheader("Datos del Partido")
-        # Formato de visualización de fecha dd/mm/aaaa en el selector
         f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
-        h = st.selectbox("Inicio:", [1, 10])
         if st.button("🚀 Iniciar"):
-            st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'temp': str(f.year), 'hoyo': h, 'logs': {}}
+            st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'temp': str(f.year), 'hoyo_seleccionado': 1, 'logs': {}}
             st.rerun()
     else:
         g = st.session_state.game
+        
+        # --- NAVEGACIÓN ENTRE HOYOS ---
+        st.subheader("Seleccionar hoyo a anotar/editar")
+        h_opciones = list(range(1, 19))
+        # Formateamos las opciones para saber cuáles están listos
+        h_labels = [f"Hoyo {h} {'✅' if h in g['logs'] else ''}" for h in h_opciones]
+        
+        col_nav, col_vacia = st.columns([2, 1])
+        h_idx = g['hoyo_seleccionado'] - 1
+        nuevo_hoyo = col_nav.selectbox("Hoyo:", h_opciones, format_func=lambda x: f"Hoyo {x} {'✅' if x in g['logs'] else ''}", index=h_idx)
+        
+        if nuevo_hoyo != g['hoyo_seleccionado']:
+            g['hoyo_seleccionado'] = nuevo_hoyo
+            st.rerun()
+
+        # Marcador en vivo recalca totales
         cur_match_a = sum(v['pts'][0] for v in g['logs'].values())
         cur_match_b = sum(v['pts'][1] for v in g['logs'].values())
         cur_mvp = {p: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i, p in enumerate(TODOS)}
         
-        st.markdown(f"### Hoyo {g['hoyo']} (Par {PAR_RIA_VIGO[g['hoyo']]})")
+        st.markdown(f"### Editando Hoyo {g['hoyo_seleccionado']} (Par {PAR_RIA_VIGO[g['hoyo_seleccionado']]})")
         m1, m2 = st.columns(2)
         m1.metric("M&J", cur_match_a)
         m2.metric("R&L", cur_match_b)
         
+        # Cargar valores si ya existen
+        val_default = g['logs'][g['hoyo_seleccionado']]['s'] if g['hoyo_seleccionado'] in g['logs'] else [PAR_RIA_VIGO[g['hoyo_seleccionado']]]*4
+
         with st.container(border=True):
-            # --- CAMBIO DE TEXTO: INTRODUCIR GOLPES ---
             st.write("**Introducir golpes:**")
             c = st.columns(4)
-            s1 = c[0].number_input("MANUEL", 1, 10, PAR_RIA_VIGO[g['hoyo']])
-            s2 = c[1].number_input("JOSE", 1, 10, PAR_RIA_VIGO[g['hoyo']])
-            s3 = c[2].number_input("ROGE", 1, 10, PAR_RIA_VIGO[g['hoyo']])
-            s4 = c[3].number_input("LALO", 1, 10, PAR_RIA_VIGO[g['hoyo']])
+            s1 = c[0].number_input("MANUEL", 1, 10, val_default[0])
+            s2 = c[1].number_input("JOSE", 1, 10, val_default[1])
+            s3 = c[2].number_input("ROGE", 1, 10, val_default[2])
+            s4 = c[3].number_input("LALO", 1, 10, val_default[3])
             
-            if st.button("🎯 Confirmar Hoyo", use_container_width=True):
-                pa, pb, mi = calcular_puntos_hoyo(s1, s2, s3, s4, g['hoyo'])
-                g['logs'][g['hoyo']] = {'s': [s1, s2, s3, s4], 'pts': (pa, pb), 'mvp': mi}
-                g['hoyo'] = g['hoyo'] + 1 if g['hoyo'] < 18 else 1
+            txt_boton = "Actualizar Hoyo" if g['hoyo_seleccionado'] in g['logs'] else "Confirmar Hoyo"
+            if st.button(txt_boton, use_container_width=True, type="primary"):
+                pa, pb, mi = calcular_puntos_hoyo(s1, s2, s3, s4, g['hoyo_seleccionado'])
+                g['logs'][g['hoyo_seleccionado']] = {'s': [s1, s2, s3, s4], 'pts': (pa, pb), 'mvp': mi}
+                # Saltar al siguiente automáticamente si es nuevo
+                if g['hoyo_seleccionado'] < 18:
+                    g['hoyo_seleccionado'] += 1
                 st.rerun()
 
         if g['logs']:
@@ -140,7 +153,7 @@ elif menu == "Jugar Partido":
             df_live_mvp = pd.DataFrame([{"Jugador": p, "Puntos": cur_mvp[p]} for p in TODOS]).sort_values(by="Puntos", ascending=False)
             st.dataframe(df_live_mvp, hide_index=True, use_container_width=True)
 
-            if st.button("💾 GUARDAR Y FINALIZAR PARTIDO", type="primary", use_container_width=True):
+            if st.button("💾 GUARDAR Y FINALIZAR PARTIDO", use_container_width=True):
                 conn = get_connection()
                 cur = conn.cursor()
                 mvp_win = max(cur_mvp, key=cur_mvp.get)
@@ -156,16 +169,11 @@ elif menu == "Jugar Partido":
 
 elif menu == "Admin":
     conn = get_connection()
-    st.subheader("⚙️ Administración de Partidos")
+    st.subheader("⚙️ Administración")
     df = pd.read_sql_query("SELECT * FROM historial ORDER BY id DESC", conn)
-    
-    if df.empty:
-        st.write("No hay partidos registrados.")
-    
     for index, row in df.iterrows():
-        # La fecha ya se guarda como dd/mm/aaaa en el proceso de guardado
         with st.expander(f"📅 {row['fecha']} | M&J {row['resultado_a']} - {row['resultado_b']} R&L"):
-            st.write(f"**MVP:** {row['mvp']} | Año: {row['temporada']}")
+            st.write(f"**MVP:** {row['mvp']}")
             if st.button(f"🗑️ Eliminar Partido", key=f"del_{row['id']}"):
                 cur = conn.cursor()
                 pts_map = {"MANUEL": row['p1_pts'], "JOSE": row['p2_pts'], "ROGE": row['p3_pts'], "LALO": row['p4_pts']}
