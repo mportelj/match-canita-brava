@@ -128,4 +128,23 @@ elif menu == "Historial":
         df_h['Temp M/J'] = df_h['Temp M/J'].map('{:.1f}'.format); df_h['Temp R/L'] = df_h['Temp R/L'].map('{:.1f}'.format)
         st.table(df_h)
 
-elif menu == "Administración";
+elif menu == "Administración":
+    st.header("⚙️ Administración")
+    df_hist = pd.read_sql_query(f"SELECT id, fecha, res_mj, res_rl FROM historial WHERE anio = {anio_actual} ORDER BY id DESC", conn)
+    if not df_hist.empty:
+        opciones = {row['id']: f"ID: {row['id']} | {row['fecha']} | MJ: {row['res_mj']} - RL: {row['res_rl']}" for index, row in df_hist.iterrows()}
+        seleccion_id = st.selectbox("Borrar partido:", options=list(opciones.keys()), format_func=lambda x: opciones[x])
+        if st.button("🗑️ Eliminar"):
+            cur = conn.cursor()
+            datos = pd.read_sql_query(f"SELECT * FROM historial WHERE id = {seleccion_id}", conn).iloc[0]
+            cur.execute("UPDATE temporadas_global SET puntos_ganados = puntos_ganados - ? WHERE equipo = 'MANUEL_JOSE' AND anio = ?", (float(datos['puntos_temp_mj']), anio_actual))
+            cur.execute("UPDATE temporadas_global SET puntos_ganados = puntos_ganados - ? WHERE equipo = 'ROGE_LALO' AND anio = ?", (float(datos['puntos_temp_rl']), anio_actual))
+            nombres = ["MANUEL", "JOSE", "ROGE", "LALO"]
+            for i, p in enumerate(nombres):
+                cur.execute(f"UPDATE jugadores SET puntos_mvp = puntos_mvp - ?, birdies_totales = birdies_totales - ?, eagles_totales = eagles_totales - ? WHERE nombre = ? AND anio = ?", (int(datos[f'p{i+1}_inc']), int(datos[f'b{i+1}_inc']), int(datos[f'e{i+1}_inc']), p, anio_actual))
+            cur.execute("DELETE FROM historial WHERE id = ?", (seleccion_id,))
+            conn.commit()
+            st.success("Partido eliminado correctamente.")
+            st.rerun()
+    else:
+        st.info("No hay partidos registrados en esta temporada para borrar.")
