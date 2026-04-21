@@ -128,4 +128,4 @@ elif menu == "Historial":
         df_h['Temp M/J'] = df_h['Temp M/J'].map('{:.1f}'.format); df_h['Temp R/L'] = df_h['Temp R/L'].map('{:.1f}'.format)
         st.table(df_h)
 
-elif menu == "Administración"
+elif menu == "Administración";
