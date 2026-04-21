@@ -12,7 +12,7 @@ TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
 HISTORICO_PUNTOS = 3.5
 
 def get_connection():
-    return sqlite3.connect('canita_brava_final_v3.db', check_same_thread=False)
+    return sqlite3.connect('canita_brava_final_v4.db', check_same_thread=False)
 
 def init_db():
     conn = get_connection()
@@ -31,44 +31,55 @@ init_db()
 
 def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
     par = PAR_RIA_VIGO[hoyo_num]
+    # Si s=0 significa que levantó bola. Le asignamos 99 para que no gane comparaciones.
+    v1 = s1 if s1 > 0 else 99
+    v2 = s2 if s2 > 0 else 99
+    v3 = s3 if s3 > 0 else 99
+    v4 = s4 if s4 > 0 else 99
+
     pts_match_a, pts_match_b = 0.0, 0.0
     mvp_inc = {"p1": 0.0, "p2": 0.0, "p3": 0.0, "p4": 0.0}
     
-    best_a, worst_a = (s1, s2) if s1 <= s2 else (s2, s1)
-    best_b, worst_b = (s3, s4) if s3 <= s4 else (s4, s3)
+    best_a, worst_a = (v1, v2) if v1 <= v2 else (v2, v1)
+    best_b, worst_b = (v3, v4) if v3 <= v4 else (v4, v3)
     
-    # MATCH (Puntos enteros)
+    # MATCH (Solo si no son 99)
     if best_a < best_b: pts_match_a += 1.0
     elif best_b < best_a: pts_match_b += 1.0
+    
     if worst_a < worst_b: pts_match_a += 1.0
     elif worst_b < worst_a: pts_match_b += 1.0
 
-    # MVP (Con decimales por empates)
-    if best_a < best_b:
-        mvp_inc["p1" if s1 == best_a else "p2"] += 1.0
-    elif best_b < best_a:
-        mvp_inc["p3" if s3 == best_b else "p4"] += 1.0
-    else: 
-        mvp_inc["p1" if s1 == best_a else "p2"] += 0.5
-        mvp_inc["p3" if s3 == best_b else "p4"] += 0.5
+    # MVP - Mejor bola
+    if best_a < best_b and best_a != 99:
+        mvp_inc["p1" if v1 == best_a else "p2"] += 1.0
+    elif best_b < best_a and best_b != 99:
+        mvp_inc["p3" if v3 == best_b else "p4"] += 1.0
+    elif best_a == best_b and best_a != 99:
+        mvp_inc["p1" if v1 == best_a else "p2"] += 0.5
+        mvp_inc["p3" if v3 == best_b else "p4"] += 0.5
 
-    if worst_a < worst_b:
-        mvp_inc["p1" if s1 == worst_a else "p2"] += 0.5
-    elif worst_b < worst_a:
-        mvp_inc["p3" if s3 == worst_b else "p4"] += 0.5
-    else:
-        mvp_inc["p1" if s1 == worst_a else "p2"] += 0.25
-        mvp_inc["p3" if s3 == worst_b else "p4"] += 0.25
+    # MVP - Peor bola
+    if worst_a < worst_b and worst_a != 99:
+        mvp_inc["p1" if v1 == worst_a else "p2"] += 0.5
+    elif worst_b < worst_a and worst_b != 99:
+        mvp_inc["p3" if v3 == worst_b else "p4"] += 0.5
+    elif worst_a == worst_b and worst_a != 99:
+        mvp_inc["p1" if v1 == worst_a else "p2"] += 0.25
+        mvp_inc["p3" if v3 == worst_b else "p4"] += 0.25
         
-    for i, s in enumerate([s1, s2, s3, s4]):
-        p_id = ["p1", "p2", "p3", "p4"][i]
-        bonus = 0.0
-        if s == par - 1: bonus = 1.0
-        elif s <= par - 2: bonus = 2.0
-        if bonus > 0:
-            mvp_inc[p_id] += bonus
-            if i < 2: pts_match_a += bonus
-            else: pts_match_b += bonus
+    # Bonus Calidad (Solo si el score es real)
+    raw_scores = [s1, s2, s3, s4]
+    p_ids = ["p1", "p2", "p3", "p4"]
+    for i, s in enumerate(raw_scores):
+        if s > 0:
+            bonus = 0.0
+            if s == par - 1: bonus = 1.0
+            elif s <= par - 2: bonus = 2.0
+            if bonus > 0:
+                mvp_inc[p_ids[i]] += bonus
+                if i < 2: pts_match_a += bonus
+                else: pts_match_b += bonus
             
     return pts_match_a, pts_match_b, mvp_inc
 
@@ -81,8 +92,7 @@ if menu == "Inicio":
     conn = get_connection()
     try:
         anios_db = pd.read_sql_query("SELECT DISTINCT temporada FROM historial", conn)['temporada'].tolist()
-    except:
-        anios_db = []
+    except: anios_db = []
     
     anio_actual_str = str(datetime.now().year)
     if anio_actual_str not in anios_db: anios_db.append(anio_actual_str)
@@ -90,7 +100,7 @@ if menu == "Inicio":
     
     col_tit, col_sel = st.columns([2, 1])
     col_tit.subheader("📊 Estadísticas")
-    temp_sel = col_sel.selectbox("Seleccionar Año", anios_db, index=0)
+    temp_sel = col_sel.selectbox("Año", anios_db)
     st.divider()
 
     df_h = pd.read_sql_query(f"SELECT resultado_a, resultado_b FROM historial WHERE temporada = '{temp_sel}'", conn)
@@ -103,72 +113,57 @@ if menu == "Inicio":
     
     df_mvp = pd.read_sql_query(f"SELECT nombre as Jugador, partidos as PJ, puntos_mvp as Puntos FROM puntos_anuales WHERE temporada = '{temp_sel}' ORDER BY Puntos DESC", conn)
     st.subheader(f"🏆 Ranking MVP {temp_sel}")
-    if not df_mvp.empty:
-        st.table(df_mvp)
-    else:
-        st.info("No hay datos todavía.")
+    if not df_mvp.empty: st.table(df_mvp)
     conn.close()
 
 elif menu == "Jugar Partido":
     if 'game' not in st.session_state:
-        st.subheader("Datos del Partido")
+        st.subheader("Nuevo Partido")
         f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
         if st.button("🚀 Iniciar"):
             st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'temp': str(f.year), 'h_sel': 1, 'logs': {}}
             st.rerun()
     else:
         g = st.session_state.game
-        h_opciones = list(range(1, 19))
         h_idx = g.get('h_sel', 1) - 1
-        nuevo_h = st.selectbox("Hoyo:", h_opciones, format_func=lambda x: f"Hoyo {x} {'✅' if x in g['logs'] else ''}", index=h_idx)
+        nuevo_h = st.selectbox("Hoyo:", list(range(1, 19)), format_func=lambda x: f"Hoyo {x} {'✅' if x in g['logs'] else ''}", index=h_idx)
         
         if nuevo_h != g.get('h_sel'):
             g['h_sel'] = nuevo_h
             st.rerun()
 
-        # CÁLCULOS
         total_match_a = sum(v['pts'][0] for v in g['logs'].values())
         total_match_b = sum(v['pts'][1] for v in g['logs'].values())
-        diff = int(total_match_a - total_match_b) # Sin decimales para visualización
+        diff = int(total_match_a - total_match_b)
         
-        puntos_hoyo_a = g['logs'][g['h_sel']]['pts'][0] if g['h_sel'] in g['logs'] else 0.0
-        puntos_hoyo_b = g['logs'][g['h_sel']]['pts'][1] if g['h_sel'] in g['logs'] else 0.0
-
-        st.markdown(f"### Hoyo {g.get('h_sel')} (Par {PAR_RIA_VIGO[g.get('h_sel')]})")
+        st.markdown(f"### Hoyo {g['h_sel']} (Par {PAR_RIA_VIGO[g['h_sel']]})")
         
-        # 1. RESULTADO DEL MATCH (ARRIBA Y SIN DECIMALES)
-        st.markdown("#### 🏆 Resultado del Match")
         c_m1, c_m2 = st.columns(2)
         c_m1.metric("M&J", f"+{diff}" if diff > 0 else "0")
         c_m2.metric("R&L", f"+{abs(diff)}" if diff < 0 else "0")
-        st.caption("Empatados" if diff == 0 else ("M&J lidera" if diff > 0 else "R&L lidera"))
-
-        # 2. RESULTADO DEL HOYO (DEBAJO)
-        st.markdown("#### ⛳ Resultado Hoyo Actual")
-        c_h1, c_h2 = st.columns(2)
-        c_h1.write(f"M&J: **{puntos_hoyo_a}**")
-        c_h2.write(f"R&L: **{puntos_hoyo_b}**")
 
         val_def = g['logs'][g['h_sel']]['s'] if g['h_sel'] in g['logs'] else [PAR_RIA_VIGO[g['h_sel']]]*4
+        
         with st.container(border=True):
-            st.write("**Introducir golpes:**")
+            st.write("Golpes (0 = '-')")
             c = st.columns(4)
-            s1 = c[0].number_input("MANUEL", 1, 10, val_def[0])
-            s2 = c[1].number_input("JOSE", 1, 10, val_def[1])
-            s3 = c[2].number_input("ROGE", 1, 10, val_def[2])
-            s4 = c[3].number_input("LALO", 1, 10, val_def[3])
+            # Usamos 0 como valor para representar "-"
+            s1 = c[0].number_input("MANUEL", 0, 10, val_def[0])
+            s2 = c[1].number_input("JOSE", 0, 10, val_def[1])
+            s3 = c[2].number_input("ROGE", 0, 10, val_def[2])
+            s4 = c[3].number_input("LALO", 0, 10, val_def[3])
             
-            if st.button("Confirmar/Actualizar Hoyo", use_container_width=True, type="primary"):
+            if st.button("Confirmar Hoyo", use_container_width=True, type="primary"):
                 pa, pb, mi = calcular_puntos_hoyo(s1, s2, s3, s4, g['h_sel'])
                 g['logs'][g['h_sel']] = {'s': [s1, s2, s3, s4], 'pts': (pa, pb), 'mvp': mi}
                 if g['h_sel'] < 18: g['h_sel'] += 1
                 st.rerun()
 
         if g['logs']:
-            st.subheader("⭐ MVP del Partido")
+            st.subheader("⭐ MVP")
             cur_mvp = {p: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i, p in enumerate(TODOS)}
-            df_live_mvp = pd.DataFrame([{"Jugador": p, "Puntos": cur_mvp[p]} for p in TODOS]).sort_values(by="Puntos", ascending=False)
-            st.table(df_live_mvp)
+            df_live = pd.DataFrame([{"Jugador": p, "Puntos": cur_mvp[p]} for p in TODOS]).sort_values(by="Puntos", ascending=False)
+            st.table(df_live)
 
             if st.button("💾 GUARDAR PARTIDO", use_container_width=True):
                 conn = get_connection()
@@ -200,6 +195,5 @@ elif menu == "Admin":
                     cur.execute("DELETE FROM historial WHERE id = ?", (row['id'],))
                     conn.commit()
                     st.rerun()
-    except:
-        st.write("Historial vacío.")
+    except: st.write("Vacío")
     conn.close()
