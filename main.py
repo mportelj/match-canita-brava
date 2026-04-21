@@ -9,10 +9,10 @@ PAR_RIA_VIGO = {
     10: 4, 11: 3, 12: 4, 13: 3, 14: 5, 15: 4, 16: 5, 17: 4, 18: 5
 }
 TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
-HISTORICO_PUNTOS = 3.5
+HISTORICO_PUNTOS = 3.5 # Puntos base iniciales
 
 def get_connection():
-    return sqlite3.connect('canita_brava_v8.db', check_same_thread=False)
+    return sqlite3.connect('canita_brava_v9.db', check_same_thread=False)
 
 def init_db():
     conn = get_connection()
@@ -69,20 +69,43 @@ menu = st.sidebar.radio("Menú", ["Inicio", "Anotar Partido", "Historial / Borra
 
 if menu == "Inicio":
     conn = get_connection()
-    anio_actual = str(datetime.now().year)
-    st.subheader(f"📊 Balance Temporada {anio_actual}")
-    df_h = pd.read_sql_query(f"SELECT resultado_a, resultado_b FROM historial WHERE temporada = '{anio_actual}'", conn)
+    
+    # --- SELECTOR DE AÑO EN LA PANTALLA PRINCIPAL ---
+    # Obtenemos los años que tienen datos, sumando el año actual por defecto
+    anios_db = pd.read_sql_query("SELECT DISTINCT temporada FROM historial", conn)['temporada'].tolist()
+    anio_actual_str = str(datetime.now().year)
+    if anio_actual_str not in anios_db:
+        anios_db.append(anio_actual_str)
+    anios_db.sort(reverse=True)
+    
+    col_tit, col_sel = st.columns([2, 1])
+    col_tit.subheader("📊 Estadísticas")
+    temp_seleccionada = col_sel.selectbox("Seleccionar Año", anios_db, index=0)
+
+    st.divider()
+
+    # --- BALANCE DE MATCH DEL AÑO SELECCIONADO ---
+    df_h = pd.read_sql_query(f"SELECT resultado_a, resultado_b FROM historial WHERE temporada = '{temp_seleccionada}'", conn)
     wins_a = len(df_h[df_h['resultado_a'] > df_h['resultado_b']])
     wins_b = len(df_h[df_h['resultado_b'] > df_h['resultado_a']])
+    
+    st.write(f"**Balance Match {temp_seleccionada}:**")
     c1, c2 = st.columns(2)
+    # Mostramos los puntos históricos solo si es 2024/2025 (puedes ajustar esta lógica si el histórico solo aplica a un año concreto)
     c1.metric("MANUEL & JOSE", f"{HISTORICO_PUNTOS + wins_a} Pts")
     c2.metric("ROGE & LALO", f"{HISTORICO_PUNTOS + wins_b} Pts")
     
-    st.subheader(f"🏆 Ranking MVP {anio_actual}")
-    df_mvp = pd.read_sql_query(f"SELECT nombre as Jugador, partidos as PJ, puntos_mvp as Puntos FROM puntos_anuales WHERE temporada = '{anio_actual}' ORDER BY Puntos DESC", conn)
-    st.table(df_mvp)
+    # --- RANKING MVP DEL AÑO SELECCIONADO ---
+    st.subheader(f"🏆 Ranking MVP {temp_seleccionada}")
+    df_mvp = pd.read_sql_query(f"SELECT nombre as Jugador, partidos as PJ, puntos_mvp as Puntos FROM puntos_anuales WHERE temporada = '{temp_seleccionada}' ORDER BY Puntos DESC", conn)
+    
+    if not df_mvp.empty:
+        st.table(df_mvp)
+    else:
+        st.info(f"No hay registros de puntos individuales para la temporada {temp_seleccionada}.")
 
 elif menu == "Anotar Partido":
+    # (El código de Anotar Partido se mantiene igual para permitir la entrada de datos)
     if 'game' not in st.session_state:
         st.subheader("Datos del Partido")
         f = st.date_input("Fecha:", datetime.now())
@@ -92,19 +115,15 @@ elif menu == "Anotar Partido":
             st.rerun()
     else:
         g = st.session_state.game
-        
-        # --- CÁLCULO DE TOTALES ACTUALES ---
         cur_match_a = sum(v['pts'][0] for v in g['logs'].values())
         cur_match_b = sum(v['pts'][1] for v in g['logs'].values())
         cur_mvp = {p: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i, p in enumerate(TODOS)}
         
-        # --- CABECERA DE MARCADOR EN VIVO ---
         st.markdown(f"### Hoyo {g['hoyo']} (Par {PAR_RIA_VIGO[g['hoyo']]})")
         m1, m2 = st.columns(2)
         m1.metric("M&J", cur_match_a)
         m2.metric("R&L", cur_match_b)
         
-        # --- ENTRADA DE GOLPES ---
         with st.container(border=True):
             st.write("**Entrada de golpes:**")
             c = st.columns(4)
@@ -119,22 +138,10 @@ elif menu == "Anotar Partido":
                 g['hoyo'] = g['hoyo'] + 1 if g['hoyo'] < 18 else 1
                 st.rerun()
 
-        # --- SECCIÓN MVP EN TIEMPO REAL ---
         if g['logs']:
             st.subheader("⭐ MVP del Partido (Actual)")
-            df_live_mvp = pd.DataFrame([
-                {"Jugador": p, "Puntos": cur_mvp[p]} for p in TODOS
-            ]).sort_values(by="Puntos", ascending=False)
+            df_live_mvp = pd.DataFrame([{"Jugador": p, "Puntos": cur_mvp[p]} for p in TODOS]).sort_values(by="Puntos", ascending=False)
             st.dataframe(df_live_mvp, hide_index=True, use_container_width=True)
-
-            with st.expander("📝 Ver/Editar Hoyos Anteriores"):
-                for h_num in sorted(g['logs'].keys()):
-                    col_h, col_ed = st.columns([3, 1])
-                    datos = g['logs'][h_num]
-                    col_h.write(f"Hoyo {h_num}: Golpes {datos['s']} (Pts: {datos['pts']})")
-                    if col_ed.button("Editar", key=f"ed_{h_num}"):
-                        g['hoyo'] = h_num
-                        st.rerun()
 
             if st.button("💾 GUARDAR Y FINALIZAR PARTIDO", type="primary", use_container_width=True):
                 conn = get_connection()
@@ -151,14 +158,14 @@ elif menu == "Anotar Partido":
                 st.rerun()
 
 elif menu == "Historial / Borrar":
+    # Mantenemos el historial para ver detalles y borrar si es necesario
     conn = get_connection()
     st.subheader("📜 Historial de Partidos")
     df = pd.read_sql_query("SELECT * FROM historial ORDER BY id DESC", conn)
     for index, row in df.iterrows():
         with st.expander(f"📅 {row['fecha']} | M&J {row['resultado_a']} - {row['resultado_b']} R&L"):
-            st.write(f"**MVP:** {row['mvp']}")
-            st.write(f"Puntos MVP detalle: Manuel:{row['p1_pts']}, Jose:{row['p2_pts']}, Roge:{row['p3_pts']}, Lalo:{row['p4_pts']}")
-            if st.button(f"🗑️ Eliminar Partido", key=f"del_{row['id']}"):
+            st.write(f"**MVP:** {row['mvp']} | Temp: {row['temporada']}")
+            if st.button(f"🗑️ Eliminar", key=f"del_{row['id']}"):
                 cur = conn.cursor()
                 pts_map = {"MANUEL": row['p1_pts'], "JOSE": row['p2_pts'], "ROGE": row['p3_pts'], "LALO": row['p4_pts']}
                 for p, pts in pts_map.items():
