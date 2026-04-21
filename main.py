@@ -12,13 +12,11 @@ TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
 HISTORICO_PUNTOS = 3.5
 
 def get_connection():
-    # Usamos un nombre fijo para evitar conflictos de versiones
-    return sqlite3.connect('canita_brava_v1.db', check_same_thread=False)
+    return sqlite3.connect('canita_brava_final_v2.db', check_same_thread=False)
 
 def init_db():
     conn = get_connection()
     c = conn.cursor()
-    # Crear tablas si no existen
     c.execute('''CREATE TABLE IF NOT EXISTS puntos_anuales 
                  (nombre TEXT, temporada TEXT, partidos INTEGER DEFAULT 0, puntos_mvp REAL DEFAULT 0,
                   PRIMARY KEY (nombre, temporada))''')
@@ -29,7 +27,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# CRÍTICO: Ejecutar inicialización antes de cualquier otra cosa
 init_db()
 
 def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
@@ -40,16 +37,32 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
     best_a, worst_a = (s1, s2) if s1 <= s2 else (s2, s1)
     best_b, worst_b = (s3, s4) if s3 <= s4 else (s4, s3)
     
+    # --- LÓGICA MATCH (Sin cambios) ---
     if best_a < best_b: pts_match_a += 1.0
     elif best_b < best_a: pts_match_b += 1.0
     if worst_a < worst_b: pts_match_a += 1.0
     elif worst_b < worst_a: pts_match_b += 1.0
 
-    if best_a <= best_b: mvp_inc["p1" if s1 == best_a else "p2"] += 1.0
-    if best_b <= best_a: mvp_inc["p3" if s3 == best_b else "p4"] += 1.0
-    if worst_a <= worst_b: mvp_inc["p1" if s1 == worst_a else "p2"] += 0.5
-    if worst_b <= worst_a: mvp_inc["p3" if s3 == worst_b else "p4"] += 0.5
+    # --- LÓGICA MVP (NUEVA: Empates reparten puntos) ---
+    # Mejor bola
+    if best_a < best_b:
+        mvp_inc["p1" if s1 == best_a else "p2"] += 1.0
+    elif best_b < best_a:
+        mvp_inc["p3" if s3 == best_b else "p4"] += 1.0
+    else: # Empate mejores
+        mvp_inc["p1" if s1 == best_a else "p2"] += 0.5
+        mvp_inc["p3" if s3 == best_b else "p4"] += 0.5
+
+    # Peor bola
+    if worst_a < worst_b:
+        mvp_inc["p1" if s1 == worst_a else "p2"] += 0.5
+    elif worst_b < worst_a:
+        mvp_inc["p3" if s3 == worst_b else "p4"] += 0.5
+    else: # Empate peores
+        mvp_inc["p1" if s1 == worst_a else "p2"] += 0.25
+        mvp_inc["p3" if s3 == worst_b else "p4"] += 0.25
         
+    # --- BONUS CALIDAD ---
     for i, s in enumerate([s1, s2, s3, s4]):
         p_id = ["p1", "p2", "p3", "p4"][i]
         bonus = 0.0
@@ -59,6 +72,7 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
             mvp_inc[p_id] += bonus
             if i < 2: pts_match_a += bonus
             else: pts_match_b += bonus
+            
     return pts_match_a, pts_match_b, mvp_inc
 
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳")
@@ -95,7 +109,7 @@ if menu == "Inicio":
     if not df_mvp.empty:
         st.table(df_mvp)
     else:
-        st.info("No hay datos para este año todavía.")
+        st.info("No hay datos todavía.")
     conn.close()
 
 elif menu == "Jugar Partido":
@@ -109,7 +123,7 @@ elif menu == "Jugar Partido":
         g = st.session_state.game
         h_opciones = list(range(1, 19))
         h_idx = g.get('h_sel', 1) - 1
-        nuevo_h = st.selectbox("Hoyo a anotar/editar:", h_opciones, format_func=lambda x: f"Hoyo {x} {'✅' if x in g['logs'] else ''}", index=h_idx)
+        nuevo_h = st.selectbox("Hoyo:", h_opciones, format_func=lambda x: f"Hoyo {x} {'✅' if x in g['logs'] else ''}", index=h_idx)
         
         if nuevo_h != g.get('h_sel'):
             g['h_sel'] = nuevo_h
@@ -143,7 +157,7 @@ elif menu == "Jugar Partido":
             st.subheader("⭐ MVP del Partido")
             cur_mvp = {p: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i, p in enumerate(TODOS)}
             df_live_mvp = pd.DataFrame([{"Jugador": p, "Puntos": cur_mvp[p]} for p in TODOS]).sort_values(by="Puntos", ascending=False)
-            st.dataframe(df_live_mvp, hide_index=True, use_container_width=True)
+            st.table(df_live_mvp)
 
             if st.button("💾 GUARDAR PARTIDO", use_container_width=True):
                 conn = get_connection()
@@ -165,7 +179,7 @@ elif menu == "Admin":
     st.subheader("⚙️ Administración")
     try:
         df = pd.read_sql_query("SELECT * FROM historial ORDER BY id DESC", conn)
-        for index, row in df.iterrows():
+        for _, row in df.iterrows():
             with st.expander(f"📅 {row['fecha']} | M&J {row['resultado_a']} - {row['resultado_b']} R&L"):
                 if st.button(f"🗑️ Eliminar", key=f"del_{row['id']}"):
                     cur = conn.cursor()
