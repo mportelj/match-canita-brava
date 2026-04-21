@@ -12,7 +12,7 @@ TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
 HISTORICO_PUNTOS = 3.5
 
 def get_connection():
-    return sqlite3.connect('canita_brava_v15.db', check_same_thread=False)
+    return sqlite3.connect('canita_brava_final.db', check_same_thread=False)
 
 def init_db():
     conn = get_connection()
@@ -113,14 +113,14 @@ elif menu == "Jugar Partido":
             g['h_sel'] = nuevo_h
             st.rerun()
 
-        # Totales para el match y MVP
+        # Totales para el match
         total_match_a = sum(v['pts'][0] for v in g['logs'].values())
         total_match_b = sum(v['pts'][1] for v in g['logs'].values())
         diff = total_match_a - total_match_b
         
         st.markdown(f"### Hoyo {g.get('h_sel')} (Par {PAR_RIA_VIGO[g.get('h_sel')]})")
         
-        # Visualización de Match Play (Diferencia)
+        # Marcador Match Play
         c_m1, c_m2 = st.columns(2)
         c_m1.metric("M&J (Match)", f"+{diff}" if diff > 0 else "0")
         c_m2.metric("R&L (Match)", f"+{abs(diff)}" if diff < 0 else "0")
@@ -176,4 +176,4 @@ elif menu == "Admin":
                     cur.execute("UPDATE puntos_anuales SET partidos = partidos - 1, puntos_mvp = puntos_mvp - ? WHERE nombre = ? AND temporada = ?", (pts, p, row['temporada']))
                 cur.execute("DELETE FROM historial WHERE id = ?", (row['id'],))
                 conn.commit()
-                st.rerun()tiene el resto del código de navegación y visualización de la v13)navegación y visualización de la v13)
+                st.rerun()
