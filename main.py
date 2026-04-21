@@ -9,27 +9,27 @@ PAR_RIA_VIGO = {
     10: 4, 11: 3, 12: 4, 13: 3, 14: 5, 15: 4, 16: 5, 17: 4, 18: 5
 }
 
-# JUGADORES FIJOS
 PAREJA_A = ["MANUEL", "JOSE"]
 PAREJA_B = ["ROGE", "LALO"]
 TODOS = PAREJA_A + PAREJA_B
 
-# PUNTUACIÓN HISTÓRICA (Enero - Abril)
+# PUNTUACIÓN HISTÓRICA INICIAL
 HISTORICO_PUNTOS = 3.5
 
 def get_connection():
-    return sqlite3.connect('canita_brava_v5.db', check_same_thread=False)
+    return sqlite3.connect('canita_brava_v6.db', check_same_thread=False)
 
 def init_db():
     conn = get_connection()
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS jugadores 
-                 (nombre TEXT PRIMARY KEY, partidos INTEGER DEFAULT 0, puntos_mvp INTEGER DEFAULT 0)''')
+    # Tabla de puntos por jugador y año
+    c.execute('''CREATE TABLE IF NOT EXISTS puntos_anuales 
+                 (nombre TEXT, temporada TEXT, partidos INTEGER DEFAULT 0, puntos_mvp INTEGER DEFAULT 0,
+                  PRIMARY KEY (nombre, temporada))''')
+    # Tabla de historial con la fecha del partido
     c.execute('''CREATE TABLE IF NOT EXISTS historial 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, pareja_a TEXT, pareja_b TEXT, 
-                  resultado_a INTEGER, resultado_b INTEGER, mvp TEXT)''')
-    for p in TODOS:
-        c.execute("INSERT OR IGNORE INTO jugadores (nombre) VALUES (?)", (p,))
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, temporada TEXT, 
+                  pareja_a TEXT, pareja_b TEXT, resultado_a INTEGER, resultado_b INTEGER, mvp TEXT)''')
     conn.commit()
 
 init_db()
@@ -69,102 +69,88 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
     return pts_a, pts_b, mvp_inc
 
 # --- INTERFAZ ---
-st.set_page_config(page_title="CAÑITA BRAVA", page_icon="🍻")
-st.title("🍻 CAÑITA BRAVA")
+st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳")
+st.title("⛳ CAÑITA BRAVA")
 
-menu = st.sidebar.radio("Ir a:", ["Inicio (Estadísticas)", "Anotar Partido", "Historial Detallado"])
+menu = st.sidebar.radio("Navegación", ["Inicio", "Anotar Partido", "Historial"])
 
-if menu == "Inicio (Estadísticas)":
+if menu == "Inicio":
     conn = get_connection()
-    st.subheader("📊 Balance de Temporada (Desde Enero)")
+    anio_actual = str(datetime.now().year)
+    st.subheader(f"📊 Balance Temporada {anio_actual}")
     
-    # Cálculo de victorias desde la base de datos
-    df_h = pd.read_sql_query("SELECT resultado_a, resultado_b FROM historial", conn)
+    df_h = pd.read_sql_query(f"SELECT resultado_a, resultado_b FROM historial WHERE temporada = '{anio_actual}'", conn)
     wins_a_db = len(df_h[df_h['resultado_a'] > df_h['resultado_b']])
     wins_b_db = len(df_h[df_h['resultado_b'] > df_h['resultado_a']])
     
-    # Suma del histórico 3.5 vs 3.5
-    total_a = HISTORICO_PUNTOS + wins_a_db
-    total_b = HISTORICO_PUNTOS + wins_b_db
-    
     c1, c2 = st.columns(2)
-    c1.metric("MANUEL & JOSE", f"{total_a} Pts", delta=f"+{wins_a_db} desde app" if wins_a_db > 0 else None)
-    c2.metric("ROGE & LALO", f"{total_b} Pts", delta=f"+{wins_b_db} desde app" if wins_b_db > 0 else None)
+    c1.metric("MANUEL & JOSE", f"{HISTORICO_PUNTOS + wins_a_db} Pts")
+    c2.metric("ROGE & LALO", f"{HISTORICO_PUNTOS + wins_b_db} Pts")
     
-    st.info(f"Puntuación base inicial: 3,5 - 3,5 (Enero-Abril)")
-
-    st.subheader("🏆 Ranking MVP Global")
-    df_mvp = pd.read_sql_query("SELECT nombre as Jugador, partidos as PJ, puntos_mvp as Puntos FROM jugadores ORDER BY Puntos DESC", conn)
+    st.subheader(f"🏆 Ranking MVP {anio_actual}")
+    df_mvp = pd.read_sql_query(f"SELECT nombre as Jugador, partidos as PJ, puntos_mvp as Puntos FROM puntos_anuales WHERE temporada = '{anio_actual}' ORDER BY Puntos DESC", conn)
     st.table(df_mvp)
 
 elif menu == "Anotar Partido":
     if 'game' not in st.session_state:
-        st.subheader("Nueva Jornada")
-        salida = st.selectbox("Hoyo de inicio:", [1, 10])
-        if st.button("🚀 Empezar Partido"):
+        st.subheader("Datos del Partido")
+        # --- ENTRADA DE FECHA ---
+        fecha_partido = st.date_input("¿Qué día se juega?", datetime.now())
+        hoyo_inicio = st.selectbox("Empezamos en el hoyo:", [1, 10])
+        
+        if st.button("🚀 Iniciar Partido"):
             st.session_state.game = {
-                'players': TODOS, 'hoyo': salida,
+                'fecha_str': fecha_partido.strftime("%d/%m/%Y"),
+                'temporada': str(fecha_partido.year),
+                'hoyo': hoyo_inicio,
                 'score_a': 0, 'score_b': 0,
-                'mvp': {p: 0 for p in TODOS}, 'logs': [], 'last_res': None
+                'mvp': {p: 0 for p in TODOS},
+                'logs': []
             }
             st.rerun()
     else:
         g = st.session_state.game
         par_h = PAR_RIA_VIGO[g['hoyo']]
-        st.subheader(f"Hoyo {g['hoyo']} (Par {par_h})")
+        st.subheader(f"Hoyo {g['hoyo']} (Par {par_h}) - {g['fecha_str']}")
         
         c = st.columns(4)
-        s1 = c[0].number_input(f"{g['players'][0]}", 1, 15, par_h)
-        s2 = c[1].number_input(f"{g['players'][1]}", 1, 15, par_h)
-        s3 = c[2].number_input(f"{g['players'][2]}", 1, 15, par_h)
-        s4 = c[3].number_input(f"{g['players'][3]}", 1, 15, par_h)
+        s1 = c[0].number_input(f"MANUEL", 1, 15, par_h)
+        s2 = c[1].number_input(f"JOSE", 1, 15, par_h)
+        s3 = c[2].number_input(f"ROGE", 1, 15, par_h)
+        s4 = c[3].number_input(f"LALO", 1, 15, par_h)
 
-        if st.button("🎯 Confirmar Hoyo"):
+        if st.button("🎯 Anotar Hoyo"):
             pa, pb, minc = calcular_puntos_hoyo(s1, s2, s3, s4, g['hoyo'])
-            g['logs'].append({'h': g['hoyo'], 'p_match': (pa, pb), 'p_mvp': minc})
+            g['logs'].append({'h': g['hoyo'], 'pts': (pa, pb), 'mvp_h': minc})
             g['score_a'] += pa
             g['score_b'] += pb
-            for i, p in enumerate(g['players']): g['mvp'][p] += minc[f"p{i+1}"]
-            g['last_res'] = f"Hoyo {g['hoyo']}: M&J +{pa} | R&L +{pb}"
+            for i, p in enumerate(TODOS): g['mvp'][p] += minc[f"p{i+1}"]
             g['hoyo'] = g['hoyo'] + 1 if g['hoyo'] < 18 else 1
             st.rerun()
 
         st.divider()
-        st.subheader("📊 Marcador del Partido")
-        m1, m2 = st.columns(2)
-        m1.metric("MANUEL & JOSE", g['score_a'])
-        m2.metric("ROGE & LALO", g['score_b'])
+        st.write(f"**Marcador Actual:** M&J {g['score_a']} - {g['score_b']} R&L")
         
-        st.write("**⭐ Puntos MVP del día:**")
-        df_mvp_dia = pd.DataFrame([{"Jugador": p, "Puntos": pts} for p, pts in g['mvp'].items()]).sort_values(by="Puntos", ascending=False)
-        st.dataframe(df_mvp_dia, hide_index=True, use_container_width=True)
-
-        if g['last_res']: st.success(g['last_res'])
-
-        st.divider()
-        ca, cf = st.columns(2)
-        if ca.button("🔙 Deshacer"):
-            if g['logs']:
-                l = g['logs'].pop()
-                g['score_a'] -= l['p_match'][0]
-                g['score_b'] -= l['p_match'][1]
-                for i, p in enumerate(g['players']): g['mvp'][p] -= l['p_mvp'][f"p{i+1}"]
-                g['hoyo'] = l['h']
-                st.rerun()
-        if cf.button("💾 Guardar Partido"):
+        if st.button("💾 Finalizar y Guardar"):
             conn = get_connection()
             cur = conn.cursor()
-            mvp_p = max(g['mvp'], key=g['mvp'].get)
-            cur.execute("INSERT INTO historial (fecha, pareja_a, pareja_b, resultado_a, resultado_b, mvp) VALUES (?,?,?,?,?,?)",
-                      (datetime.now().strftime("%d/%m/%Y"), "M&J", "R&L", g['score_a'], g['score_b'], mvp_p))
+            mvp_ganador = max(g['mvp'], key=g['mvp'].get)
+            
+            cur.execute("INSERT INTO historial (fecha, temporada, pareja_a, pareja_b, resultado_a, resultado_b, mvp) VALUES (?,?,?,?,?,?,?)",
+                       (g['fecha_str'], g['temporada'], "M&J", "R&L", g['score_a'], g['score_b'], mvp_ganador))
+            
             for p, pts in g['mvp'].items():
-                cur.execute("UPDATE jugadores SET partidos = partidos + 1, puntos_mvp = puntos_mvp + ? WHERE nombre = ?", (pts, p))
+                cur.execute("INSERT OR IGNORE INTO puntos_anuales (nombre, temporada) VALUES (?,?)", (p, g['temporada']))
+                cur.execute("UPDATE puntos_anuales SET partidos = partidos + 1, puntos_mvp = puntos_mvp + ? WHERE nombre = ? AND temporada = ?", 
+                           (pts, p, g['temporada']))
+            
             conn.commit()
             del st.session_state.game
+            st.success(f"Partido del {g['fecha_str']} guardado.")
             st.balloons()
-            st.success(f"¡Guardado! MVP: {mvp_p}")
 
-elif menu == "Historial Detallado":
-    st.subheader("📜 Todos los Resultados")
-    df = pd.read_sql_query("SELECT fecha, resultado_a as 'M&J', resultado_b as 'R&L', mvp as 'MVP del Día' FROM historial ORDER BY id DESC", get_connection())
+elif menu == "Historial":
+    conn = get_connection()
+    st.subheader("📜 Historial de Partidos")
+    df = pd.read_sql_query("SELECT fecha, resultado_a as 'M&J', resultado_b as 'R&L', mvp as 'MVP' FROM historial ORDER BY id DESC", conn)
     st.dataframe(df, use_container_width=True)
