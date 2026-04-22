@@ -119,28 +119,16 @@ elif menu == "Jugar/Editar":
             st.rerun()
     else:
         g = st.session_state.game
-        
-        # --- LÓGICA DE NAVEGACIÓN (Botones invisibles que reciben la orden) ---
-        col_logic = st.columns(2)
-        with col_logic[0]:
-            if st.button("⬅️ Anterior", key="logic_prev", use_container_width=True):
-                g['h_sel'] = max(1, g['h_sel'] - 1)
-                st.rerun()
-        with col_logic[1]:
-            if st.button("Siguiente ➡️", key="logic_next", use_container_width=True):
-                g['h_sel'] = min(18, g['h_sel'] + 1)
-                st.rerun()
-
-        # --- VISUALIZACIÓN DEL HOYO (Solo texto) ---
         h_idx = g['h_sel']
+
+        # --- CABECERA FIJA ---
         st.markdown(f"""
-            <div style="background-color: #2e7d32; color: white; padding: 10px; border-radius: 10px; text-align: center; margin-bottom: 20px;">
-                <h3 style="margin: 0;">Hoyo {h_idx}</h3>
-                <p style="margin: 0; font-size: 0.9em; opacity: 0.9;">Par {PAR_RIA_VIGO[h_idx]}</p>
+            <div style="background-color: #f0f2f6; padding: 5px; border-radius: 10px; text-align: center; margin-bottom: 15px; border: 1px solid #ddd;">
+                <h3 style="margin: 0; color: #333;">Hoyo {h_idx} <span style="font-size: 0.7em; color: #666;">(Par {PAR_RIA_VIGO[h_idx]})</span></h3>
             </div>
         """, unsafe_allow_html=True)
 
-        # --- ENTRADA DE GOLPES (Diseño 2x2 súper compacto) ---
+        # --- ENTRADA DE GOLPES (Diseño 2x2 para ahorrar espacio) ---
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         
         c1, c2 = st.columns(2)
@@ -150,10 +138,11 @@ elif menu == "Jugar/Editar":
         s4 = c2.number_input(TODOS[3], 0, 10, v_def[3], key=f"s3_{h_idx}")
         s = [s1, s2, s3, s4]
         
-        # --- BOTÓN GRABAR ---
+        # --- BOTÓN GUARDAR (Prioridad número 1) ---
         ya_guardado = str(h_idx) in g['logs'] and g['logs'][str(h_idx)]['s'] == s
         btn_txt = "✅ Sincronizado" if ya_guardado else "💾 Guardar Hoyo"
         
+        st.write("") # Espacio mínimo
         if st.button(btn_txt, type="primary", use_container_width=True, disabled=ya_guardado):
             pa, pb, mi = calcular_puntos_hoyo(s[0], s[1], s[2], s[3], h_idx)
             g['logs'][str(h_idx)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
@@ -163,14 +152,23 @@ elif menu == "Jugar/Editar":
                 "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4']
             }])
             if guardar_hoyo(nueva_fila):
-                st.toast(f"Hoyo {h_idx} OK")
+                st.toast(f"Hoyo {h_idx} guardado")
                 st.rerun()
 
-        # --- MARCADOR RÁPIDO ---
+        # --- NAVEGACIÓN (Debajo del botón guardar) ---
+        c_nav = st.columns(2)
+        if c_nav[0].button("⬅️ Anterior", use_container_width=True):
+            g['h_sel'] = max(1, h_idx - 1)
+            st.rerun()
+        if c_nav[1].button("Siguiente ➡️", use_container_width=True):
+            g['h_sel'] = min(18, h_idx + 1)
+            st.rerun()
+
+        # --- MARCADOR Y FINALIZAR ---
         if g['logs']:
             total_a = int(sum(v['pts'][0] for v in g['logs'].values()))
             total_b = int(sum(v['pts'][1] for v in g['logs'].values()))
-            st.markdown(f"<p style='text-align:center; font-size:0.9em; margin: 10px 0;'>Match actual: <b>{total_a} - {total_b}</b></p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='text-align:center; font-size:0.9em; margin-top:10px;'>Match: <b>{total_a} - {total_b}</b></p>", unsafe_allow_html=True)
 
         if st.button("🏁 Finalizar Partido", use_container_width=True):
             del st.session_state.game
