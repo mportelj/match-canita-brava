@@ -81,7 +81,6 @@ if menu == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
     if not df.empty:
-        # Sumamos por jornada
         resumen = df.groupby('partido_id').agg({
             'resultado_a': 'sum', 'resultado_b': 'sum',
             'p1_pts': 'sum', 'p2_pts': 'sum', 'p3_pts': 'sum', 'p4_pts': 'sum'
@@ -96,7 +95,8 @@ if menu == "Inicio":
         
         st.subheader("⭐ MVP Temporada")
         mvps = {TODOS[i]: resumen[f"p{i+1}_pts"].sum() for i in range(4)}
-        st.table(pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in mvps.items()]).sort_values("Pts", ascending=False))
+        df_mvp_temp = pd.DataFrame([{"Jugador": k, "Pts": round(float(v), 1)} for k, v in mvps.items()]).sort_values("Pts", ascending=False)
+        st.table(df_mvp_temp.style.format({"Pts": "{:.1f}"}))
 
 elif menu == "Jugar/Editar":
     if 'game' not in st.session_state:
@@ -111,7 +111,7 @@ elif menu == "Jugar/Editar":
         
         nav = st.columns([1, 2, 1])
         if nav[0].button("⬅️") and h_idx > 1: g['h_sel'] -= 1; st.rerun()
-        nav[1].markdown(f"<h3 style='text-align:center;'>Hoyo {h_idx}</h3>", unsafe_allow_html=True)
+        nav[1].markdown(f"<h3 style='text-align:center;'>Hoyo {h_idx} (Par {PAR_RIA_VIGO[h_idx]})</h3>", unsafe_allow_html=True)
         if nav[2].button("➡️") and h_idx < 18: g['h_sel'] += 1; st.rerun()
 
         # Input
@@ -119,7 +119,10 @@ elif menu == "Jugar/Editar":
         c = st.columns(4)
         s = [c[i].number_input(TODOS[i][:3], 0, 10, v_def[i], key=f"s{i}_{h_idx}") for i in range(4)]
         
-        ya_guardado = str(h_idx) in g['logs'] and g['logs'][str(h_idx)]['s'] == s
+        ya_guardado = False
+        if str(h_idx) in g['logs'] and g['logs'][str(h_idx)]['s'] == s:
+            ya_guardado = True
+            
         btn_txt = "✅ Sincronizado" if ya_guardado else "💾 Grabar Hoyo"
         
         if st.button(btn_txt, type="primary", use_container_width=True, disabled=ya_guardado):
@@ -136,42 +139,45 @@ elif menu == "Jugar/Editar":
                 st.toast("Guardado")
                 st.rerun()
 
-        # MOSTRAR MARCADORES (Recalculando de la memoria local)
         if g['logs']:
-            # Sumas totales del partido actual
             total_match_a = sum(v['pts'][0] for v in g['logs'].values())
             total_match_b = sum(v['pts'][1] for v in g['logs'].values())
             
             st.divider()
-            st.markdown(f"<h2 style='text-align:center;'>Match: {int(total_match_a)} - {int(total_match_b)}</h2>", unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align: center;'>🏆 MARCADOR MATCH</h3>", unsafe_allow_html=True)
+            m1, m2, m3 = st.columns([2, 1, 2])
+            m1.metric("MANU & JOSE", int(total_match_a))
+            m2.markdown("<h2 style='text-align:center;'>VS</h2>", unsafe_allow_html=True)
+            m3.metric("ROGE & LALO", int(total_match_b))
             
+            st.write("### 📈 Clasificaciones MVP")
             col1, col2 = st.columns(2)
             with col1:
-                with st.popover("🎯 MVP Hoyo", use_container_width=True):
+                with st.popover("🎯 Puntos Hoyo", use_container_width=True):
                     if str(h_idx) in g['logs']:
                         pts_hoyo = g['logs'][str(h_idx)]['mvp']
-                        df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": pts_hoyo[f"p{i+1}"]} for i in range(4)])
-                        st.table(df_h)
+                        df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": round(float(pts_hoyo[f"p{i+1}"]), 1)} for i in range(4)])
+                        st.table(df_h.style.format({"Pts": "{:.1f}"}))
                     else:
-                        st.write("Graba el hoyo primero")
+                        st.info("Graba el hoyo")
             with col2:
-                with st.popover("🏆 MVP Partido", use_container_width=True):
-                    # Sumar los puntos MVP de todos los hoyos guardados en logs
+                with st.popover("🏆 Ranking Partido", use_container_width=True):
                     ranking_partido = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
-                    df_p = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in ranking_partido.items()]).sort_values("Pts", ascending=False)
-                    st.table(df_p)
+                    df_p = pd.DataFrame([{"Jugador": k, "Pts": round(float(v), 1)} for k, v in ranking_partido.items()]).sort_values("Pts", ascending=False)
+                    st.table(df_p.style.format({"Pts": "{:.1f}"}))
 
-        if st.button("🏁 Finalizar"):
+        st.divider()
+        if st.button("🏁 Finalizar y Salir", use_container_width=True):
             del st.session_state.game
             st.rerun()
 
 elif menu == "Admin":
-    st.subheader("Admin")
+    st.subheader("⚙️ Gestión")
     df = leer_datos()
     if not df.empty:
         for p_id in df['partido_id'].unique():
-            with st.expander(f"Jornada {p_id}"):
-                if st.button("Borrar Jornada", key=f"del_{p_id}"):
+            with st.expander(f"📅 Jornada {p_id}"):
+                if st.button("🗑️ Borrar Jornada", key=f"del_{p_id}"):
                     conn = st.connection("gsheets", type=GSheetsConnection)
                     conn.update(worksheet="historial", data=df[df['partido_id'] != p_id])
                     st.rerun()
