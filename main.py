@@ -53,62 +53,37 @@ def borrar_backup():
 # --- LÓGICA DE CÁLCULO ---
 def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
     par = PAR_RIA_VIGO[hoyo_num]
-    v = [s1 if s1 > 0 else 99, s2 if s2 > 0 else 99, s3 if s3 > 0 else 99, s4 if s4 > 0 else 99]
+    scores = [s1, s2, s3, s4]
+    v = [s if s > 0 else 99 for s in scores]
     
-    best_a, worst_a = (v[0], v[1]) if v[0] <= v[1] else (v[1], v[0])
-    best_b, worst_b = (v[2], v[3]) if v[2] <= v[3] else (v[3], v[2])
-    
-    pts_match_a, pts_match_b = 0.0, 0.0
+    # --- MATCH (Sigue siendo por parejas) ---
+    best_a, worst_a = min(v[0], v[1]), max(v[0], v[1])
+    best_b, worst_b = min(v[2], v[3]), max(v[2], v[3])
+    pts_match_a = (1.0 if best_a < best_b else 0.0) + (1.0 if worst_a < worst_b else 0.0)
+    pts_match_b = (1.0 if best_b < best_a else 0.0) + (1.0 if worst_b < worst_a else 0.0)
+
+    # --- MVP INDIVIDUAL PURO ---
     mvp_inc = {"p1": 0.0, "p2": 0.0, "p3": 0.0, "p4": 0.0}
-
-    # MATCH (Se mantiene igual)
-    if best_a < best_b: pts_match_a += 1.0
-    elif best_b < best_a: pts_match_b += 1.0
-    if worst_a < worst_b: pts_match_a += 1.0
-    elif worst_b < worst_a: pts_match_b += 1.0
-
-    # MVP
-    # Caso 4 jugadores iguales
-    if v[0] == v[1] == v[2] == v[3] and v[0] != 99:
-        for i in range(4): mvp_inc[f"p{i+1}"] = 0.5
-    else:
-        # 1. MEJOR BOLA
-        if best_a < best_b:
-            if v[0] == best_a: mvp_inc["p1"] += 1.0
-            if v[1] == best_a: mvp_inc["p2"] += 1.0
-        elif best_b < best_a:
-            if v[2] == best_b: mvp_inc["p3"] += 1.0
-            if v[3] == best_b: mvp_inc["p4"] += 1.0
-        elif best_a == best_b and best_a != 99:
-            if v[0] == best_a: mvp_inc["p1"] += 0.5
-            if v[1] == best_a: mvp_inc["p2"] += 0.5
-            if v[2] == best_b: mvp_inc["p3"] += 0.5
-            if v[3] == best_b: mvp_inc["p4"] += 0.5
-
-        # 2. PEOR BOLA
-        if worst_a < worst_b:
-            if v[0] == worst_a: mvp_inc["p1"] += 0.5
-            if v[1] == worst_a: mvp_inc["p2"] += 0.5
-        elif worst_b < worst_a:
-            if v[2] == worst_b: mvp_inc["p3"] += 0.5
-            if v[3] == worst_b: mvp_inc["p4"] += 0.5
-        elif worst_a == worst_b and worst_a != 99:
-            if worst_a != best_a or worst_b != best_b:
-                if v[0] == worst_a: mvp_inc["p1"] += 0.25
-                if v[1] == worst_a: mvp_inc["p2"] += 0.25
-                if v[2] == worst_b: mvp_inc["p3"] += 0.25
-                if v[3] == worst_b: mvp_inc["p4"] += 0.25
+    
+    for i in range(4):
+        if scores[i] <= 0: continue # Saltamos si no hay resultado
         
-    # BONUS CALIDAD
-    for i, s in enumerate([s1, s2, s3, s4]):
-        if s > 0:
-            bonus = 1.0 if s == par - 1 else (2.0 if s <= par - 2 else 0.0)
-            if bonus > 0:
-                mvp_inc[f"p{i+1}"] += bonus
-                if i < 2: pts_match_a += bonus
-                else: pts_match_b += bonus
+        # 1. Puntos por ganar a otros jugadores (0.5 por cada uno)
+        for j in range(4):
+            if i != j and scores[j] > 0:
+                if scores[i] < scores[j]:
+                    mvp_inc[f"p{i+1}"] += 0.5
+        
+        # 2. Bonus por el campo (vs Par)
+        golpes = scores[i]
+        if golpes <= par - 2: # Eagle o mejor
+            mvp_inc[f"p{i+1}"] += 3.0
+        elif golpes == par - 1: # Birdie
+            mvp_inc[f"p{i+1}"] += 1.5
+        elif golpes == par: # Par
+            mvp_inc[f"p{i+1}"] += 0.5
+            
     return pts_match_a, pts_match_b, mvp_inc
-
 # --- INTERFAZ ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳")
 st.title("⛳ CAÑITA BRAVA")
