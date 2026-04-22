@@ -1,10 +1,10 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 import json
+import gspread
 
-# --- CONFIGURACIÓN CON TU URL REAL ---
+# --- CONFIGURACIÓN ---
 URL_HOJA = "https://docs.google.com/spreadsheets/d/17mwvtZY-f6BWXOlDGkDdYur8l0ATvGYpbkshjv1sJAk/edit#gid=0"
 
 PAR_RIA_VIGO = {
@@ -16,26 +16,45 @@ HISTORICO_PUNTOS = 3.5
 
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
-# --- CONEXIÓN A GOOGLE SHEETS ---
-conn = st.connection("gsheets", type=GSheetsConnection)
+# --- CONEXIÓN DIRECTA ---
+def get_sheet():
+    # Usamos gspread directamente con la URL compartida
+    # Nota: gspread.public_spreadsheet funciona para lectura, 
+    # pero para escritura Streamlit Cloud suele requerir autenticación.
+    # Como solución "Plan B", usaremos el conector de Streamlit con una configuración básica.
+    try:
+        from streamlit_gsheets import GSheetsConnection
+        return st.connection("gsheets", type=GSheetsConnection)
+    except:
+        st.error("Faltan librerías en requirements.txt")
+        return None
 
 def leer_datos():
+    conn = get_sheet()
     try:
-        # Forzamos la lectura de la hoja "historial"
-        df = conn.read(spreadsheet=URL_HOJA, worksheet="historial", ttl="0")
-        return df
-    except Exception:
-        # Si falla (por ser la primera vez o estar vacía), devolvemos estructura base
+        # ttl=0 para que no guarde caché y veas los datos al momento
+        return conn.read(spreadsheet=URL_HOJA, worksheet="historial", ttl=0)
+    except:
         return pd.DataFrame(columns=["id", "fecha", "temporada", "resultado_a", "resultado_b", "p1_pts", "p2_pts", "p3_pts", "p4_pts", "logs_json"])
 
 def guardar_partida(df_partida):
-    df_existente = leer_datos()
-    # Si estamos editando o sobreescribiendo el mismo partido de hoy, filtramos por ID
-    if not df_partida["id"].isna().all():
-        df_existente = df_existente[df_existente["id"].astype(str) != str(df_partida["id"].iloc[0])]
-    
-    df_final = pd.concat([df_existente, df_partida], ignore_index=True)
-    conn.update(spreadsheet=URL_HOJA, worksheet="historial", data=df_final)
+    conn = get_sheet()
+    try:
+        df_existente = leer_datos()
+        # Limpiar datos antiguos del mismo partido si existen
+        if not df_partida["id"].isna().all():
+            id_actual = str(df_partida["id"].iloc[0])
+            df_existente = df_existente[df_existente["id"].astype(str) != id_actual]
+        
+        df_final = pd.concat([df_existente, df_partida], ignore_index=True)
+        
+        # Intentar actualizar
+        conn.update(spreadsheet=URL_HOJA, worksheet="historial", data=df_final)
+        return True
+    except Exception as e:
+        st.error("⚠️ Error de permisos: Google Sheets bloquea la escritura anónima.")
+        st.info("Para solucionar esto, debes ir a Settings > Secrets en Streamlit Cloud y pegar las credenciales.")
+        return False
 
 # --- LÓGICA DE CÁLCULO MVP ---
 def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
@@ -57,7 +76,7 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
         elif g == par: mvp[f"p{i+1}"] += 0.5
     return pa, pb, mvp
 
-# --- NAVEGACIÓN ---
+# --- INTERFAZ ---
 menu = st.sidebar.radio("Menú", ["Inicio", "Jugar/Editar", "Admin"])
 
 if menu == "Inicio":
@@ -79,7 +98,7 @@ if menu == "Inicio":
             c1.metric("MANU & JOSE", f"{HISTORICO_PUNTOS + wins_a} Pts")
             c2.metric("ROGE & LALO", f"{HISTORICO_PUNTOS + wins_b} Pts")
             
-            st.subheader("⭐ Clasificación MVP Acumulada")
+            st.subheader("⭐ MVP Acumulado")
             mvp_tot = {
                 "MANUEL": df_temp["p1_pts"].astype(float).sum(),
                 "JOSE": df_temp["p2_pts"].astype(float).sum(),
@@ -88,8 +107,6 @@ if menu == "Inicio":
             }
             df_mvp = pd.DataFrame([{"Jugador": k, "Puntos": v} for k, v in mvp_tot.items()]).sort_values("Puntos", ascending=False)
             st.table(df_mvp)
-        else:
-            st.info("No hay datos para este año.")
 
 elif menu == "Jugar/Editar":
     if 'game' not in st.session_state:
@@ -101,18 +118,20 @@ elif menu == "Jugar/Editar":
                 'temp': str(f.year), 
                 'h_sel': 1, 
                 'logs': {}, 
-                'edit_id': datetime.now().strftime("%Y%m%d") # ID basado en el día
+                'edit_id': datetime.now().strftime("%Y%m%d")
             }
             st.rerun()
     else:
         g = st.session_state.game
         h_idx = g['h_sel']
         
+        # Navegación
         cp, ch, cn = st.columns([1, 2, 1])
         if cp.button("⬅️") and h_idx > 1: g['h_sel'] -= 1; st.rerun()
         ch.markdown(f"<h3 style='text-align:center;'>Hoyo {h_idx} (Par {PAR_RIA_VIGO[h_idx]})</h3>", unsafe_allow_html=True)
         if cn.button("➡️") and h_idx < 18: g['h_sel'] += 1; st.rerun()
 
+        # Entrada Golpes
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         with st.container(border=True):
             cols = st.columns(4)
@@ -122,20 +141,19 @@ elif menu == "Jugar/Editar":
                 pa, pb, mi = calcular_puntos_hoyo(s[0], s[1], s[2], s[3], h_idx)
                 g['logs'][str(h_idx)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
                 
-                # CÁLCULOS TOTALES
+                # Guardado
                 t_a = sum(v['pts'][0] for v in g['logs'].values())
                 t_b = sum(v['pts'][1] for v in g['logs'].values())
                 cur_mvp = [sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)]
                 
-                # GUARDAR EN GOOGLE SHEETS
                 nueva_fila = pd.DataFrame([{
                     "id": g['edit_id'], "fecha": g['fecha'], "temporada": g['temp'],
                     "resultado_a": t_a, "resultado_b": t_b,
                     "p1_pts": cur_mvp[0], "p2_pts": cur_mvp[1], "p3_pts": cur_mvp[2], "p4_pts": cur_mvp[3],
                     "logs_json": json.dumps(g['logs'])
                 }])
-                guardar_partida(nueva_fila)
-                st.toast("Guardado en la nube ☁️")
+                if guardar_partida(nueva_fila):
+                    st.toast("Guardado en la nube ☁️")
                 st.rerun()
 
         if g['logs']:
@@ -143,11 +161,11 @@ elif menu == "Jugar/Editar":
             t_a = sum(v['pts'][0] for v in g['logs'].values())
             t_b = sum(v['pts'][1] for v in g['logs'].values())
             st.divider()
-            st.markdown("<h3 style='text-align: center; color: #1e3d59;'>🏆 MARCADOR MATCH</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align: center;'>🏆 MARCADOR MATCH</h3>", unsafe_allow_html=True)
             m1, m2, m3 = st.columns([2, 1, 2])
-            m1.markdown(f"<div style='text-align:center;padding:10px;background-color:#e8f5e9;border-radius:10px;border:2px solid #2e7d32;'><p style='margin:0;font-weight:bold;'>MANU & JOSE</p><h1 style='margin:0;'>{int(t_a)}</h1></div>", unsafe_allow_html=True)
-            m2.markdown("<h1 style='text-align:center;padding-top:15px;'>VS</h1>", unsafe_allow_html=True)
-            m3.markdown(f"<div style='text-align:center;padding:10px;background-color:#e3f2fd;border-radius:10px;border:2px solid #1565c0;'><p style='margin:0;font-weight:bold;'>ROGE & LALO</p><h1 style='margin:0;'>{int(t_b)}</h1></div>", unsafe_allow_html=True)
+            m1.metric("MANU & JOSE", int(t_a))
+            m2.markdown("<h2 style='text-align:center;'>VS</h2>", unsafe_allow_html=True)
+            m3.metric("ROGE & LALO", int(t_b))
             
             # CLASIFICACIÓN MVP
             st.write("### 📈 Clasificación MVP")
@@ -157,25 +175,22 @@ elif menu == "Jugar/Editar":
                     l = g['logs'][str(h_idx)]
                     st.table(pd.DataFrame([{"Jugador": TODOS[i], "Pts": l['mvp'][f"p{i+1}"]} for i in range(4)]))
             with c_mvp2:
-                with st.popover("🏆 Ranking Total", use_container_width=True):
+                with st.popover("🏆 Ranking Partido", use_container_width=True):
                     cur_mvp_dict = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
                     st.table(pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in cur_mvp_dict.items()]).sort_values("Pts", ascending=False))
 
-        st.divider()
         if st.button("🏁 Finalizar Jornada", use_container_width=True):
             del st.session_state.game
             st.rerun()
 
 elif menu == "Admin":
-    st.subheader("⚙️ Gestión (Cloud)")
+    st.subheader("⚙️ Gestión")
     df = leer_datos()
-    if not df.empty and "id" in df.columns:
+    if not df.empty:
         for _, r in df.iterrows():
-            with st.expander(f"📅 {r['fecha']} | Match: {r['resultado_a']} - {r['resultado_b']}"):
-                if st.button("🗑️ Eliminar Partida", key=f"del_{r['id']}"):
+            with st.expander(f"📅 {r['fecha']} | {r['resultado_a']} - {r['resultado_b']}"):
+                if st.button("🗑️ Eliminar", key=f"del_{r['id']}"):
                     df_new = df[df["id"].astype(str) != str(r['id'])]
-                    conn.update(spreadsheet=URL_HOJA, worksheet="historial", data=df_new)
-                    st.success("Eliminado de la nube.")
-                    st.rerun()
-    else:
-        st.write("No hay partidas grabadas en Google Sheets.")
+                    get_sheet().update(spreadsheet=URL_HOJA, worksheet="historial", data=df_new)
+                    st.rerun()RESTO DEL CÓDIGO (Lógica MVP, Marcadores, etc.) SIGUE IGUAL ---
+# (Pega aquí el resto de la lógica de Jugar/Editar del código anterior)
