@@ -9,10 +9,8 @@ PAR_RIA_VIGO = {
     1: 4, 2: 5, 3: 3, 4: 4, 5: 4, 6: 5, 7: 3, 8: 4, 9: 4,
     10: 4, 11: 3, 12: 4, 13: 3, 14: 5, 15: 4, 16: 5, 17: 4, 18: 5
 }
-# NOMBRES COMPLETOS
 TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
 
-# Marcador inicial Temporada 2026
 INICIO_2026_A = 3.5  # MANUEL & JOSE
 INICIO_2026_B = 3.5  # ROGE & LALO
 
@@ -50,7 +48,6 @@ def guardar_hoyo(df_fila):
         st.error(f"Error al guardar: {e}")
         return False
 
-# --- MOTOR DE CÁLCULO ---
 def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
     par = PAR_RIA_VIGO[hoyo_num]
     scores = [s1, s2, s3, s4]
@@ -124,12 +121,20 @@ elif menu == "Jugar/Editar":
         g = st.session_state.game
         h_idx = g['h_sel']
         
-        nav = st.columns([1, 2, 1])
-        if nav[0].button("⬅️"): g['h_sel'] = max(1, h_idx-1); st.rerun()
-        nav[1].markdown(f"<h3 style='text-align:center;'>Hoyo {h_idx} (Par {PAR_RIA_VIGO[h_idx]})</h3>", unsafe_allow_html=True)
-        if nav[2].button("➡️"): g['h_sel'] = min(18, h_idx+1); st.rerun()
+        # --- NAVEGACIÓN COMPACTA ---
+        nav = st.columns([0.5, 1, 0.5])
+        with nav[0]:
+            if st.button("⬅️", use_container_width=True): 
+                g['h_sel'] = max(1, h_idx-1)
+                st.rerun()
+        with nav[1]:
+            st.markdown(f"<h3 style='text-align:center; margin:0;'>Hoyo {h_idx}<br><span style='font-size:0.6em; color:gray;'>Par {PAR_RIA_VIGO[h_idx]}</span></h3>", unsafe_allow_html=True)
+        with nav[2]:
+            if st.button("➡️", use_container_width=True): 
+                g['h_sel'] = min(18, h_idx+1)
+                st.rerun()
 
-        # Input con NOMBRES COMPLETOS
+        # Input
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         c = st.columns(4)
         s = [c[i].number_input(TODOS[i], 0, 10, v_def[i], key=f"s{i}_{h_idx}") for i in range(4)]
@@ -149,7 +154,6 @@ elif menu == "Jugar/Editar":
             total_match_a = sum(v['pts'][0] for v in g['logs'].values())
             total_match_b = sum(v['pts'][1] for v in g['logs'].values())
             
-            # MARCADOR DEL PARTIDO CON NOMBRES COMPLETOS Y ENMARCADO
             st.markdown(f"""
                 <div style="border: 2px solid #ccc; border-radius: 12px; padding: 15px; background-color: #ffffff; text-align: center; margin-top: 25px; margin-bottom: 20px;">
                     <h4 style="margin: 0 0 10px 0; color: #666; font-size: 0.9em; letter-spacing: 1px;">MARCADOR DEL PARTIDO</h4>
@@ -158,9 +162,7 @@ elif menu == "Jugar/Editar":
                             <p style="margin: 0; font-weight: bold; color: #333; font-size: 0.9em;">MANUEL & JOSE</p>
                             <h2 style="margin: 5px 0 0 0; color: #2e7d32; font-size: 2.2em;">{int(total_match_a)}</h2>
                         </div>
-                        <div style="flex: 0.2;">
-                            <h3 style="margin: 0; color: #999;">—</h3>
-                        </div>
+                        <div style="flex: 0.2;"><h3 style="margin: 0; color: #999;">—</h3></div>
                         <div style="flex: 1;">
                             <p style="margin: 0; font-weight: bold; color: #333; font-size: 0.9em;">ROGE & LALO</p>
                             <h2 style="margin: 5px 0 0 0; color: #c62828; font-size: 2.2em;">{int(total_match_b)}</h2>
