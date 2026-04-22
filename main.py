@@ -121,47 +121,47 @@ elif menu == "Jugar/Editar":
         g = st.session_state.game
         h_idx = g['h_sel']
         
-        # --- NAVEGACIÓN COMPACTA EN UNA FILA ---
-        # Usamos 3 columnas: la del centro es más ancha para el texto
-        nav1, nav2, nav3 = st.columns([1, 2, 1])
+        # --- NAVEGACIÓN FORZADA EN UNA LÍNEA ---
+        # Creamos 3 columnas reales, pero forzamos el diseño con botones de Streamlit 
+        # usando una configuración de columnas muy extrema que suele engañar al responsive.
         
-        with nav1:
-            # Botón izquierdo pegado al borde
-            if st.button("⬅️", key="prev", use_container_width=True):
+        col_nav = st.columns([0.2, 0.6, 0.2]) # Columnas laterales mínimas
+        
+        with col_nav[0]:
+            if st.button("⬅️", key="prev_h"):
                 g['h_sel'] = max(1, h_idx - 1)
                 st.rerun()
         
-        with nav2:
-            # Texto centrado y compacto
+        with col_nav[1]:
+            # Forzamos el texto a no romperse nunca (white-space: nowrap)
             st.markdown(f"""
                 <div style="text-align: center; margin-top: -5px;">
-                    <h3 style="margin: 0; padding: 0; font-size: 1.3em;">Hoyo {h_idx}</h3>
-                    <p style="margin: 0; color: gray; font-size: 0.8em;">Par {PAR_RIA_VIGO[h_idx]}</p>
+                    <h3 style="margin: 0; padding: 0; white-space: nowrap; font-size: 1.1em;">Hoyo {h_idx} (Par {PAR_RIA_VIGO[h_idx]})</h3>
                 </div>
             """, unsafe_allow_html=True)
             
-        with nav3:
-            # Botón derecho pegado al borde
-            if st.button("➡️", key="next", use_container_width=True):
+        with col_nav[2]:
+            if st.button("➡️", key="next_h"):
                 g['h_sel'] = min(18, h_idx + 1)
                 st.rerun()
 
-        st.markdown("<br>", unsafe_allow_html=True) # Pequeño espacio
+        st.divider()
 
-        # --- ENTRADA DE GOLPES (Diseño 2x2 para no tener que bajar la pantalla) ---
+        # --- ENTRADA DE GOLPES (Simplificada para máximo espacio) ---
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         
+        # Usamos columnas de 2 en 2 pero con etiquetas cortas si fuera necesario
         c1, c2 = st.columns(2)
-        with c1:
-            s1 = st.number_input(TODOS[0], 0, 10, v_def[0], key=f"s0_{h_idx}")
-            s2 = st.number_input(TODOS[1], 0, 10, v_def[1], key=f"s1_{h_idx}")
-        with c2:
-            s3 = st.number_input(TODOS[2], 0, 10, v_def[2], key=f"s2_{h_idx}")
-            s4 = st.number_input(TODOS[3], 0, 10, v_def[3], key=f"s3_{h_idx}")
+        s1 = c1.number_input(TODOS[0], 0, 10, v_def[0], key=f"s0_{h_idx}")
+        s2 = c2.number_input(TODOS[1], 0, 10, v_def[1], key=f"s1_{h_idx}")
+        
+        c3, c4 = st.columns(2)
+        s3 = c3.number_input(TODOS[2], 0, 10, v_def[2], key=f"s2_{h_idx}")
+        s4 = c4.number_input(TODOS[3], 0, 10, v_def[3], key=f"s3_{h_idx}")
         
         s = [s1, s2, s3, s4]
         
-        # --- BOTÓN GRABAR (Ahora debería ser visible sin scroll) ---
+        # --- BOTÓN GRABAR ---
         ya_guardado = str(h_idx) in g['logs'] and g['logs'][str(h_idx)]['s'] == s
         btn_txt = "✅ Sincronizado" if ya_guardado else "💾 Grabar Hoyo"
         
@@ -178,25 +178,16 @@ elif menu == "Jugar/Editar":
                 "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4']
             }])
             if guardar_hoyo(nueva_fila):
-                st.toast(f"Hoyo {h_idx} guardado")
+                st.toast(f"Hoyo {h_idx} OK")
                 st.rerun()
 
-        # --- MARCADOR Y FINALIZAR ---
+        # Marcador inferior muy discreto
         if g['logs']:
             total_match_a = sum(v['pts'][0] for v in g['logs'].values())
             total_match_b = sum(v['pts'][1] for v in g['logs'].values())
-            
-            st.markdown(f"""
-                <div style="border: 1px solid #eee; border-radius: 10px; padding: 10px; background-color: #fcfcfc; text-align: center; margin-top: 15px;">
-                    <div style="display: flex; justify-content: space-around; align-items: center;">
-                        <div><p style="margin:0; font-size:0.7em;">M&J</p><b>{int(total_match_a)}</b></div>
-                        <div style="color: #ddd;">|</div>
-                        <div><p style="margin:0; font-size:0.7em;">R&L</p><b>{int(total_match_b)}</b></div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"<p style='text-align:center; font-size:0.8em; color:gray;'>Match: {int(total_match_a)} - {int(total_match_b)}</p>", unsafe_allow_html=True)
 
-        if st.button("🏁 Finalizar y Salir", use_container_width=True):
+        if st.button("🏁 Finalizar", use_container_width=True):
             del st.session_state.game
             st.rerun()
             
