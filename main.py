@@ -16,23 +16,31 @@ INICIO_2026_B = 3.5
 
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
-# --- FUNCIONES ---
+# --- FUNCIONES NÚCLEO ---
 def estilo_tabla(row):
     color = COLOR_A if row['Jugador'] in ["MANUEL", "JOSE"] else COLOR_B
     return [f'color: {color}; font-weight: bold'] * len(row)
 
 def leer_datos():
+    # Limpieza total de caché para forzar actualización
     st.cache_data.clear()
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
+        # ttl=0 obliga a leer directamente de Google Sheets cada vez
         df = conn.read(worksheet="historial", ttl=0)
         if df is None or df.empty:
             return pd.DataFrame()
-        # Forzar tipos numéricos para cálculos
-        cols = ['resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3']
-        for c in cols:
-            if c in df.columns:
-                df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
+        
+        # Convertir columnas críticas a números por si acaso vienen como texto
+        cols_num = ['resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3']
+        for col in cols_num:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        
+        # Asegurar que temporada sea texto para el filtro
+        if 'temporada' in df.columns:
+            df['temporada'] = df['temporada'].astype(str).str.strip()
+            
         return df.dropna(subset=['id'])
     except:
         return pd.DataFrame()
@@ -40,15 +48,16 @@ def leer_datos():
 def guardar_hoyo(df_fila):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
-        df_existente = leer_datos()
+        df_hist = leer_datos()
         id_hoyo = str(df_fila["id"].iloc[0])
-        if not df_existente.empty:
-            df_existente['id'] = df_existente['id'].astype(str)
-            df_final = df_existente[df_existente["id"] != id_hoyo].copy()
+        if not df_hist.empty:
+            df_hist['id'] = df_hist['id'].astype(str)
+            df_final = df_hist[df_hist["id"] != id_hoyo].copy()
             df_final = pd.concat([df_final, df_fila], ignore_index=True)
         else:
             df_final = df_fila
         conn.update(worksheet="historial", data=df_final)
+        st.cache_data.clear()
         return True
     except:
         return False
@@ -88,8 +97,9 @@ if menu == "Inicio":
     pts_a, pts_b = INICIO_2026_A, INICIO_2026_B
     
     if not df.empty:
-        df_2026 = df[df['temporada'].astype(str) == "2026"]
+        df_2026 = df[df['temporada'] == "2026"]
         if not df_2026.empty:
+            # Agrupar por partido para sumar victorias/empates al acumulado
             resumen = df_2026.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'}).reset_index()
             for _, r in resumen.iterrows():
                 if r['resultado_a'] > r['resultado_b']: pts_a += 1
@@ -108,7 +118,7 @@ if menu == "Inicio":
     """, unsafe_allow_html=True)
 
     if not df.empty:
-        df_mvp_tot = df[df['temporada'].astype(str) == "2026"]
+        df_mvp_tot = df[df['temporada'] == "2026"]
         if not df_mvp_tot.empty:
             st.markdown("<h3 style='text-align: center;'>⭐ MVP ACUMULADO</h3>", unsafe_allow_html=True)
             ranking = {TODOS[i]: df_mvp_tot[f"p{i+1}_pts"].sum() for i in range(4)}
@@ -143,18 +153,20 @@ elif menu == "Jugar/Editar":
             fila = pd.DataFrame([{"id": f"{g['partido_id']}_H{h_idx}", "partido_id": g['partido_id'], "hoyo": h_idx, "fecha": g['fecha'], "temporada": "2026", "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
             if guardar_hoyo(fila): st.toast("Guardado"); st.rerun()
 
+        # Botones de navegación
         c1, c2 = st.columns(2)
         if c1.button("⬅️ Anterior", use_container_width=True): g['h_sel'] = max(1, h_idx-1); st.rerun()
         if c2.button("Siguiente ➡️", use_container_width=True): g['h_sel'] = min(18, h_idx+1); st.rerun()
 
-        # --- MARCADOR DEL MATCH EN VIVO ---
+        # --- MARCADOR Y MVP DEL DÍA (EN VIVO) ---
         if g['logs']:
             st.write("---")
             match_a = sum(v['pts'][0] for v in g['logs'].values())
             match_b = sum(v['pts'][1] for v in g['logs'].values())
+            
             st.markdown(f"""
-                <div style="background:#fff; border:1px solid #ccc; padding:10px; border-radius:10px; text-align:center;">
-                    <p style="margin:0; font-size:0.8em; color:gray;">PUNTOS DEL DÍA</p>
+                <div style="background:#fff; border:1px solid #ccc; padding:10px; border-radius:10px; text-align:center; margin-bottom:10px;">
+                    <p style="margin:0; font-size:0.8em; color:gray;">PUNTOS DEL MATCH HOY</p>
                     <span style="color:{COLOR_A}; font-weight:bold; font-size:1.5em;">{match_a:g}</span> 
                     <span style="color:gray;"> vs </span> 
                     <span style="color:{COLOR_B}; font-weight:bold; font-size:1.5em;">{match_b:g}</span>
