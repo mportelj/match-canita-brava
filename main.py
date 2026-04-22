@@ -20,6 +20,12 @@ INICIO_2026_B = 3.5
 
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
+# --- FUNCIÓN DE ESTILO GLOBAL (Para evitar el NameError) ---
+def estilo_tabla(row):
+    color = COLOR_A if row['Jugador'] in ["MANUEL", "JOSE"] else COLOR_B
+    # Aplicamos el color tanto al texto del nombre como al de la puntuación
+    return [f'color: {color}; font-weight: bold'] * len(row)
+
 # --- FUNCIONES DE BASE DE DATOS ---
 def leer_datos():
     st.cache_data.clear()
@@ -112,11 +118,6 @@ if menu == "Inicio":
     if not df_2026.empty:
         mvps = {TODOS[i]: df_2026[f"p{i+1}_pts"].sum() for i in range(4)}
         df_mvp_temp = pd.DataFrame([{"Jugador": k, "Pts": round(float(v), 1)} for k, v in mvps.items()]).sort_values("Pts", ascending=False)
-        
-        def estilo_tabla(row):
-            color = COLOR_A if row['Jugador'] in ["MANUEL", "JOSE"] else COLOR_B
-            return [f'color: {color}; font-weight: bold'] * len(row)
-        
         st.table(df_mvp_temp.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
 
 elif menu == "Jugar/Editar":
@@ -130,7 +131,6 @@ elif menu == "Jugar/Editar":
         g = st.session_state.game
         h_idx = g['h_sel']
 
-        # --- CABECERA HOYO ---
         st.markdown(f"""
             <div style="background-color: #f0f2f6; padding: 5px; border-radius: 10px; text-align: center; margin-bottom: 15px; border: 1px solid #ddd;">
                 <h3 style="margin: 0; color: #333;">Hoyo {h_idx} <span style="font-size: 0.7em; color: #666;">(Par {PAR_RIA_VIGO[h_idx]})</span></h3>
@@ -139,51 +139,38 @@ elif menu == "Jugar/Editar":
 
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         
-        # --- ENTRADA DE GOLPES (UN JUGADOR POR LÍNEA) ---
-        # Jugador 1
+        # --- ENTRADA DE GOLPES (UN JUGADOR POR LÍNEA CON COLORES) ---
         st.markdown(f"<p style='margin-bottom:-15px; color:{COLOR_A}; font-weight:bold;'>{TODOS[0]}</p>", unsafe_allow_html=True)
         s1 = st.number_input("", 0, 10, v_def[0], key=f"s0_{h_idx}")
         
-        # Jugador 2
         st.markdown(f"<p style='margin-bottom:-15px; color:{COLOR_A}; font-weight:bold;'>{TODOS[1]}</p>", unsafe_allow_html=True)
         s2 = st.number_input("", 0, 10, v_def[1], key=f"s1_{h_idx}")
         
-        # Jugador 3
         st.markdown(f"<p style='margin-bottom:-15px; color:{COLOR_B}; font-weight:bold;'>{TODOS[2]}</p>", unsafe_allow_html=True)
         s3 = st.number_input("", 0, 10, v_def[2], key=f"s2_{h_idx}")
         
-        # Jugador 4
         st.markdown(f"<p style='margin-bottom:-15px; color:{COLOR_B}; font-weight:bold;'>{TODOS[3]}</p>", unsafe_allow_html=True)
         s4 = st.number_input("", 0, 10, v_def[3], key=f"s3_{h_idx}")
         
         s = [s1, s2, s3, s4]
         
-        # --- BOTÓN GUARDAR ---
         ya_guardado = str(h_idx) in g['logs'] and g['logs'][str(h_idx)]['s'] == s
         btn_txt = "✅ Sincronizado" if ya_guardado else "💾 Guardar Hoyo"
         
         if st.button(btn_txt, type="primary", use_container_width=True, disabled=ya_guardado):
             pa, pb, mi = calcular_puntos_hoyo(s1, s2, s3, s4, h_idx)
             g['logs'][str(h_idx)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
-            nueva_fila = pd.DataFrame([{
-                "id": f"{g['partido_id']}_H{h_idx}", "partido_id": g['partido_id'], "hoyo": h_idx,
-                "fecha": g['fecha'], "temporada": g['temp'], "resultado_a": pa, "resultado_b": pb,
-                "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4']
-            }])
+            nueva_fila = pd.DataFrame([{"id": f"{g['partido_id']}_H{h_idx}", "partido_id": g['partido_id'], "hoyo": h_idx, "fecha": g['fecha'], "temporada": g['temp'], "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4']}])
             if guardar_hoyo(nueva_fila):
                 st.toast(f"Hoyo {h_idx} guardado")
                 st.rerun()
 
-        # --- NAVEGACIÓN ---
         c_nav = st.columns(2)
         if c_nav[0].button("⬅️ Anterior", use_container_width=True):
-            g['h_sel'] = max(1, h_idx - 1)
-            st.rerun()
+            g['h_sel'] = max(1, h_idx - 1); st.rerun()
         if c_nav[1].button("Siguiente ➡️", use_container_width=True):
-            g['h_sel'] = min(18, h_idx + 1)
-            st.rerun()
+            g['h_sel'] = min(18, h_idx + 1); st.rerun()
 
-        # --- MARCADOR Y MVP (Se mantiene igual con colores) ---
         if g['logs']:
             total_match_a = sum(v['pts'][0] for v in g['logs'].values())
             total_match_b = sum(v['pts'][1] for v in g['logs'].values())
@@ -217,8 +204,8 @@ elif menu == "Jugar/Editar":
                     st.table(df_r.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
 
         if st.button("🏁 Finalizar y Salir", use_container_width=True):
-            del st.session_state.game
-            st.rerun()
+            del st.session_state.game; st.rerun()
+
 elif menu == "Admin":
     st.markdown("<h2 style='text-align: center;'>Admin</h2>", unsafe_allow_html=True)
     df = leer_datos()
