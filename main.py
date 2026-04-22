@@ -136,7 +136,6 @@ elif menu == "Jugar/Editar":
                 pa, pb, mi = calcular_puntos_hoyo(s1, s2, s3, s4, h_idx)
                 g['logs'][h_idx] = {'s': [s1, s2, s3, s4], 'pts': (pa, pb), 'mvp': mi}
                 
-                # AUTO-GUARDADO
                 if g['edit_id']: eliminar_partida_db(g['edit_id'])
                 conn = get_connection(); cur = conn.cursor()
                 t_a = sum(v['pts'][0] for v in g['logs'].values())
@@ -156,8 +155,33 @@ elif menu == "Jugar/Editar":
                 st.toast(f"Hoyo {h_idx} guardado", icon="💾")
                 st.rerun()
 
-        # --- MARCADOR VISUAL MATCH ---
+        # --- AQUÍ ESTÁ LA NOVEDAD: CLASIFICACIONES ACCESIBLES ---
         if g['logs']:
+            st.write("### 📈 Consultar Puntuaciones")
+            col_mvp1, col_mvp2 = st.columns(2)
+            
+            with col_mvp1:
+                with st.popover("🎯 Puntos Hoyo", use_container_width=True):
+                    st.write(f"**Desglose Hoyo {h_idx}:**")
+                    l = g['logs'][h_idx]
+                    res_hoyo = [
+                        {"Jugador": "MANUEL", "Golpes": l['s'][0], "Puntos": l['mvp']['p1']},
+                        {"Jugador": "JOSE", "Golpes": l['s'][1], "Puntos": l['mvp']['p2']},
+                        {"Jugador": "ROGE", "Golpes": l['s'][2], "Puntos": l['mvp']['p3']},
+                        {"Jugador": "LALO", "Golpes": l['s'][3], "Puntos": l['mvp']['p4']}
+                    ]
+                    st.table(pd.DataFrame(res_hoyo))
+
+            with col_mvp2:
+                with st.popover("🏆 Ranking Total", use_container_width=True):
+                    st.write("**MVP Acumulado del Partido:**")
+                    cur_mvp = {p: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i, p in enumerate(TODOS)}
+                    df_acumulado = pd.DataFrame([
+                        {"Jugador": p, "Puntos Totales": cur_mvp[p]} for p in TODOS
+                    ]).sort_values(by="Puntos Totales", ascending=False)
+                    st.table(df_acumulado)
+
+            # --- MARCADOR VISUAL MATCH ---
             t_a = sum(v['pts'][0] for v in g['logs'].values())
             t_b = sum(v['pts'][1] for v in g['logs'].values())
             st.divider()
@@ -179,7 +203,6 @@ elif menu == "Jugar/Editar":
         if st.button("🏁 Finalizar Jornada", use_container_width=True):
             del st.session_state.game
             st.success("¡Partida cerrada!"); st.balloons(); st.rerun()
-
 elif menu == "Admin":
     st.subheader("⚙️ Gestión")
     conn = get_connection()
