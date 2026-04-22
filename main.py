@@ -112,7 +112,6 @@ if menu == "Inicio":
     conn.close()
 
 elif menu == "Jugar/Editar":
-    # Inicialización de estado
     if 'game' not in st.session_state:
         st.subheader("Nueva Partida o Editar")
         f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
@@ -126,13 +125,13 @@ elif menu == "Jugar/Editar":
         if g['edit_id']:
             st.warning(f"📝 Editando partido del {g['fecha']}")
 
-        # Navegación
+        # Navegación entre hoyos
         cp, ch, cn = st.columns([1, 2, 1])
         if cp.button("⬅️") and h_idx > 1: g['h_sel'] -= 1; st.rerun()
         ch.markdown(f"<h3 style='text-align:center;'>Hoyo {h_idx} (Par {PAR_RIA_VIGO[h_idx]})</h3>", unsafe_allow_html=True)
         if cn.button("➡️") and h_idx < 18: g['h_sel'] += 1; st.rerun()
 
-        # Input
+        # Entrada de golpes
         v_def = g['logs'][h_idx]['s'] if h_idx in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         with st.container(border=True):
             cols = st.columns(4)
@@ -141,35 +140,58 @@ elif menu == "Jugar/Editar":
             s3 = cols[2].number_input("ROG", 0, 10, v_def[2], key=f"s3_{h_idx}")
             s4 = cols[3].number_input("LAL", 0, 10, v_def[3], key=f"s4_{h_idx}")
             
-            if st.button("✅ Confirmar Hoyo", use_container_width=True):
+            # El botón solo se habilita si hay cambios respecto a lo guardado
+            btn_disabled = (h_idx in g['logs'] and [s1, s2, s3, s4] == g['logs'][h_idx]['s'])
+            
+            if st.button("✅ Confirmar Hoyo", use_container_width=True, type="primary", disabled=btn_disabled):
+                # 1. Calcular puntos del hoyo
                 pa, pb, mi = calcular_puntos_hoyo(s1, s2, s3, s4, h_idx)
                 g['logs'][h_idx] = {'s': [s1, s2, s3, s4], 'pts': (pa, pb), 'mvp': mi}
+                
+                # 2. PROCESO DE AUTO-GUARDADO TOTAL
+                if g['edit_id']:
+                    eliminar_partida_db(g['edit_id']) # Limpiamos versión anterior antes de sobreescribir
+                
+                conn = get_connection(); cur = conn.cursor()
+                # Totales acumulados hasta el momento
+                t_a = sum(v['pts'][0] for v in g['logs'].values())
+                t_b = sum(v['pts'][1] for v in g['logs'].values())
+                cur_mvp = {p: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i, p in enumerate(TODOS)}
+                
+                # Insertar/Actualizar en historial
+                cur.execute("""INSERT INTO historial 
+                    (id, fecha, temporada, pareja_a, pareja_b, resultado_a, resultado_b, p1_pts, p2_pts, p3_pts, p4_pts, logs_json) 
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (g['edit_id'], g['fecha'], g['temp'], "M&J", "R&L", t_a, t_b, 
+                     cur_mvp["MANUEL"], cur_mvp["JOSE"], cur_mvp["ROGE"], cur_mvp["LALO"], json.dumps(g['logs'])))
+                
+                # Capturar el ID si es una partida nueva para seguir sobreescribiendo el mismo registro
+                if not g['edit_id']:
+                    g['edit_id'] = cur.lastrowid
+                
+                # Actualizar Ranking Anual (Sumar puntos actuales)
+                for p in TODOS:
+                    cur.execute("INSERT OR IGNORE INTO puntos_anuales (nombre, temporada) VALUES (?,?)", (p, g['temp']))
+                    cur.execute("UPDATE puntos_anuales SET partidos = partidos+1, puntos_mvp = puntos_mvp+? WHERE nombre=? AND temporada=?", 
+                               (cur_mvp[p], p, g['temp']))
+                
+                conn.commit(); conn.close()
+                st.toast(f"Hoyo {h_idx} guardado automáticamente", icon="💾")
                 st.rerun()
 
-        # Resumen Match actual
-        t_a = sum(v['pts'][0] for v in g['logs'].values())
-        t_b = sum(v['pts'][1] for v in g['logs'].values())
-        st.write(f"**Marcador actual:** M&J: {t_a} | R&L: {t_b}")
+        # Resumen Match y Ranking MVP en tiempo real
+        if g['logs']:
+            t_a = sum(v['pts'][0] for v in g['logs'].values())
+            t_b = sum(v['pts'][1] for v in g['logs'].values())
+            st.write(f"**Marcador Match:** M&J: {t_a} | R&L: {t_b}")
+            
+            with st.expander("Ver Ranking MVP actual"):
+                cur_mvp = {p: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i, p in enumerate(TODOS)}
+                st.table(pd.DataFrame([{"Jugador": p, "Puntos": cur_mvp[p]} for p in TODOS]).sort_values(by="Puntos", ascending=False))
 
-        if st.button("💾 GUARDAR TODO", type="primary", use_container_width=True):
-            if g['edit_id']:
-                eliminar_partida_db(g['edit_id']) # Borramos la versión vieja antes de insertar la nueva
-            
-            conn = get_connection(); cur = conn.cursor()
-            cur_mvp = {p: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i, p in enumerate(TODOS)}
-            
-            # Guardar en historial
-            cur.execute("INSERT INTO historial (fecha, temporada, pareja_a, pareja_b, resultado_a, resultado_b, p1_pts, p2_pts, p3_pts, p4_pts, logs_json) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                       (g['fecha'], g['temp'], "M&J", "R&L", t_a, t_b, cur_mvp["MANUEL"], cur_mvp["JOSE"], cur_mvp["ROGE"], cur_mvp["LALO"], json.dumps(g['logs'])))
-            
-            # Actualizar Ranking Anual
-            for p in TODOS:
-                cur.execute("INSERT OR IGNORE INTO puntos_anuales (nombre, temporada) VALUES (?,?)", (p, g['temp']))
-                cur.execute("UPDATE puntos_anuales SET partidos = partidos+1, puntos_mvp = puntos_mvp+? WHERE nombre=? AND temporada=?", (cur_mvp[p], p, g['temp']))
-            
-            conn.commit(); conn.close()
+        if st.button("🏁 Finalizar Jornada", use_container_width=True):
             del st.session_state.game
-            st.success("¡Datos actualizados correctamente!"); st.balloons(); st.rerun()
+            st.success("Partida finalizada. ¡Buen juego!"); st.balloons(); st.rerun()
 
 elif menu == "Admin":
     st.subheader("⚙️ Gestión y Configuración")
