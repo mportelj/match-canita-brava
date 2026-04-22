@@ -14,16 +14,12 @@ HISTORICO_PUNTOS = 3.5
 
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
-# --- FUNCIONES DE BASE DE DATOS (CON SECRETS) ---
+# --- FUNCIONES DE BASE DE DATOS ---
 def leer_datos():
     try:
-        # st.connection usa automáticamente los Secrets configurados en la nube
         conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(worksheet="historial", ttl=0)
-        # Si la hoja está vacía pero tiene encabezados, devolverá el DF con esos encabezados
-        return df
-    except Exception as e:
-        # Si la hoja no existe o falla la conexión
+        return conn.read(worksheet="historial", ttl=0)
+    except:
         return pd.DataFrame(columns=["id", "fecha", "temporada", "resultado_a", "resultado_b", "p1_pts", "p2_pts", "p3_pts", "p4_pts", "logs_json"])
 
 def guardar_partida(df_partida):
@@ -31,19 +27,16 @@ def guardar_partida(df_partida):
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_existente = leer_datos()
         
-        # Eliminar partido previo del mismo día si existe para actualizarlo
+        # Eliminar versión anterior del mismo partido para evitar filas duplicadas
         if not df_partida["id"].isna().all():
             id_actual = str(df_partida["id"].iloc[0])
             df_existente = df_existente[df_existente["id"].astype(str) != id_actual]
         
-        # Unir datos nuevos con los viejos
         df_final = pd.concat([df_existente, df_partida], ignore_index=True)
-        
-        # ACTUALIZACIÓN FÍSICA EN GOOGLE SHEETS
         conn.update(worksheet="historial", data=df_final)
         return True
     except Exception as e:
-        st.error(f"Error al grabar: {e}")
+        st.error(f"Error al grabar en la nube: {e}")
         return False
 
 # --- LÓGICA DE CÁLCULO ---
@@ -66,7 +59,7 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
         elif g == par: mvp[f"p{i+1}"] += 0.5
     return pa, pb, mvp
 
-# --- INTERFAZ ---
+# --- NAVEGACIÓN ---
 menu = st.sidebar.radio("Menú", ["Inicio", "Jugar/Editar", "Admin"])
 
 if menu == "Inicio":
@@ -97,8 +90,6 @@ if menu == "Inicio":
             }
             df_mvp = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in mvp_tot.items()]).sort_values("Pts", ascending=False)
             st.table(df_mvp)
-        else:
-            st.info("Sin partidos grabados este año.")
 
 elif menu == "Jugar/Editar":
     if 'game' not in st.session_state:
@@ -106,26 +97,18 @@ elif menu == "Jugar/Editar":
         f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
         if st.button("🚀 Iniciar Partido", use_container_width=True):
             st.session_state.game = {
-                'fecha': f.strftime("%d/%m/%Y"), 
-                'temp': str(f.year), 
-                'h_sel': 1, 
-                'logs': {}, 
-                'edit_id': datetime.now().strftime("%Y%m%d") # ID por día
+                'fecha': f.strftime("%d/%m/%Y"), 'temp': str(f.year), 
+                'h_sel': 1, 'logs': {}, 'edit_id': datetime.now().strftime("%Y%m%d")
             }
             st.rerun()
     else:
         g = st.session_state.game
         h_idx = g['h_sel']
         
-        # Botones navegación hoyos
-        col_prev, col_hoyo, col_next = st.columns([1, 2, 1])
-        if col_prev.button("⬅️") and h_idx > 1:
-            g['h_sel'] -= 1
-            st.rerun()
-        col_hoyo.markdown(f"<h3 style='text-align:center;'>Hoyo {h_idx} (Par {PAR_RIA_VIGO[h_idx]})</h3>", unsafe_allow_html=True)
-        if col_next.button("➡️") and h_idx < 18:
-            g['h_sel'] += 1
-            st.rerun()
+        cp, ch, cn = st.columns([1, 2, 1])
+        if cp.button("⬅️") and h_idx > 1: g['h_sel'] -= 1; st.rerun()
+        ch.markdown(f"<h3 style='text-align:center;'>Hoyo {h_idx} (Par {PAR_RIA_VIGO[h_idx]})</h3>", unsafe_allow_html=True)
+        if cn.button("➡️") and h_idx < 18: g['h_sel'] += 1; st.rerun()
 
         # Entrada de golpes
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
@@ -133,11 +116,19 @@ elif menu == "Jugar/Editar":
             cols = st.columns(4)
             s = [cols[i].number_input(TODOS[i][:3], 0, 10, v_def[i], key=f"s{i}_{h_idx}") for i in range(4)]
             
-            if st.button("✅ Confirmar y Grabar Hoyo", use_container_width=True, type="primary"):
+            # --- LÓGICA ANTI-DUPLICADOS ---
+            ya_guardado = False
+            if str(h_idx) in g['logs']:
+                if g['logs'][str(h_idx)]['s'] == s:
+                    ya_guardado = True
+
+            texto_boton = "✅ Hoyo ya sincronizado" if ya_guardado else "💾 Confirmar y Grabar Hoyo"
+            
+            if st.button(texto_boton, use_container_width=True, type="primary", disabled=ya_guardado):
                 pa, pb, mi = calcular_puntos_hoyo(s[0], s[1], s[2], s[3], h_idx)
                 g['logs'][str(h_idx)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
                 
-                # Cálculos para la fila del Excel
+                # Totales acumulados para la fila del Excel
                 t_a = sum(v['pts'][0] for v in g['logs'].values())
                 t_b = sum(v['pts'][1] for v in g['logs'].values())
                 m_pts = [sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)]
@@ -150,29 +141,29 @@ elif menu == "Jugar/Editar":
                 }])
                 
                 if guardar_partida(nueva_fila):
-                    st.toast("¡Datos sincronizados con Google Sheets! ☁️")
-                st.rerun()
+                    st.toast("Datos guardados en la nube ☁️")
+                    st.rerun()
 
         if g['logs']:
             t_a = sum(v['pts'][0] for v in g['logs'].values())
             t_b = sum(v['pts'][1] for v in g['logs'].values())
             st.divider()
-            st.markdown(f"<h3 style='text-align:center;'>Marcador Match: {int(t_a)} - {int(t_b)}</h3>", unsafe_allow_html=True)
+            st.markdown(f"<h3 style='text-align:center;'>Marcador: {int(t_a)} - {int(t_b)}</h3>", unsafe_allow_html=True)
             
-        if st.button("🏁 Cerrar Partida Actual", use_container_width=True):
+        if st.button("🏁 Finalizar y Salir", use_container_width=True):
             del st.session_state.game
             st.rerun()
 
 elif menu == "Admin":
-    st.subheader("⚙️ Gestión de la Nube")
+    st.subheader("⚙️ Administración")
     df = leer_datos()
     if not df.empty:
         for _, r in df.iterrows():
             with st.expander(f"📅 {r['fecha']} | {r['resultado_a']} - {r['resultado_b']}"):
-                if st.button("🗑️ Eliminar de Google Sheets", key=f"del_{r['id']}"):
+                if st.button("🗑️ Eliminar Partida", key=f"del_{r['id']}"):
                     conn = st.connection("gsheets", type=GSheetsConnection)
                     df_new = df[df["id"].astype(str) != str(r['id'])]
                     conn.update(worksheet="historial", data=df_new)
                     st.rerun()
     else:
-        st.info("No hay datos en el Excel.")
+        st.info("No hay partidas registradas.")
