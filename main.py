@@ -131,7 +131,7 @@ elif st.session_state.menu == "Jugar/Editar":
         h_idx = g['h_sel']
         st.markdown(f"<div style='background:#f0f2f6;padding:5px;border-radius:10px;text-align:center;margin-bottom:15px;border:1px solid #ddd;'><h3>Hoyo {h_idx} (Par {PAR_RIA_VIGO[h_idx]})</h3></div>", unsafe_allow_html=True)
 
-        # Recuperar golpes actuales si existen
+        # Recuperar golpes actuales
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         
         st.markdown(f"<b style='color:{COLOR_A}'>{TODOS[0]}</b>", unsafe_allow_html=True)
@@ -144,52 +144,67 @@ elif st.session_state.menu == "Jugar/Editar":
         s4 = st.number_input("g4", 0, 10, v_def[3], key=f"s3_{h_idx}", label_visibility="collapsed")
         
         golpes_actuales = [s1, s2, s3, s4]
-
-        # --- LÓGICA DE DESHABILITACIÓN ---
-        # Comprobamos si el hoyo ya existe en logs y si los golpes son idénticos
-        ya_guardado = False
-        if str(h_idx) in g['logs']:
-            if g['logs'][str(h_idx)]['s'] == golpes_actuales:
-                ya_guardado = True
-
+        ya_guardado = str(h_idx) in g['logs'] and g['logs'][str(h_idx)]['s'] == golpes_actuales
         texto_boton = "✅ Hoyo Sincronizado" if ya_guardado else "💾 Guardar Hoyo"
         
         if st.button(texto_boton, type="primary", use_container_width=True, disabled=ya_guardado):
             pa, pb, mi = calcular_puntos_hoyo(s1, s2, s3, s4, h_idx)
-            # Guardamos en la sesión
             g['logs'][str(h_idx)] = {'s': golpes_actuales, 'pts': (pa, pb), 'mvp': mi}
-            
-            # Preparamos fila para Google Sheets
             nueva_fila = pd.DataFrame([{
-                "id": f"{g['partido_id']}_H{h_idx}", 
-                "partido_id": g['partido_id'], 
-                "hoyo": h_idx, 
-                "fecha": g['fecha'], 
-                "temporada": g['temp'], 
-                "resultado_a": pa, 
-                "resultado_b": pb, 
+                "id": f"{g['partido_id']}_H{h_idx}", "partido_id": g['partido_id'], "hoyo": h_idx, 
+                "fecha": g['fecha'], "temporada": g['temp'], "resultado_a": pa, "resultado_b": pb, 
                 "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'],
                 "s0": s1, "s1": s2, "s2": s3, "s3": s4
             }])
-            
             if guardar_hoyo(nueva_fila):
-                st.toast(f"Hoyo {h_idx} guardado con éxito")
-                st.rerun() # Recargamos para que el botón se deshabilite inmediatamente
+                st.toast(f"Hoyo {h_idx} guardado"); st.rerun()
 
-        # Navegación entre hoyos
         c_nav = st.columns(2)
-        if c_nav[0].button("⬅️ Anterior", use_container_width=True):
-            g['h_sel'] = max(1, h_idx-1)
-            st.rerun()
-        if c_nav[1].button("Siguiente ➡️", use_container_width=True):
-            g['h_sel'] = min(18, h_idx+1)
-            st.rerun()
+        if c_nav[0].button("⬅️ Anterior", use_container_width=True): g['h_sel'] = max(1, h_idx-1); st.rerun()
+        if c_nav[1].button("Siguiente ➡️", use_container_width=True): g['h_sel'] = min(18, h_idx+1); st.rerun()
+
+        # --- SECCIÓN DE ESTADÍSTICAS EN VIVO DEL PARTIDO ---
+        if g['logs']:
+            st.write("---")
+            total_match_a = sum(v['pts'][0] for v in g['logs'].values())
+            total_match_b = sum(v['pts'][1] for v in g['logs'].values())
+            
+            # Marcador del Match actual
+            st.markdown(f"""
+                <div style="border: 2px solid #ccc; border-radius: 12px; padding: 10px; background-color: #ffffff; text-align: center; margin-bottom: 15px;">
+                    <p style="margin:0; font-size:0.9em; color:#666;">MARCADOR ACTUAL</p>
+                    <div style="display: flex; justify-content: space-around; align-items: center;">
+                        <div>
+                            <p style="margin: 0; font-weight: bold; color: {COLOR_A};">M & J</p>
+                            <h2 style="margin: 0; color: {COLOR_A};">{total_match_a:g}</h2>
+                        </div>
+                        <h3 style="margin: 0; color: #999;">vs</h3>
+                        <div>
+                            <p style="margin: 0; font-weight: bold; color: {COLOR_B};">R & L</p>
+                            <h2 style="margin: 0; color: {COLOR_B};">{total_match_b:g}</h2>
+                        </div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            # Desplegables MVP
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                with st.popover("🎯 MVP Hoyo", use_container_width=True):
+                    pts_h = g['logs'][str(h_idx)]['mvp']
+                    df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": round(float(pts_h[f"p{i+1}"]), 1)} for i in range(4)])
+                    st.table(df_h.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
+            with col_m2:
+                with st.popover("🏆 MVP Match", use_container_width=True):
+                    ranking = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
+                    df_r = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in ranking.items()]).sort_values("Pts", ascending=False)
+                    st.table(df_r.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
 
         st.write("---")
         if st.button("🏁 Finalizar y Salir", use_container_width=True):
-            if 'game' in st.session_state:
-                del st.session_state.game
+            if 'game' in st.session_state: del st.session_state.game
             ir_a("Inicio")
+            
 elif st.session_state.menu == "Admin":
     st.markdown("<h2 style='text-align: center;'>Administración</h2>", unsafe_allow_html=True)
     df = leer_datos()
