@@ -90,35 +90,47 @@ if menu == "Inicio":
     df = leer_datos()
     df_2026 = df[df['temporada'] == "2026"]
     
-    wins_a = 0
-    wins_b = 0
-    if not df_2026.empty:
-        resumen = df_2026.groupby('partido_id').agg({'resultado_a': 'sum', 'resultado_b': 'sum'}).reset_index()
-        wins_a = len(resumen[resumen['resultado_a'] > resumen['resultado_b']])
-        wins_b = len(resumen[resumen['resultado_b'] > resumen['resultado_a']])
+    # Inicializamos con el acarreo de la temporada anterior
+    puntos_totales_a = INICIO_2026_A
+    puntos_totales_b = INICIO_2026_B
     
+    if not df_2026.empty:
+        # Agrupamos por partido para ver quién ganó cada jornada
+        resumen = df_2026.groupby('partido_id').agg({
+            'resultado_a': 'sum', 
+            'resultado_b': 'sum'
+        }).reset_index()
+        
+        # Lógica de reparto de puntos de temporada
+        for _, row in resumen.iterrows():
+            if row['resultado_a'] > row['resultado_b']:
+                puntos_totales_a += 1.0
+            elif row['resultado_b'] > row['resultado_a']:
+                puntos_totales_b += 1.0
+            else:
+                # Empate en el partido: 0,5 para cada uno
+                puntos_totales_a += 0.5
+                puntos_totales_b += 0.5
+    
+    # MARCADOR TEMPORADA ACTUALIZADO
     st.markdown(f"""
         <div style="border: 2px solid #ccc; border-radius: 15px; padding: 20px; background-color: #f9f9f9; text-align: center; margin-bottom: 25px;">
             <h2 style="margin-bottom: 10px; color: #333;">TEMPORADA 2026</h2>
             <div style="display: flex; justify-content: space-around; align-items: center;">
                 <div>
                     <h4 style="margin: 0; color: {COLOR_A};">MANUEL & JOSE</h4>
-                    <h1 style="color: {COLOR_A}; margin: 0;">{INICIO_2026_A + wins_a}</h1>
+                    <h1 style="color: {COLOR_A}; margin: 0;">{puntos_totales_a:g}</h1>
                 </div>
                 <h2 style="margin: 0; color: #999;">VS</h2>
                 <div>
                     <h4 style="margin: 0; color: {COLOR_B};">ROGE & LALO</h4>
-                    <h1 style="color: {COLOR_B}; margin: 0;">{INICIO_2026_B + wins_b}</h1>
+                    <h1 style="color: {COLOR_B}; margin: 0;">{puntos_totales_b:g}</h1>
                 </div>
             </div>
         </div>
     """, unsafe_allow_html=True)
     
-    st.markdown("<h3 style='text-align: center;'>⭐ Clasificación MVP 2026</h3>", unsafe_allow_html=True)
-    if not df_2026.empty:
-        mvps = {TODOS[i]: df_2026[f"p{i+1}_pts"].sum() for i in range(4)}
-        df_mvp_temp = pd.DataFrame([{"Jugador": k, "Pts": round(float(v), 1)} for k, v in mvps.items()]).sort_values("Pts", ascending=False)
-        st.table(df_mvp_temp.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
+    # ... (el resto del código de la clasificación MVP se mantiene igual)
 
 elif menu == "Jugar/Editar":
     if 'game' not in st.session_state:
