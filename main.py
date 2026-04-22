@@ -219,12 +219,58 @@ elif menu == "Jugar/Editar":
             del st.session_state.game; st.rerun()
 
 elif menu == "Admin":
-    st.markdown("<h2 style='text-align: center;'>Admin</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>Administración</h2>", unsafe_allow_html=True)
     df = leer_datos()
+    
     if not df.empty:
-        for p_id in df['partido_id'].unique():
-            with st.expander(f"Jornada {p_id}"):
-                if st.button("Borrar Jornada", key=f"del_{p_id}"):
-                    conn = st.connection("gsheets", type=GSheetsConnection)
-                    conn.update(worksheet="historial", data=df[df['partido_id'] != p_id])
+        # Ordenamos por fecha/id descendente para ver lo último primero
+        partidos = df['partido_id'].unique()[::-1]
+        
+        for p_id in partidos:
+            datos_partido = df[df['partido_id'] == p_id]
+            fecha_p = datos_partido['fecha'].iloc[0]
+            
+            with st.expander(f"📅 Partido: {fecha_p} (ID: {p_id})"):
+                col_adm1, col_adm2 = st.columns(2)
+                
+                # --- BOTÓN EDITAR ---
+                if col_adm1.button("✏️ Editar Partida", key=f"edit_{p_id}", use_container_width=True):
+                    # 1. Convertir los datos de la hoja en el formato del log de juego
+                    logs_recuperados = {}
+                    for _, fila in datos_partido.iterrows():
+                        h_num = str(int(fila['hoyo']))
+                        # Reconstruimos la lista de golpes (s) y los puntos calculados
+                        logs_recuperados[h_num] = {
+                            's': [fila.get('s0', 0), fila.get('s1', 0), fila.get('s2', 0), fila.get('s3', 0)], # Asegúrate de que tu tabla tiene s0, s1...
+                            'pts': (fila['resultado_a'], fila['resultado_b']),
+                            'mvp': {
+                                'p1': fila['p1_pts'], 'p2': fila['p2_pts'], 
+                                'p3': fila['p3_pts'], 'p4': fila['p4_pts']
+                            }
+                        }
+                    
+                    # 2. Cargar en session_state
+                    st.session_state.game = {
+                        'fecha': fecha_p,
+                        'temp': str(datos_partido['temporada'].iloc[0]),
+                        'h_sel': 1,
+                        'logs': logs_recuperados,
+                        'partido_id': p_id
+                    }
+                    st.success("Cargando datos... Ve a 'Jugar/Editar'")
                     st.rerun()
+
+                # --- BOTÓN BORRAR ---
+                if col_adm2.button("🗑️ Borrar Todo", key=f"del_{p_id}", use_container_width=True):
+                    conn = st.connection("gsheets", type=GSheetsConnection)
+                    nuevo_df = df[df['partido_id'] != p_id]
+                    conn.update(worksheet="historial", data=nuevo_df)
+                    st.cache_data.clear()
+                    st.rerun()
+                
+                # Mostrar resumen rápido de la jornada
+                total_a = datos_partido['resultado_a'].sum()
+                total_b = datos_partido['resultado_b'].sum()
+                st.write(f"Resultado final: {int(total_a)} - {int(total_b)}")
+    else:
+        st.info("No hay partidas registradas en el historial.")
