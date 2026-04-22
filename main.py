@@ -94,8 +94,8 @@ if menu == "Inicio":
     wins_b = len(df_h[df_h['resultado_b'] > df_h['resultado_a']])
     
     c1, c2 = st.columns(2)
-    c1.metric("M & J", f"{HISTORICO_PUNTOS + wins_a} Pts")
-    c2.metric("R & L", f"{HISTORICO_PUNTOS + wins_b} Pts")
+    c1.metric("MANU & JOSE", f"{HISTORICO_PUNTOS + wins_a} Pts")
+    c2.metric("ROGE & LALO", f"{HISTORICO_PUNTOS + wins_b} Pts")
     
     st.subheader("⭐ Clasificación MVP Acumulada")
     df_mvp = pd.read_sql_query(f"SELECT nombre as Jugador, partidos as PJ, puntos_mvp as Puntos FROM puntos_anuales WHERE temporada = '{temp_sel}' ORDER BY Puntos DESC", conn)
@@ -146,7 +146,7 @@ elif menu == "Jugar/Editar":
                 cur.execute("""INSERT INTO historial 
                     (id, fecha, temporada, pareja_a, pareja_b, resultado_a, resultado_b, p1_pts, p2_pts, p3_pts, p4_pts, logs_json) 
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (g['edit_id'], g['fecha'], g['temp'], "M&J", "R&L", t_a, t_b, 
+                    (g['edit_id'], g['fecha'], g['temp'], "MANU & JOSE", "ROGE & LALO", t_a, t_b, 
                      cur_mvp["MANUEL"], cur_mvp["JOSE"], cur_mvp["ROGE"], cur_mvp["LALO"], json.dumps(g['logs'])))
                 if not g['edit_id']: g['edit_id'] = cur.lastrowid
                 for p in TODOS:
@@ -164,15 +164,15 @@ elif menu == "Jugar/Editar":
             st.markdown("<h3 style='text-align: center; color: #1e3d59;'>🏆 MARCADOR MATCH</h3>", unsafe_allow_html=True)
             m1, m2, m3 = st.columns([2, 1, 2])
             with m1:
-                st.markdown(f"<div style='text-align:center;padding:15px;background-color:#e8f5e9;border-radius:15px;border:2px solid #2e7d32;'><p style='margin:0;font-weight:bold;color:#1b5e20;'>M & J</p><h1 style='margin:0;font-size:45px;color:#2e7d32;'>{int(t_a)}</h1></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center;padding:15px;background-color:#e8f5e9;border-radius:15px;border:2px solid #2e7d32;'><p style='margin:0;font-weight:bold;color:#1b5e20;'>MANU & JOSE</p><h1 style='margin:0;font-size:45px;color:#2e7d32;'>{int(t_a)}</h1></div>", unsafe_allow_html=True)
             with m2:
                 st.markdown("<h1 style='text-align:center;padding-top:25px;color:#999;'>VS</h1>", unsafe_allow_html=True)
             with m3:
-                st.markdown(f"<div style='text-align:center;padding:15px;background-color:#e3f2fd;border-radius:15px;border:2px solid #1565c0;'><p style='margin:0;font-weight:bold;color:#0d47a1;'>R & L</p><h1 style='margin:0;font-size:45px;color:#1565c0;'>{int(t_b)}</h1></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center;padding:15px;background-color:#e3f2fd;border-radius:15px;border:2px solid #1565c0;'><p style='margin:0;font-weight:bold;color:#0d47a1;'>ROGE & LALO</p><h1 style='margin:0;font-size:45px;color:#1565c0;'>{int(t_b)}</h1></div>", unsafe_allow_html=True)
             
             diff = t_a - t_b
-            if diff > 0: st.success(f"🟢 M&J lideran por {int(diff)}")
-            elif diff < 0: st.info(f"🔵 R&L lideran por {int(abs(diff))}")
+            if diff > 0: st.success(f"🟢 MANU & JOSE lideran por {int(diff)}")
+            elif diff < 0: st.info(f"🔵 ROGE & LALO lideran por {int(abs(diff))}")
             else: st.warning("⚪ Empate")
 
         st.divider()
