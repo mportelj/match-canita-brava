@@ -193,7 +193,7 @@ elif menu == "Admin":
                     }
                     st.info("Partido cargado. Ve a la pestaña 'Jugar/Editar' para modificarlo.")
                 
-                if c2.button("🗑️ Eliminar", key=f"del_{r['id']}"):
+    if c2.button("🗑️ Eliminar", key=f"del_{r['id']}"):
                     eliminar_partida_db(r['id'])
                     st.rerun()
     else:
