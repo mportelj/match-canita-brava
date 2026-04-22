@@ -155,9 +155,9 @@ elif menu == "Jugar/Editar":
                 st.toast(f"Hoyo {h_idx} guardado", icon="💾")
                 st.rerun()
 
-        # --- AQUÍ ESTÁ LA NOVEDAD: CLASIFICACIONES ACCESIBLES ---
+        # --- CLASIFICACIÓN MVP CON BOTONES DESPLEGABLES ---
         if g['logs']:
-            st.write("### 📈 Consultar Puntuaciones")
+            st.write("### 📈 Clasificación MVP")
             col_mvp1, col_mvp2 = st.columns(2)
             
             with col_mvp1:
@@ -203,6 +203,7 @@ elif menu == "Jugar/Editar":
         if st.button("🏁 Finalizar Jornada", use_container_width=True):
             del st.session_state.game
             st.success("¡Partida cerrada!"); st.balloons(); st.rerun()
+            
 elif menu == "Admin":
     st.subheader("⚙️ Gestión")
     conn = get_connection()
