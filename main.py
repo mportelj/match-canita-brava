@@ -110,8 +110,13 @@ elif menu == "Jugar/Editar":
         st.subheader("Nueva Partida")
         f = st.date_input("Fecha:", datetime.now())
         if st.button("🚀 Iniciar"):
-            # partido_id es constante para toda la jornada
-            st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'temp': str(f.year), 'h_sel': 1, 'logs': {}, 'partido_id': f.strftime("%Y%m%d")}
+            st.session_state.game = {
+                'fecha': f.strftime("%d/%m/%Y"), 
+                'temp': str(f.year), 
+                'h_sel': 1, 
+                'logs': {}, 
+                'partido_id': f.strftime("%Y%m%d")
+            }
             st.rerun()
     else:
         g = st.session_state.game
@@ -123,16 +128,26 @@ elif menu == "Jugar/Editar":
         nav[1].markdown(f"<h3 style='text-align:center;'>Hoyo {h_idx}</h3>", unsafe_allow_html=True)
         if nav[2].button("➡️") and h_idx < 18: g['h_sel'] += 1; st.rerun()
 
-        # Input
+        # Input de golpes
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         c = st.columns(4)
         s = [c[i].number_input(TODOS[i][:3], 0, 10, v_def[i], key=f"s{i}_{h_idx}") for i in range(4)]
         
-        if st.button("💾 Grabar Hoyo", type="primary", use_container_width=True):
+        # --- LÓGICA DE DESACTIVACIÓN DEL BOTÓN ---
+        # Comprobamos si el hoyo actual existe en logs y si los scores son idénticos
+        ya_guardado = False
+        if str(h_idx) in g['logs']:
+            if g['logs'][str(h_idx)]['s'] == s:
+                ya_guardado = True
+
+        texto_btn = "✅ Hoyo Sincronizado" if ya_guardado else "💾 Grabar Hoyo"
+        
+        if st.button(texto_btn, type="primary", use_container_width=True, disabled=ya_guardado):
             pa, pb, mi = calcular_puntos_hoyo(s[0], s[1], s[2], s[3], h_idx)
+            # Guardamos en la memoria de la sesión (logs)
             g['logs'][str(h_idx)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
             
-            # Fila única para este hoyo
+            # Preparamos la fila para Google Sheets
             nueva_fila = pd.DataFrame([{
                 "id": f"{g['partido_id']}_H{h_idx}", 
                 "partido_id": g['partido_id'],
@@ -143,31 +158,8 @@ elif menu == "Jugar/Editar":
             }])
             
             if guardar_hoyo(nueva_fila):
-                st.toast(f"Hoyo {h_idx} guardado")
+                st.toast(f"Hoyo {h_idx} en la nube ☁️")
                 st.rerun()
-
-        # Marcadores Match y MVP (Hoyo y Total)
-        if g['logs']:
-            ta = sum(v['pts'][0] for v in g['logs'].values())
-            tb = sum(v['pts'][1] for v in g['logs'].values())
-            st.divider()
-            st.markdown(f"<h2 style='text-align:center;'>Match: {int(ta)} - {int(tb)}</h2>", unsafe_allow_html=True)
-            
-            # Botones de clasificación que pediste al principio
-            c1, c2 = st.columns(2)
-            with c1:
-                with st.popover("🎯 Hoyo", use_container_width=True):
-                    if str(h_idx) in g['logs']:
-                        pts_h = g['logs'][str(h_idx)]['mvp']
-                        st.table(pd.DataFrame([{"Jugador": TODOS[i], "Pts": pts_h[f"p{i+1}"]} for i in range(4)]))
-            with c2:
-                with st.popover("🏆 Partido", use_container_width=True):
-                    ranking = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
-                    st.table(pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in ranking.items()]).sort_values("Pts", ascending=False))
-
-        if st.button("🏁 Finalizar"):
-            del st.session_state.game
-            st.rerun()
 
 elif menu == "Admin":
     st.subheader("Admin")
