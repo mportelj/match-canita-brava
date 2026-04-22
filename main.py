@@ -121,71 +121,69 @@ elif menu == "Jugar/Editar":
         g = st.session_state.game
         h_idx = g['h_sel']
         
-        # --- NAVEGACIÓN FORZADA EN UNA LÍNEA ---
-        # Creamos 3 columnas reales, pero forzamos el diseño con botones de Streamlit 
-        # usando una configuración de columnas muy extrema que suele engañar al responsive.
-        
-        col_nav = st.columns([0.2, 0.6, 0.2]) # Columnas laterales mínimas
-        
-        with col_nav[0]:
-            if st.button("⬅️", key="prev_h"):
-                g['h_sel'] = max(1, h_idx - 1)
-                st.rerun()
-        
-        with col_nav[1]:
-            # Forzamos el texto a no romperse nunca (white-space: nowrap)
-            st.markdown(f"""
-                <div style="text-align: center; margin-top: -5px;">
-                    <h3 style="margin: 0; padding: 0; white-space: nowrap; font-size: 1.1em;">Hoyo {h_idx} (Par {PAR_RIA_VIGO[h_idx]})</h3>
+        # --- NAVEGACIÓN BLINDADA (FLEXBOX) ---
+        # Este bloque obliga al navegador a mantener la línea horizontal
+        st.markdown(f"""
+            <div style="display: flex; justify-content: center; align-items: center; background-color: #f0f2f6; border-radius: 10px; padding: 10px; gap: 20px;">
+                <div style="font-size: 1.5em;">⬅️</div>
+                <div style="text-align: center; min-width: 120px;">
+                    <h3 style="margin: 0; font-size: 1.2em;">Hoyo {h_idx}</h3>
+                    <p style="margin: 0; font-size: 0.8em; color: gray;">Par {PAR_RIA_VIGO[h_idx]}</p>
                 </div>
-            """, unsafe_allow_html=True)
-            
-        with col_nav[2]:
-            if st.button("➡️", key="next_h"):
-                g['h_sel'] = min(18, h_idx + 1)
-                st.rerun()
+                <div style="font-size: 1.5em;">➡️</div>
+            </div>
+        """, unsafe_allow_html=True)
 
-        st.divider()
+        # Botones de control reales (pequeños y en una sola fila)
+        c_nav = st.columns(2)
+        if c_nav[0].button("Anterior Hoyo", use_container_width=True):
+            g['h_sel'] = max(1, h_idx - 1)
+            st.rerun()
+        if c_nav[1].button("Siguiente Hoyo", use_container_width=True):
+            g['h_sel'] = min(18, h_idx + 1)
+            st.rerun()
 
-        # --- ENTRADA DE GOLPES (Simplificada para máximo espacio) ---
+        st.write("---")
+
+        # --- ENTRADA DE GOLPES (2x2) ---
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         
-        # Usamos columnas de 2 en 2 pero con etiquetas cortas si fuera necesario
+        # Agrupamos inputs para que ocupen lo mínimo
         c1, c2 = st.columns(2)
         s1 = c1.number_input(TODOS[0], 0, 10, v_def[0], key=f"s0_{h_idx}")
         s2 = c2.number_input(TODOS[1], 0, 10, v_def[1], key=f"s1_{h_idx}")
-        
-        c3, c4 = st.columns(2)
-        s3 = c3.number_input(TODOS[2], 0, 10, v_def[2], key=f"s2_{h_idx}")
-        s4 = c4.number_input(TODOS[3], 0, 10, v_def[3], key=f"s3_{h_idx}")
+        s3 = c1.number_input(TODOS[2], 0, 10, v_def[2], key=f"s2_{h_idx}")
+        s4 = c2.number_input(TODOS[3], 0, 10, v_def[3], key=f"s3_{h_idx}")
         
         s = [s1, s2, s3, s4]
         
         # --- BOTÓN GRABAR ---
         ya_guardado = str(h_idx) in g['logs'] and g['logs'][str(h_idx)]['s'] == s
-        btn_txt = "✅ Sincronizado" if ya_guardado else "💾 Grabar Hoyo"
+        btn_txt = "✅ Sincronizado" if ya_guardado else "💾 Guardar Hoyo"
         
         if st.button(btn_txt, type="primary", use_container_width=True, disabled=ya_guardado):
             pa, pb, mi = calcular_puntos_hoyo(s[0], s[1], s[2], s[3], h_idx)
             g['logs'][str(h_idx)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
             nueva_fila = pd.DataFrame([{
-                "id": f"{g['partido_id']}_H{h_idx}", 
-                "partido_id": g['partido_id'], 
-                "hoyo": h_idx, 
-                "fecha": g['fecha'], 
-                "temporada": g['temp'], 
-                "resultado_a": pa, "resultado_b": pb, 
+                "id": f"{g['partido_id']}_H{h_idx}", "partido_id": g['partido_id'], "hoyo": h_idx,
+                "fecha": g['fecha'], "temporada": g['temp'], "resultado_a": pa, "resultado_b": pb,
                 "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4']
             }])
             if guardar_hoyo(nueva_fila):
-                st.toast(f"Hoyo {h_idx} OK")
+                st.toast(f"Hoyo {h_idx} guardado")
                 st.rerun()
 
-        # Marcador inferior muy discreto
+        # Marcador discreto al final
         if g['logs']:
             total_match_a = sum(v['pts'][0] for v in g['logs'].values())
             total_match_b = sum(v['pts'][1] for v in g['logs'].values())
-            st.markdown(f"<p style='text-align:center; font-size:0.8em; color:gray;'>Match: {int(total_match_a)} - {int(total_match_b)}</p>", unsafe_allow_html=True)
+            st.markdown(f"""
+                <div style="text-align: center; border-top: 1px solid #eee; padding-top: 10px;">
+                    <span style="color: green; font-weight: bold;">{int(total_match_a)}</span> 
+                    <span style="color: gray;"> vs </span> 
+                    <span style="color: red; font-weight: bold;">{int(total_match_b)}</span>
+                </div>
+            """, unsafe_allow_html=True)
 
         if st.button("🏁 Finalizar", use_container_width=True):
             del st.session_state.game
