@@ -172,24 +172,74 @@ elif menu == "Jugar/Editar":
             st.success("¡Datos actualizados correctamente!"); st.balloons(); st.rerun()
 
 elif menu == "Admin":
-    st.subheader("⚙️ Historial de Partidos")
+    st.subheader("⚙️ Gestión y Configuración")
+    
+    # --- SECCIÓN DE EDICIÓN/ELIMINACIÓN DE PARTIDOS ---
     conn = get_connection()
     df = pd.read_sql_query("SELECT id, fecha, resultado_a, resultado_b, logs_json FROM historial ORDER BY id DESC", conn)
     
-    for _, r in df.iterrows():
-        with st.expander(f"📅 {r['fecha']} | M&J: {r['resultado_a']} - R&L: {r['resultado_b']}"):
-            c1, c2 = st.columns(2)
-            if c1.button("📝 Editar", key=f"ed_{r['id']}"):
-                # Cargar datos para editar
-                st.session_state.game = {
-                    'fecha': r['fecha'], 
-                    'temp': r['fecha'].split('/')[-1], 
-                    'h_sel': 1, 
-                    'logs': {int(k): v for k, v in json.loads(r['logs_json']).items()},
-                    'edit_id': r['id']
-                }
-                st.switch_page("main.py") # O simplemente rerun si el menú cambia
-                st.rerun()
+    if not df.empty:
+        st.write("### Historial de Partidos")
+        for _, r in df.iterrows():
+            with st.expander(f"📅 {r['fecha']} | M&J: {r['resultado_a']} - R&L: {r['resultado_b']}"):
+                c1, c2 = st.columns(2)
+                if c1.button("📝 Editar", key=f"ed_{r['id']}"):
+                    st.session_state.game = {
+                        'fecha': r['fecha'], 
+                        'temp': r['fecha'].split('/')[-1], 
+                        'h_sel': 1, 
+                        'logs': {int(k): v for k, v in json.loads(r['logs_json']).items()},
+                        'edit_id': r['id']
+                    }
+                    st.info("Partido cargado. Ve a la pestaña 'Jugar/Editar' para modificarlo.")
+                
+                if c2.button("🗑️ Eliminar", key=f"del_{r['id']}"):
+                    eliminar_partida_db(r['id'])
+                    st.rerun()
+    else:
+        st.info("No hay partidos grabados.")
+
+    st.divider()
+
+    # --- SECCIÓN DE RESETEO SEGURO (Doble Confirmación) ---
+    st.write("### Zona de Peligro")
+    
+    # Inicializar el estado de confirmación si no existe
+    if 'reset_step' not in st.session_state:
+        st.session_state.reset_step = 0
+
+    if st.session_state.reset_step == 0:
+        if st.button("🔴 Resetear Base de Datos"):
+            st.session_state.reset_step = 1
+            st.rerun()
+
+    elif st.session_state.reset_step == 1:
+        st.warning("¿Estás seguro de que quieres resetear todas las tablas?")
+        c1, c2 = st.columns(2)
+        if c1.button("SÍ, CONTINUAR"):
+            st.session_state.reset_step = 2
+            st.rerun()
+        if c2.button("CANCELAR"):
+            st.session_state.reset_step = 0
+            st.rerun()
+
+    elif st.session_state.reset_step == 2:
+        st.error("❗ SE VAN A BORRAR TODOS LOS DATOS DEFINITIVAMENTE (Partidos y Rankings)")
+        c1, c2 = st.columns(2)
+        if c1.button("🔥 BORRAR TODO AHORA"):
+            c = conn.cursor()
+            c.execute("DROP TABLE IF EXISTS historial")
+            c.execute("DROP TABLE IF EXISTS puntos_anuales")
+            c.execute("DROP TABLE IF EXISTS backup_partida")
+            conn.commit()
+            st.session_state.reset_step = 0
+            st.success("Base de datos borrada. Reiniciando...")
+            st.rerun()
+        if c2.button("VOLVER ATRÁS"):
+            st.session_state.reset_step = 0
+            st.rerun()
+            
+    conn.close()
             
             if c2.button("🗑️ Eliminar", key=f"del_{r['id']}"):
                 eliminar_partida_db(r['id'])
