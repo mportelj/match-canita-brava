@@ -131,9 +131,9 @@ elif st.session_state.menu == "Jugar/Editar":
         h_idx = g['h_sel']
         st.markdown(f"<div style='background:#f0f2f6;padding:5px;border-radius:10px;text-align:center;margin-bottom:15px;border:1px solid #ddd;'><h3>Hoyo {h_idx} (Par {PAR_RIA_VIGO[h_idx]})</h3></div>", unsafe_allow_html=True)
 
+        # Recuperar golpes actuales si existen
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         
-        # Una línea por jugador con colores
         st.markdown(f"<b style='color:{COLOR_A}'>{TODOS[0]}</b>", unsafe_allow_html=True)
         s1 = st.number_input("g1", 0, 10, v_def[0], key=f"s0_{h_idx}", label_visibility="collapsed")
         st.markdown(f"<b style='color:{COLOR_A}'>{TODOS[1]}</b>", unsafe_allow_html=True)
@@ -143,21 +143,53 @@ elif st.session_state.menu == "Jugar/Editar":
         st.markdown(f"<b style='color:{COLOR_B}'>{TODOS[3]}</b>", unsafe_allow_html=True)
         s4 = st.number_input("g4", 0, 10, v_def[3], key=f"s3_{h_idx}", label_visibility="collapsed")
         
-        if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
-            pa, pb, mi = calcular_puntos_hoyo(s1, s2, s3, s4, h_idx)
-            g['logs'][str(h_idx)] = {'s': [s1, s2, s3, s4], 'pts': (pa, pb), 'mvp': mi}
-            nueva_fila = pd.DataFrame([{"id": f"{g['partido_id']}_H{h_idx}", "partido_id": g['partido_id'], "hoyo": h_idx, "fecha": g['fecha'], "temporada": g['temp'], "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
-            if guardar_hoyo(nueva_fila): st.toast("✅ Hoyo Guardado"); st.rerun()
+        golpes_actuales = [s1, s2, s3, s4]
 
+        # --- LÓGICA DE DESHABILITACIÓN ---
+        # Comprobamos si el hoyo ya existe en logs y si los golpes son idénticos
+        ya_guardado = False
+        if str(h_idx) in g['logs']:
+            if g['logs'][str(h_idx)]['s'] == golpes_actuales:
+                ya_guardado = True
+
+        texto_boton = "✅ Hoyo Sincronizado" if ya_guardado else "💾 Guardar Hoyo"
+        
+        if st.button(texto_boton, type="primary", use_container_width=True, disabled=ya_guardado):
+            pa, pb, mi = calcular_puntos_hoyo(s1, s2, s3, s4, h_idx)
+            # Guardamos en la sesión
+            g['logs'][str(h_idx)] = {'s': golpes_actuales, 'pts': (pa, pb), 'mvp': mi}
+            
+            # Preparamos fila para Google Sheets
+            nueva_fila = pd.DataFrame([{
+                "id": f"{g['partido_id']}_H{h_idx}", 
+                "partido_id": g['partido_id'], 
+                "hoyo": h_idx, 
+                "fecha": g['fecha'], 
+                "temporada": g['temp'], 
+                "resultado_a": pa, 
+                "resultado_b": pb, 
+                "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'],
+                "s0": s1, "s1": s2, "s2": s3, "s3": s4
+            }])
+            
+            if guardar_hoyo(nueva_fila):
+                st.toast(f"Hoyo {h_idx} guardado con éxito")
+                st.rerun() # Recargamos para que el botón se deshabilite inmediatamente
+
+        # Navegación entre hoyos
         c_nav = st.columns(2)
-        if c_nav[0].button("⬅️ Anterior", use_container_width=True): g['h_sel'] = max(1, h_idx-1); st.rerun()
-        if c_nav[1].button("Siguiente ➡️", use_container_width=True): g['h_sel'] = min(18, h_idx+1); st.rerun()
+        if c_nav[0].button("⬅️ Anterior", use_container_width=True):
+            g['h_sel'] = max(1, h_idx-1)
+            st.rerun()
+        if c_nav[1].button("Siguiente ➡️", use_container_width=True):
+            g['h_sel'] = min(18, h_idx+1)
+            st.rerun()
 
         st.write("---")
-        if st.button("🏁 Finalizar Partido", use_container_width=True):
-            if 'game' in st.session_state: del st.session_state.game
+        if st.button("🏁 Finalizar y Salir", use_container_width=True):
+            if 'game' in st.session_state:
+                del st.session_state.game
             ir_a("Inicio")
-
 elif st.session_state.menu == "Admin":
     st.markdown("<h2 style='text-align: center;'>Administración</h2>", unsafe_allow_html=True)
     df = leer_datos()
