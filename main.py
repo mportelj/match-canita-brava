@@ -20,14 +20,13 @@ def get_conn():
     try:
         from streamlit_gsheets import GSheetsConnection
         return st.connection("gsheets", type=GSheetsConnection)
-    except Exception as e:
-        st.error("Error: Asegúrate de tener 'st-gsheets-connection' en requirements.txt")
+    except:
+        st.error("Falta st-gsheets-connection")
         return None
 
 def leer_datos():
     conn = get_conn()
     try:
-        # ttl=0 evita que los datos se queden "viejos" en la memoria
         return conn.read(spreadsheet=URL_HOJA, worksheet="historial", ttl=0)
     except:
         return pd.DataFrame(columns=["id", "fecha", "temporada", "resultado_a", "resultado_b", "p1_pts", "p2_pts", "p3_pts", "p4_pts", "logs_json"])
@@ -36,7 +35,6 @@ def guardar_partida(df_partida):
     conn = get_conn()
     try:
         df_existente = leer_datos()
-        # Si ya existe el ID (mismo partido), lo borramos para actualizarlo
         if not df_partida["id"].isna().all():
             id_actual = str(df_partida["id"].iloc[0])
             df_existente = df_existente[df_existente["id"].astype(str) != id_actual]
@@ -44,8 +42,8 @@ def guardar_partida(df_partida):
         df_final = pd.concat([df_existente, df_partida], ignore_index=True)
         conn.update(spreadsheet=URL_HOJA, worksheet="historial", data=df_final)
         return True
-    except Exception as e:
-        st.error("⚠️ Error de escritura: Google Sheets requiere 'Secrets' configurados en Streamlit Cloud.")
+    except:
+        st.error("⚠️ Error de permisos de escritura. Revisa los Secrets.")
         return False
 
 # --- LÓGICA MVP ---
@@ -155,9 +153,13 @@ elif menu == "Jugar/Editar":
             st.write("### 📈 Clasificación MVP")
             c1, c2 = st.columns(2)
             with c1:
-                with st.popover("🎯 Puntos Hoyo", use_container_width=True):
-                    l = g['logs'][str(h_idx)]
-                    st.table(pd.DataFrame([{"Jugador": TODOS[i], "Pts": l['mvp'][f"p{i+1}"]} for i in range(4)]))
+                # Comprobación de seguridad para evitar el KeyError
+                if str(h_idx) in g['logs']:
+                    with st.popover("🎯 Puntos Hoyo", use_container_width=True):
+                        l = g['logs'][str(h_idx)]
+                        st.table(pd.DataFrame([{"Jugador": TODOS[i], "Pts": l['mvp'][f"p{i+1}"]} for i in range(4)]))
+                else:
+                    st.button("🎯 Puntos Hoyo (Vacío)", disabled=True, use_container_width=True)
             with c2:
                 with st.popover("🏆 Ranking Partido", use_container_width=True):
                     cur_mvp = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
