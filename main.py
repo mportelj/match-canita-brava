@@ -74,7 +74,17 @@ st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳")
 st.title("⛳ CAÑITA BRAVA")
 
 menu = st.sidebar.radio("Menú", ["Inicio", "Jugar/Editar", "Admin"])
-
+# --- BOTÓN DE EMERGENCIA PARA BORRAR BASE DE DATOS ---
+if st.sidebar.button("⚠️ Resetear Base de Datos"):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("DROP TABLE IF EXISTS historial")
+    c.execute("DROP TABLE IF EXISTS puntos_anuales")
+    c.execute("DROP TABLE IF EXISTS backup_partida")
+    conn.commit()
+    conn.close()
+    st.sidebar.success("Base de datos borrada. Reiniciando...")
+    st.rerun()
 if menu == "Inicio":
     conn = get_connection()
     anios = pd.read_sql_query("SELECT DISTINCT temporada FROM historial", conn)['temporada'].tolist()
