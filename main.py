@@ -155,8 +155,26 @@ elif menu == "Jugar/Editar":
                 st.toast(f"Hoyo {h_idx} guardado", icon="💾")
                 st.rerun()
 
-        # --- CLASIFICACIÓN MVP CON BOTONES DESPLEGABLES ---
+        # --- 1. MARCADOR VISUAL MATCH (AHORA PRIMERO) ---
         if g['logs']:
+            t_a = sum(v['pts'][0] for v in g['logs'].values())
+            t_b = sum(v['pts'][1] for v in g['logs'].values())
+            st.divider()
+            st.markdown("<h3 style='text-align: center; color: #1e3d59;'>🏆 MARCADOR MATCH</h3>", unsafe_allow_html=True)
+            m1, m2, m3 = st.columns([2, 1, 2])
+            with m1:
+                st.markdown(f"<div style='text-align:center;padding:15px;background-color:#e8f5e9;border-radius:15px;border:2px solid #2e7d32;'><p style='margin:0;font-weight:bold;color:#1b5e20;'>MANU & JOSE</p><h1 style='margin:0;font-size:45px;color:#2e7d32;'>{int(t_a)}</h1></div>", unsafe_allow_html=True)
+            with m2:
+                st.markdown("<h1 style='text-align:center;padding-top:25px;color:#999;'>VS</h1>", unsafe_allow_html=True)
+            with m3:
+                st.markdown(f"<div style='text-align:center;padding:15px;background-color:#e3f2fd;border-radius:15px;border:2px solid #1565c0;'><p style='margin:0;font-weight:bold;color:#0d47a1;'>ROGE & LALO</p><h1 style='margin:0;font-size:45px;color:#1565c0;'>{int(t_b)}</h1></div>", unsafe_allow_html=True)
+            
+            diff = t_a - t_b
+            if diff > 0: st.success(f"🟢 MANU & JOSE lideran por {int(diff)}")
+            elif diff < 0: st.info(f"🔵 ROGE & LALO lideran por {int(abs(diff))}")
+            else: st.warning("⚪ Empate")
+
+            # --- 2. CLASIFICACIÓN MVP (AHORA DEBAJO) ---
             st.write("### 📈 Clasificación MVP")
             col_mvp1, col_mvp2 = st.columns(2)
             
@@ -180,24 +198,6 @@ elif menu == "Jugar/Editar":
                         {"Jugador": p, "Puntos Totales": cur_mvp[p]} for p in TODOS
                     ]).sort_values(by="Puntos Totales", ascending=False)
                     st.table(df_acumulado)
-
-            # --- MARCADOR VISUAL MATCH ---
-            t_a = sum(v['pts'][0] for v in g['logs'].values())
-            t_b = sum(v['pts'][1] for v in g['logs'].values())
-            st.divider()
-            st.markdown("<h3 style='text-align: center; color: #1e3d59;'>🏆 MARCADOR MATCH</h3>", unsafe_allow_html=True)
-            m1, m2, m3 = st.columns([2, 1, 2])
-            with m1:
-                st.markdown(f"<div style='text-align:center;padding:15px;background-color:#e8f5e9;border-radius:15px;border:2px solid #2e7d32;'><p style='margin:0;font-weight:bold;color:#1b5e20;'>MANU & JOSE</p><h1 style='margin:0;font-size:45px;color:#2e7d32;'>{int(t_a)}</h1></div>", unsafe_allow_html=True)
-            with m2:
-                st.markdown("<h1 style='text-align:center;padding-top:25px;color:#999;'>VS</h1>", unsafe_allow_html=True)
-            with m3:
-                st.markdown(f"<div style='text-align:center;padding:15px;background-color:#e3f2fd;border-radius:15px;border:2px solid #1565c0;'><p style='margin:0;font-weight:bold;color:#0d47a1;'>ROGE & LALO</p><h1 style='margin:0;font-size:45px;color:#1565c0;'>{int(t_b)}</h1></div>", unsafe_allow_html=True)
-            
-            diff = t_a - t_b
-            if diff > 0: st.success(f"🟢 MANU & JOSE lideran por {int(diff)}")
-            elif diff < 0: st.info(f"🔵 ROGE & LALO lideran por {int(abs(diff))}")
-            else: st.warning("⚪ Empate")
 
         st.divider()
         if st.button("🏁 Finalizar Jornada", use_container_width=True):
