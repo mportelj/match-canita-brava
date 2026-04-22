@@ -121,45 +121,40 @@ elif menu == "Jugar/Editar":
         g = st.session_state.game
         h_idx = g['h_sel']
         
-        # --- NAVEGACIÓN EN UNA SOLA LÍNEA (MÓVIL Y PC) ---
-        # Usamos CSS flexbox para asegurar que no salte de línea
-        st.markdown(f"""
-            <div style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 20px;">
-                <a href="javascript:void(0);" onclick="window.location.reload();" style="text-decoration: none;">
-                    <div id="btn_prev" style="background-color: #f0f2f6; padding: 10px 15px; border-radius: 10px; cursor: pointer;">⬅️</div>
-                </a>
-                <div style="text-align: center;">
-                    <h3 style="margin: 0; white-space: nowrap;">Hoyo {h_idx}</h3>
+        # --- NAVEGACIÓN ÚNICA EN UNA LÍNEA (Flecha - Hoyo - Flecha) ---
+        # Usamos columnas muy ajustadas para que no se apilen en el móvil
+        n1, n2, n3 = st.columns([1, 3, 1])
+        
+        with n1:
+            if st.button("⬅️", use_container_width=True):
+                g['h_sel'] = max(1, h_idx - 1)
+                st.rerun()
+        
+        with n2:
+            st.markdown(f"""
+                <div style="text-align: center; line-height: 1.2;">
+                    <h3 style="margin: 0; padding: 0;">Hoyo {h_idx}</h3>
                     <p style="margin: 0; color: gray; font-size: 0.8em;">Par {PAR_RIA_VIGO[h_idx]}</p>
                 </div>
-                <a href="javascript:void(0);" onclick="window.location.reload();" style="text-decoration: none;">
-                    <div id="btn_next" style="background-color: #f0f2f6; padding: 10px 15px; border-radius: 10px; cursor: pointer;">➡️</div>
-                </a>
-            </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+            
+        with n3:
+            if st.button("➡️", use_container_width=True):
+                g['h_sel'] = min(18, h_idx + 1)
+                st.rerun()
 
-        # Como Streamlit no detecta clicks en HTML puro fácilmente, usamos botones invisibles 
-        # o columnas muy pequeñas justo debajo para la lógica funcional
-        c_nav = st.columns([1, 2, 1])
-        if c_nav[0].button("Anterior", use_container_width=True):
-            g['h_sel'] = max(1, h_idx - 1)
-            st.rerun()
-        if c_nav[2].button("Siguiente", use_container_width=True):
-            g['h_sel'] = min(18, h_idx + 1)
-            st.rerun()
+        st.write("") # Pequeño respiro visual
 
-        st.divider()
-
-        # --- ENTRADA DE GOLPES (2x2 para ahorrar espacio) ---
+        # --- ENTRADA DE GOLPES (Diseño 2x2 para evitar Scroll) ---
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         
-        col_1, col_2 = st.columns(2)
-        s1 = col_1.number_input(TODOS[0], 0, 10, v_def[0], key=f"s0_{h_idx}")
-        s2 = col_2.number_input(TODOS[1], 0, 10, v_def[1], key=f"s1_{h_idx}")
+        c1, c2 = st.columns(2)
+        s1 = c1.number_input(TODOS[0], 0, 10, v_def[0], key=f"s0_{h_idx}")
+        s2 = c2.number_input(TODOS[1], 0, 10, v_def[1], key=f"s1_{h_idx}")
         
-        col_3, col_4 = st.columns(2)
-        s3 = col_3.number_input(TODOS[2], 0, 10, v_def[2], key=f"s2_{h_idx}")
-        s4 = col_4.number_input(TODOS[3], 0, 10, v_def[3], key=f"s3_{h_idx}")
+        c3, c4 = st.columns(2)
+        s3 = c3.number_input(TODOS[2], 0, 10, v_def[2], key=f"s2_{h_idx}")
+        s4 = c4.number_input(TODOS[3], 0, 10, v_def[3], key=f"s3_{h_idx}")
         
         s = [s1, s2, s3, s4]
         
@@ -170,30 +165,49 @@ elif menu == "Jugar/Editar":
         if st.button(btn_txt, type="primary", use_container_width=True, disabled=ya_guardado):
             pa, pb, mi = calcular_puntos_hoyo(s[0], s[1], s[2], s[3], h_idx)
             g['logs'][str(h_idx)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
-            nueva_fila = pd.DataFrame([{"id": f"{g['partido_id']}_H{h_idx}", "partido_id": g['partido_id'], "hoyo": h_idx, "fecha": g['fecha'], "temporada": g['temp'], "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4']}])
+            nueva_fila = pd.DataFrame([{
+                "id": f"{g['partido_id']}_H{h_idx}", 
+                "partido_id": g['partido_id'], 
+                "hoyo": h_idx, 
+                "fecha": g['fecha'], 
+                "temporada": g['temp'], 
+                "resultado_a": pa, "resultado_b": pb, 
+                "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4']
+            }])
             if guardar_hoyo(nueva_fila):
-                st.toast("¡Hoyo guardado!")
+                st.toast(f"Hoyo {h_idx} guardado")
                 st.rerun()
 
-        # Marcador Compacto
+        # Marcador del Partido Compacto
         if g['logs']:
             total_match_a = sum(v['pts'][0] for v in g['logs'].values())
             total_match_b = sum(v['pts'][1] for v in g['logs'].values())
             
             st.markdown(f"""
-                <div style="border: 1px solid #ddd; border-radius: 8px; padding: 10px; background-color: #f9f9f9; text-align: center; margin-top: 10px;">
-                    <div style="display: flex; justify-content: center; gap: 20px; align-items: center;">
-                        <div><small>M&J</small><br><b>{int(total_match_a)}</b></div>
-                        <div style="color: #ccc;">VS</div>
-                        <div><small>R&L</small><br><b>{int(total_match_b)}</b></div>
+                <div style="border: 1px solid #eee; border-radius: 10px; padding: 10px; background-color: #fcfcfc; text-align: center; margin-top: 15px;">
+                    <div style="display: flex; justify-content: space-around; align-items: center;">
+                        <div><p style="margin:0; font-size:0.7em;">MANU & JOSE</p><b>{int(total_match_a)}</b></div>
+                        <div style="color: #ddd;">|</div>
+                        <div><p style="margin:0; font-size:0.7em;">ROGE & LALO</p><b>{int(total_match_b)}</b></div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
+            
+            # Clasificaciones en Popovers para que no ocupen sitio
+            m1, m2 = st.columns(2)
+            with m1:
+                with st.popover("🎯 MVP Hoyo", use_container_width=True):
+                    if str(h_idx) in g['logs']:
+                        pts_h = g['logs'][str(h_idx)]['mvp']
+                        st.table(pd.DataFrame([{"J": TODOS[i], "Pts": round(float(pts_h[f"p{i+1}"]), 1)} for i in range(4)]).style.format({"Pts": "{:.1f}"}))
+            with m2:
+                with st.popover("🏆 MVP Total", use_container_width=True):
+                    ranking = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
+                    st.table(pd.DataFrame([{"J": k, "Pts": round(float(v), 1)} for k, v in ranking.items()]).sort_values("Pts", ascending=False).style.format({"Pts": "{:.1f}"}))
 
-        if st.button("🏁 Finalizar Partido", use_container_width=True):
+        if st.button("🏁 Finalizar y Salir", use_container_width=True):
             del st.session_state.game
             st.rerun()
-
 elif menu == "Admin":
     st.markdown("<h2 style='text-align: center;'>Admin</h2>", unsafe_allow_html=True)
     df = leer_datos()
