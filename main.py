@@ -54,33 +54,52 @@ def borrar_backup():
 def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
     par = PAR_RIA_VIGO[hoyo_num]
     v = [s1 if s1 > 0 else 99, s2 if s2 > 0 else 99, s3 if s3 > 0 else 99, s4 if s4 > 0 else 99]
+    
     best_a, worst_a = (v[0], v[1]) if v[0] <= v[1] else (v[1], v[0])
     best_b, worst_b = (v[2], v[3]) if v[2] <= v[3] else (v[3], v[2])
+    
     pts_match_a, pts_match_b = 0.0, 0.0
     mvp_inc = {"p1": 0.0, "p2": 0.0, "p3": 0.0, "p4": 0.0}
 
-    # MATCH
+    # MATCH (Se mantiene igual)
     if best_a < best_b: pts_match_a += 1.0
     elif best_b < best_a: pts_match_b += 1.0
     if worst_a < worst_b: pts_match_a += 1.0
     elif worst_b < worst_a: pts_match_b += 1.0
 
     # MVP
+    # Caso 4 jugadores iguales
     if v[0] == v[1] == v[2] == v[3] and v[0] != 99:
         for i in range(4): mvp_inc[f"p{i+1}"] = 0.5
     else:
-        if best_a < best_b: mvp_inc["p1" if v[0] == best_a else "p2"] += 1.0
-        elif best_b < best_a: mvp_inc["p3" if v[2] == best_b else "p4"] += 1.0
+        # 1. MEJOR BOLA
+        if best_a < best_b:
+            if v[0] == best_a: mvp_inc["p1"] += 1.0
+            if v[1] == best_a: mvp_inc["p2"] += 1.0
+        elif best_b < best_a:
+            if v[2] == best_b: mvp_inc["p3"] += 1.0
+            if v[3] == best_b: mvp_inc["p4"] += 1.0
         elif best_a == best_b and best_a != 99:
-            for i, val in enumerate(v):
-                if val == best_a: mvp_inc[f"p{i+1}"] += 0.5
-        if worst_a < worst_b: mvp_inc["p1" if v[0] == worst_a else "p2"] += 0.5
-        elif worst_b < worst_a: mvp_inc["p3" if v[2] == worst_b else "p4"] += 0.5
+            if v[0] == best_a: mvp_inc["p1"] += 0.5
+            if v[1] == best_a: mvp_inc["p2"] += 0.5
+            if v[2] == best_b: mvp_inc["p3"] += 0.5
+            if v[3] == best_b: mvp_inc["p4"] += 0.5
+
+        # 2. PEOR BOLA
+        if worst_a < worst_b:
+            if v[0] == worst_a: mvp_inc["p1"] += 0.5
+            if v[1] == worst_a: mvp_inc["p2"] += 0.5
+        elif worst_b < worst_a:
+            if v[2] == worst_b: mvp_inc["p3"] += 0.5
+            if v[3] == worst_b: mvp_inc["p4"] += 0.5
         elif worst_a == worst_b and worst_a != 99:
-            if worst_a != best_a:
-                for i, val in enumerate(v):
-                    if val == worst_a: mvp_inc[f"p{i+1}"] += 0.25
+            if worst_a != best_a or worst_b != best_b:
+                if v[0] == worst_a: mvp_inc["p1"] += 0.25
+                if v[1] == worst_a: mvp_inc["p2"] += 0.25
+                if v[2] == worst_b: mvp_inc["p3"] += 0.25
+                if v[3] == worst_b: mvp_inc["p4"] += 0.25
         
+    # BONUS CALIDAD
     for i, s in enumerate([s1, s2, s3, s4]):
         if s > 0:
             bonus = 1.0 if s == par - 1 else (2.0 if s <= par - 2 else 0.0)
@@ -133,67 +152,59 @@ elif menu == "Jugar Partido":
                 st.rerun()
     else:
         g = st.session_state.game
-        
-        # --- NAVEGACIÓN DE HOYOS ---
-        col_prev, col_h, col_next = st.columns([1, 2, 1])
-        if col_prev.button("⬅️ Ant.") and g['h_sel'] > 1:
-            g['h_sel'] -= 1; st.rerun()
-        
         h_idx = g['h_sel']
+
+        # --- NAVEGACIÓN ---
+        col_prev, col_h, col_next = st.columns([1, 2, 1])
+        if col_prev.button("⬅️ Ant.") and h_idx > 1:
+            g['h_sel'] -= 1; st.rerun()
         col_h.markdown(f"<h3 style='text-align: center;'>Hoyo {h_idx} (Par {PAR_RIA_VIGO[h_idx]})</h3>", unsafe_allow_html=True)
-        
-        if col_next.button("Sig. ➡️") and g['h_sel'] < 18:
+        if col_next.button("Sig. ➡️") and h_idx < 18:
             g['h_sel'] += 1; st.rerun()
 
-        # --- SCORE ACUMULADO MATCH ---
+        # --- MARCADOR MATCH ---
         total_a = sum(v['pts'][0] for v in g['logs'].values())
         total_b = sum(v['pts'][1] for v in g['logs'].values())
         diff = int(total_a - total_b)
-        
-        st.markdown("#### 🏆 Clasificación Match Acumulada")
+        st.markdown("#### 🏆 Marcador Match")
         c_m1, c_m2 = st.columns(2)
         c_m1.metric("M&J", f"+{diff}" if diff > 0 else "0")
         c_m2.metric("R&L", f"+{abs(diff)}" if diff < 0 else "0")
-        st.divider()
 
-        # --- INPUT DE GOLPES ---
+        # --- ENTRADA DE DATOS ---
         v_def = g['logs'][h_idx]['s'] if h_idx in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         with st.container(border=True):
-            st.write(f"**Introducir resultados Hoyo {h_idx}:**")
+            st.write(f"**Introducir golpes Hoyo {h_idx}:**")
             c = st.columns(4)
-            s1 = c[0].number_input("MANUEL", 0, 10, v_def[0])
-            s2 = c[1].number_input("JOSE", 0, 10, v_def[1])
-            s3 = c[2].number_input("ROGE", 0, 10, v_def[2])
-            s4 = c[3].number_input("LALO", 0, 10, v_def[3])
+            s1 = c[0].number_input("MANUEL", 0, 10, v_def[0], key=f"s1_{h_idx}")
+            s2 = c[1].number_input("JOSE", 0, 10, v_def[1], key=f"s2_{h_idx}")
+            s3 = c[2].number_input("ROGE", 0, 10, v_def[2], key=f"s3_{h_idx}")
+            s4 = c[3].number_input("LALO", 0, 10, v_def[3], key=f"s4_{h_idx}")
             
-            if st.button("✅ Confirmar y Ver Resultado Hoyo", use_container_width=True, type="primary"):
+            # Lógica de deshabilitar botón
+            current_s = [s1, s2, s3, s4]
+            btn_disabled = (h_idx in g['logs'] and current_s == g['logs'][h_idx]['s'])
+            
+            if st.button("✅ Confirmar Hoyo", use_container_width=True, type="primary", disabled=btn_disabled):
                 pa, pb, mi = calcular_puntos_hoyo(s1, s2, s3, s4, h_idx)
-                g['logs'][h_idx] = {'s': [s1, s2, s3, s4], 'pts': (pa, pb), 'mvp': mi}
+                g['logs'][h_idx] = {'s': current_s, 'pts': (pa, pb), 'mvp': mi}
                 guardar_backup(g); st.rerun()
 
-        # --- FEEDBACK DEL HOYO JUGADO ---
+        # --- RESULTADO DEL HOYO ---
         if h_idx in g['logs']:
             log = g['logs'][h_idx]
-            st.success(f"**Resultado del Hoyo {h_idx}:**")
-            f1, f2 = st.columns(2)
-            f1.write(f"Match M&J: **+{log['pts'][0]}**")
-            f2.write(f"Match R&L: **+{log['pts'][1]}**")
-            
-            st.write("**Puntos MVP ganados en este hoyo:**")
-            m1, m2, m3, m4 = st.columns(4)
-            m1.caption(f"MANUEL: {log['mvp']['p1']}")
-            m2.caption(f"JOSE: {log['mvp']['p2']}")
-            m3.caption(f"ROGE: {log['mvp']['p3']}")
-            m4.caption(f"LALO: {log['mvp']['p4']}")
+            st.info(f"**Resultado Hoyo {h_idx}:** M&J +{log['pts'][0]} | R&L +{log['pts'][1]}")
+            m = log['mvp']
+            st.write(f"**MVP Hoyo:** M: {m['p1']} | J: {m['p2']} | R: {m['p3']} | L: {m['p4']}")
 
-        # --- RANKING MVP PARTIDO ---
+        # --- RANKING MVP ---
         if g['logs']:
             st.divider()
-            st.subheader("⭐ MVP Acumulado del Partido")
             cur_mvp = {p: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i, p in enumerate(TODOS)}
+            st.subheader("⭐ Ranking MVP del Partido")
             st.table(pd.DataFrame([{"Jugador": p, "Puntos": cur_mvp[p]} for p in TODOS]).sort_values(by="Puntos", ascending=False))
 
-            if st.button("💾 FINALIZAR Y GUARDAR PARTIDO", use_container_width=True):
+            if st.button("💾 GUARDAR PARTIDO FINAL", use_container_width=True):
                 conn = get_connection(); cur = conn.cursor()
                 mvp_w = max(cur_mvp, key=cur_mvp.get)
                 cur.execute("INSERT INTO historial (fecha, temporada, pareja_a, pareja_b, resultado_a, resultado_b, mvp, p1_pts, p2_pts, p3_pts, p4_pts) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
