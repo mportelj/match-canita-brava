@@ -26,11 +26,9 @@ def guardar_partida(df_partida):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_existente = leer_datos()
-        
         if not df_partida["id"].isna().all():
             id_actual = str(df_partida["id"].iloc[0])
             df_existente = df_existente[df_existente["id"].astype(str) != id_actual]
-        
         df_final = pd.concat([df_existente, df_partida], ignore_index=True)
         conn.update(worksheet="historial", data=df_final)
         return True
@@ -38,24 +36,43 @@ def guardar_partida(df_partida):
         st.error(f"Error al grabar: {e}")
         return False
 
-# --- LÓGICA DE CÁLCULO ---
+# --- LÓGICA DE CÁLCULO ACTUALIZADA CON BONUS ---
 def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
     par = PAR_RIA_VIGO[hoyo_num]
     scores = [s1, s2, s3, s4]
     v = [s if s > 0 else 99 for s in scores]
+    
+    # 1. Puntos de Match (Mejor bola y Peor bola)
     best_a, worst_a = min(v[0], v[1]), max(v[0], v[1])
     best_b, worst_b = min(v[2], v[3]), max(v[2], v[3])
+    
     pa = (1.0 if best_a < best_b else 0.0) + (1.0 if worst_a < worst_b else 0.0)
     pb = (1.0 if best_b < best_a else 0.0) + (1.0 if worst_b < worst_a else 0.0)
+    
+    # 2. Bonus de Birdie/Eagle para el MATCH
+    # Equipo A (Manuel y Jose)
+    for s in [s1, s2]:
+        if 0 < s <= par - 2: pa += 2.0  # Eagle bonus
+        elif 0 < s == par - 1: pa += 1.0 # Birdie bonus
+    
+    # Equipo B (Roge y Lalo)
+    for s in [s3, s4]:
+        if 0 < s <= par - 2: pb += 2.0  # Eagle bonus
+        elif 0 < s == par - 1: pb += 1.0 # Birdie bonus
+
+    # 3. Puntos MVP (Individuales)
     mvp = {"p1": 0.0, "p2": 0.0, "p3": 0.0, "p4": 0.0}
     for i in range(4):
         if scores[i] <= 0: continue
+        # Comparativa vs resto
         for j in range(4):
             if i != j and scores[j] > 0 and scores[i] < scores[j]: mvp[f"p{i+1}"] += 0.5
+        # Bonus por resultado vs Par
         g = scores[i]
         if g <= par - 2: mvp[f"p{i+1}"] += 3.0
         elif g == par - 1: mvp[f"p{i+1}"] += 1.5
         elif g == par: mvp[f"p{i+1}"] += 0.5
+        
     return pa, pb, mvp
 
 # --- NAVEGACIÓN ---
@@ -64,7 +81,6 @@ menu = st.sidebar.radio("Menú", ["Inicio", "Jugar/Editar", "Admin"])
 if menu == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
-    
     anio_act = str(datetime.now().year)
     anios = sorted(df["temporada"].unique().tolist() if not df.empty else [anio_act], reverse=True)
     temp_sel = st.sidebar.selectbox("Temporada", anios)
@@ -109,13 +125,11 @@ elif menu == "Jugar/Editar":
         ch.markdown(f"<h3 style='text-align:center;'>Hoyo {h_idx} (Par {PAR_RIA_VIGO[h_idx]})</h3>", unsafe_allow_html=True)
         if cn.button("➡️") and h_idx < 18: g['h_sel'] += 1; st.rerun()
 
-        # Entrada de golpes
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         with st.container(border=True):
             cols = st.columns(4)
             s = [cols[i].number_input(TODOS[i][:3], 0, 10, v_def[i], key=f"s{i}_{h_idx}") for i in range(4)]
             
-            # Lógica de botón sincronizado
             ya_guardado = str(h_idx) in g['logs'] and g['logs'][str(h_idx)]['s'] == s
             texto_btn = "✅ Hoyo Sincronizado" if ya_guardado else "💾 Confirmar y Grabar Hoyo"
             
@@ -134,15 +148,14 @@ elif menu == "Jugar/Editar":
                     "logs_json": json.dumps(g['logs'])
                 }])
                 if guardar_partida(nueva_fila):
-                    st.toast("Datos en la nube ☁️")
+                    st.toast("Marcador actualizado con Bonus Birdie/Eagle")
                     st.rerun()
 
-        # Marcadores y Clasificaciones
         if g['logs']:
             t_a = sum(v['pts'][0] for v in g['logs'].values())
             t_b = sum(v['pts'][1] for v in g['logs'].values())
             st.divider()
-            st.markdown("<h3 style='text-align: center;'>🏆 MARCADOR MATCH</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align: center;'>🏆 MARCADOR MATCH (Inc. Bonus)</h3>", unsafe_allow_html=True)
             m1, m2, m3 = st.columns([2, 1, 2])
             m1.metric("MANU & JOSE", int(t_a))
             m2.markdown("<h2 style='text-align:center;'>VS</h2>", unsafe_allow_html=True)
@@ -156,8 +169,6 @@ elif menu == "Jugar/Editar":
                         l = g['logs'][str(h_idx)]
                         df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": l['mvp'][f"p{i+1}"]} for i in range(4)])
                         st.table(df_h)
-                else:
-                    st.button("🎯 Puntos Hoyo (Vacío)", disabled=True, use_container_width=True)
             with c2:
                 with st.popover("🏆 Ranking Partido", use_container_width=True):
                     cur_mvp = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
@@ -173,7 +184,6 @@ elif menu == "Admin":
     st.subheader("⚙️ Gestión")
     df = leer_datos()
     if not df.empty:
-        # CORRECCIÓN ERROR DE DUPLICADOS EN ADMIN
         for idx, r in df.iterrows():
             titulo = f"📅 {r['fecha']} | Match: {r['resultado_a']} - {r['resultado_b']}"
             with st.expander(titulo):
@@ -181,7 +191,4 @@ elif menu == "Admin":
                     conn = st.connection("gsheets", type=GSheetsConnection)
                     df_new = df.drop(idx)
                     conn.update(worksheet="historial", data=df_new)
-                    st.success("Partida eliminada.")
                     st.rerun()
-    else:
-        st.info("No hay partidas registradas.")
