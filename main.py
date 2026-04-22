@@ -90,7 +90,6 @@ if menu == "Inicio":
         wins_a = len(resumen[resumen['resultado_a'] > resumen['resultado_b']])
         wins_b = len(resumen[resumen['resultado_b'] > resumen['resultado_a']])
     
-    # MARCADOR ENMARCADO Y CENTRADO
     st.markdown(f"""
         <div style="border: 2px solid #4CAF50; border-radius: 15px; padding: 20px; background-color: #f9f9f9; text-align: center; margin-bottom: 25px;">
             <h2 style="margin-bottom: 10px; color: #333;">TEMPORADA 2026</h2>
@@ -113,8 +112,6 @@ if menu == "Inicio":
         mvps = {TODOS[i]: df_2026[f"p{i+1}_pts"].sum() for i in range(4)}
         df_mvp_temp = pd.DataFrame([{"Jugador": k, "Pts": round(float(v), 1)} for k, v in mvps.items()]).sort_values("Pts", ascending=False)
         st.table(df_mvp_temp.style.format({"Pts": "{:.1f}"}))
-    else:
-        st.info("No hay datos grabados.")
 
 elif menu == "Jugar/Editar":
     if 'game' not in st.session_state:
@@ -152,19 +149,26 @@ elif menu == "Jugar/Editar":
             total_match_a = sum(v['pts'][0] for v in g['logs'].values())
             total_match_b = sum(v['pts'][1] for v in g['logs'].values())
             
-            # MARCADOR DE PARTIDO ENMARCADO
+            # MARCADOR DEL PARTIDO CON NOMBRES COMPLETOS Y ENMARCADO
             st.markdown(f"""
-                <div style="border: 1px solid #ccc; border-radius: 10px; padding: 15px; background-color: #ffffff; text-align: center; margin-top: 20px;">
-                    <h4 style="margin: 0; color: #666;">MARCADOR DEL PARTIDO</h4>
-                    <div style="display: flex; justify-content: center; align-items: center; gap: 40px;">
-                        <div><p style="margin:0; font-size: 0.8em;">M & J</p><h2 style="margin:0;">{int(total_match_a)}</h2></div>
-                        <h3 style="margin:0;">—</h3>
-                        <div><p style="margin:0; font-size: 0.8em;">R & L</p><h2 style="margin:0;">{int(total_match_b)}</h2></div>
+                <div style="border: 2px solid #ccc; border-radius: 12px; padding: 15px; background-color: #ffffff; text-align: center; margin-top: 25px; margin-bottom: 20px;">
+                    <h4 style="margin: 0 0 10px 0; color: #666; font-size: 0.9em; letter-spacing: 1px;">MARCADOR DEL PARTIDO</h4>
+                    <div style="display: flex; justify-content: space-around; align-items: center;">
+                        <div style="flex: 1;">
+                            <p style="margin: 0; font-weight: bold; color: #333; font-size: 0.9em;">MANUEL & JOSE</p>
+                            <h2 style="margin: 5px 0 0 0; color: #2e7d32; font-size: 2.2em;">{int(total_match_a)}</h2>
+                        </div>
+                        <div style="flex: 0.2;">
+                            <h3 style="margin: 0; color: #999;">—</h3>
+                        </div>
+                        <div style="flex: 1;">
+                            <p style="margin: 0; font-weight: bold; color: #333; font-size: 0.9em;">ROGE & LALO</p>
+                            <h2 style="margin: 5px 0 0 0; color: #c62828; font-size: 2.2em;">{int(total_match_b)}</h2>
+                        </div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
             
-            st.write("")
             col1, col2 = st.columns(2)
             with col1:
                 with st.popover("🎯 MVP Hoyo", use_container_width=True):
