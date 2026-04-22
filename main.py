@@ -2,7 +2,6 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
-import json
 
 # --- CONFIGURACIÓN ---
 PAR_RIA_VIGO = {
@@ -11,6 +10,7 @@ PAR_RIA_VIGO = {
 }
 TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
 
+# Marcador inicial Temporada 2026
 INICIO_2026_A = 3.5  # MANUEL & JOSE
 INICIO_2026_B = 3.5  # ROGE & LALO
 
@@ -87,6 +87,7 @@ if menu == "Inicio":
         wins_a = len(resumen[resumen['resultado_a'] > resumen['resultado_b']])
         wins_b = len(resumen[resumen['resultado_b'] > resumen['resultado_a']])
     
+    # MARCADOR TEMPORADA ENMARCADO Y CENTRADO
     st.markdown(f"""
         <div style="border: 2px solid #4CAF50; border-radius: 15px; padding: 20px; background-color: #f9f9f9; text-align: center; margin-bottom: 25px;">
             <h2 style="margin-bottom: 10px; color: #333;">TEMPORADA 2026</h2>
@@ -104,11 +105,13 @@ if menu == "Inicio":
         </div>
     """, unsafe_allow_html=True)
     
-    st.markdown("<h3 style='text-align: center;'>⭐ Ranking MVP 2026</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center;'>⭐ Clasificación MVP 2026</h3>", unsafe_allow_html=True)
     if not df_2026.empty:
         mvps = {TODOS[i]: df_2026[f"p{i+1}_pts"].sum() for i in range(4)}
         df_mvp_temp = pd.DataFrame([{"Jugador": k, "Pts": round(float(v), 1)} for k, v in mvps.items()]).sort_values("Pts", ascending=False)
         st.table(df_mvp_temp.style.format({"Pts": "{:.1f}"}))
+    else:
+        st.info("No hay datos grabados.")
 
 elif menu == "Jugar/Editar":
     if 'game' not in st.session_state:
@@ -121,14 +124,14 @@ elif menu == "Jugar/Editar":
         g = st.session_state.game
         h_idx = g['h_sel']
 
-        # --- CABECERA FIJA ---
+        # --- CABECERA HOYO ---
         st.markdown(f"""
-            <div style="background-color: #f0f2f6; padding: 5px; border-radius: 10px; text-align: center; margin-bottom: 15px; border: 1px solid #ddd;">
+            <div style="background-color: #f0f2f6; padding: 5px; border-radius: 10px; text-align: center; margin-bottom: 10px; border: 1px solid #ddd;">
                 <h3 style="margin: 0; color: #333;">Hoyo {h_idx} <span style="font-size: 0.7em; color: #666;">(Par {PAR_RIA_VIGO[h_idx]})</span></h3>
             </div>
         """, unsafe_allow_html=True)
 
-        # --- ENTRADA DE GOLPES (Diseño 2x2 para ahorrar espacio) ---
+        # --- ENTRADA DE GOLPES (2x2) ---
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         
         c1, c2 = st.columns(2)
@@ -138,11 +141,10 @@ elif menu == "Jugar/Editar":
         s4 = c2.number_input(TODOS[3], 0, 10, v_def[3], key=f"s3_{h_idx}")
         s = [s1, s2, s3, s4]
         
-        # --- BOTÓN GUARDAR (Prioridad número 1) ---
+        # --- BOTÓN GUARDAR ---
         ya_guardado = str(h_idx) in g['logs'] and g['logs'][str(h_idx)]['s'] == s
         btn_txt = "✅ Sincronizado" if ya_guardado else "💾 Guardar Hoyo"
         
-        st.write("") # Espacio mínimo
         if st.button(btn_txt, type="primary", use_container_width=True, disabled=ya_guardado):
             pa, pb, mi = calcular_puntos_hoyo(s[0], s[1], s[2], s[3], h_idx)
             g['logs'][str(h_idx)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
@@ -155,7 +157,7 @@ elif menu == "Jugar/Editar":
                 st.toast(f"Hoyo {h_idx} guardado")
                 st.rerun()
 
-        # --- NAVEGACIÓN (Debajo del botón guardar) ---
+        # --- NAVEGACIÓN ---
         c_nav = st.columns(2)
         if c_nav[0].button("⬅️ Anterior", use_container_width=True):
             g['h_sel'] = max(1, h_idx - 1)
@@ -164,18 +166,47 @@ elif menu == "Jugar/Editar":
             g['h_sel'] = min(18, h_idx + 1)
             st.rerun()
 
-        # --- MARCADOR Y FINALIZAR ---
+        # --- MARCADOR DEL PARTIDO ENMARCADO (Con nombres completos) ---
         if g['logs']:
-            total_a = int(sum(v['pts'][0] for v in g['logs'].values()))
-            total_b = int(sum(v['pts'][1] for v in g['logs'].values()))
-            st.markdown(f"<p style='text-align:center; font-size:0.9em; margin-top:10px;'>Match: <b>{total_a} - {total_b}</b></p>", unsafe_allow_html=True)
+            total_match_a = sum(v['pts'][0] for v in g['logs'].values())
+            total_match_b = sum(v['pts'][1] for v in g['logs'].values())
+            
+            st.markdown(f"""
+                <div style="border: 2px solid #ccc; border-radius: 12px; padding: 10px; background-color: #ffffff; text-align: center; margin-top: 15px; margin-bottom: 15px;">
+                    <p style="margin: 0; color: #888; font-size: 0.8em;">MARCADOR DEL PARTIDO</p>
+                    <div style="display: flex; justify-content: space-around; align-items: center;">
+                        <div>
+                            <p style="margin: 0; font-weight: bold; font-size: 0.8em;">MANUEL & JOSE</p>
+                            <h2 style="margin: 0; color: #2e7d32;">{int(total_match_a)}</h2>
+                        </div>
+                        <h3 style="margin: 0; color: #999;">—</h3>
+                        <div>
+                            <p style="margin: 0; font-weight: bold; font-size: 0.8em;">ROGE & LALO</p>
+                            <h2 style="margin: 0; color: #c62828;">{int(total_match_b)}</h2>
+                        </div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            # Botones MVP
+            m1, m2 = st.columns(2)
+            with m1:
+                with st.popover("🎯 MVP Hoyo", use_container_width=True):
+                    if str(h_idx) in g['logs']:
+                        pts_h = g['logs'][str(h_idx)]['mvp']
+                        st.table(pd.DataFrame([{"Jugador": TODOS[i], "Pts": round(float(pts_h[f"p{i+1}"]), 1)} for i in range(4)]).style.format({"Pts": "{:.1f}"}))
+            with m2:
+                with st.popover("🏆 MVP Total", use_container_width=True):
+                    ranking = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
+                    st.table(pd.DataFrame([{"Jugador": k, "Pts": round(float(v), 1)} for k, v in ranking.items()]).sort_values("Pts", ascending=False).style.format({"Pts": "{:.1f}"}))
 
-        if st.button("🏁 Finalizar Partido", use_container_width=True):
+        st.write("")
+        if st.button("🏁 Finalizar y Salir", use_container_width=True):
             del st.session_state.game
             st.rerun()
-            
+
 elif menu == "Admin":
-    st.markdown("<h2 style='text-align: center;'>Admin</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>Administración</h2>", unsafe_allow_html=True)
     df = leer_datos()
     if not df.empty:
         for p_id in df['partido_id'].unique():
