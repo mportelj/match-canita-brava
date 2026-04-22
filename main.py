@@ -121,44 +121,47 @@ elif menu == "Jugar/Editar":
         g = st.session_state.game
         h_idx = g['h_sel']
         
-        # --- NAVEGACIÓN ÚNICA EN UNA LÍNEA (Flecha - Hoyo - Flecha) ---
-        # Usamos columnas muy ajustadas para que no se apilen en el móvil
-        n1, n2, n3 = st.columns([1, 3, 1])
+        # --- NAVEGACIÓN COMPACTA EN UNA FILA ---
+        # Usamos 3 columnas: la del centro es más ancha para el texto
+        nav1, nav2, nav3 = st.columns([1, 2, 1])
         
-        with n1:
-            if st.button("⬅️", use_container_width=True):
+        with nav1:
+            # Botón izquierdo pegado al borde
+            if st.button("⬅️", key="prev", use_container_width=True):
                 g['h_sel'] = max(1, h_idx - 1)
                 st.rerun()
         
-        with n2:
+        with nav2:
+            # Texto centrado y compacto
             st.markdown(f"""
-                <div style="text-align: center; line-height: 1.2;">
-                    <h3 style="margin: 0; padding: 0;">Hoyo {h_idx}</h3>
+                <div style="text-align: center; margin-top: -5px;">
+                    <h3 style="margin: 0; padding: 0; font-size: 1.3em;">Hoyo {h_idx}</h3>
                     <p style="margin: 0; color: gray; font-size: 0.8em;">Par {PAR_RIA_VIGO[h_idx]}</p>
                 </div>
             """, unsafe_allow_html=True)
             
-        with n3:
-            if st.button("➡️", use_container_width=True):
+        with nav3:
+            # Botón derecho pegado al borde
+            if st.button("➡️", key="next", use_container_width=True):
                 g['h_sel'] = min(18, h_idx + 1)
                 st.rerun()
 
-        st.write("") # Pequeño respiro visual
+        st.markdown("<br>", unsafe_allow_html=True) # Pequeño espacio
 
-        # --- ENTRADA DE GOLPES (Diseño 2x2 para evitar Scroll) ---
+        # --- ENTRADA DE GOLPES (Diseño 2x2 para no tener que bajar la pantalla) ---
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         
         c1, c2 = st.columns(2)
-        s1 = c1.number_input(TODOS[0], 0, 10, v_def[0], key=f"s0_{h_idx}")
-        s2 = c2.number_input(TODOS[1], 0, 10, v_def[1], key=f"s1_{h_idx}")
-        
-        c3, c4 = st.columns(2)
-        s3 = c3.number_input(TODOS[2], 0, 10, v_def[2], key=f"s2_{h_idx}")
-        s4 = c4.number_input(TODOS[3], 0, 10, v_def[3], key=f"s3_{h_idx}")
+        with c1:
+            s1 = st.number_input(TODOS[0], 0, 10, v_def[0], key=f"s0_{h_idx}")
+            s2 = st.number_input(TODOS[1], 0, 10, v_def[1], key=f"s1_{h_idx}")
+        with c2:
+            s3 = st.number_input(TODOS[2], 0, 10, v_def[2], key=f"s2_{h_idx}")
+            s4 = st.number_input(TODOS[3], 0, 10, v_def[3], key=f"s3_{h_idx}")
         
         s = [s1, s2, s3, s4]
         
-        # --- BOTÓN GRABAR ---
+        # --- BOTÓN GRABAR (Ahora debería ser visible sin scroll) ---
         ya_guardado = str(h_idx) in g['logs'] and g['logs'][str(h_idx)]['s'] == s
         btn_txt = "✅ Sincronizado" if ya_guardado else "💾 Grabar Hoyo"
         
@@ -178,7 +181,7 @@ elif menu == "Jugar/Editar":
                 st.toast(f"Hoyo {h_idx} guardado")
                 st.rerun()
 
-        # Marcador del Partido Compacto
+        # --- MARCADOR Y FINALIZAR ---
         if g['logs']:
             total_match_a = sum(v['pts'][0] for v in g['logs'].values())
             total_match_b = sum(v['pts'][1] for v in g['logs'].values())
@@ -186,28 +189,17 @@ elif menu == "Jugar/Editar":
             st.markdown(f"""
                 <div style="border: 1px solid #eee; border-radius: 10px; padding: 10px; background-color: #fcfcfc; text-align: center; margin-top: 15px;">
                     <div style="display: flex; justify-content: space-around; align-items: center;">
-                        <div><p style="margin:0; font-size:0.7em;">MANU & JOSE</p><b>{int(total_match_a)}</b></div>
+                        <div><p style="margin:0; font-size:0.7em;">M&J</p><b>{int(total_match_a)}</b></div>
                         <div style="color: #ddd;">|</div>
-                        <div><p style="margin:0; font-size:0.7em;">ROGE & LALO</p><b>{int(total_match_b)}</b></div>
+                        <div><p style="margin:0; font-size:0.7em;">R&L</p><b>{int(total_match_b)}</b></div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
-            
-            # Clasificaciones en Popovers para que no ocupen sitio
-            m1, m2 = st.columns(2)
-            with m1:
-                with st.popover("🎯 MVP Hoyo", use_container_width=True):
-                    if str(h_idx) in g['logs']:
-                        pts_h = g['logs'][str(h_idx)]['mvp']
-                        st.table(pd.DataFrame([{"J": TODOS[i], "Pts": round(float(pts_h[f"p{i+1}"]), 1)} for i in range(4)]).style.format({"Pts": "{:.1f}"}))
-            with m2:
-                with st.popover("🏆 MVP Total", use_container_width=True):
-                    ranking = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
-                    st.table(pd.DataFrame([{"J": k, "Pts": round(float(v), 1)} for k, v in ranking.items()]).sort_values("Pts", ascending=False).style.format({"Pts": "{:.1f}"}))
 
         if st.button("🏁 Finalizar y Salir", use_container_width=True):
             del st.session_state.game
             st.rerun()
+            
 elif menu == "Admin":
     st.markdown("<h2 style='text-align: center;'>Admin</h2>", unsafe_allow_html=True)
     df = leer_datos()
