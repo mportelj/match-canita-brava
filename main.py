@@ -9,8 +9,8 @@ PAR_RIA_VIGO = {
     10: 4, 11: 3, 12: 4, 13: 3, 14: 5, 15: 4, 16: 5, 17: 4, 18: 5
 }
 TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
-COLOR_A = "#2e7d32" # Verde
-COLOR_B = "#c62828" # Rojo
+COLOR_A = "#2e7d32" 
+COLOR_B = "#c62828" 
 INICIO_2026_A = 3.5  
 INICIO_2026_B = 3.5  
 
@@ -128,7 +128,7 @@ elif menu == "Jugar/Editar":
         
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         
-        # Inputs de golpes
+        # Entradas de golpes
         st.markdown(f"<b style='color:{COLOR_A}'>{TODOS[0]}</b>", unsafe_allow_html=True)
         s1 = st.number_input("g1", 0, 10, v_def[0], key=f"s0_{h_idx}", label_visibility="collapsed")
         st.markdown(f"<b style='color:{COLOR_A}'>{TODOS[1]}</b>", unsafe_allow_html=True)
@@ -151,35 +151,39 @@ elif menu == "Jugar/Editar":
         if c1.button("⬅️ Anterior", use_container_width=True): g['h_sel'] = max(1, h_idx-1); st.rerun()
         if c2.button("Siguiente ➡️", use_container_width=True): g['h_sel'] = min(18, h_idx+1); st.rerun()
 
-        # --- SECCIÓN DE MARCADOR Y MVP EN VIVO DEL MATCH ---
         if g['logs']:
             st.write("---")
             match_a = sum(v['pts'][0] for v in g['logs'].values())
             match_b = sum(v['pts'][1] for v in g['logs'].values())
             
-            # Marcador Grande Visual
+            # Marcador Grande
             st.markdown(f"""
-                <div style="border: 2px solid #ccc; border-radius: 12px; padding: 15px; background-color: #ffffff; text-align: center; margin-bottom: 20px;">
-                    <p style="margin:0; font-size:0.9em; color:#666; font-weight:bold;">MARCADOR DEL MATCH</p>
+                <div style="border: 2px solid #ccc; border-radius: 12px; padding: 15px; background-color: #ffffff; text-align: center; margin-bottom: 15px;">
                     <div style="display: flex; justify-content: space-around; align-items: center;">
-                        <div>
-                            <p style="margin: 0; font-weight: bold; color: {COLOR_A};">M & J</p>
-                            <h1 style="margin: 0; color: {COLOR_A}; font-size: 2.5em;">{match_a:g}</h1>
-                        </div>
+                        <div><p style="margin: 0; font-weight: bold; color: {COLOR_A};">M & J</p><h1 style="margin: 0; color: {COLOR_A}; font-size: 2.2em;">{match_a:g}</h1></div>
                         <h2 style="margin: 0; color: #999;">vs</h2>
-                        <div>
-                            <p style="margin: 0; font-weight: bold; color: {COLOR_B};">R & L</p>
-                            <h1 style="margin: 0; color: {COLOR_B}; font-size: 2.5em;">{match_b:g}</h1>
-                        </div>
+                        <div><p style="margin: 0; font-weight: bold; color: {COLOR_B};">R & L</p><h1 style="margin: 0; color: {COLOR_B}; font-size: 2.2em;">{match_b:g}</h1></div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
             
-            # Tabla MVP del Match Actual
-            st.markdown("<p style='text-align:center; font-weight:bold; margin-bottom:5px;'>🏆 MVP ACUMULADO DEL DÍA</p>", unsafe_allow_html=True)
-            ranking_dia = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
-            df_rd = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in ranking_dia.items()]).sort_values("Pts", ascending=False)
-            st.table(df_rd.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
+            # BOTONES MVP (POPOVERS)
+            col_mvp1, col_mvp2 = st.columns(2)
+            
+            with col_mvp1:
+                with st.popover("🎯 MVP Hoyo", use_container_width=True):
+                    if str(h_idx) in g['logs']:
+                        h_data = g['logs'][str(h_idx)]['mvp']
+                        df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": h_data[f"p{i+1}"]} for i in range(4)])
+                        st.table(df_h.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
+                    else:
+                        st.info("Guarda el hoyo para ver el MVP")
+
+            with col_mvp2:
+                with st.popover("🏆 MVP Match", use_container_width=True):
+                    ranking_dia = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
+                    df_rd = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in ranking_dia.items()]).sort_values("Pts", ascending=False)
+                    st.table(df_rd.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
 
         st.write("---")
         if st.button("🏁 Finalizar y Salir", use_container_width=True):
@@ -187,7 +191,7 @@ elif menu == "Jugar/Editar":
 
 # --- ADMIN ---
 elif menu == "Admin":
-    st.markdown("<h2 style='text-align: center;'>Administración</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>Admin</h2>", unsafe_allow_html=True)
     df = leer_datos()
     if not df.empty:
         partidos = df['partido_id'].unique()[::-1]
