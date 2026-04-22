@@ -18,12 +18,10 @@ st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered
 def leer_datos():
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
+        # ttl=0 es vital para que no lea datos viejos de la memoria
         df = conn.read(worksheet="historial", ttl=0)
-        if df.empty:
+        if df is None or df.empty:
             return pd.DataFrame(columns=["id", "fecha", "temporada", "resultado_a", "resultado_b", "p1_pts", "p2_pts", "p3_pts", "p4_pts", "logs_json"])
-        # Limpiamos posibles filas vacías o IDs corruptos
-        df = df.dropna(subset=['id'])
-        df['id'] = df['id'].astype(str).str.strip()
         return df
     except:
         return pd.DataFrame(columns=["id", "fecha", "temporada", "resultado_a", "resultado_b", "p1_pts", "p2_pts", "p3_pts", "p4_pts", "logs_json"])
@@ -31,20 +29,30 @@ def leer_datos():
 def guardar_partida(df_partida):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
+        # Volvemos a leer justo antes de guardar para tener la versión más reciente
         df_existente = leer_datos()
         
+        # ID que queremos guardar (ej: "20240422")
         id_nuevo = str(df_partida["id"].iloc[0]).strip()
         
-        # Filtramos para ELIMINAR cualquier fila que tenga el mismo ID
         if not df_existente.empty:
-            df_existente = df_existente[df_existente["id"] != id_nuevo]
-        
-        # Concatenamos y enviamos la lista limpia
-        df_final = pd.concat([df_existente, df_partida], ignore_index=True)
+            # Aseguramos que la columna ID sea texto para comparar bien
+            df_existente['id'] = df_existente['id'].astype(str).str.strip()
+            # FILTRADO: Mantener solo lo que NO sea el ID actual
+            df_final = df_existente[df_existente["id"] != id_nuevo]
+            # Añadimos la nueva fila
+            df_final = pd.concat([df_final, df_partida], ignore_index=True)
+        else:
+            df_final = df_partida
+
+        # Actualizamos la hoja completa
         conn.update(worksheet="historial", data=df_final)
+        
+        # LIMPIEZA DE CACHÉ INTERNA DE STREAMLIT
+        st.cache_data.clear() 
         return True
     except Exception as e:
-        st.error(f"Error crítico al guardar: {e}")
+        st.error(f"Error al guardar: {e}")
         return False
 
 # --- MOTOR DE CÁLCULO (Match + Bonus Birdie/Eagle) ---
