@@ -22,16 +22,18 @@ def estilo_tabla(row):
     return [f'color: {color}; font-weight: bold'] * len(row)
 
 def leer_datos():
-    st.cache_data.clear()
+    # Limpiamos caché de datos previa para forzar lectura real
+    st.cache_data.clear() 
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
+        # ttl=0 indica que los datos no deben guardarse en caché
         df = conn.read(worksheet="historial", ttl=0)
         if df is None or df.empty:
             return pd.DataFrame(columns=["id", "partido_id", "hoyo", "fecha", "temporada", "resultado_a", "resultado_b", "p1_pts", "p2_pts", "p3_pts", "p4_pts", "s0", "s1", "s2", "s3"])
         return df.dropna(subset=['id'])
-    except:
+    except Exception as e:
+        st.error(f"Error al conectar con la base de datos: {e}")
         return pd.DataFrame(columns=["id", "partido_id", "hoyo", "fecha", "temporada", "resultado_a", "resultado_b", "p1_pts", "p2_pts", "p3_pts", "p4_pts", "s0", "s1", "s2", "s3"])
-
 def guardar_hoyo(df_fila):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
