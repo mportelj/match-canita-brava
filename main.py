@@ -177,17 +177,17 @@ elif menu == "Admin":
     # 1. Gestión de Partidos Existentes
     conn = get_connection()
     try:
+        # Intentamos leer la tabla. Si falla es porque falta la columna logs_json
         df = pd.read_sql_query("SELECT id, fecha, resultado_a, resultado_b, logs_json FROM historial ORDER BY id DESC", conn)
         
         if not df.empty:
             st.write("### Historial de Partidos")
             for _, r in df.iterrows():
-                # El 'with' crea un bloque. Todo lo de dentro debe llevar 4 espacios más.
                 with st.expander(f"📅 {r['fecha']} | M&J: {r['resultado_a']} - R&L: {r['resultado_b']}"):
                     c1, c2 = st.columns(2)
                     
                     with c1:
-                        if st.button("📝 Editar", key=f"ed_{r['id']}"):
+                        if st.button("📝 Editar", key=f"ed_{r['id']}", use_container_width=True):
                             st.session_state.game = {
                                 'fecha': r['fecha'], 
                                 'temp': r['fecha'].split('/')[-1], 
@@ -198,19 +198,18 @@ elif menu == "Admin":
                             st.info("Partido cargado. Ve a 'Jugar/Editar'.")
                     
                     with c2:
-                        # Esta línea es la que fallaba. Ahora está alineada con el botón de arriba.
-                        if st.button("🗑️ Eliminar", key=f"del_{r['id']}"):
+                        if st.button("🗑️ Eliminar", key=f"del_{r['id']}", use_container_width=True):
                             eliminar_partida_db(r['id'])
                             st.rerun()
         else:
             st.info("No hay partidos grabados.")
     except Exception as e:
-        st.error(f"Error al leer la base de datos. Es posible que necesites resetearla. Error: {e}")
+        st.error("Error de base de datos. Probablemente necesitas resetearla para actualizar la estructura.")
 
     st.divider()
 
-    # 2. Zona de Reseteo con Doble Confirmación
-    st.write("### Zona de Peligro")
+    # 2. SECCIÓN DE RESETEO SEGURO
+    st.write("### ⚠️ ATENCIÓN !!!")
     
     if 'reset_step' not in st.session_state:
         st.session_state.reset_step = 0
@@ -221,7 +220,7 @@ elif menu == "Admin":
             st.rerun()
 
     elif st.session_state.reset_step == 1:
-        st.warning("⚠️ ¿Estás seguro de que quieres borrarlo TODO?")
+        st.warning("¿Estás seguro de que quieres borrarlo TODO?")
         col_si, col_no = st.columns(2)
         if col_si.button("SÍ, CONTINUAR", use_container_width=True):
             st.session_state.reset_step = 2
@@ -231,16 +230,16 @@ elif menu == "Admin":
             st.rerun()
 
     elif st.session_state.reset_step == 2:
-        st.error("❗ ÚLTIMO AVISO: Se borrarán todos los partidos y clasificaciones.")
+        st.error("❗ SE VAN A BORRAR TODOS LOS DATOS DEFINITIVAMENTE")
         col_del, col_back = st.columns(2)
-        if col_del.button("🔥 BORRAR DEFINITIVAMENTE", use_container_width=True):
+        if col_del.button("🔥 BORRAR TODO AHORA", use_container_width=True):
             c = conn.cursor()
             c.execute("DROP TABLE IF EXISTS historial")
             c.execute("DROP TABLE IF EXISTS puntos_anuales")
             c.execute("DROP TABLE IF EXISTS backup_partida")
             conn.commit()
             st.session_state.reset_step = 0
-            st.success("Base de datos borrada correctamente.")
+            st.success("Base de datos borrada.")
             st.rerun()
         if col_back.button("VOLVER ATRÁS", use_container_width=True):
             st.session_state.reset_step = 0
