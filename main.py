@@ -241,7 +241,7 @@ elif menu == "Admin":
             
     conn.close()
             
-            if c2.button("🗑️ Eliminar", key=f"del_{r['id']}"):
+        if c2.button("🗑️ Eliminar", key=f"del_{r['id']}"):
                 eliminar_partida_db(r['id'])
                 st.rerun()
     conn.close()
