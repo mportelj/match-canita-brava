@@ -10,7 +10,10 @@ PAR_RIA_VIGO = {
     10: 4, 11: 3, 12: 4, 13: 3, 14: 5, 15: 4, 16: 5, 17: 4, 18: 5
 }
 TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
-HISTORICO_PUNTOS = 3.5
+
+# Marcador inicial Temporada 2026 (Enero a fecha actual)
+INICIO_2026_A = 3.5  # MANUEL & JOSE
+INICIO_2026_B = 3.5  # ROGE & LALO
 
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
@@ -22,7 +25,10 @@ def leer_datos():
         df = conn.read(worksheet="historial", ttl=0)
         if df is None or df.empty:
             return pd.DataFrame(columns=["id", "partido_id", "hoyo", "fecha", "temporada", "resultado_a", "resultado_b", "p1_pts", "p2_pts", "p3_pts", "p4_pts"])
-        return df.dropna(subset=['id'])
+        df = df.dropna(subset=['id'])
+        # Aseguramos que temporada sea string para filtrar bien
+        df['temporada'] = df['temporada'].astype(str)
+        return df
     except:
         return pd.DataFrame(columns=["id", "partido_id", "hoyo", "fecha", "temporada", "resultado_a", "resultado_b", "p1_pts", "p2_pts", "p3_pts", "p4_pts"])
 
@@ -78,25 +84,39 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
 menu = st.sidebar.radio("Menú", ["Inicio", "Jugar/Editar", "Admin"])
 
 if menu == "Inicio":
-    st.title("⛳ CAÑITA BRAVA")
+    st.title("⛳ CAÑITA BRAVA 2026")
     df = leer_datos()
-    if not df.empty:
-        resumen = df.groupby('partido_id').agg({
+    
+    # Filtrar solo temporada 2026
+    df_2026 = df[df['temporada'] == "2026"]
+    
+    wins_a_2026 = 0
+    wins_b_2026 = 0
+    
+    if not df_2026.empty:
+        resumen = df_2026.groupby('partido_id').agg({
             'resultado_a': 'sum', 'resultado_b': 'sum',
             'p1_pts': 'sum', 'p2_pts': 'sum', 'p3_pts': 'sum', 'p4_pts': 'sum'
         }).reset_index()
         
-        wins_a = len(resumen[resumen['resultado_a'] > resumen['resultado_b']])
-        wins_b = len(resumen[resumen['resultado_b'] > resumen['resultado_a']])
-        
-        c1, c2 = st.columns(2)
-        c1.metric("MANU & JOSE", f"{HISTORICO_PUNTOS + wins_a}")
-        c2.metric("ROGE & LALO", f"{HISTORICO_PUNTOS + wins_b}")
-        
-        st.subheader("⭐ MVP Temporada")
-        mvps = {TODOS[i]: resumen[f"p{i+1}_pts"].sum() for i in range(4)}
+        wins_a_2026 = len(resumen[resumen['resultado_a'] > resumen['resultado_b']])
+        wins_b_2026 = len(resumen[resumen['resultado_b'] > resumen['resultado_a']])
+    
+    # Marcador Clásico (Base 3.5 + victorias nuevas)
+    st.subheader("🏆 Marcador Match Temporada")
+    c1, c2 = st.columns(2)
+    c1.metric("MANU & JOSE", f"{INICIO_2026_A + wins_a_2026}")
+    c2.metric("ROGE & LALO", f"{INICIO_2026_B + wins_b_2026}")
+    
+    st.divider()
+    
+    st.subheader("⭐ Ranking MVP 2026")
+    if not df_2026.empty:
+        mvps = {TODOS[i]: df_2026[f"p{i+1}_pts"].sum() for i in range(4)}
         df_mvp_temp = pd.DataFrame([{"Jugador": k, "Pts": round(float(v), 1)} for k, v in mvps.items()]).sort_values("Pts", ascending=False)
         st.table(df_mvp_temp.style.format({"Pts": "{:.1f}"}))
+    else:
+        st.info("No hay partidos grabados en la base de datos para 2026 aún.")
 
 elif menu == "Jugar/Editar":
     if 'game' not in st.session_state:
@@ -119,10 +139,7 @@ elif menu == "Jugar/Editar":
         c = st.columns(4)
         s = [c[i].number_input(TODOS[i][:3], 0, 10, v_def[i], key=f"s{i}_{h_idx}") for i in range(4)]
         
-        ya_guardado = False
-        if str(h_idx) in g['logs'] and g['logs'][str(h_idx)]['s'] == s:
-            ya_guardado = True
-            
+        ya_guardado = str(h_idx) in g['logs'] and g['logs'][str(h_idx)]['s'] == s
         btn_txt = "✅ Sincronizado" if ya_guardado else "💾 Grabar Hoyo"
         
         if st.button(btn_txt, type="primary", use_container_width=True, disabled=ya_guardado):
@@ -144,7 +161,7 @@ elif menu == "Jugar/Editar":
             total_match_b = sum(v['pts'][1] for v in g['logs'].values())
             
             st.divider()
-            st.markdown("<h3 style='text-align: center;'>🏆 MARCADOR MATCH</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align: center;'>🏆 MARCADOR PARTIDO</h3>", unsafe_allow_html=True)
             m1, m2, m3 = st.columns([2, 1, 2])
             m1.metric("MANU & JOSE", int(total_match_a))
             m2.markdown("<h2 style='text-align:center;'>VS</h2>", unsafe_allow_html=True)
@@ -158,8 +175,6 @@ elif menu == "Jugar/Editar":
                         pts_hoyo = g['logs'][str(h_idx)]['mvp']
                         df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": round(float(pts_hoyo[f"p{i+1}"]), 1)} for i in range(4)])
                         st.table(df_h.style.format({"Pts": "{:.1f}"}))
-                    else:
-                        st.info("Graba el hoyo")
             with col2:
                 with st.popover("🏆 Ranking Partido", use_container_width=True):
                     ranking_partido = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
