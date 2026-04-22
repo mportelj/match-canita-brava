@@ -27,7 +27,6 @@ def guardar_partida(df_partida):
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_existente = leer_datos()
         
-        # Eliminar versión anterior del mismo partido para evitar filas duplicadas
         if not df_partida["id"].isna().all():
             id_actual = str(df_partida["id"].iloc[0])
             df_existente = df_existente[df_existente["id"].astype(str) != id_actual]
@@ -36,7 +35,7 @@ def guardar_partida(df_partida):
         conn.update(worksheet="historial", data=df_final)
         return True
     except Exception as e:
-        st.error(f"Error al grabar en la nube: {e}")
+        st.error(f"Error al grabar: {e}")
         return False
 
 # --- LÓGICA DE CÁLCULO ---
@@ -71,7 +70,7 @@ if menu == "Inicio":
     temp_sel = st.sidebar.selectbox("Temporada", anios)
     
     st.header(f"📊 Temporada {temp_sel}")
-    if not df.empty and "temporada" in df.columns:
+    if not df.empty:
         df_temp = df[df["temporada"].astype(str) == str(temp_sel)]
         if not df_temp.empty:
             wins_a = len(df_temp[df_temp['resultado_a'].astype(float) > df_temp['resultado_b'].astype(float)])
@@ -110,25 +109,20 @@ elif menu == "Jugar/Editar":
         ch.markdown(f"<h3 style='text-align:center;'>Hoyo {h_idx} (Par {PAR_RIA_VIGO[h_idx]})</h3>", unsafe_allow_html=True)
         if cn.button("➡️") and h_idx < 18: g['h_sel'] += 1; st.rerun()
 
-        # Entrada de golpes
+        # --- ENTRADA DE GOLPES ---
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         with st.container(border=True):
             cols = st.columns(4)
             s = [cols[i].number_input(TODOS[i][:3], 0, 10, v_def[i], key=f"s{i}_{h_idx}") for i in range(4)]
             
-            # --- LÓGICA ANTI-DUPLICADOS ---
-            ya_guardado = False
-            if str(h_idx) in g['logs']:
-                if g['logs'][str(h_idx)]['s'] == s:
-                    ya_guardado = True
-
-            texto_boton = "✅ Hoyo ya sincronizado" if ya_guardado else "💾 Confirmar y Grabar Hoyo"
+            # Comprobar si ya está guardado para desactivar botón
+            ya_guardado = str(h_idx) in g['logs'] and g['logs'][str(h_idx)]['s'] == s
+            texto_btn = "✅ Hoyo Sincronizado" if ya_guardado else "💾 Confirmar y Grabar Hoyo"
             
-            if st.button(texto_boton, use_container_width=True, type="primary", disabled=ya_guardado):
+            if st.button(texto_btn, use_container_width=True, type="primary", disabled=ya_guardado):
                 pa, pb, mi = calcular_puntos_hoyo(s[0], s[1], s[2], s[3], h_idx)
                 g['logs'][str(h_idx)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
                 
-                # Totales acumulados para la fila del Excel
                 t_a = sum(v['pts'][0] for v in g['logs'].values())
                 t_b = sum(v['pts'][1] for v in g['logs'].values())
                 m_pts = [sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)]
@@ -139,23 +133,49 @@ elif menu == "Jugar/Editar":
                     "p1_pts": m_pts[0], "p2_pts": m_pts[1], "p3_pts": m_pts[2], "p4_pts": m_pts[3],
                     "logs_json": json.dumps(g['logs'])
                 }])
-                
                 if guardar_partida(nueva_fila):
-                    st.toast("Datos guardados en la nube ☁️")
+                    st.toast("Datos en la nube ☁️")
                     st.rerun()
 
+        # --- MARCADORES Y CLASIFICACIONES (Los que pediste) ---
         if g['logs']:
             t_a = sum(v['pts'][0] for v in g['logs'].values())
             t_b = sum(v['pts'][1] for v in g['logs'].values())
-            st.divider()
-            st.markdown(f"<h3 style='text-align:center;'>Marcador: {int(t_a)} - {int(t_b)}</h3>", unsafe_allow_html=True)
             
+            st.divider()
+            st.markdown("<h3 style='text-align: center;'>🏆 MARCADOR MATCH</h3>", unsafe_allow_html=True)
+            m1, m2, m3 = st.columns([2, 1, 2])
+            m1.metric("MANU & JOSE", int(t_a))
+            m2.markdown("<h2 style='text-align:center;'>VS</h2>", unsafe_allow_html=True)
+            m3.metric("ROGE & LALO", int(t_b))
+            
+            st.write("### 📈 Clasificaciones MVP")
+            c1, c2 = st.columns(2)
+            
+            with c1:
+                # Botón hoyo actual
+                if str(h_idx) in g['logs']:
+                    with st.popover("🎯 Puntos Hoyo", use_container_width=True):
+                        l = g['logs'][str(h_idx)]
+                        df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": l['mvp'][f"p{i+1}"]} for i in range(4)])
+                        st.table(df_h)
+                else:
+                    st.button("🎯 Puntos Hoyo (Vacío)", disabled=True, use_container_width=True)
+            
+            with c2:
+                # Botón ranking total partida
+                with st.popover("🏆 Ranking Partido", use_container_width=True):
+                    cur_mvp = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
+                    df_r = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in cur_mvp.items()]).sort_values("Pts", ascending=False)
+                    st.table(df_r)
+
+        st.divider()
         if st.button("🏁 Finalizar y Salir", use_container_width=True):
             del st.session_state.game
             st.rerun()
 
 elif menu == "Admin":
-    st.subheader("⚙️ Administración")
+    st.subheader("⚙️ Gestión")
     df = leer_datos()
     if not df.empty:
         for _, r in df.iterrows():
@@ -165,5 +185,3 @@ elif menu == "Admin":
                     df_new = df[df["id"].astype(str) != str(r['id'])]
                     conn.update(worksheet="historial", data=df_new)
                     st.rerun()
-    else:
-        st.info("No hay partidas registradas.")
