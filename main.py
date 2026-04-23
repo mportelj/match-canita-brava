@@ -22,6 +22,7 @@ def estilo_tabla(row):
     return [f'color: {color}; font-weight: bold'] * len(row)
 
 def leer_datos():
+    # Eliminamos caché para asegurar que todos vean lo mismo
     st.cache_data.clear()
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -82,9 +83,15 @@ menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Admin"])
 
 # --- INICIO ---
 if menu == "Inicio":
-    st.markdown("<h1 style='text-align: center;'>⛳ CAÑITA BRAVA 2026</h1>", unsafe_allow_html=True)
+    c1, c2 = st.columns([0.8, 0.2])
+    c1.markdown("<h1 style='margin:0;'>⛳ CAÑITA BRAVA</h1>", unsafe_allow_html=True)
+    if c2.button("🔄", help="Refrescar datos"):
+        st.cache_data.clear()
+        st.rerun()
+
     df = leer_datos()
     pts_a, pts_b = INICIO_2026_A, INICIO_2026_B
+    
     if not df.empty:
         df_2026 = df[df['temporada'] == "2026"]
         if not df_2026.empty:
@@ -128,7 +135,6 @@ elif menu == "Jugar/Editar":
         
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         
-        # Entradas de golpes
         st.markdown(f"<b style='color:{COLOR_A}'>{TODOS[0]}</b>", unsafe_allow_html=True)
         s1 = st.number_input("g1", 0, 10, v_def[0], key=f"s0_{h_idx}", label_visibility="collapsed")
         st.markdown(f"<b style='color:{COLOR_A}'>{TODOS[1]}</b>", unsafe_allow_html=True)
@@ -156,7 +162,6 @@ elif menu == "Jugar/Editar":
             match_a = sum(v['pts'][0] for v in g['logs'].values())
             match_b = sum(v['pts'][1] for v in g['logs'].values())
             
-            # Marcador Grande
             st.markdown(f"""
                 <div style="border: 2px solid #ccc; border-radius: 12px; padding: 15px; background-color: #ffffff; text-align: center; margin-bottom: 15px;">
                     <div style="display: flex; justify-content: space-around; align-items: center;">
@@ -167,17 +172,13 @@ elif menu == "Jugar/Editar":
                 </div>
             """, unsafe_allow_html=True)
             
-            # BOTONES MVP (POPOVERS)
             col_mvp1, col_mvp2 = st.columns(2)
-            
             with col_mvp1:
                 with st.popover("🎯 MVP Hoyo", use_container_width=True):
                     if str(h_idx) in g['logs']:
                         h_data = g['logs'][str(h_idx)]['mvp']
                         df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": h_data[f"p{i+1}"]} for i in range(4)])
                         st.table(df_h.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
-                    else:
-                        st.info("Guarda el hoyo para ver el MVP")
 
             with col_mvp2:
                 with st.popover("🏆 MVP Match", use_container_width=True):
