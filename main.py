@@ -84,7 +84,7 @@ menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Admin"])
 if menu == "Inicio":
     c1, c2 = st.columns([0.8, 0.2])
     c1.markdown("<h1 style='margin:0;'>⛳ CAÑITA BRAVA</h1>", unsafe_allow_html=True)
-    if c2.button("🔄", help="Refrescar datos"):
+    if c2.button("🔄"):
         st.cache_data.clear()
         st.rerun()
 
@@ -112,15 +112,19 @@ if menu == "Inicio":
         </div>
     """, unsafe_allow_html=True)
 
-    if not df.empty and not df[df['temporada'] == "2026"].empty:
-        st.markdown("<h3 style='text-align: center;'>⭐ MVP ACUMULADO</h3>", unsafe_allow_html=True)
-        df_m = df[df['temporada'] == "2026"]
-        ranking = {TODOS[i]: df_m[f"p{i+1}_pts"].sum() for i in range(4)}
-        df_r = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in ranking.items()]).sort_values("Pts", ascending=False)
-        st.table(df_r.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
+    # BOTÓN MVP DESPLEGABLE EN INICIO
+    with st.popover("⭐ Ver MVP Acumulado Temporada", use_container_width=True):
+        if not df.empty and not df[df['temporada'] == "2026"].empty:
+            df_m = df[df['temporada'] == "2026"]
+            ranking = {TODOS[i]: df_m[f"p{i+1}_pts"].sum() for i in range(4)}
+            df_r = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in ranking.items()]).sort_values("Pts", ascending=False)
+            st.table(df_r.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
+        else:
+            st.write("No hay datos de la temporada 2026 aún.")
 
 # --- JUGAR / EDITAR ---
 elif menu == "Jugar/Editar":
+    # (El código de Jugar/Editar se mantiene igual que la versión anterior con sus popovers de hoyo y día)
     if 'game' not in st.session_state:
         st.markdown("<h2 style='text-align: center;'>Nueva Partida</h2>", unsafe_allow_html=True)
         f = st.date_input("Fecha:", datetime.now())
@@ -178,7 +182,6 @@ elif menu == "Jugar/Editar":
                         h_data = g['logs'][str(h_idx)]['mvp']
                         df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": h_data[f"p{i+1}"]} for i in range(4)])
                         st.table(df_h.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
-
             with col_mvp2:
                 with st.popover("🏆 MVP Match", use_container_width=True):
                     ranking_dia = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
@@ -199,21 +202,20 @@ elif menu == "Admin":
             dp = df[df['partido_id'] == p_id]
             fecha_str = dp['fecha'].iloc[0]
             with st.expander(f"📅 Partido: {fecha_str}"):
-                # Marcador final resumido
                 final_a = dp['resultado_a'].sum()
                 final_b = dp['resultado_b'].sum()
                 st.write(f"**Resultado final:** {final_a:g} (M&J) vs {final_b:g} (R&L)")
                 
                 col1, col2, col3 = st.columns(3)
                 
-                # Botón de estadísticas MVP
-                if col1.button("🏆 MVP", key=f"mvp_btn_{p_id}", use_container_width=True):
-                    st.markdown(f"#### MVP del {fecha_str}")
-                    ranking_hist = {TODOS[i]: dp[f"p{i+1}_pts"].sum() for i in range(4)}
-                    df_rh = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in ranking_hist.items()]).sort_values("Pts", ascending=False)
-                    st.table(df_rh.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
+                # BOTÓN MVP DESPLEGABLE EN ADMIN (POPOVER)
+                with col1:
+                    with st.popover("🏆 MVP", use_container_width=True):
+                        st.markdown(f"**MVP del {fecha_str}**")
+                        ranking_hist = {TODOS[i]: dp[f"p{i+1}_pts"].sum() for i in range(4)}
+                        df_rh = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in ranking_hist.items()]).sort_values("Pts", ascending=False)
+                        st.table(df_rh.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
 
-                # Botón de editar
                 if col2.button("✏️ Editar", key=f"ed_{p_id}", use_container_width=True):
                     rec = {str(int(f['hoyo'])): {
                         's':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 
@@ -223,7 +225,6 @@ elif menu == "Admin":
                     st.session_state.game = {'fecha': fecha_str, 'temp': "2026", 'h_sel': 1, 'logs': rec, 'partido_id': p_id}
                     st.success("Cargado. Ve al menú 'Jugar/Editar'")
                 
-                # Botón de borrar
                 if col3.button("🗑️ Borrar", key=f"dl_{p_id}", use_container_width=True):
                     conn = st.connection("gsheets", type=GSheetsConnection)
                     conn.update(worksheet="historial", data=df[df['partido_id'] != p_id])
