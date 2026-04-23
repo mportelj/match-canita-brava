@@ -22,7 +22,6 @@ def estilo_tabla(row):
     return [f'color: {color}; font-weight: bold'] * len(row)
 
 def leer_datos():
-    # Eliminamos caché para asegurar que todos vean lo mismo
     st.cache_data.clear()
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -192,18 +191,41 @@ elif menu == "Jugar/Editar":
 
 # --- ADMIN ---
 elif menu == "Admin":
-    st.markdown("<h2 style='text-align: center;'>Admin</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>Administración</h2>", unsafe_allow_html=True)
     df = leer_datos()
     if not df.empty:
         partidos = df['partido_id'].unique()[::-1]
         for p_id in partidos:
             dp = df[df['partido_id'] == p_id]
-            with st.expander(f"Partido {dp['fecha'].iloc[0]}"):
-                if st.button("✏️ Editar", key=f"ed_{p_id}"):
-                    rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
-                    st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'temp': "2026", 'h_sel': 1, 'logs': rec, 'partido_id': p_id}
-                    st.info("Cargado. Ve a Jugar/Editar")
-                if st.button("🗑️ Borrar", key=f"dl_{p_id}"):
+            fecha_str = dp['fecha'].iloc[0]
+            with st.expander(f"📅 Partido: {fecha_str}"):
+                # Marcador final resumido
+                final_a = dp['resultado_a'].sum()
+                final_b = dp['resultado_b'].sum()
+                st.write(f"**Resultado final:** {final_a:g} (M&J) vs {final_b:g} (R&L)")
+                
+                col1, col2, col3 = st.columns(3)
+                
+                # Botón de estadísticas MVP
+                if col1.button("🏆 MVP", key=f"mvp_btn_{p_id}", use_container_width=True):
+                    st.markdown(f"#### MVP del {fecha_str}")
+                    ranking_hist = {TODOS[i]: dp[f"p{i+1}_pts"].sum() for i in range(4)}
+                    df_rh = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in ranking_hist.items()]).sort_values("Pts", ascending=False)
+                    st.table(df_rh.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
+
+                # Botón de editar
+                if col2.button("✏️ Editar", key=f"ed_{p_id}", use_container_width=True):
+                    rec = {str(int(f['hoyo'])): {
+                        's':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 
+                        'pts':(f['resultado_a'],f['resultado_b']), 
+                        'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}
+                    } for _, f in dp.iterrows()}
+                    st.session_state.game = {'fecha': fecha_str, 'temp': "2026", 'h_sel': 1, 'logs': rec, 'partido_id': p_id}
+                    st.success("Cargado. Ve al menú 'Jugar/Editar'")
+                
+                # Botón de borrar
+                if col3.button("🗑️ Borrar", key=f"dl_{p_id}", use_container_width=True):
                     conn = st.connection("gsheets", type=GSheetsConnection)
                     conn.update(worksheet="historial", data=df[df['partido_id'] != p_id])
-                    st.cache_data.clear(); st.rerun()
+                    st.cache_data.clear()
+                    st.rerun()
