@@ -15,7 +15,10 @@ INICIO_2026_A = 3.5
 INICIO_2026_B = 3.5  
 
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
-
+# Añadir esto justo después de st.set_page_config
+if 'last_refresh' not in st.session_state:
+    st.session_state.last_refresh = datetime.now()
+    st.cache_data.clear() # Limpia caché al abrir por primera vez en la sesión
 # --- FUNCIONES ---
 def estilo_tabla(row):
     color = COLOR_A if row['Jugador'] in ["MANUEL", "JOSE"] else COLOR_B
