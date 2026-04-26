@@ -72,10 +72,7 @@ def calcular_puntos_hoyo(scores, hoyo_num):
 # --- 4. LÓGICA DE PANTALLAS ---
 
 if st.session_state.menu_seleccionado == "Inicio":
-    c1, c2 = st.columns([0.8, 0.2])
-    c1.title("⛳ CAÑITA BRAVA")
-    if c2.button("🔄"): st.rerun()
-
+    st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
     pts_a, pts_b = INICIO_2026_A, INICIO_2026_B
     
@@ -93,12 +90,6 @@ if st.session_state.menu_seleccionado == "Inicio":
         <div><h2 style="color:{COLOR_A};margin:0;">M&J</h2><h1 style="margin:0;">{pts_a:g}</h1></div>
         <h2 style="color:#999;margin:0;">VS</h2>
         <div><h2 style="color:{COLOR_B};margin:0;">R&L</h2><h1 style="margin:0;">{pts_b:g}</h1></div></div></div>""", unsafe_allow_html=True)
-
-    with st.popover("⭐ Ver Ranking MVP Temporada", use_container_width=True):
-        if not df.empty:
-            rk = {TODOS[i]: df[f"p{i+1}_pts"].sum() for i in range(4)}
-            df_rk = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in rk.items()]).sort_values("Pts", ascending=False)
-            st.table(df_rk)
 
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if 'game' not in st.session_state:
@@ -122,11 +113,21 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         
         v_guardados = g['logs'][str(h)]['s'] if str(h) in g['logs'] else [PAR_RIA_VIGO[h]]*4
         
-        # Colores aplicados a las etiquetas de los inputs
-        s1 = st.number_input(f"🏌️ {TODOS[0]}", 0, 10, v_guardados[0], key=f"s1_h{h}")
-        s2 = st.number_input(f"🏌️ {TODOS[1]}", 0, 10, v_guardados[1], key=f"s2_h{h}")
-        s3 = st.number_input(f"🏌️ {TODOS[2]}", 0, 10, v_guardados[2], key=f"s3_h{h}")
-        s4 = st.number_input(f"🏌️ {TODOS[3]}", 0, 10, v_guardados[3], key=f"s4_h{h}")
+        # --- INPUTS CON NOMBRES COLOREADOS Y DESTACADOS ---
+        def label_coloreada(nombre, color):
+            st.markdown(f"<p style='color:{color}; font-weight:900; margin-bottom:-15px; font-size:1.1em;'>🏌️ {nombre}</p>", unsafe_allow_html=True)
+
+        label_coloreada(TODOS[0], COLOR_A)
+        s1 = st.number_input(TODOS[0], 0, 10, v_guardados[0], key=f"s1_h{h}", label_visibility="collapsed")
+        
+        label_coloreada(TODOS[1], COLOR_A)
+        s2 = st.number_input(TODOS[1], 0, 10, v_guardados[1], key=f"s2_h{h}", label_visibility="collapsed")
+        
+        label_coloreada(TODOS[2], COLOR_B)
+        s3 = st.number_input(TODOS[2], 0, 10, v_guardados[2], key=f"s3_h{h}", label_visibility="collapsed")
+        
+        label_coloreada(TODOS[3], COLOR_B)
+        s4 = st.number_input(TODOS[3], 0, 10, v_guardados[3], key=f"s4_h{h}", label_visibility="collapsed")
         
         golpes_actuales = [s1, s2, s3, s4]
         ya_guardado = str(h) in g['logs'] and g['logs'][str(h)]['s'] == golpes_actuales
@@ -138,33 +139,32 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": "2026", "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
             if guardar_hoyo(fila): st.toast("✅ Guardado"); st.rerun()
 
-        # --- MARCADOR EN DOS BLOQUES ENFRENTADOS (CENTRADOS Y COLOREADOS) ---
+        # --- MARCADOR DESTACADO ---
         if g['logs']:
             st.write("---")
             match_a = sum(v['pts'][0] for v in g['logs'].values())
             match_b = sum(v['pts'][1] for v in g['logs'].values())
             
             st.markdown(f"""
-            <div style="display: flex; gap: 15px; align-items: center; justify-content: center;">
-                <div style="flex: 1; border: 3px solid {COLOR_A}; border-radius: 12px; padding: 15px; text-align: center; background-color: #f1f8f1; min-width: 140px;">
-                    <div style="line-height: 1.2; margin-bottom: 8px;">
-                        <span style="font-weight: 900; color: {COLOR_A}; display: block; font-size: 1.1em;">{TODOS[0]}</span>
-                        <span style="font-weight: 900; color: {COLOR_A}; display: block; font-size: 1.1em;">{TODOS[1]}</span>
+            <div style="display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 10px;">
+                <div style="flex: 1; border: 4px solid {COLOR_A}; border-radius: 15px; padding: 15px; text-align: center; background-color: #f1f8f1;">
+                    <div style="line-height: 1.1;">
+                        <span style="font-weight: 900; color: {COLOR_A}; font-size: 1.2em; display: block;">{TODOS[0]}</span>
+                        <span style="font-weight: 900; color: {COLOR_A}; font-size: 1.2em; display: block;">{TODOS[1]}</span>
                     </div>
-                    <div style="font-size: 3.5em; font-weight: 900; color: {COLOR_A}; line-height: 1;">{match_a:g}</div>
+                    <div style="font-size: 4em; font-weight: 900; color: {COLOR_A}; margin-top: 5px;">{match_a:g}</div>
                 </div>
-                <div style="font-weight: 900; color: #777; font-size: 1.5em; padding-top: 20px;">VS</div>
-                <div style="flex: 1; border: 3px solid {COLOR_B}; border-radius: 12px; padding: 15px; text-align: center; background-color: #fef2f2; min-width: 140px;">
-                    <div style="line-height: 1.2; margin-bottom: 8px;">
-                        <span style="font-weight: 900; color: {COLOR_B}; display: block; font-size: 1.1em;">{TODOS[2]}</span>
-                        <span style="font-weight: 900; color: {COLOR_B}; display: block; font-size: 1.1em;">{TODOS[3]}</span>
+                <div style="font-weight: 900; color: #999; font-size: 1.5em;">VS</div>
+                <div style="flex: 1; border: 4px solid {COLOR_B}; border-radius: 15px; padding: 15px; text-align: center; background-color: #fef2f2;">
+                    <div style="line-height: 1.1;">
+                        <span style="font-weight: 900; color: {COLOR_B}; font-size: 1.2em; display: block;">{TODOS[2]}</span>
+                        <span style="font-weight: 900; color: {COLOR_B}; font-size: 1.2em; display: block;">{TODOS[3]}</span>
                     </div>
-                    <div style="font-size: 3.5em; font-weight: 900; color: {COLOR_B}; line-height: 1;">{match_b:g}</div>
+                    <div style="font-size: 4em; font-weight: 900; color: {COLOR_B}; margin-top: 5px;">{match_b:g}</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-            st.write("")
             c1, c2 = st.columns(2)
             with c1:
                 with st.popover("🎯 MVP Hoyo", use_container_width=True):
@@ -178,7 +178,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                     df_p = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in p_mvp.items()]).sort_values("Pts", ascending=False)
                     st.table(df_p)
 
-        st.write("---")
         if st.button("🏁 Finalizar Partida", use_container_width=True):
             del st.session_state.game; st.rerun()
 
@@ -189,22 +188,10 @@ elif st.session_state.menu_seleccionado == "Admin":
         for p_id in df['partido_id'].unique()[::-1]:
             dp = df[df['partido_id'] == p_id]
             with st.expander(f"📅 {dp['fecha'].iloc[0]}"):
-                st.write(f"Final: {dp['resultado_a'].sum():g} ({TODOS[0]}/{TODOS[1]}) vs {dp['resultado_b'].sum():g} ({TODOS[2]}/{TODOS[3]})")
-                c_adm1, c_adm2, c_adm3 = st.columns(3)
-                with c_adm1:
-                    with st.popover("🏆 MVP", use_container_width=True):
-                        rk_h = {TODOS[i]: dp[f"p{i+1}_pts"].sum() for i in range(4)}
-                        st.table(pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in rk_h.items()]).sort_values("Pts", ascending=False))
-                if c_adm2.button("✏️ Editar", key=f"ed_{p_id}"):
+                st.write(f"Final: {dp['resultado_a'].sum():g} vs {dp['resultado_b'].sum():g}")
+                if st.button("✏️ Editar", key=f"ed_{p_id}"):
                     rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
                     st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': p_id}
                     st.session_state.menu_seleccionado = "Jugar/Editar"
                     st.session_state.radio_menu = "Jugar/Editar"
                     st.rerun()
-                if c_adm3.button("🗑️ Borrar", key=f"del_{p_id}"):
-                    st.session_state[f"confirm_del_{p_id}"] = True
-                if st.session_state.get(f"confirm_del_{p_id}", False):
-                    if st.button("✅ Confirmar", key=f"real_del_{p_id}"):
-                        conn = st.connection("gsheets", type=GSheetsConnection)
-                        conn.update(worksheet="historial", data=df[df['partido_id'] != p_id])
-                        st.rerun()
