@@ -136,32 +136,27 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": "2026", "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
             if guardar_hoyo(fila): st.toast("✅ Guardado"); st.rerun()
 
-        # --- MARCADOR CLÁSICO Y MVP ---
+        # --- MARCADOR EN DOS BLOQUES ENFRENTADOS ---
         if g['logs']:
             st.write("---")
             match_a = sum(v['pts'][0] for v in g['logs'].values())
             match_b = sum(v['pts'][1] for v in g['logs'].values())
             
             st.markdown(f"""
-            <table style="width:100%; border-collapse: collapse; text-align: center; font-family: sans-serif; border: 1px solid #ddd;">
-                <tr style="background-color: #f2f2f2;">
-                    <th style="padding: 10px; border: 1px solid #ddd;">PAREJA</th>
-                    <th style="padding: 10px; border: 1px solid #ddd;">JUGADORES</th>
-                    <th style="padding: 10px; border: 1px solid #ddd;">TOTAL</th>
-                </tr>
-                <tr>
-                    <td style="color:{COLOR_A}; font-weight:bold; border: 1px solid #ddd;">A</td>
-                    <td style="padding: 10px; border: 1px solid #ddd;">{TODOS[0]} & {TODOS[1]}</td>
-                    <td style="font-size: 1.5em; font-weight: bold; color:{COLOR_A}; border: 1px solid #ddd;">{match_a:g}</td>
-                </tr>
-                <tr>
-                    <td style="color:{COLOR_B}; font-weight:bold; border: 1px solid #ddd;">B</td>
-                    <td style="padding: 10px; border: 1px solid #ddd;">{TODOS[2]} & {TODOS[3]}</td>
-                    <td style="font-size: 1.5em; font-weight: bold; color:{COLOR_B}; border: 1px solid #ddd;">{match_b:g}</td>
-                </tr>
-            </table>
+            <div style="display: flex; gap: 10px; align-items: stretch;">
+                <div style="flex: 1; border: 2px solid {COLOR_A}; border-radius: 10px; padding: 10px; text-align: center; background-color: #f1f8f1;">
+                    <p style="margin:0; font-weight: bold; color: {COLOR_A}; font-size: 0.9em;">{TODOS[0]} & {TODOS[1]}</p>
+                    <h1 style="margin:5px 0 0 0; color: {COLOR_A}; font-size: 3em;">{match_a:g}</h1>
+                </div>
+                <div style="display: flex; align-items: center; font-weight: bold; color: #999;">VS</div>
+                <div style="flex: 1; border: 2px solid {COLOR_B}; border-radius: 10px; padding: 10px; text-align: center; background-color: #fef2f2;">
+                    <p style="margin:0; font-weight: bold; color: {COLOR_B}; font-size: 0.9em;">{TODOS[2]} & {TODOS[3]}</p>
+                    <h1 style="margin:5px 0 0 0; color: {COLOR_B}; font-size: 3em;">{match_b:g}</h1>
+                </div>
+            </div>
             """, unsafe_allow_html=True)
 
+            st.write("")
             c1, c2 = st.columns(2)
             with c1:
                 with st.popover("🎯 MVP Hoyo", use_container_width=True):
@@ -175,6 +170,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                     df_p = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in p_mvp.items()]).sort_values("Pts", ascending=False)
                     st.table(df_p)
 
+        st.write("---")
         if st.button("🏁 Finalizar Partida", use_container_width=True):
             del st.session_state.game; st.rerun()
 
