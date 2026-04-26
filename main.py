@@ -121,6 +121,8 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if c_nav2.button("Siguiente ➡️", use_container_width=True): g['h_sel'] = min(18, h+1); st.rerun()
         
         v_guardados = g['logs'][str(h)]['s'] if str(h) in g['logs'] else [PAR_RIA_VIGO[h]]*4
+        
+        # Colores aplicados a las etiquetas de los inputs
         s1 = st.number_input(f"🏌️ {TODOS[0]}", 0, 10, v_guardados[0], key=f"s1_h{h}")
         s2 = st.number_input(f"🏌️ {TODOS[1]}", 0, 10, v_guardados[1], key=f"s2_h{h}")
         s3 = st.number_input(f"🏌️ {TODOS[2]}", 0, 10, v_guardados[2], key=f"s3_h{h}")
@@ -136,22 +138,28 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": "2026", "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
             if guardar_hoyo(fila): st.toast("✅ Guardado"); st.rerun()
 
-        # --- MARCADOR EN DOS BLOQUES ENFRENTADOS ---
+        # --- MARCADOR EN DOS BLOQUES ENFRENTADOS (CENTRADOS Y COLOREADOS) ---
         if g['logs']:
             st.write("---")
             match_a = sum(v['pts'][0] for v in g['logs'].values())
             match_b = sum(v['pts'][1] for v in g['logs'].values())
             
             st.markdown(f"""
-            <div style="display: flex; gap: 10px; align-items: stretch;">
-                <div style="flex: 1; border: 2px solid {COLOR_A}; border-radius: 10px; padding: 10px; text-align: center; background-color: #f1f8f1;">
-                    <p style="margin:0; font-weight: bold; color: {COLOR_A}; font-size: 0.9em;">{TODOS[0]} & {TODOS[1]}</p>
-                    <h1 style="margin:5px 0 0 0; color: {COLOR_A}; font-size: 3em;">{match_a:g}</h1>
+            <div style="display: flex; gap: 15px; align-items: center; justify-content: center;">
+                <div style="flex: 1; border: 3px solid {COLOR_A}; border-radius: 12px; padding: 15px; text-align: center; background-color: #f1f8f1; min-width: 140px;">
+                    <div style="line-height: 1.2; margin-bottom: 8px;">
+                        <span style="font-weight: 900; color: {COLOR_A}; display: block; font-size: 1.1em;">{TODOS[0]}</span>
+                        <span style="font-weight: 900; color: {COLOR_A}; display: block; font-size: 1.1em;">{TODOS[1]}</span>
+                    </div>
+                    <div style="font-size: 3.5em; font-weight: 900; color: {COLOR_A}; line-height: 1;">{match_a:g}</div>
                 </div>
-                <div style="display: flex; align-items: center; font-weight: bold; color: #999;">VS</div>
-                <div style="flex: 1; border: 2px solid {COLOR_B}; border-radius: 10px; padding: 10px; text-align: center; background-color: #fef2f2;">
-                    <p style="margin:0; font-weight: bold; color: {COLOR_B}; font-size: 0.9em;">{TODOS[2]} & {TODOS[3]}</p>
-                    <h1 style="margin:5px 0 0 0; color: {COLOR_B}; font-size: 3em;">{match_b:g}</h1>
+                <div style="font-weight: 900; color: #777; font-size: 1.5em; padding-top: 20px;">VS</div>
+                <div style="flex: 1; border: 3px solid {COLOR_B}; border-radius: 12px; padding: 15px; text-align: center; background-color: #fef2f2; min-width: 140px;">
+                    <div style="line-height: 1.2; margin-bottom: 8px;">
+                        <span style="font-weight: 900; color: {COLOR_B}; display: block; font-size: 1.1em;">{TODOS[2]}</span>
+                        <span style="font-weight: 900; color: {COLOR_B}; display: block; font-size: 1.1em;">{TODOS[3]}</span>
+                    </div>
+                    <div style="font-size: 3.5em; font-weight: 900; color: {COLOR_B}; line-height: 1;">{match_b:g}</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
