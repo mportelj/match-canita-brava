@@ -77,8 +77,20 @@ def calcular_puntos_hoyo(s1, s2, s3, s4, hoyo_num):
         elif scores[i] == par: mvp[f"p{i+1}"] += 0.5
     return pa, pb, mvp
 
-# --- NAVEGACIÓN ---
-menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Admin"])
+# --- CONTROL DE NAVEGACIÓN INSTANTÁNEA ---
+if "menu_previo" not in st.session_state:
+    st.session_state.menu_previo = "Inicio"
+
+menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Admin"], key="menu_actual")
+
+# Si el usuario cambia de menú, forzamos limpieza de estados temporales
+if st.session_state.menu_actual != st.session_state.menu_previo:
+    st.session_state.menu_previo = st.session_state.menu_actual
+    # Limpiamos confirmaciones de borrado pendientes si las hubiera
+    for key in list(st.session_state.keys()):
+        if "confirm_del_" in key:
+            del st.session_state[key]
+    st.rerun()
 
 # --- INICIO ---
 if menu == "Inicio":
@@ -141,8 +153,6 @@ elif menu == "Jugar/Editar":
             g['h_sel'] = min(18, h_idx+1)
             st.rerun()
         
-        st.write("") 
-        
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         
         st.markdown(f"<b style='color:{COLOR_A}'>{TODOS[0]}</b>", unsafe_allow_html=True)
@@ -178,17 +188,17 @@ elif menu == "Jugar/Editar":
                 </div>
             """, unsafe_allow_html=True)
             
-            col_mvp1, col_mvp2 = st.columns(2)
-            with col_mvp1:
+            c_m1, c_m2 = st.columns(2)
+            with c_m1:
                 with st.popover("🎯 MVP Hoyo", use_container_width=True):
                     if str(h_idx) in g['logs']:
                         h_data = g['logs'][str(h_idx)]['mvp']
                         df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": h_data[f"p{i+1}"]} for i in range(4)])
                         st.table(df_h.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
-            with col_mvp2:
+            with c_m2:
                 with st.popover("🏆 MVP Match", use_container_width=True):
-                    ranking_dia = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
-                    df_rd = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in ranking_dia.items()]).sort_values("Pts", ascending=False)
+                    rk_d = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
+                    df_rd = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in rk_d.items()]).sort_values("Pts", ascending=False)
                     st.table(df_rd.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
 
         st.write("---")
@@ -205,45 +215,36 @@ elif menu == "Admin":
             dp = df[df['partido_id'] == p_id]
             fecha_str = dp['fecha'].iloc[0]
             with st.expander(f"📅 Partido: {fecha_str}"):
-                final_a = dp['resultado_a'].sum()
-                final_b = dp['resultado_b'].sum()
-                st.write(f"**Resultado final:** {final_a:g} (M&J) vs {final_b:g} (R&L)")
+                f_a, f_b = dp['resultado_a'].sum(), dp['resultado_b'].sum()
+                st.write(f"**Final:** {f_a:g} (M&J) vs {f_b:g} (R&L)")
                 
                 col1, col2, col3 = st.columns(3)
-                
                 with col1:
                     with st.popover("🏆 MVP", use_container_width=True):
                         st.markdown(f"**MVP del {fecha_str}**")
-                        ranking_hist = {TODOS[i]: dp[f"p{i+1}_pts"].sum() for i in range(4)}
-                        df_rh = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in ranking_hist.items()]).sort_values("Pts", ascending=False)
+                        rk_h = {TODOS[i]: dp[f"p{i+1}_pts"].sum() for i in range(4)}
+                        df_rh = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in rk_h.items()]).sort_values("Pts", ascending=False)
                         st.table(df_rh.style.apply(estilo_tabla, axis=1).format({"Pts": "{:.1f}"}))
 
                 if col2.button("✏️ Edit", key=f"ed_{p_id}", use_container_width=True):
-                    rec = {str(int(f['hoyo'])): {
-                        's':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 
-                        'pts':(f['resultado_a'],f['resultado_b']), 
-                        'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}
-                    } for _, f in dp.iterrows()}
+                    rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
                     st.session_state.game = {'fecha': fecha_str, 'temp': "2026", 'h_sel': 1, 'logs': rec, 'partido_id': p_id}
-                    st.success("Cargado")
+                    st.success("Cargado. Ve a Jugar/Editar")
                 
-                # --- LÓGICA DE BORRADO CON CONFIRMACIÓN ---
                 borrar_key = f"confirm_del_{p_id}"
-                if borrar_key not in st.session_state:
-                    st.session_state[borrar_key] = False
+                if borrar_key not in st.session_state: st.session_state[borrar_key] = False
 
                 if col3.button("🗑️ Del", key=f"btn_del_{p_id}", use_container_width=True):
                     st.session_state[borrar_key] = True
 
                 if st.session_state[borrar_key]:
-                    st.error("⚠️ ¿Seguro que quieres eliminar este partido?")
-                    c_conf1, c_conf2 = st.columns(2)
-                    if c_conf1.button("✅ SÍ, eliminar", key=f"real_del_{p_id}", use_container_width=True, type="primary"):
+                    st.error("⚠️ ¿Eliminar?")
+                    c_c1, c_c2 = st.columns(2)
+                    if c_c1.button("✅ SÍ", key=f"real_del_{p_id}", use_container_width=True, type="primary"):
                         conn = st.connection("gsheets", type=GSheetsConnection)
                         conn.update(worksheet="historial", data=df[df['partido_id'] != p_id])
                         st.session_state[borrar_key] = False
-                        st.cache_data.clear()
-                        st.rerun()
-                    if c_conf2.button("❌ No", key=f"cancel_del_{p_id}", use_container_width=True):
+                        st.cache_data.clear(); st.rerun()
+                    if c_c2.button("❌ NO", key=f"cancel_del_{p_id}", use_container_width=True):
                         st.session_state[borrar_key] = False
                         st.rerun()
