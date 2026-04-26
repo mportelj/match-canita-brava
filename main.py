@@ -102,9 +102,8 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         g = st.session_state.game
         h = g['h_sel']
         
-        st.markdown(f"""<div style="background-color:#2c3e50; padding:15px; border-radius:10px; text-align:center; color:white; margin-bottom:15px;">
-            <h2 style="margin:0; color:#ecf0f1;">HOYO {h}</h2>
-            <p style="margin:0; font-size:1.2em; color:#bdc3c7;">PAR {PAR_RIA_VIGO[h]}</p>
+        st.markdown(f"""<div style="background-color:#2c3e50; padding:10px; border-radius:10px; text-align:center; color:white; margin-bottom:10px;">
+            <h2 style="margin:0; color:#ecf0f1; font-size:1.5em;">HOYO {h} (PAR {PAR_RIA_VIGO[h]})</h2>
             </div>""", unsafe_allow_html=True)
         
         c_nav1, c_nav2 = st.columns(2)
@@ -113,25 +112,25 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         
         v_guardados = g['logs'][str(h)]['s'] if str(h) in g['logs'] else [PAR_RIA_VIGO[h]]*4
         
-        # --- INPUTS CON NOMBRES COLOREADOS Y DESTACADOS ---
-        def label_coloreada(nombre, color):
-            st.markdown(f"<p style='color:{color}; font-weight:900; margin-bottom:-15px; font-size:1.1em;'>🏌️ {nombre}</p>", unsafe_allow_html=True)
+        # --- INPUTS EN COLUMNAS PARA AHORRAR ESPACIO Y EVITAR SOLAPAMIENTOS ---
+        col_izq, col_der = st.columns(2)
+        
+        with col_izq:
+            st.markdown(f"<p style='color:{COLOR_A}; font-weight:900; margin-bottom:5px;'>🏌️ {TODOS[0]}</p>", unsafe_allow_html=True)
+            s1 = st.number_input(TODOS[0], 0, 10, v_guardados[0], key=f"s1_h{h}", label_visibility="collapsed")
+            st.markdown(f"<p style='color:{COLOR_A}; font-weight:900; margin-top:10px; margin-bottom:5px;'>🏌️ {TODOS[1]}</p>", unsafe_allow_html=True)
+            s2 = st.number_input(TODOS[1], 0, 10, v_guardados[1], key=f"s2_h{h}", label_visibility="collapsed")
 
-        label_coloreada(TODOS[0], COLOR_A)
-        s1 = st.number_input(TODOS[0], 0, 10, v_guardados[0], key=f"s1_h{h}", label_visibility="collapsed")
-        
-        label_coloreada(TODOS[1], COLOR_A)
-        s2 = st.number_input(TODOS[1], 0, 10, v_guardados[1], key=f"s2_h{h}", label_visibility="collapsed")
-        
-        label_coloreada(TODOS[2], COLOR_B)
-        s3 = st.number_input(TODOS[2], 0, 10, v_guardados[2], key=f"s3_h{h}", label_visibility="collapsed")
-        
-        label_coloreada(TODOS[3], COLOR_B)
-        s4 = st.number_input(TODOS[3], 0, 10, v_guardados[3], key=f"s4_h{h}", label_visibility="collapsed")
+        with col_der:
+            st.markdown(f"<p style='color:{COLOR_B}; font-weight:900; margin-bottom:5px;'>🏌️ {TODOS[2]}</p>", unsafe_allow_html=True)
+            s3 = st.number_input(TODOS[2], 0, 10, v_guardados[2], key=f"s3_h{h}", label_visibility="collapsed")
+            st.markdown(f"<p style='color:{COLOR_B}; font-weight:900; margin-top:10px; margin-bottom:5px;'>🏌️ {TODOS[3]}</p>", unsafe_allow_html=True)
+            s4 = st.number_input(TODOS[3], 0, 10, v_guardados[3], key=f"s4_h{h}", label_visibility="collapsed")
         
         golpes_actuales = [s1, s2, s3, s4]
         ya_guardado = str(h) in g['logs'] and g['logs'][str(h)]['s'] == golpes_actuales
         
+        st.write("") # Espacio pequeño
         btn_label = "✅ Hoyo Sincronizado" if ya_guardado else "💾 Guardar Cambios"
         if st.button(btn_label, type="primary", use_container_width=True, disabled=ya_guardado):
             pa, pb, mi = calcular_puntos_hoyo(golpes_actuales, h)
@@ -139,28 +138,21 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": "2026", "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
             if guardar_hoyo(fila): st.toast("✅ Guardado"); st.rerun()
 
-        # --- MARCADOR DESTACADO ---
+        # --- MARCADOR COMPACTO Y SUBIDO ---
         if g['logs']:
-            st.write("---")
             match_a = sum(v['pts'][0] for v in g['logs'].values())
             match_b = sum(v['pts'][1] for v in g['logs'].values())
             
             st.markdown(f"""
-            <div style="display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 10px;">
-                <div style="flex: 1; border: 4px solid {COLOR_A}; border-radius: 15px; padding: 15px; text-align: center; background-color: #f1f8f1;">
-                    <div style="line-height: 1.1;">
-                        <span style="font-weight: 900; color: {COLOR_A}; font-size: 1.2em; display: block;">{TODOS[0]}</span>
-                        <span style="font-weight: 900; color: {COLOR_A}; font-size: 1.2em; display: block;">{TODOS[1]}</span>
-                    </div>
-                    <div style="font-size: 4em; font-weight: 900; color: {COLOR_A}; margin-top: 5px;">{match_a:g}</div>
+            <div style="display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 15px; margin-bottom: 10px;">
+                <div style="flex: 1; border: 3px solid {COLOR_A}; border-radius: 12px; padding: 10px; text-align: center; background-color: #f1f8f1;">
+                    <span style="font-weight: 900; color: {COLOR_A}; font-size: 0.9em;">{TODOS[0]}/{TODOS[1]}</span>
+                    <div style="font-size: 2.5em; font-weight: 900; color: {COLOR_A}; margin: 0;">{match_a:g}</div>
                 </div>
-                <div style="font-weight: 900; color: #999; font-size: 1.5em;">VS</div>
-                <div style="flex: 1; border: 4px solid {COLOR_B}; border-radius: 15px; padding: 15px; text-align: center; background-color: #fef2f2;">
-                    <div style="line-height: 1.1;">
-                        <span style="font-weight: 900; color: {COLOR_B}; font-size: 1.2em; display: block;">{TODOS[2]}</span>
-                        <span style="font-weight: 900; color: {COLOR_B}; font-size: 1.2em; display: block;">{TODOS[3]}</span>
-                    </div>
-                    <div style="font-size: 4em; font-weight: 900; color: {COLOR_B}; margin-top: 5px;">{match_b:g}</div>
+                <div style="font-weight: 900; color: #999; font-size: 1.2em;">VS</div>
+                <div style="flex: 1; border: 3px solid {COLOR_B}; border-radius: 12px; padding: 10px; text-align: center; background-color: #fef2f2;">
+                    <span style="font-weight: 900; color: {COLOR_B}; font-size: 0.9em;">{TODOS[2]}/{TODOS[3]}</span>
+                    <div style="font-size: 2.5em; font-weight: 900; color: {COLOR_B}; margin: 0;">{match_b:g}</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -170,28 +162,12 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 with st.popover("🎯 MVP Hoyo", use_container_width=True):
                     if str(h) in g['logs']:
                         h_mvp = g['logs'][str(h)]['mvp']
-                        df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": h_mvp[f"p{i+1}"]} for i in range(4)])
-                        st.table(df_h)
+                        st.table(pd.DataFrame([{"Jugador": TODOS[i], "Pts": h_mvp[f"p{i+1}"]} for i in range(4)]))
             with c2:
                 with st.popover("🏆 MVP Partido", use_container_width=True):
                     p_mvp = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
-                    df_p = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in p_mvp.items()]).sort_values("Pts", ascending=False)
-                    st.table(df_p)
+                    st.table(pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in p_mvp.items()]).sort_values("Pts", ascending=False))
 
+        st.markdown("<br>", unsafe_allow_html=True)
         if st.button("🏁 Finalizar Partida", use_container_width=True):
             del st.session_state.game; st.rerun()
-
-elif st.session_state.menu_seleccionado == "Admin":
-    st.title("Administración")
-    df = leer_datos()
-    if not df.empty:
-        for p_id in df['partido_id'].unique()[::-1]:
-            dp = df[df['partido_id'] == p_id]
-            with st.expander(f"📅 {dp['fecha'].iloc[0]}"):
-                st.write(f"Final: {dp['resultado_a'].sum():g} vs {dp['resultado_b'].sum():g}")
-                if st.button("✏️ Editar", key=f"ed_{p_id}"):
-                    rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
-                    st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': p_id}
-                    st.session_state.menu_seleccionado = "Jugar/Editar"
-                    st.session_state.radio_menu = "Jugar/Editar"
-                    st.rerun()
