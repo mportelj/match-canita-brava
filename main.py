@@ -17,6 +17,7 @@ if "menu_seleccionado" not in st.session_state:
 
 def cambiar_menu():
     st.session_state.menu_seleccionado = st.session_state.radio_menu
+    # Limpiar confirmaciones de borrado al navegar
     for key in list(st.session_state.keys()):
         if "confirm_del_" in key:
             del st.session_state[key]
@@ -31,7 +32,9 @@ def leer_datos():
         df = conn.read(worksheet="historial", ttl=0)
         if df is None or df.empty: return pd.DataFrame()
         df = df.dropna(subset=['id'])
-        for c in ['resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3']:
+        # Asegurar tipos numéricos
+        cols_num = ['resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3']
+        for c in cols_num:
             df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
         return df
     except:
@@ -112,15 +115,12 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         
         v_guardados = g['logs'][str(h)]['s'] if str(h) in g['logs'] else [PAR_RIA_VIGO[h]]*4
         
-        # --- INPUTS EN COLUMNAS PARA AHORRAR ESPACIO Y EVITAR SOLAPAMIENTOS ---
         col_izq, col_der = st.columns(2)
-        
         with col_izq:
             st.markdown(f"<p style='color:{COLOR_A}; font-weight:900; margin-bottom:5px;'>🏌️ {TODOS[0]}</p>", unsafe_allow_html=True)
             s1 = st.number_input(TODOS[0], 0, 10, v_guardados[0], key=f"s1_h{h}", label_visibility="collapsed")
             st.markdown(f"<p style='color:{COLOR_A}; font-weight:900; margin-top:10px; margin-bottom:5px;'>🏌️ {TODOS[1]}</p>", unsafe_allow_html=True)
             s2 = st.number_input(TODOS[1], 0, 10, v_guardados[1], key=f"s2_h{h}", label_visibility="collapsed")
-
         with col_der:
             st.markdown(f"<p style='color:{COLOR_B}; font-weight:900; margin-bottom:5px;'>🏌️ {TODOS[2]}</p>", unsafe_allow_html=True)
             s3 = st.number_input(TODOS[2], 0, 10, v_guardados[2], key=f"s3_h{h}", label_visibility="collapsed")
@@ -130,7 +130,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         golpes_actuales = [s1, s2, s3, s4]
         ya_guardado = str(h) in g['logs'] and g['logs'][str(h)]['s'] == golpes_actuales
         
-        st.write("") # Espacio pequeño
         btn_label = "✅ Hoyo Sincronizado" if ya_guardado else "💾 Guardar Cambios"
         if st.button(btn_label, type="primary", use_container_width=True, disabled=ya_guardado):
             pa, pb, mi = calcular_puntos_hoyo(golpes_actuales, h)
@@ -138,11 +137,9 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": "2026", "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
             if guardar_hoyo(fila): st.toast("✅ Guardado"); st.rerun()
 
-        # --- MARCADOR COMPACTO Y SUBIDO ---
         if g['logs']:
             match_a = sum(v['pts'][0] for v in g['logs'].values())
             match_b = sum(v['pts'][1] for v in g['logs'].values())
-            
             st.markdown(f"""
             <div style="display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 15px; margin-bottom: 10px;">
                 <div style="flex: 1; border: 3px solid {COLOR_A}; border-radius: 12px; padding: 10px; text-align: center; background-color: #f1f8f1;">
@@ -156,7 +153,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 </div>
             </div>
             """, unsafe_allow_html=True)
-
             c1, c2 = st.columns(2)
             with c1:
                 with st.popover("🎯 MVP Hoyo", use_container_width=True):
@@ -171,3 +167,58 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("🏁 Finalizar Partida", use_container_width=True):
             del st.session_state.game; st.rerun()
+
+elif st.session_state.menu_seleccionado == "Admin":
+    st.title("⚙️ Administración")
+    df = leer_datos()
+    if not df.empty:
+        # Agrupar por ID de partido para mostrar historial
+        partidos = df['partido_id'].unique()[::-1]
+        for p_id in partidos:
+            dp = df[df['partido_id'] == p_id]
+            fecha = dp['fecha'].iloc[0]
+            res_a = dp['resultado_a'].sum()
+            res_b = dp['resultado_b'].sum()
+            
+            with st.expander(f"📅 {fecha} — Resultado: {res_a:g} a {res_b:g}"):
+                c_adm1, c_adm2, c_adm3 = st.columns(3)
+                
+                # Ver MVP del partido guardado
+                with c_adm1:
+                    with st.popover("🏆 MVP", use_container_width=True):
+                        rk_h = {TODOS[i]: dp[f"p{i+1}_pts"].sum() for i in range(4)}
+                        st.table(pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in rk_h.items()]).sort_values("Pts", ascending=False))
+                
+                # Editar partido (Carga los datos en la pantalla de juego)
+                if c_adm2.button("✏️ Editar", key=f"ed_{p_id}", use_container_width=True):
+                    # Reconstruir el diccionario 'logs' para la sesión
+                    rec = {}
+                    for _, fila in dp.iterrows():
+                        rec[str(int(fila['hoyo']))] = {
+                            's': [int(fila['s0']), int(fila['s1']), int(fila['s2']), int(fila['s3'])],
+                            'pts': (fila['resultado_a'], fila['resultado_b']),
+                            'mvp': {'p1': fila['p1_pts'], 'p2': fila['p2_pts'], 'p3': fila['p3_pts'], 'p4': fila['p4_pts']}
+                        }
+                    st.session_state.game = {'fecha': fecha, 'h_sel': 1, 'logs': rec, 'id': p_id}
+                    st.session_state.menu_seleccionado = "Jugar/Editar"
+                    st.session_state.radio_menu = "Jugar/Editar"
+                    st.rerun()
+                
+                # Borrar partido
+                if c_adm3.button("🗑️ Borrar", key=f"del_{p_id}", use_container_width=True):
+                    st.session_state[f"confirm_del_{p_id}"] = True
+                
+                if st.session_state.get(f"confirm_del_{p_id}", False):
+                    st.error("¿Seguro que quieres borrar este partido?")
+                    col_si, col_no = st.columns(2)
+                    if col_si.button("✅ SÍ", key=f"si_{p_id}", use_container_width=True):
+                        conn = st.connection("gsheets", type=GSheetsConnection)
+                        df_new = df[df['partido_id'] != p_id]
+                        conn.update(worksheet="historial", data=df_new)
+                        del st.session_state[f"confirm_del_{p_id}"]
+                        st.rerun()
+                    if col_no.button("❌ NO", key=f"no_{p_id}", use_container_width=True):
+                        del st.session_state[f"confirm_del_{p_id}"]
+                        st.rerun()
+    else:
+        st.info("No hay partidas guardadas en el historial.")
