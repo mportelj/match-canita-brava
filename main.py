@@ -131,7 +131,6 @@ elif menu == "Jugar/Editar":
         g = st.session_state.game
         h_idx = g['h_sel']
         
-        # --- NAVEGACIÓN ARRIBA ---
         st.markdown(f"<div style='background:#f0f2f6; padding:10px; border-radius:10px; text-align:center; border:1px solid #ddd; margin-bottom:10px;'><h3>Hoyo {h_idx} (Par {PAR_RIA_VIGO[h_idx]})</h3></div>", unsafe_allow_html=True)
         
         c_nav1, c_nav2 = st.columns(2)
@@ -142,9 +141,8 @@ elif menu == "Jugar/Editar":
             g['h_sel'] = min(18, h_idx+1)
             st.rerun()
         
-        st.write("") # Espacio
+        st.write("") 
         
-        # --- ENTRADA DE GOLPES ---
         v_def = g['logs'][str(h_idx)]['s'] if str(h_idx) in g['logs'] else [PAR_RIA_VIGO[h_idx]]*4
         
         st.markdown(f"<b style='color:{COLOR_A}'>{TODOS[0]}</b>", unsafe_allow_html=True)
@@ -165,7 +163,6 @@ elif menu == "Jugar/Editar":
             fila = pd.DataFrame([{"id": f"{g['partido_id']}_H{h_idx}", "partido_id": g['partido_id'], "hoyo": h_idx, "fecha": g['fecha'], "temporada": "2026", "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
             if guardar_hoyo(fila): st.toast("Hoyo Guardado"); st.rerun()
 
-        # --- MARCADOR Y MVP ---
         if g['logs']:
             st.write("---")
             match_a = sum(v['pts'][0] for v in g['logs'].values())
@@ -213,6 +210,7 @@ elif menu == "Admin":
                 st.write(f"**Resultado final:** {final_a:g} (M&J) vs {final_b:g} (R&L)")
                 
                 col1, col2, col3 = st.columns(3)
+                
                 with col1:
                     with st.popover("🏆 MVP", use_container_width=True):
                         st.markdown(f"**MVP del {fecha_str}**")
@@ -229,8 +227,23 @@ elif menu == "Admin":
                     st.session_state.game = {'fecha': fecha_str, 'temp': "2026", 'h_sel': 1, 'logs': rec, 'partido_id': p_id}
                     st.success("Cargado")
                 
-                if col3.button("🗑️ Del", key=f"dl_{p_id}", use_container_width=True):
-                    conn = st.connection("gsheets", type=GSheetsConnection)
-                    conn.update(worksheet="historial", data=df[df['partido_id'] != p_id])
-                    st.cache_data.clear()
-                    st.rerun()
+                # --- LÓGICA DE BORRADO CON CONFIRMACIÓN ---
+                borrar_key = f"confirm_del_{p_id}"
+                if borrar_key not in st.session_state:
+                    st.session_state[borrar_key] = False
+
+                if col3.button("🗑️ Del", key=f"btn_del_{p_id}", use_container_width=True):
+                    st.session_state[borrar_key] = True
+
+                if st.session_state[borrar_key]:
+                    st.error("⚠️ ¿Seguro que quieres eliminar este partido?")
+                    c_conf1, c_conf2 = st.columns(2)
+                    if c_conf1.button("✅ SÍ, eliminar", key=f"real_del_{p_id}", use_container_width=True, type="primary"):
+                        conn = st.connection("gsheets", type=GSheetsConnection)
+                        conn.update(worksheet="historial", data=df[df['partido_id'] != p_id])
+                        st.session_state[borrar_key] = False
+                        st.cache_data.clear()
+                        st.rerun()
+                    if c_conf2.button("❌ No", key=f"cancel_del_{p_id}", use_container_width=True):
+                        st.session_state[borrar_key] = False
+                        st.rerun()
