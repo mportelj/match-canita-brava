@@ -20,11 +20,11 @@ menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Estadísticas", "Ad
                         index=["Inicio", "Jugar/Editar", "Estadísticas", "Admin"].index(st.session_state.menu_seleccionado),
                         key="radio_menu", on_change=cambiar_menu)
 
-# --- 2. FUNCIONES DE DATOS (REFORZADAS) ---
+# --- 2. FUNCIONES DE DATOS (REPARADAS) ---
 def leer_datos():
+    # ttl=0 es CLAVE: obliga a leer datos nuevos de la nube siempre
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
-        # ttl=0 asegura que no use caché antigua al leer
         df = conn.read(worksheet="historial", ttl=0) 
         if df is None or df.empty: return pd.DataFrame()
         
@@ -71,31 +71,28 @@ def ejecutar_guardado_automatico():
     fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": anio_int, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s[0], "s1": s[1], "s2": s[2], "s3": s[3]}])
     
     conn = st.connection("gsheets", type=GSheetsConnection)
-    st.cache_data.clear() # Limpiamos antes de leer para combinar
-    df_h = leer_datos()
+    st.cache_data.clear() # Limpiamos antes de leer
+    df_actual = leer_datos()
     
-    if not df_h.empty:
-        df_f = pd.concat([df_h[df_h["id"] != f"{g['id']}_H{h}"], fila], ignore_index=True)
+    if not df_actual.empty:
+        df_f = pd.concat([df_actual[df_actual["id"] != f"{g['id']}_H{h}"], fila], ignore_index=True)
     else:
         df_f = fila
         
     conn.update(worksheet="historial", data=df_f)
-    st.cache_data.clear() # Limpiamos después de guardar
+    st.cache_data.clear() # Limpiamos después de subir cambios
 
 def generar_texto_whatsapp(partido_id):
-    st.cache_data.clear()
-    df_full = leer_datos()
-    df_p = df_full[df_full['partido_id'] == partido_id]
+    st.cache_data.clear() # Forzamos refresco
+    df_fresh = leer_datos()
+    df_p = df_fresh[df_fresh['partido_id'] == partido_id]
     
-    if df_p.empty: return "No hay datos del partido."
+    if df_p.empty: return "Actualizando datos..."
     
     f = df_p['fecha'].iloc[0]
     txt = f"⛳ *CAÑITA BRAVA - {f}*\n\n"
-    
-    pa_t = df_p['resultado_a'].sum()
-    pb_t = df_p['resultado_b'].sum()
+    pa_t, pb_t = df_p['resultado_a'].sum(), df_p['resultado_b'].sum()
     ma, mb = max(0, pa_t - pb_t), max(0, pb_t - pa_t)
-    
     txt += f"🏆 *MATCH:* {TODOS[0]}/{TODOS[1]} *{ma:g}* vs *{mb:g}* {TODOS[2]}/{TODOS[3]}\n\n"
     
     txt += "🎖️ *MVP PARTIDO:*\n"
@@ -106,10 +103,8 @@ def generar_texto_whatsapp(partido_id):
         
     txt += "\n📊 *ESTADÍSTICAS:*\n"
     for i, jug in enumerate(TODOS):
-        col = f's{i}'
-        t = df_p[df_p[col] > 0].copy()
-        t['par_hoyo'] = t['hoyo'].map(PAR_RIA_VIGO)
-        t['dif'] = t[col] - t['par_hoyo']
+        col = f's{i}'; t = df_p[df_p[col] > 0].copy()
+        t['par_hoyo'] = t['hoyo'].map(PAR_RIA_VIGO); t['dif'] = t[col] - t['par_hoyo']
         e = len(t[t['dif'] <= -2]); b = len(t[t['dif'] == -1]); p = len(t[t['dif'] == 0])
         txt += f"• {jug}: {e}🦅 | {b}🐥 | {p}Par\n"
     return txt
@@ -120,7 +115,6 @@ if st.session_state.menu_seleccionado == "Inicio":
     df = leer_datos()
     temps = sorted(df['temporada'].unique().astype(int).tolist(), reverse=True) if not df.empty else [2026]
     sel_temp = st.selectbox("Temporada:", temps)
-    
     pa_ini, pb_ini = 3.5, 3.5
     if not df.empty:
         df_t = df[df['temporada'] == int(sel_temp)]
@@ -129,7 +123,6 @@ if st.session_state.menu_seleccionado == "Inicio":
             if r['resultado_a'] > r['resultado_b']: pa_ini += 1
             elif r['resultado_b'] > r['resultado_a']: pb_ini += 1
             else: pa_ini += 0.5; pb_ini += 0.5
-            
     st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;">
         <h3>MARCADOR {sel_temp}</h3><div style="display:flex;justify-content:space-around;">
         <div><h2 style="color:{COLOR_A};">{TODOS[0]}/{TODOS[1]}</h2><h1>{pa_ini:g}</h1></div>
@@ -157,18 +150,13 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         s4 = c_d.number_input(TODOS[3], 0, 10, v_old[3], key=f"s4_h{h}")
         
         v_new = [s1, s2, s3, s4]
-        hubo_cambio = v_new != v_old
-        
         if not ya:
-            if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
-                ejecutar_guardado_automatico(); st.rerun()
-        elif hubo_cambio:
-            if st.button("🔄 Actualizar Cambios", type="primary", use_container_width=True):
-                ejecutar_guardado_automatico(); st.rerun()
+            if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True): ejecutar_guardado_automatico(); st.rerun()
+        elif v_new != v_old:
+            if st.button("🔄 Actualizar Cambios", type="primary", use_container_width=True): ejecutar_guardado_automatico(); st.rerun()
         else:
             st.button("✅ Guardado", disabled=True, use_container_width=True)
 
-        # Marcador
         p_a = sum(v['pts'][0] for v in g['logs'].values()); p_b = sum(v['pts'][1] for v in g['logs'].values())
         ma, mb = max(0, p_a-p_b), max(0, p_b-p_a)
         st.markdown(f"""<div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
@@ -180,23 +168,13 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if ya:
             res_h = g['logs'][str(h)]['pts']
             st.markdown(f"""<div style="text-align:center; margin-top:10px; padding:10px; background:#f8f9fa; border-radius:10px; border:1px solid #dee2e6;">
-            <span style="color:#666; font-size:0.9em;">Resultado del Hoyo:</span><br>
             <b style="color:{COLOR_A}">{res_h[0]:g}</b> — <b style="color:{COLOR_B}">{res_h[1]:g}</b></div>""", unsafe_allow_html=True)
-
-        c1, c2 = st.columns(2)
-        with c1:
-            with st.popover("🎯 MVP Hoyo", use_container_width=True):
-                if ya: st.table(pd.DataFrame([{"Jugador": TODOS[i], "Pts": g['logs'][str(h)]['mvp'][f"p{i+1}"]} for i in range(4)]).sort_values("Pts", ascending=False))
-        with c2:
-            with st.popover("🏆 MVP Acum", use_container_width=True):
-                mvp_ac = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
-                st.table(pd.DataFrame(mvp_ac.items(), columns=["Jugador", "Pts"]).sort_values("Pts", ascending=False))
 
         if st.button("🏁 Finalizar Partida", type="secondary", use_container_width=True): del st.session_state.game; st.rerun()
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Histórico")
-    st.cache_data.clear() # Refrescamos para ver cambios recientes
+    st.cache_data.clear() 
     df = leer_datos()
     if df.empty: st.info("Sin datos.")
     else:
@@ -209,7 +187,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         res = []
         for i, jug in enumerate(TODOS):
             col = f's{i}'; t = df[df[col] > 0].copy(); t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
-            res.append({"Jugador": jug, "MVP": int(mvps_c[jug]), "Eagle": len(t[t['dif'] <= -2]), "Birdie": len(t[t['dif'] == -1]), "Par": len(t[t['dif'] == 0]), "Bogey": len(t[t['dif'] == 1])})
+            res.append({"Jugador": jug, "MVP": int(mvps_c[jug]), "Eagle": len(t[t['dif'] <= -2]), "Birdie": len(t[t['dif'] == -1]), "Par": len(t[t['dif'] == 0])})
         st.table(pd.DataFrame(res).set_index("Jugador"))
 
 elif st.session_state.menu_seleccionado == "Admin":
@@ -220,13 +198,10 @@ elif st.session_state.menu_seleccionado == "Admin":
             dp = df[df['partido_id'] == p_id]
             with st.expander(f"📅 {dp['fecha'].iloc[0]}"):
                 c1, c2, c3 = st.columns(3)
-                # LLAMAMOS AL RECALCULO REAL DE WHATSAPP
                 c1.download_button("📱 WhatsApp", generar_texto_whatsapp(p_id), key=f"wa_{p_id}")
                 if c2.button("✏️ Editar", key=f"ed_{p_id}"):
                     rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
                     st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': str(p_id)}; st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
-                if st.button("🗑️ Borrar", key=f"del_{p_id}", type="primary"): st.session_state[f"conf_{p_id}"] = True
-                if st.session_state.get(f"conf_{p_id}"):
-                    if st.button("✅ Confirmar", key=f"si_{p_id}"):
-                        st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
-                        st.cache_data.clear(); st.rerun()
+                if st.button("🗑️ Borrar", key=f"del_{p_id}", type="primary"): 
+                    st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
+                    st.cache_data.clear(); st.rerun()
