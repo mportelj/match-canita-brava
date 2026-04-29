@@ -145,7 +145,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if g['logs']:
             total_a = sum(v['pts'][0] for v in g['logs'].values())
             total_b = sum(v['pts'][1] for v in g['logs'].values())
-            # Lógica Match Play
             m_play_a = max(0, total_a - total_b)
             m_play_b = max(0, total_b - total_a)
 
@@ -167,11 +166,16 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             with c1:
                 with st.popover("🎯 MVP Hoyo", use_container_width=True):
                     if str(h) in g['logs']:
-                        st.table(pd.DataFrame([{"Jugador": TODOS[i], "Pts": g['logs'][str(h)]['mvp'][f"p{i+1}"]} for i in range(4)]))
+                        h_mvp = g['logs'][str(h)]['mvp']
+                        df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": h_mvp[f"p{i+1}"]} for i in range(4)])
+                        df_h = df_h.sort_values("Pts", ascending=False)
+                        st.table(df_h.style.format({"Pts": "{:.1f}"}))
             with c2:
                 with st.popover("🏆 MVP Partido", use_container_width=True):
                     p_mvp = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
-                    st.table(pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in p_mvp.items()]).sort_values("Pts", ascending=False))
+                    df_p = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in p_mvp.items()])
+                    df_p = df_p.sort_values("Pts", ascending=False)
+                    st.table(df_p.style.format({"Pts": "{:.1f}"}))
 
         if st.button("🏁 Finalizar Partida", use_container_width=True):
             del st.session_state.game; st.rerun()
@@ -184,6 +188,12 @@ elif st.session_state.menu_seleccionado == "Admin":
             dp = df[df['partido_id'] == p_id]
             with st.expander(f"📅 {dp['fecha'].iloc[0]} — {dp['resultado_a'].sum():g} vs {dp['resultado_b'].sum():g}"):
                 c1, c2, c3 = st.columns(3)
+                with c1:
+                    with st.popover("🏆 MVP", use_container_width=True):
+                        rk_h = {TODOS[i]: dp[f"p{i+1}_pts"].sum() for i in range(4)}
+                        df_adm = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in rk_h.items()])
+                        df_adm = df_adm.sort_values("Pts", ascending=False)
+                        st.table(df_adm.style.format({"Pts": "{:.1f}"}))
                 if c2.button("✏️ Editar", key=f"ed_{p_id}"):
                     rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
                     st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': p_id}
