@@ -125,13 +125,22 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         s3 = cd.number_input(TODOS[2], 0, 15, v_old[2], key=f"s3_h{h}")
         s4 = cd.number_input(TODOS[3], 0, 15, v_old[3], key=f"s4_h{h}")
         
-        if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
+        # --- LÓGICA DE DESHABILITAR BOTÓN ---
+        s_actuales = [s1, s2, s3, s4]
+        deshabilitar = ya and (s_actuales == v_old)
+
+        if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True, disabled=deshabilitar):
             ejecutar_guardado_automatico()
             st.rerun()
 
+        # --- MARCADOR DEL HOYO MÁS BONITO ---
         if ya:
             pha, phb = g['logs'][str(h)]['pts']
-            st.markdown(f"<div style='text-align:center; font-weight:bold; background:#eef2f3; padding:10px; border-radius:10px; margin:10px 0;'>Puntos Hoyo {h}: <span style='color:{COLOR_A}'>{pha:g}</span> - <span style='color:{COLOR_B}'>{phb:g}</span></div>", unsafe_allow_html=True)
+            st.markdown(f"""<div style="display:flex; justify-content:center; align-items:center; gap:10px; margin:15px 0;">
+                <div style="background:{COLOR_A}; color:white; padding:5px 15px; border-radius:20px; font-weight:bold; font-size:1.1em;">{pha:g}</div>
+                <div style="color:#666; font-weight:bold;">RESULTADO HOYO</div>
+                <div style="background:{COLOR_B}; color:white; padding:5px 15px; border-radius:20px; font-weight:bold; font-size:1.1em;">{phb:g}</div>
+            </div>""", unsafe_allow_html=True)
 
         pts_a = sum(v['pts'][0] for v in g['logs'].values()); pts_b = sum(v['pts'][1] for v in g['logs'].values())
         ma, mb = max(0, pts_a-pts_b), max(0, pts_b-pts_a)
@@ -165,7 +174,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         "Birdie": f"{b} ({b/total:.0%})" if total>0 else "0", 
                         "Par": f"{p} ({p/total:.0%})" if total>0 else "0"})
         
-        # Color "green" es más estable que "teal"
         st.dataframe(pd.DataFrame(res).set_index("Jugador"), use_container_width=True, column_config={
             "MVP": st.column_config.ProgressColumn("MVP 🏆", format="%d", min_value=0, max_value=max(mvps_count.values()) or 1, color="green"),
         })
