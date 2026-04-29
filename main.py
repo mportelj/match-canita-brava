@@ -21,8 +21,9 @@ def cambiar_menu(nuevo_destino=None):
     else:
         st.session_state.menu_seleccionado = st.session_state.radio_menu
 
-menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Admin"], 
-                        index=["Inicio", "Jugar/Editar", "Admin"].index(st.session_state.menu_seleccionado),
+# Añadimos "Estadísticas" al menú lateral
+menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Estadísticas", "Admin"], 
+                        index=["Inicio", "Jugar/Editar", "Estadísticas", "Admin"].index(st.session_state.menu_seleccionado),
                         key="radio_menu", on_change=cambiar_menu)
 
 # --- 3. FUNCIONES DE DATOS ---
@@ -187,6 +188,66 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if st.button("🏁 Finalizar Partida", type="secondary", use_container_width=True): 
             if 'game' in st.session_state: del st.session_state.game
             st.rerun()
+
+elif st.session_state.menu_seleccionado == "Estadísticas":
+    st.title("📊 Estadísticas de Jugadores")
+    df = leer_datos()
+    if df.empty:
+        st.info("Aún no hay datos históricos para mostrar estadísticas.")
+    else:
+        # --- Cálculo de MVP del Partido ---
+        # Sumamos puntos de MVP por jugador en cada partido_id
+        mvp_partidos = df.groupby('partido_id').agg({
+            'p1_pts':'sum', 'p2_pts':'sum', 'p3_pts':'sum', 'p4_pts':'sum'
+        })
+        
+        conteo_mvp_partido = {jugador: 0 for jugador in TODOS}
+        for _, fila in mvp_partidos.iterrows():
+            max_puntos = fila.max()
+            if max_puntos > 0:
+                # Puede haber empates en el MVP del partido
+                ganadores = fila[fila == max_puntos].index.tolist()
+                for g in ganadores:
+                    idx = int(g[1]) - 1 # de 'p1_pts' sacamos el 0
+                    conteo_mvp_partido[TODOS[idx]] += 1
+
+        # --- Cálculo de Golpes (Birdies, Pares...) ---
+        stats_golpes = []
+        for i, jugador in enumerate(TODOS):
+            s_col = f's{i}'
+            golpes_jug = df[['hoyo', s_col]].copy()
+            golpes_jug['par'] = golpes_jug['hoyo'].map(PAR_RIA_VIGO)
+            golpes_jug['diff'] = golpes_jug[s_col] - golpes_jug['par']
+            
+            # Filtramos solo hoyos jugados (golpes > 0)
+            golpes_jug = golpes_jug[golpes_jug[s_col] > 0]
+            
+            stats_golpes.append({
+                "Jugador": jugador,
+                "MVP Part.": conteo_mvp_partido[jugador],
+                "Eagle/-": len(golpes_jug[golpes_jug['diff'] <= -2]),
+                "Birdie": len(golpes_jug[golpes_jug['diff'] == -1]),
+                "Par": len(golpes_jug[golpes_jug['diff'] == 0]),
+                "Bogey": len(golpes_jug[golpes_jug['diff'] == 1]),
+                "D.Bogey": len(golpes_jug[golpes_jug['diff'] == 2]),
+                "+D.Bogey": len(golpes_jug[golpes_jug['diff'] > 2])
+            })
+        
+        df_stats = pd.DataFrame(stats_golpes)
+        
+        # Mostrar Tabla General
+        st.subheader("Histórico Total")
+        st.dataframe(df_stats.set_index("Jugador"), use_container_width=True)
+        
+        # Menciones especiales
+        st.divider()
+        col1, col2 = st.columns(2)
+        with col1:
+            top_birdie = df_stats.loc[df_stats['Birdie'].idxmax()]
+            st.metric("Rey del Birdie 🐥", top_birdie['Jugador'], f"{top_birdie['Birdie']} Birdies")
+        with col2:
+            top_mvp = df_stats.loc[df_stats['MVP Part.'].idxmax()]
+            st.metric("Más MVP Partido 🏆", top_mvp['Jugador'], f"{top_mvp['MVP Part.']} Veces")
 
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión de Partidas")
