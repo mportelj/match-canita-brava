@@ -21,11 +21,6 @@ def cambiar_menu(nuevo_destino=None):
     else:
         st.session_state.menu_seleccionado = st.session_state.radio_menu
 
-def boton_volver_inicio():
-    if st.button("🏠 Volver al Menú Principal", use_container_width=True):
-        st.session_state.menu_seleccionado = "Inicio"
-        st.rerun()
-
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Admin"], 
                         index=["Inicio", "Jugar/Editar", "Admin"].index(st.session_state.menu_seleccionado),
                         key="radio_menu", on_change=cambiar_menu)
@@ -48,7 +43,6 @@ def guardar_hoyo_db(df_fila):
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_hist = leer_datos()
         id_hoyo = str(df_fila["id"].iloc[0])
-        # Filtramos para no duplicar hoyos
         if not df_hist.empty:
             df_hist['id'] = df_hist['id'].astype(str)
             df_final = pd.concat([df_hist[df_hist["id"] != id_hoyo], df_fila], ignore_index=True)
@@ -118,12 +112,6 @@ if st.session_state.menu_seleccionado == "Inicio":
         <div><h2 style="color:{COLOR_B};margin:0;font-size:1.1em;">{TODOS[2]} & {TODOS[3]}</h2><h1 style="margin:0;">{p_ini_b:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    boton_volver_inicio()
-    st.divider()
-    
-    # Hemos quitado la validación agresiva que borraba la sesión.
-    # Ahora la sesión solo se borra si tú lo pides.
-
     if 'game' not in st.session_state:
         st.subheader("Nueva Partida")
         f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
@@ -158,7 +146,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.toast("✅ Guardado")
             st.rerun()
 
-        # Marcador Match Hoy
         puntos_hoy_a = sum(v['pts'][0] for v in g['logs'].values()) if g['logs'] else 0
         puntos_hoy_b = sum(v['pts'][1] for v in g['logs'].values()) if g['logs'] else 0
         m_a, m_b = max(0, puntos_hoy_a - puntos_hoy_b), max(0, puntos_hoy_b - puntos_hoy_a)
@@ -202,8 +189,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.rerun()
 
 elif st.session_state.menu_seleccionado == "Admin":
-    boton_volver_inicio()
-    st.divider()
     st.title("⚙️ Gestión de Partidas")
     df = leer_datos()
     if not df.empty:
