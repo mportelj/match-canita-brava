@@ -135,7 +135,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if ya:
             pha, phb = g['logs'][str(h)]['pts']
             m_h = g['logs'][str(h)]['mvp']
-            mvp_dia = {f"p{i+1}": sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
+            mvp_dia = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
 
             st.markdown(f"""<div style="display:flex; justify-content:center; align-items:center; gap:10px; margin-top:10px;">
                 <div style="background:{COLOR_A}; color:white; padding:5px 15px; border-radius:20px; font-weight:bold; font-size:1.1em;">{pha:g}</div>
@@ -143,18 +143,20 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 <div style="background:{COLOR_B}; color:white; padding:5px 15px; border-radius:20px; font-weight:bold; font-size:1.1em;">{phb:g}</div>
             </div>""", unsafe_allow_html=True)
             
-            # --- SECCIÓN MVP CON BOTONES Y 1 DECIMAL ---
+            # --- BOTONES DESPLEGABLES (POPOVERS) ---
             st.write("---")
-            st.markdown("<div style='text-align:center; font-size:0.8em; color:#888; margin-bottom:5px;'>PUNTOS MVP</div>", unsafe_allow_html=True)
+            col_pop1, col_pop2 = st.columns(2)
             
-            col_mvp1, col_mvp2, col_mvp3, col_mvp4 = st.columns(4)
-            for i, col in enumerate([col_mvp1, col_mvp2, col_mvp3, col_mvp4]):
-                p_key = f"p{i+1}"
-                with col:
-                    # Formateo a 1 decimal
-                    val_h = f"{m_h[p_key]:.1f}"
-                    val_a = f"{mvp_dia[p_key]:.1f}"
-                    st.button(f"{TODOS[i][:4]}\nH:{val_h}\nΣ:{val_a}", key=f"btn_mvp_{i}_{h}", use_container_width=True, disabled=True)
+            with col_pop1:
+                with st.popover("🏆 MVP Hoyo", use_container_width=True):
+                    for i, jug in enumerate(TODOS):
+                        st.write(f"**{jug}**: {m_h[f'p{i+1}']:.1f} pts")
+            
+            with col_pop2:
+                with st.popover("📊 Ranking Día", use_container_width=True):
+                    ranking = sorted(mvp_dia.items(), key=lambda x: x[1], reverse=True)
+                    for jug, pts in ranking:
+                        st.write(f"**{jug}**: {pts:.1f} pts")
 
         # Marcador total Match
         pts_a = sum(v['pts'][0] for v in g['logs'].values()); pts_b = sum(v['pts'][1] for v in g['logs'].values())
