@@ -158,8 +158,36 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         res = []
         for i, jug in enumerate(TODOS):
             col = f's{i}'; t = df[df[col] > 0].copy(); t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
-            res.append({"Jugador": jug, "MVP": int(mvps_count[jug]), "Eagle": len(t[t['dif'] <= -2]), "Birdie": len(t[t['dif'] == -1]), "Par": len(t[t['dif'] == 0])})
-        st.table(pd.DataFrame(res).set_index("Jugador"))
+            total_hoyos = len(t)
+            eagles = len(t[t['dif'] <= -2])
+            birdies = len(t[t['dif'] == -1])
+            pares = len(t[t['dif'] == 0])
+            
+            # Formato con porcentaje
+            res.append({
+                "Jugador": jug, 
+                "MVP": int(mvps_count[jug]), 
+                "Eagle": f"{eagles} ({eagles/total_hoyos:.0%})" if total_hoyos > 0 else "0", 
+                "Birdie": f"{birdies} ({birdies/total_hoyos:.0%})" if total_hoyos > 0 else "0", 
+                "Par": f"{pares} ({pares/total_hoyos:.0%})" if total_hoyos > 0 else "0"
+            })
+        
+        df_stats = pd.DataFrame(res).set_index("Jugador")
+        
+        # Configuración de columnas para centrar y añadir color suave al MVP
+        st.dataframe(df_stats, use_container_width=True, column_config={
+            "MVP": st.column_config.ProgressColumn(
+                "MVP 🏆", 
+                help="Número de veces MVP de la partida",
+                format="%d",
+                min_value=0,
+                max_value=max(mvps_count.values()) if any(mvps_count.values()) else 10,
+                color="teal"
+            ),
+            "Eagle": st.column_config.TextColumn("Eagle 🦅", help="Eagle o mejor"),
+            "Birdie": st.column_config.TextColumn("Birdie 🐦"),
+            "Par": st.column_config.TextColumn("Par ✅")
+        })
 
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Administración")
@@ -171,18 +199,15 @@ elif st.session_state.menu_seleccionado == "Admin":
             with st.expander(f"📅 {fecha_p}"):
                 p_a, p_b = dp['resultado_a'].sum(), dp['resultado_b'].sum()
                 c1, c2, c3 = st.columns(3)
-                # BOTÓN EDITAR
                 if c1.button("✏️ Editar", key=f"e_{p_id}", use_container_width=True):
                     rec = {str(int(f['hoyo'])): {'s':[f['s0'],f['s1'],f['s2'],f['s3']], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
                     st.session_state.game = {'fecha': fecha_p, 'h_sel': 1, 'logs': rec, 'id': str(p_id)}
                     st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
-                # BOTÓN BORRAR
                 with c2:
                     with st.popover("🗑️ Borrar", use_container_width=True):
                         if st.button("Confirmar Borrado", key=f"del_{p_id}", type="primary", use_container_width=True):
                             st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
                             st.cache_data.clear(); st.rerun()
-                # BOTÓN WHATSAPP
                 with c3:
                     df_temp = df[df['temporada'] == temp_p]
                     partidos_temp = df_temp.groupby('partido_id').agg({'resultado_a':'sum', 'resultado_b':'sum'})
