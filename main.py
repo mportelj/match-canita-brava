@@ -7,10 +7,11 @@ from datetime import datetime
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
 PAR_RIA_VIGO = {i: p for i, p in zip(range(1, 19), [4,5,3,4,4,5,3,4,4,4,3,4,3,5,4,5,4,5])}
+# Nombres completos para todas las pantallas
 TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
 COLOR_A, COLOR_B = "#2e7d32", "#c62828"
 
-# Puntos de inicio históricos (puedes añadir condiciones por año si fuera necesario)
+# Puntos de inicio históricos
 PUNTOS_INICIO = {"2026": (3.5, 3.5)} 
 
 # --- 2. GESTIÓN DE NAVEGACIÓN ---
@@ -32,7 +33,10 @@ def leer_datos():
         df = conn.read(worksheet="historial", ttl=0)
         if df is None or df.empty: return pd.DataFrame()
         df = df.dropna(subset=['id'])
-        df['temporada'] = df['temporada'].astype(str)
+        
+        # LIMPIEZA CRÍTICA DE TEMPORADA (Evitar el .0)
+        df['temporada'] = pd.to_numeric(df['temporada'], errors='coerce').fillna(0).astype(int).astype(str)
+        
         for c in ['resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3']:
             df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
         return df
@@ -80,7 +84,8 @@ def ejecutar_guardado_automatico():
     golpes = [s1, s2, s3, s4]
     pa, pb, mi = calcular_puntos_hoyo(golpes, h)
     g['logs'][str(h)] = {'s': golpes, 'pts': (pa, pb), 'mvp': mi}
-    anio_partida = g['fecha'].split("/")[-1] 
+    # La temporada se guarda siempre como el año de la fecha seleccionada (entero)
+    anio_partida = str(datetime.strptime(g['fecha'], "%d/%m/%Y").year)
     fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": anio_partida, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
     guardar_hoyo_db(fila)
 
@@ -90,16 +95,13 @@ if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
     
-    # 1. Determinar temporadas disponibles
+    # Selector de temporadas limpio
     anios_disponibles = sorted(df['temporada'].unique().tolist(), reverse=True) if not df.empty else []
     anio_actual = str(datetime.now().year)
     if anio_actual not in anios_disponibles: anios_disponibles.insert(0, anio_actual)
     
-    # 2. Selector de temporada
-    temp_sel = st.selectbox("📅 Seleccionar Temporada:", anios_disponibles, index=anios_disponibles.index(anio_actual) if anio_actual in anios_disponibles else 0)
+    temp_sel = st.selectbox("📅 Seleccionar Temporada:", anios_disponibles)
 
-    # 3. Calcular puntos de la temporada seleccionada
-    # Usamos 3.5/3.5 solo para 2026 como base histórica, otros años empiezan en 0/0 o lo que definas
     p_ini_a, p_ini_b = PUNTOS_INICIO.get(temp_sel, (0.0, 0.0))
     df_temp = df[df['temporada'] == temp_sel] if not df.empty else pd.DataFrame()
     
@@ -185,9 +187,12 @@ elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Admin")
     df = leer_datos()
     if not df.empty:
+        # Aseguramos que las partidas se agrupen por fecha real
         for p_id in df['partido_id'].unique()[::-1]:
             dp = df[df['partido_id'] == p_id]
-            with st.expander(f"📅 {dp['fecha'].iloc[0]} (T. {dp['temporada'].iloc[0]})"):
+            # Formateo de fecha dd/mm/aaaa garantizado
+            fecha_str = dp['fecha'].iloc[0]
+            with st.expander(f"📅 {fecha_str} (T. {dp['temporada'].iloc[0]})"):
                 c1, c2, c3 = st.columns(3)
                 with c1:
                     with st.popover("🏆 MVP", use_container_width=True):
