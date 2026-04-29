@@ -48,7 +48,7 @@ def calcular_puntos_hoyo(scores, hoyo_num):
         p_bonus = 2.0 if s <= par - 2 else (1.0 if s == par - 1 else 0)
         if i < 2: pa += p_bonus 
         else: pb += p_bonus
-    mvp = {f"p{i+1}": 0.0 for i in range(4)}
+    mvp = {f"p1": 0.0, f"p2": 0.0, f"p3": 0.0, f"p4": 0.0}
     for i in range(4):
         for j in range(4):
             if i != j and v[i] < v[j]: mvp[f"p{i+1}"] += 0.5
@@ -158,35 +158,16 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         res = []
         for i, jug in enumerate(TODOS):
             col = f's{i}'; t = df[df[col] > 0].copy(); t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
-            total_hoyos = len(t)
-            eagles = len(t[t['dif'] <= -2])
-            birdies = len(t[t['dif'] == -1])
-            pares = len(t[t['dif'] == 0])
-            
-            # Formato con porcentaje
-            res.append({
-                "Jugador": jug, 
-                "MVP": int(mvps_count[jug]), 
-                "Eagle": f"{eagles} ({eagles/total_hoyos:.0%})" if total_hoyos > 0 else "0", 
-                "Birdie": f"{birdies} ({birdies/total_hoyos:.0%})" if total_hoyos > 0 else "0", 
-                "Par": f"{pares} ({pares/total_hoyos:.0%})" if total_hoyos > 0 else "0"
-            })
+            total = len(t)
+            e, b, p = len(t[t['dif'] <= -2]), len(t[t['dif'] == -1]), len(t[t['dif'] == 0])
+            res.append({"Jugador": jug, "MVP": int(mvps_count[jug]), 
+                        "Eagle": f"{e} ({e/total:.0%})" if total>0 else "0", 
+                        "Birdie": f"{b} ({b/total:.0%})" if total>0 else "0", 
+                        "Par": f"{p} ({p/total:.0%})" if total>0 else "0"})
         
-        df_stats = pd.DataFrame(res).set_index("Jugador")
-        
-        # Configuración de columnas para centrar y añadir color suave al MVP
-        st.dataframe(df_stats, use_container_width=True, column_config={
-            "MVP": st.column_config.ProgressColumn(
-                "MVP 🏆", 
-                help="Número de veces MVP de la partida",
-                format="%d",
-                min_value=0,
-                max_value=max(mvps_count.values()) if any(mvps_count.values()) else 10,
-                color="teal"
-            ),
-            "Eagle": st.column_config.TextColumn("Eagle 🦅", help="Eagle o mejor"),
-            "Birdie": st.column_config.TextColumn("Birdie 🐦"),
-            "Par": st.column_config.TextColumn("Par ✅")
+        # Color "green" es más estable que "teal"
+        st.dataframe(pd.DataFrame(res).set_index("Jugador"), use_container_width=True, column_config={
+            "MVP": st.column_config.ProgressColumn("MVP 🏆", format="%d", min_value=0, max_value=max(mvps_count.values()) or 1, color="green"),
         })
 
 elif st.session_state.menu_seleccionado == "Admin":
@@ -205,24 +186,25 @@ elif st.session_state.menu_seleccionado == "Admin":
                     st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
                 with c2:
                     with st.popover("🗑️ Borrar", use_container_width=True):
-                        if st.button("Confirmar Borrado", key=f"del_{p_id}", type="primary", use_container_width=True):
+                        if st.button("Confirmar", key=f"del_{p_id}", type="primary", use_container_width=True):
                             st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
                             st.cache_data.clear(); st.rerun()
                 with c3:
-                    df_temp = df[df['temporada'] == temp_p]
-                    partidos_temp = df_temp.groupby('partido_id').agg({'resultado_a':'sum', 'resultado_b':'sum'})
+                    df_t = df[df['temporada'] == temp_p]
+                    ptos = df_t.groupby('partido_id').agg({'resultado_a':'sum', 'resultado_b':'sum'})
                     ac_a, ac_b = 3.5, 3.5
-                    for _, r in partidos_temp.iterrows():
+                    for _, r in ptos.iterrows():
                         if r['resultado_a'] > r['resultado_b']: ac_a += 1
                         elif r['resultado_b'] > r['resultado_a']: ac_b += 1
                         else: ac_a += 0.5; ac_b += 0.5
-                    pts_dia = {TODOS[0]: dp['p1_pts'].sum(), TODOS[1]: dp['p2_pts'].sum(), TODOS[2]: dp['p3_pts'].sum(), TODOS[3]: dp['p4_pts'].sum()}
-                    mvp_dia_sorted = sorted(pts_dia.items(), key=lambda x: x[1], reverse=True)
-                    pts_acum = {TODOS[0]: df_temp['p1_pts'].sum(), TODOS[1]: df_temp['p2_pts'].sum(), TODOS[2]: df_temp['p3_pts'].sum(), TODOS[3]: df_temp['p4_pts'].sum()}
-                    mvp_acum_sorted = sorted(pts_acum.items(), key=lambda x: x[1], reverse=True)
-                    resumen_j = []
+                    
+                    mvp_d = sorted({TODOS[0]: dp['p1_pts'].sum(), TODOS[1]: dp['p2_pts'].sum(), TODOS[2]: dp['p3_pts'].sum(), TODOS[3]: dp['p4_pts'].sum()}.items(), key=lambda x: x[1], reverse=True)
+                    mvp_a = sorted({TODOS[0]: df_t['p1_pts'].sum(), TODOS[1]: df_t['p2_pts'].sum(), TODOS[2]: df_t['p3_pts'].sum(), TODOS[3]: df_t['p4_pts'].sum()}.items(), key=lambda x: x[1], reverse=True)
+                    
+                    res_j = []
                     for i, jug in enumerate(TODOS):
                         col = f's{i}'; t = dp[dp[col] > 0].copy(); t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
-                        resumen_j.append(f"{jug}: {len(t[t['dif']<=-2])} Eagle, {len(t[t['dif']==-1])} Birdie, {len(t[t['dif']==0])} Par")
-                    msg = (f"⛳ *CAÑITA BRAVA*\n📅 {fecha_p}\n\n🏆 *MATCH DIA*\n🟢 {EQUIPO_A_NOMBRES}: *{p_a:g}*\n🔴 {EQUIPO_B_NOMBRES}: *{p_b:g}*\n\n📈 *MATCH ACUM. {temp_p}*\n{EQUIPO_A_NOMBRES}: *{ac_a:g}*\n{EQUIPO_B_NOMBRES}: *{ac_b:g}*\n\n⭐ *MVP DIA*\n" + "\n".join([f"{n}: {p:g} pts" for n, p in mvp_dia_sorted]) + f"\n\n🌟 *MVP ACUMULADO*\n" + "\n".join([f"{n}: {p:g} pts" for n, p in mvp_acum_sorted]) + f"\n\n🏅 *RESUMEN*\n" + "\n".join(resumen_j))
+                        res_j.append(f"{jug}: {len(t[t['dif']<=-2])} Eagle, {len(t[t['dif']==-1])} Birdie, {len(t[t['dif']==0])} Par")
+
+                    msg = (f"⛳ *CAÑITA BRAVA*\n📅 {fecha_p}\n\n🏆 *MATCH DIA*\n🟢 {EQUIPO_A_NOMBRES}: *{p_a:g}*\n🔴 {EQUIPO_B_NOMBRES}: *{p_b:g}*\n\n📈 *MATCH ACUM. {temp_p}*\n{EQUIPO_A_NOMBRES}: *{ac_a:g}*\n{EQUIPO_B_NOMBRES}: *{ac_b:g}*\n\n⭐ *MVP DIA*\n" + "\n".join([f"{n}: {p:g} pts" for n, p in mvp_d]) + f"\n\n🌟 *MVP ACUMULADO*\n" + "\n".join([f"{n}: {p:g} pts" for n, p in mvp_a]) + f"\n\n🏅 *RESUMEN*\n" + "\n".join(res_j))
                     st.link_button("📲 Enviar WA", f"https://wa.me/?text={urllib.parse.quote(msg)}", use_container_width=True)
