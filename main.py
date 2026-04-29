@@ -22,11 +22,13 @@ menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Estadísticas", "Ad
 
 # --- 2. FUNCIONES DE DATOS ---
 def leer_datos():
-    st.cache_data.clear()
+    # Eliminamos el clear aquí para no ralentizar toda la app, solo lo usaremos al guardar
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(worksheet="historial", ttl=0)
+        df = conn.read(worksheet="historial", ttl=0) # ttl=0 obliga a leer datos nuevos
         if df is None or df.empty: return pd.DataFrame()
+        
+        # Limpieza de tipos
         cols_num = ['s0', 's1', 's2', 's3', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 'hoyo', 'resultado_a', 'resultado_b', 'temporada']
         for col in cols_num:
             if col in df.columns:
@@ -61,37 +63,58 @@ def ejecutar_guardado_automatico():
     if 'game' not in st.session_state: return
     g = st.session_state.game
     h = int(g['h_sel'])
-    s = [int(st.session_state[f"s1_h{h}"]), int(st.session_state[f"s2_h{h}"]), 
-         int(st.session_state[f"s3_h{h}"]), int(st.session_state[f"s4_h{h} Anthony"] if f"s4_h{h} Anthony" in st.session_state else st.session_state[f"s4_h{h}"])]
-    # Corrección rápida para la clave de arriba si hubo error de tipografía
     s = [int(st.session_state[f"s{i+1}_h{h}"]) for i in range(4)]
     
     pa, pb, mi = calcular_puntos_hoyo(s, h)
+    
+    # Actualizar estado local
     g['logs'][str(h)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
+    
     anio_int = int(datetime.strptime(g['fecha'], "%d/%m/%Y").year)
     fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": anio_int, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s[0], "s1": s[1], "s2": s[2], "s3": s[3]}])
+    
     conn = st.connection("gsheets", type=GSheetsConnection)
+    st.cache_data.clear() # CRITICO: Borrar caché antes de leer para combinar bien
     df_h = leer_datos()
-    df_f = pd.concat([df_h[df_h["id"] != f"{g['id']}_H{h}"], fila], ignore_index=True) if not df_h.empty else fila
+    
+    # Combinar borrando la fila antigua si existía
+    if not df_h.empty:
+        df_f = pd.concat([df_h[df_h["id"] != f"{g['id']}_H{h}"], fila], ignore_index=True)
+    else:
+        df_f = fila
+        
     conn.update(worksheet="historial", data=df_f)
-    st.cache_data.clear()
+    st.cache_data.clear() # CRITICO: Borrar caché después de guardar
 
 def generar_texto_whatsapp(df_p):
+    # Aseguramos que trabajamos con datos frescos
     f = df_p['fecha'].iloc[0]
     txt = f"⛳ *CAÑITA BRAVA - {f}*\n\n"
-    pa_t, pb_t = df_p['resultado_a'].sum(), df_p['resultado_b'].sum()
+    
+    # Sumas de puntos Match
+    pa_t = df_p['resultado_a'].sum()
+    pb_t = df_p['resultado_b'].sum()
     ma, mb = max(0, pa_t - pb_t), max(0, pb_t - pa_t)
+    
     txt += f"🏆 *MATCH:* {TODOS[0]}/{TODOS[1]} *{ma:g}* vs *{mb:g}* {TODOS[2]}/{TODOS[3]}\n\n"
+    
     txt += "🎖️ *MVP PARTIDO:*\n"
     mvps = {TODOS[i]: df_p[f'p{i+1}_pts'].sum() for i in range(4)}
     for j, (nom, p) in enumerate(sorted(mvps.items(), key=lambda x: x[1], reverse=True)):
         med = "🥇" if j==0 else "🥈" if j==1 else "🥉" if j==2 else "🎖️"
         txt += f"{med} {nom}: {p:g} pts\n"
-    txt += "\n📊 *RESUMEN:*\n"
+        
+    txt += "\n📊 *RESUMEN DE GOLPES:*\n"
     for i, jug in enumerate(TODOS):
-        col = f's{i}'; t = df_p[df_p[col] > 0].copy()
-        t['par_hoyo'] = t['hoyo'].map(PAR_RIA_VIGO); t['dif'] = t[col] - t['par_hoyo']
-        e = len(t[t['dif'] <= -2]); b = len(t[t['dif'] == -1]); p = len(t[t['dif'] == 0])
+        col = f's{i}'
+        t = df_p[df_p[col] > 0].copy()
+        t['par_hoyo'] = t['hoyo'].map(PAR_RIA_VIGO)
+        t['dif'] = t[col] - t['par_hoyo']
+        
+        # Conteo exacto sobre la tabla filtrada
+        e = len(t[t['dif'] <= -2])
+        b = len(t[t['dif'] == -1])
+        p = len(t[t['dif'] == 0])
         txt += f"• {jug}: {e}🦅 | {b}🐥 | {p}Par\n"
     return txt
 
@@ -101,6 +124,7 @@ if st.session_state.menu_seleccionado == "Inicio":
     df = leer_datos()
     temps = sorted(df['temporada'].unique().astype(int).tolist(), reverse=True) if not df.empty else [2026]
     sel_temp = st.selectbox("Temporada:", temps)
+    
     pa_ini, pb_ini = 3.5, 3.5
     if not df.empty:
         df_t = df[df['temporada'] == int(sel_temp)]
@@ -109,6 +133,7 @@ if st.session_state.menu_seleccionado == "Inicio":
             if r['resultado_a'] > r['resultado_b']: pa_ini += 1
             elif r['resultado_b'] > r['resultado_a']: pb_ini += 1
             else: pa_ini += 0.5; pb_ini += 0.5
+            
     st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;">
         <h3>MARCADOR {sel_temp}</h3><div style="display:flex;justify-content:space-around;">
         <div><h2 style="color:{COLOR_A};">{TODOS[0]}/{TODOS[1]}</h2><h1>{pa_ini:g}</h1></div>
@@ -135,18 +160,21 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         s3 = c_d.number_input(TODOS[2], 0, 10, v_old[2], key=f"s3_h{h}")
         s4 = c_d.number_input(TODOS[3], 0, 10, v_old[3], key=f"s4_h{h}")
         
-        # Lógica de botón inteligente
         v_new = [s1, s2, s3, s4]
         hubo_cambio = v_new != v_old
         
         if not ya:
-            st.button("💾 Guardar Hoyo", type="primary", use_container_width=True, on_click=ejecutar_guardado_automatico)
+            if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
+                ejecutar_guardado_automatico()
+                st.rerun()
         elif hubo_cambio:
-            st.button("🔄 Actualizar Cambios", type="primary", use_container_width=True, on_click=ejecutar_guardado_automatico)
+            if st.button("🔄 Actualizar Cambios", type="primary", use_container_width=True):
+                ejecutar_guardado_automatico()
+                st.rerun()
         else:
             st.button("✅ Guardado", disabled=True, use_container_width=True)
 
-        # Marcador Match (Bonito)
+        # Marcador Dinámico
         p_a = sum(v['pts'][0] for v in g['logs'].values()); p_b = sum(v['pts'][1] for v in g['logs'].values())
         ma, mb = max(0, p_a-p_b), max(0, p_b-p_a)
         st.markdown(f"""<div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
@@ -158,7 +186,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if ya:
             res_h = g['logs'][str(h)]['pts']
             st.markdown(f"""<div style="text-align:center; margin-top:10px; padding:10px; background:#f8f9fa; border-radius:10px; border:1px solid #dee2e6;">
-            <span style="color:#666; font-size:0.9em;">Resultado del Hoyo:</span><br>
+            <span style="color:#666; font-size:0.9em;">Puntos en este hoyo:</span><br>
             <b style="color:{COLOR_A}">{res_h[0]:g}</b> — <b style="color:{COLOR_B}">{res_h[1]:g}</b></div>""", unsafe_allow_html=True)
 
         c1, c2 = st.columns(2)
