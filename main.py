@@ -48,7 +48,12 @@ def guardar_hoyo_db(df_fila):
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_hist = leer_datos()
         id_hoyo = str(df_fila["id"].iloc[0])
-        df_final = pd.concat([df_hist[df_hist["id"].astype(str) != id_hoyo], df_fila], ignore_index=True) if not df_hist.empty else df_fila
+        # Filtramos para no duplicar hoyos
+        if not df_hist.empty:
+            df_hist['id'] = df_hist['id'].astype(str)
+            df_final = pd.concat([df_hist[df_hist["id"] != id_hoyo], df_fila], ignore_index=True)
+        else:
+            df_final = df_fila
         conn.update(worksheet="historial", data=df_final)
         st.cache_data.clear()
         return True
@@ -116,18 +121,9 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     boton_volver_inicio()
     st.divider()
     
-    # --- VALIDACIÓN DE INTEGRIDAD SUAVIZADA ---
-    if 'game' in st.session_state:
-        df_verificar = leer_datos()
-        # Solo expulsamos si:
-        # 1. Hay datos en la DB.
-        # 2. El ID de nuestra partida NO está en la DB.
-        # 3. NO es una partida nueva (tiene al menos un hoyo con datos en logs).
-        if not df_verificar.empty and len(st.session_state.game['logs']) > 0:
-            if str(st.session_state.game['id']) not in df_verificar['partido_id'].astype(str).values:
-                del st.session_state.game
-                st.rerun()
-    
+    # Hemos quitado la validación agresiva que borraba la sesión.
+    # Ahora la sesión solo se borra si tú lo pides.
+
     if 'game' not in st.session_state:
         st.subheader("Nueva Partida")
         f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
@@ -162,7 +158,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.toast("✅ Guardado")
             st.rerun()
 
-        # Marcador del Match (Hoy)
+        # Marcador Match Hoy
         puntos_hoy_a = sum(v['pts'][0] for v in g['logs'].values()) if g['logs'] else 0
         puntos_hoy_b = sum(v['pts'][1] for v in g['logs'].values()) if g['logs'] else 0
         m_a, m_b = max(0, puntos_hoy_a - puntos_hoy_b), max(0, puntos_hoy_b - puntos_hoy_a)
