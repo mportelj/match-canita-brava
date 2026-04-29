@@ -159,7 +159,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.markdown(f"<p style='color:{COLOR_B}; font-weight:900; margin-top:10px; margin-bottom:0;'>{TODOS[3]}</p>", unsafe_allow_html=True)
             s4 = st.number_input(TODOS[3], 0, 10, v_guardados[3], key=f"s4_h{h}", label_visibility="collapsed")
         
-        # --- LÓGICA DE BOTÓN DESHABILITADO ---
         actuales = [s1, s2, s3, s4]
         ya_guardado = (str(h) in g['logs'] and g['logs'][str(h)]['s'] == actuales)
         
@@ -180,15 +179,21 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 <div style="flex:1; border:3px solid {COLOR_B}; border-radius:12px; padding:10px; text-align:center; background:#fef2f2;">
                 <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{m_b:g}</div></div></div>""", unsafe_allow_html=True)
             
-            h_pts = g['logs'][str(h)]['pts'] if str(h) in g['logs'] else (0,0)
-            st.markdown(f"""<div style="background:#f0f2f6; border-radius:10px; padding:10px; margin-bottom:15px; border:1px solid #ddd;">
-                <div style="text-align:center; font-size:0.85em; color:#555; margin-bottom:5px; font-weight:bold;">PUNTOS HOYO {h}</div>
-                <div style="display:flex; justify-content:space-around; align-items:center;">
-                    <b style="color:{COLOR_A}; font-size:1.3em;">{h_pts[0]:g}</b>
-                    <span style="color:#999;">—</span>
-                    <b style="color:{COLOR_B}; font-size:1.3em;">{h_pts[1]:g}</b>
-                </div>
-            </div>""", unsafe_allow_html=True)
+            # --- MARCADOR DEL HOYO CON ESTADO "NO JUGADO" ---
+            st.markdown(f"""<div style="background:#f0f2f6; border-radius:10px; padding:10px; margin-bottom:15px; border:1px solid #ddd; text-align:center;">
+                <div style="font-size:0.85em; color:#555; margin-bottom:5px; font-weight:bold;">PUNTOS HOYO {h}</div>""", unsafe_allow_html=True)
+            
+            if str(h) in g['logs']:
+                h_pts = g['logs'][str(h)]['pts']
+                st.markdown(f"""<div style="display:flex; justify-content:space-around; align-items:center;">
+                        <b style="color:{COLOR_A}; font-size:1.3em;">{h_pts[0]:g}</b>
+                        <span style="color:#999;">—</span>
+                        <b style="color:{COLOR_B}; font-size:1.3em;">{h_pts[1]:g}</b>
+                    </div>""", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div style='color:#999; font-style:italic; font-size:1.1em;'>Hoyo No Jugado</div>", unsafe_allow_html=True)
+            
+            st.markdown("</div>", unsafe_allow_html=True)
             
             c1, c2 = st.columns(2)
             with c1:
@@ -196,6 +201,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                     if str(h) in g['logs']:
                         df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": g['logs'][str(h)]['mvp'][f"p{i+1}"]} for i in range(4)]).sort_values("Pts", ascending=False)
                         st.table(df_h.style.format({"Pts": "{:.1f}"}))
+                    else: st.info("Hoyo no jugado.")
             with c2:
                 with st.popover("🏆 MVP Partido", use_container_width=True):
                     p_mvp = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
