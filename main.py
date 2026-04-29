@@ -7,19 +7,24 @@ from datetime import datetime
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
 PAR_RIA_VIGO = {i: p for i, p in zip(range(1, 19), [4,5,3,4,4,5,3,4,4,4,3,4,3,5,4,5,4,5])}
-# NOMBRES COMPLETOS CONFIGURADOS AQUÍ
 TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
 COLOR_A, COLOR_B = "#2e7d32", "#c62828"
-
-# Puntos de inicio históricos
 PUNTOS_INICIO = {"2026": (3.5, 3.5)} 
 
 # --- 2. GESTIÓN DE NAVEGACIÓN ---
 if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-def cambiar_menu():
-    st.session_state.menu_seleccionado = st.session_state.radio_menu
+def cambiar_menu(nuevo_destino=None):
+    if nuevo_destino:
+        st.session_state.menu_seleccionado = nuevo_destino
+    else:
+        st.session_state.menu_seleccionado = st.session_state.radio_menu
+
+def boton_volver_inicio():
+    if st.button("🏠 Volver al Menú Principal", use_container_width=True):
+        st.session_state.menu_seleccionado = "Inicio"
+        st.rerun()
 
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Admin"], 
                         index=["Inicio", "Jugar/Editar", "Admin"].index(st.session_state.menu_seleccionado),
@@ -33,10 +38,7 @@ def leer_datos():
         df = conn.read(worksheet="historial", ttl=0)
         if df is None or df.empty: return pd.DataFrame()
         df = df.dropna(subset=['id'])
-        
-        # Limpieza de temporada para evitar .0 y asegurar que sean strings limpios
         df['temporada'] = pd.to_numeric(df['temporada'], errors='coerce').fillna(0).astype(int).astype(str)
-        
         for c in ['resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3']:
             df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
         return df
@@ -94,16 +96,13 @@ if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
     
-    # 1. Obtener años disponibles y asegurar que el actual esté en la lista
     anios_db = df['temporada'].unique().tolist() if not df.empty else []
     anio_hoy = str(datetime.now().year)
     if anio_hoy not in anios_db: anios_db.append(anio_hoy)
     anios_finales = sorted(list(set(anios_db)), reverse=True)
     
-    # 2. Selector con valor por defecto el año en curso
     temp_sel = st.selectbox("📅 Seleccionar Temporada:", anios_finales, index=anios_finales.index(anio_hoy))
 
-    # 3. Cálculo de puntos de temporada seleccionada
     p_ini_a, p_ini_b = PUNTOS_INICIO.get(temp_sel, (0.0, 0.0))
     df_temp = df[df['temporada'] == temp_sel] if not df.empty else pd.DataFrame()
     
@@ -114,24 +113,27 @@ if st.session_state.menu_seleccionado == "Inicio":
             elif r['resultado_b'] > r['resultado_a']: p_ini_b += 1
             else: p_ini_a += 0.5; p_ini_b += 0.5
 
-    # 4. Marcador con NOMBRES COMPLETOS
     st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;margin-bottom:15px;">
         <h3 style="margin:0;">TEMPORADA {temp_sel}</h3><div style="display:flex;justify-content:space-around;align-items:center;">
-        <div><h2 style="color:{COLOR_A};margin:0;font-size:1.2em;">{TODOS[0]} & {TODOS[1]}</h2><h1 style="margin:0;">{p_ini_a:g}</h1></div>
+        <div><h2 style="color:{COLOR_A};margin:0;font-size:1.1em;">{TODOS[0]} & {TODOS[1]}</h2><h1 style="margin:0;">{p_ini_a:g}</h1></div>
         <h2 style="color:#999;margin:0;">VS</h2>
-        <div><h2 style="color:{COLOR_B};margin:0;font-size:1.2em;">{TODOS[2]} & {TODOS[3]}</h2><h1 style="margin:0;">{p_ini_b:g}</h1></div></div></div>""", unsafe_allow_html=True)
+        <div><h2 style="color:{COLOR_B};margin:0;font-size:1.1em;">{TODOS[2]} & {TODOS[3]}</h2><h1 style="margin:0;">{p_ini_b:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
     with st.expander(f"🏆 Clasificación MVP {temp_sel}"):
         if not df_temp.empty:
             ranking = {TODOS[0]: df_temp['p1_pts'].sum(), TODOS[1]: df_temp['p2_pts'].sum(), TODOS[2]: df_temp['p3_pts'].sum(), TODOS[3]: df_temp['p4_pts'].sum()}
             df_rank = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in ranking.items()]).sort_values("Pts", ascending=False)
             st.table(df_rank.style.format({"Pts": "{:.1f}"}))
-        else: st.info(f"No hay datos registrados para la temporada {temp_sel}.")
+        else: st.info(f"Sin datos en {temp_sel}.")
 
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
+    boton_volver_inicio()
+    st.divider()
+    
     if 'game' not in st.session_state:
         st.subheader("Nueva Partida")
-        f = st.date_input("Fecha:", datetime.now())
+        # FORMATO DE FECHA dd/mm/aaaa EN EL SELECTOR
+        f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
         if st.button("🚀 Iniciar Partida", use_container_width=True):
             st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'h_sel': 1, 'logs': {}, 'id': f.strftime("%Y%m%d")}
             st.rerun()
@@ -187,6 +189,8 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if st.button("🏁 Finalizar Partida", use_container_width=True): del st.session_state.game; st.rerun()
 
 elif st.session_state.menu_seleccionado == "Admin":
+    boton_volver_inicio()
+    st.divider()
     st.title("⚙️ Admin")
     df = leer_datos()
     if not df.empty:
