@@ -223,23 +223,34 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
 elif st.session_state.menu_seleccionado == "Admin":
     boton_volver_inicio()
     st.divider()
-    st.title("⚙️ Admin")
+    st.title("⚙️ Gestión de Partidas")
     df = leer_datos()
     if not df.empty:
         for p_id in df['partido_id'].unique()[::-1]:
             dp = df[df['partido_id'] == p_id]
             with st.expander(f"📅 {dp['fecha'].iloc[0]} (T. {dp['temporada'].iloc[0]})"):
                 c1, c2, c3 = st.columns(3)
+                
+                # MVP Popover
                 with c1:
                     with st.popover("🏆 MVP", use_container_width=True):
                         rk = {TODOS[i]: dp[f"p{i+1}_pts"].sum() for i in range(4)}
                         st.table(pd.DataFrame([{"Jugador":k,"Pts":v} for k,v in rk.items()]).sort_values("Pts",ascending=False).style.format({"Pts":"{:.1f}"}))
-                if c2.button("✏️ Editar", key=f"ed_{p_id}"):
+                
+                # Botón Editar
+                if c2.button("✏️ Editar", key=f"ed_{p_id}", use_container_width=True):
                     rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
                     st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': p_id}
                     st.session_state.menu_seleccionado = "Jugar/Editar"
                     st.rerun()
-                if c3.button("🗑️ Borrar", key=f"del_{p_id}"):
-                    conn = st.connection("gsheets", type=GSheetsConnection)
-                    conn.update(worksheet="historial", data=df[df['partido_id'] != p_id])
-                    st.rerun()
+                
+                # Botón Borrar con Confirmación mediante Popover
+                with c3:
+                    with st.popover("🗑️ Borrar", use_container_width=True):
+                        st.warning("¿Estás seguro de eliminar esta partida?")
+                        if st.button("Sí, eliminar", key=f"confirm_del_{p_id}", type="primary", use_container_width=True):
+                            conn = st.connection("gsheets", type=GSheetsConnection)
+                            conn.update(worksheet="historial", data=df[df['partido_id'] != p_id])
+                            st.cache_data.clear()
+                            st.rerun()
+                        st.info("Pulsa fuera para cancelar")
