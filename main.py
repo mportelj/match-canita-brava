@@ -159,12 +159,17 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.markdown(f"<p style='color:{COLOR_B}; font-weight:900; margin-top:10px; margin-bottom:0;'>{TODOS[3]}</p>", unsafe_allow_html=True)
             s4 = st.number_input(TODOS[3], 0, 10, v_guardados[3], key=f"s4_h{h}", label_visibility="collapsed")
         
-        if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
+        # --- LÓGICA DE BOTÓN DESHABILITADO ---
+        actuales = [s1, s2, s3, s4]
+        ya_guardado = (str(h) in g['logs'] and g['logs'][str(h)]['s'] == actuales)
+        
+        btn_label = "✅ Hoyo Guardado" if ya_guardado else "💾 Guardar Hoyo"
+        if st.button(btn_label, type="primary", use_container_width=True, disabled=ya_guardado):
             ejecutar_guardado_automatico()
             st.toast("✅ Guardado")
+            st.rerun()
 
         if g['logs']:
-            # 1. MARCADOR DEL MATCH (GRANDE)
             total_a, total_b = sum(v['pts'][0] for v in g['logs'].values()), sum(v['pts'][1] for v in g['logs'].values())
             m_a, m_b = max(0, total_a - total_b), max(0, total_b - total_a)
             st.markdown(f"<h4 style='text-align:center; margin-bottom:5px; color:#666;'>Marcador del Match</h4>", unsafe_allow_html=True)
@@ -175,7 +180,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 <div style="flex:1; border:3px solid {COLOR_B}; border-radius:12px; padding:10px; text-align:center; background:#fef2f2;">
                 <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{m_b:g}</div></div></div>""", unsafe_allow_html=True)
             
-            # 2. MARCADOR DEL HOYO (SIMPLIFICADO)
             h_pts = g['logs'][str(h)]['pts'] if str(h) in g['logs'] else (0,0)
             st.markdown(f"""<div style="background:#f0f2f6; border-radius:10px; padding:10px; margin-bottom:15px; border:1px solid #ddd;">
                 <div style="text-align:center; font-size:0.85em; color:#555; margin-bottom:5px; font-weight:bold;">PUNTOS HOYO {h}</div>
