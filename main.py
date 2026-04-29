@@ -20,19 +20,22 @@ menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Estadísticas", "Ad
                         index=["Inicio", "Jugar/Editar", "Estadísticas", "Admin"].index(st.session_state.menu_seleccionado),
                         key="radio_menu", on_change=cambiar_menu)
 
-# --- 2. FUNCIONES DE DATOS (CORRECCIÓN CRÍTICA) ---
+# --- 2. FUNCIONES DE DATOS (ELIMINACIÓN RADICAL DE FANTASMAS) ---
 def leer_datos():
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet="historial", ttl=0) 
         if df is None or df.empty: return pd.DataFrame()
         
-        # ELIMINACIÓN DE DUPLICADOS RADICAL: 
-        # Al editar, Google Sheets puede tener la fila vieja y la nueva.
-        # Forzamos a que solo exista UN registro por ID (Partido_Hoyo), quedándonos con el último.
+        # FILTRO DE SEGURIDAD MÁXIMO:
+        # 1. Quitar filas donde el ID sea nulo
         df = df.dropna(subset=['id'])
-        df = df.sort_values(by=['id']).drop_duplicates(subset=['id'], keep='last')
+        # 2. Asegurar que 'id' sea string y quitar espacios
+        df['id'] = df['id'].astype(str).str.strip()
+        # 3. Quedarse solo con la ÚLTIMA entrada de cada ID único (Partido_Hoyo)
+        df = df.drop_duplicates(subset=['id'], keep='last')
         
+        # Convertir a números
         cols_num = ['s0', 's1', 's2', 's3', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 'hoyo', 'resultado_a', 'resultado_b', 'temporada']
         for col in cols_num:
             if col in df.columns:
@@ -75,9 +78,10 @@ def ejecutar_guardado_automatico():
     
     conn = st.connection("gsheets", type=GSheetsConnection)
     st.cache_data.clear()
-    df_actual = leer_datos() # Aquí ya viene limpio
-    # Concatenamos y volvemos a asegurar que no hay duplicados antes de subir
-    df_final = pd.concat([df_actual[df_actual["id"] != fila_id], nueva_fila], ignore_index=True) if not df_actual.empty else nueva_fila
+    df_actual = leer_datos()
+    # Filtro explícito para no subir basura
+    df_actual = df_actual[df_actual["id"] != fila_id]
+    df_final = pd.concat([df_actual, nueva_fila], ignore_index=True)
     conn.update(worksheet="historial", data=df_final)
     st.cache_data.clear()
 
@@ -125,7 +129,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         
         if ya:
             p_ha, p_hb = g['logs'][str(h)]['pts']
-            st.markdown(f"<div style='text-align:center; padding:5px; border:1px solid #ddd; border-radius:5px;'>Puntos Hoyo {h}: <b>{p_ha:g} - {p_hb:g}</b></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='text-align:center;'><b>Puntos Hoyo:</b> {p_ha:g} - {p_hb:g}</div>", unsafe_allow_html=True)
 
         if not ya:
             if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True): ejecutar_guardado_automatico(); st.rerun()
@@ -148,8 +152,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     st.cache_data.clear()
     df = leer_datos()
     if not df.empty:
-        # Aquí ya viene filtrado por leer_datos(), pero aseguramos de nuevo la limpieza
-        df_clean = df.drop_duplicates(subset=['id'])
+        # RE-LIMPIEZA PARA ESTADÍSTICAS
+        df_clean = df.drop_duplicates(subset=['id'], keep='last')
         partidos = df_clean.groupby('partido_id').agg({'p1_pts':'sum','p2_pts':'sum','p3_pts':'sum','p4_pts':'sum'})
         mvps_c = {j: 0 for j in TODOS}
         for _, f_p in partidos.iterrows():
@@ -177,7 +181,6 @@ elif st.session_state.menu_seleccionado == "Admin":
                     st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': str(p_id)}; st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
                 with c3:
                     with st.popover("🗑️ Borrar"):
-                        st.error("¿Borrar partida?")
-                        if st.button("Sí, borrar", key=f"del_{p_id}", type="primary"):
+                        if st.button("Confirmar Borrado", key=f"del_{p_id}", type="primary"):
                             st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
                             st.cache_data.clear(); st.rerun()
