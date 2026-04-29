@@ -161,50 +161,73 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         st.divider()
         if st.button("🏁 Finalizar Partida", type="secondary", use_container_width=True): del st.session_state.game; st.rerun()
 
+# --- REEMPLAZA SOLO LA SECCIÓN DE ESTADÍSTICAS CON ESTA ---
+
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas Históricas")
+    
+    # Forzamos la actualización de datos para que no use caché vieja
     df = leer_datos()
-    if df.empty: st.info("No hay datos registrados todavía.")
+    
+    if df.empty: 
+        st.info("No hay datos registrados todavía.")
     else:
-        # Cálculo de MVPs
+        # 1. Cálculo de MVPs (Partidos Ganados como MVP)
         mvp_partidos = df.groupby('partido_id').agg({'p1_pts':'sum','p2_pts':'sum','p3_pts':'sum','p4_pts':'sum'})
         conteo_mvp = {jugador: 0 for jugador in TODOS}
         for _, fila in mvp_partidos.iterrows():
             m = fila.max()
             if m > 0:
-                for j in fila[fila == m].index: conteo_mvp[TODOS[int(j[1])-1]] += 1
+                ganadores = fila[fila == m].index.tolist()
+                for g in ganadores:
+                    conteo_mvp[TODOS[int(g[1])-1]] += 1
         
-        # Cálculo de detalle por golpes
+        # 2. Construcción de la tabla de detalles (Eagle, Birdie, Par, etc.)
         stats = []
         for i, jug in enumerate(TODOS):
-            c = f's{i}'
-            temp = df[df[c] > 0].copy()
-            temp['par'] = temp['hoyo'].map(PAR_RIA_VIGO)
-            temp['diff'] = temp[c] - temp['par']
+            col_jugador = f's{i}'
+            # Filtramos solo los hoyos que tienen golpes registrados para ese jugador
+            temp = df[df[col_jugador] > 0].copy()
+            
+            # Calculamos la diferencia contra el par de cada hoyo
+            temp['par_hoyo'] = temp['hoyo'].map(PAR_RIA_VIGO)
+            temp['diff'] = temp[col_jugador] - temp['par_hoyo']
             
             stats.append({
                 "Jugador": jug,
                 "MVP": conteo_mvp[jug],
-                "Eagle/-": len(temp[temp['diff'] <= -2]),
-                "Birdie": len(temp[temp['diff'] == -1]),
-                "Par": len(temp[temp['diff'] == 0]),
-                "Bogey": len(temp[temp['diff'] == 1]),
-                "D.Bogey": len(temp[temp['diff'] == 2]),
-                "+D.Bogey": len(temp[temp['diff'] > 2])
+                "Eagle/-": int(len(temp[temp['diff'] <= -2])),
+                "Birdie": int(len(temp[temp['diff'] == -1])),
+                "Par": int(len(temp[temp['diff'] == 0])),
+                "Bogey": int(len(temp[temp['diff'] == 1])),
+                "D.Bogey": int(len(temp[temp['diff'] == 2])),
+                "+D.Bogey": int(len(temp[temp['diff'] > 2]))
             })
         
+        # 3. Mostrar la tabla
         df_final = pd.DataFrame(stats).set_index("Jugador")
-        st.dataframe(df_final, use_container_width=True)
+        
+        # Usamos st.table para que se vean SIEMPRE todas las columnas
+        st.table(df_final)
         
         st.divider()
-        c1, c2 = st.columns(2)
-        max_b = df_final['Birdie'].max()
-        reyes_b = df_final[df_final['Birdie'] == max_b].index.tolist()
-        c1.metric("Rey del Birdie 🐥", ", ".join(reyes_b), f"{max_b} Birdies")
         
+        # 4. Menciones de honor con soporte para empates
+        c1, c2 = st.columns(2)
+        
+        max_b = df_final['Birdie'].max()
+        if max_b > 0:
+            reyes_b = df_final[df_final['Birdie'] == max_b].index.tolist()
+            c1.metric("Rey del Birdie 🐥", ", ".join(reyes_b), f"{max_b} Birdies")
+        else:
+            c1.metric("Rey del Birdie 🐥", "-", "0 Birdies")
+            
         max_m = df_final['MVP'].max()
-        reyes_m = df_final[df_final['MVP'] == max_m].index.tolist()
-        c2.metric("Más MVP 🏆", ", ".join(reyes_m), f"{max_m} Veces")
+        if max_m > 0:
+            reyes_m = df_final[df_final['MVP'] == max_m].index.tolist()
+            c2.metric("Más MVP 🏆", ", ".join(reyes_m), f"{max_m} Veces")
+        else:
+            c2.metric("Más MVP 🏆", "-", "0 MVPs")
 
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Admin")
