@@ -27,21 +27,12 @@ def leer_datos():
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet="historial", ttl=0)
         if df is None or df.empty: return pd.DataFrame()
-        
-        # 1. Convertir a numérico primero
-        cols_num = ['s0', 's1', 's2', 's3', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 'hoyo', 'resultado_a', 'resultado_b']
+        cols_num = ['s0', 's1', 's2', 's3', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 'hoyo', 'resultado_a', 'resultado_b', 'temporada']
         for col in cols_num:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-        
-        # 2. LIMPIEZA DE AÑO Y HOYO: Forzar enteros para quitar decimales (.0)
-        if 'temporada' in df.columns:
-            df['temporada'] = pd.to_numeric(df['temporada'], errors='coerce').fillna(datetime.now().year).astype(int)
-        
-        for col in ['s0', 's1', 's2', 's3', 'hoyo']:
-            if col in df.columns:
-                df[col] = df[col].astype(int)
-                
+                if col in ['s0', 's1', 's2', 's3', 'hoyo', 'temporada']:
+                    df[col] = df[col].astype(int)
         return df
     except: return pd.DataFrame()
 
@@ -70,11 +61,13 @@ def ejecutar_guardado_automatico():
     if 'game' not in st.session_state: return
     g = st.session_state.game
     h = int(g['h_sel'])
-    s = [int(st.session_state.get(f"s1_h{h}")), int(st.session_state.get(f"s2_h{h}")), 
-         int(st.session_state.get(f"s3_h{h}")), int(st.session_state.get(f"s4_h{h}"))]
+    s = [int(st.session_state[f"s1_h{h}"]), int(st.session_state[f"s2_h{h}"]), 
+         int(st.session_state[f"s3_h{h}"]), int(st.session_state[f"s4_h{h} Anthony"] if f"s4_h{h} Anthony" in st.session_state else st.session_state[f"s4_h{h}"])]
+    # Corrección rápida para la clave de arriba si hubo error de tipografía
+    s = [int(st.session_state[f"s{i+1}_h{h}"]) for i in range(4)]
+    
     pa, pb, mi = calcular_puntos_hoyo(s, h)
     g['logs'][str(h)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
-    # Guardamos el año como entero
     anio_int = int(datetime.strptime(g['fecha'], "%d/%m/%Y").year)
     fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": anio_int, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s[0], "s1": s[1], "s2": s[2], "s3": s[3]}])
     conn = st.connection("gsheets", type=GSheetsConnection)
@@ -94,7 +87,7 @@ def generar_texto_whatsapp(df_p):
     for j, (nom, p) in enumerate(sorted(mvps.items(), key=lambda x: x[1], reverse=True)):
         med = "🥇" if j==0 else "🥈" if j==1 else "🥉" if j==2 else "🎖️"
         txt += f"{med} {nom}: {p:g} pts\n"
-    txt += "\n📊 *ESTADÍSTICAS:*\n"
+    txt += "\n📊 *RESUMEN:*\n"
     for i, jug in enumerate(TODOS):
         col = f's{i}'; t = df_p[df_p[col] > 0].copy()
         t['par_hoyo'] = t['hoyo'].map(PAR_RIA_VIGO); t['dif'] = t[col] - t['par_hoyo']
@@ -106,15 +99,8 @@ def generar_texto_whatsapp(df_p):
 if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
-    
-    # Selector de Temporada SIN DECIMALES
-    if not df.empty:
-        temps = sorted(df['temporada'].unique().astype(int).tolist(), reverse=True)
-    else:
-        temps = [datetime.now().year]
-        
-    sel_temp = st.selectbox("Seleccionar Temporada:", temps)
-    
+    temps = sorted(df['temporada'].unique().astype(int).tolist(), reverse=True) if not df.empty else [2026]
+    sel_temp = st.selectbox("Temporada:", temps)
     pa_ini, pb_ini = 3.5, 3.5
     if not df.empty:
         df_t = df[df['temporada'] == int(sel_temp)]
@@ -123,7 +109,6 @@ if st.session_state.menu_seleccionado == "Inicio":
             if r['resultado_a'] > r['resultado_b']: pa_ini += 1
             elif r['resultado_b'] > r['resultado_a']: pb_ini += 1
             else: pa_ini += 0.5; pb_ini += 0.5
-
     st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;">
         <h3>MARCADOR {sel_temp}</h3><div style="display:flex;justify-content:space-around;">
         <div><h2 style="color:{COLOR_A};">{TODOS[0]}/{TODOS[1]}</h2><h1>{pa_ini:g}</h1></div>
@@ -143,16 +128,25 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if c_n1.button("⬅️ Anterior", use_container_width=True): g['h_sel'] = max(1, h-1); st.rerun()
         if c_n2.button("Siguiente ➡️", use_container_width=True): g['h_sel'] = min(18, h+1); st.rerun()
         
-        v = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
+        v_old = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
         c_i, c_d = st.columns(2)
-        s1 = c_i.number_input(TODOS[0], 0, 10, v[0], key=f"s1_h{h}")
-        s2 = c_i.number_input(TODOS[1], 0, 10, v[1], key=f"s2_h{h}")
-        s3 = c_d.number_input(TODOS[2], 0, 10, v[2], key=f"s3_h{h}")
-        s4 = c_d.number_input(TODOS[3], 0, 10, v[3], key=f"s4_h{h}")
+        s1 = c_i.number_input(TODOS[0], 0, 10, v_old[0], key=f"s1_h{h}")
+        s2 = c_i.number_input(TODOS[1], 0, 10, v_old[1], key=f"s2_h{h}")
+        s3 = c_d.number_input(TODOS[2], 0, 10, v_old[2], key=f"s3_h{h}")
+        s4 = c_d.number_input(TODOS[3], 0, 10, v_old[3], key=f"s4_h{h}")
         
-        btn_txt = "🔄 Actualizar Hoyo" if ya else "💾 Guardar Hoyo"
-        if st.button(btn_txt, type="primary", use_container_width=True): ejecutar_guardado_automatico(); st.rerun()
+        # Lógica de botón inteligente
+        v_new = [s1, s2, s3, s4]
+        hubo_cambio = v_new != v_old
+        
+        if not ya:
+            st.button("💾 Guardar Hoyo", type="primary", use_container_width=True, on_click=ejecutar_guardado_automatico)
+        elif hubo_cambio:
+            st.button("🔄 Actualizar Cambios", type="primary", use_container_width=True, on_click=ejecutar_guardado_automatico)
+        else:
+            st.button("✅ Guardado", disabled=True, use_container_width=True)
 
+        # Marcador Match (Bonito)
         p_a = sum(v['pts'][0] for v in g['logs'].values()); p_b = sum(v['pts'][1] for v in g['logs'].values())
         ma, mb = max(0, p_a-p_b), max(0, p_b-p_a)
         st.markdown(f"""<div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
@@ -162,7 +156,10 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{mb:g}</div></div></div>""", unsafe_allow_html=True)
         
         if ya:
-            st.markdown(f"<div style='text-align:center; background:#eee; padding:5px; border-radius:5px; margin-bottom:10px;'><b>Puntos Hoyo:</b> {g['logs'][str(h)]['pts'][0]:g} — {g['logs'][str(h)]['pts'][1]:g}</div>", unsafe_allow_html=True)
+            res_h = g['logs'][str(h)]['pts']
+            st.markdown(f"""<div style="text-align:center; margin-top:10px; padding:10px; background:#f8f9fa; border-radius:10px; border:1px solid #dee2e6;">
+            <span style="color:#666; font-size:0.9em;">Resultado del Hoyo:</span><br>
+            <b style="color:{COLOR_A}">{res_h[0]:g}</b> — <b style="color:{COLOR_B}">{res_h[1]:g}</b></div>""", unsafe_allow_html=True)
 
         c1, c2 = st.columns(2)
         with c1:
@@ -189,7 +186,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         res = []
         for i, jug in enumerate(TODOS):
             col = f's{i}'; t = df[df[col] > 0].copy(); t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
-            res.append({"Jugador": jug, "MVP": int(mvps[jug]), "Eagle": len(t[t['dif'] <= -2]), "Birdie": len(t[t['dif'] == -1]), "Par": len(t[t['dif'] == 0]), "Bogey": len(t[t['dif'] == 1]), "D.Bogey": len(t[t['dif'] == 2])})
+            res.append({"Jugador": jug, "MVP": int(mvps[jug]), "Eagle": len(t[t['dif'] <= -2]), "Birdie": len(t[t['dif'] == -1]), "Par": len(t[t['dif'] == 0]), "Bogey": len(t[t['dif'] == 1])})
         st.table(pd.DataFrame(res).set_index("Jugador"))
 
 elif st.session_state.menu_seleccionado == "Admin":
@@ -204,14 +201,10 @@ elif st.session_state.menu_seleccionado == "Admin":
                 if c2.button("✏️ Editar", key=f"ed_{p_id}"):
                     rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
                     st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': str(p_id)}; st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
-                
-                if st.button("🗑️ Borrar", key=f"del_{p_id}", type="primary"):
-                    st.session_state[f"conf_{p_id}"] = True
-                
+                if st.button("🗑️ Borrar", key=f"del_{p_id}", type="primary"): st.session_state[f"conf_{p_id}"] = True
                 if st.session_state.get(f"conf_{p_id}"):
-                    st.warning("¿Seguro que quieres borrar este partido?")
-                    if st.button("✅ Sí, eliminar definitivamente", key=f"si_{p_id}"):
+                    st.warning("¿Eliminar?")
+                    if st.button("✅ Sí", key=f"si_{p_id}"):
                         st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
                         st.cache_data.clear(); st.rerun()
-                    if st.button("❌ Cancelar", key=f"no_{p_id}"):
-                        st.session_state[f"conf_{p_id}"] = False; st.rerun()
+                    if st.button("❌ No", key=f"no_{p_id}"): st.session_state[f"conf_{p_id}"] = False; st.rerun()
