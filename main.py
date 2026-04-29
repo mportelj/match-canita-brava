@@ -27,12 +27,21 @@ def leer_datos():
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet="historial", ttl=0)
         if df is None or df.empty: return pd.DataFrame()
+        
+        # 1. Convertir a numérico primero
         cols_num = ['s0', 's1', 's2', 's3', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 'hoyo', 'resultado_a', 'resultado_b']
         for col in cols_num:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-                if col in ['s0', 's1', 's2', 's3', 'hoyo']:
-                    df[col] = df[col].astype(int)
+        
+        # 2. LIMPIEZA DE AÑO Y HOYO: Forzar enteros para quitar decimales (.0)
+        if 'temporada' in df.columns:
+            df['temporada'] = pd.to_numeric(df['temporada'], errors='coerce').fillna(datetime.now().year).astype(int)
+        
+        for col in ['s0', 's1', 's2', 's3', 'hoyo']:
+            if col in df.columns:
+                df[col] = df[col].astype(int)
+                
         return df
     except: return pd.DataFrame()
 
@@ -65,8 +74,9 @@ def ejecutar_guardado_automatico():
          int(st.session_state.get(f"s3_h{h}")), int(st.session_state.get(f"s4_h{h}"))]
     pa, pb, mi = calcular_puntos_hoyo(s, h)
     g['logs'][str(h)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
-    anio = str(datetime.strptime(g['fecha'], "%d/%m/%Y").year)
-    fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": anio, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s[0], "s1": s[1], "s2": s[2], "s3": s[3]}])
+    # Guardamos el año como entero
+    anio_int = int(datetime.strptime(g['fecha'], "%d/%m/%Y").year)
+    fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": anio_int, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s[0], "s1": s[1], "s2": s[2], "s3": s[3]}])
     conn = st.connection("gsheets", type=GSheetsConnection)
     df_h = leer_datos()
     df_f = pd.concat([df_h[df_h["id"] != f"{g['id']}_H{h}"], fila], ignore_index=True) if not df_h.empty else fila
@@ -97,13 +107,17 @@ if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
     
-    # Selector de Temporada
-    temps = sorted(df['temporada'].unique().tolist(), reverse=True) if not df.empty else ["2026"]
+    # Selector de Temporada SIN DECIMALES
+    if not df.empty:
+        temps = sorted(df['temporada'].unique().astype(int).tolist(), reverse=True)
+    else:
+        temps = [datetime.now().year]
+        
     sel_temp = st.selectbox("Seleccionar Temporada:", temps)
     
     pa_ini, pb_ini = 3.5, 3.5
     if not df.empty:
-        df_t = df[df['temporada'].astype(str) == str(sel_temp)]
+        df_t = df[df['temporada'] == int(sel_temp)]
         res = df_t.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
         for _, r in res.iterrows():
             if r['resultado_a'] > r['resultado_b']: pa_ini += 1
@@ -139,7 +153,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         btn_txt = "🔄 Actualizar Hoyo" if ya else "💾 Guardar Hoyo"
         if st.button(btn_txt, type="primary", use_container_width=True): ejecutar_guardado_automatico(); st.rerun()
 
-        # Marcador Match
         p_a = sum(v['pts'][0] for v in g['logs'].values()); p_b = sum(v['pts'][1] for v in g['logs'].values())
         ma, mb = max(0, p_a-p_b), max(0, p_b-p_a)
         st.markdown(f"""<div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
@@ -192,7 +205,6 @@ elif st.session_state.menu_seleccionado == "Admin":
                     rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
                     st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': str(p_id)}; st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
                 
-                # BORRADO CON CONFIRMACIÓN
                 if st.button("🗑️ Borrar", key=f"del_{p_id}", type="primary"):
                     st.session_state[f"conf_{p_id}"] = True
                 
