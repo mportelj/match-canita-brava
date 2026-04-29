@@ -179,9 +179,8 @@ elif st.session_state.menu_seleccionado == "Admin":
                             st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
                             st.cache_data.clear(); st.rerun()
                 with c3:
-                    # CÁLCULO ACUMULADO TEMPORADA
+                    # 1. CÁLCULO ACUMULADO TEMPORADA (MATCH)
                     df_temp = df[df['temporada'] == temp_p]
-                    # Agrupar por partido_id y sumar para obtener ganadores de cada día
                     partidos_temp = df_temp.groupby('partido_id').agg({'resultado_a':'sum', 'resultado_b':'sum'})
                     ac_a, ac_b = 3.5, 3.5
                     for _, r in partidos_temp.iterrows():
@@ -189,21 +188,31 @@ elif st.session_state.menu_seleccionado == "Admin":
                         elif r['resultado_b'] > r['resultado_a']: ac_b += 1
                         else: ac_a += 0.5; ac_b += 0.5
 
-                    # RANKING MVP PARTIDA
-                    mvp_pts = {TODOS[0]: dp['p1_pts'].sum(), TODOS[1]: dp['p2_pts'].sum(), TODOS[2]: dp['p3_pts'].sum(), TODOS[3]: dp['p4_pts'].sum()}
-                    mvp_sorted = sorted(mvp_pts.items(), key=lambda x: x[1], reverse=True)
+                    # 2. MVP DÍA (PARTIDA ACTUAL)
+                    pts_dia = {TODOS[0]: dp['p1_pts'].sum(), TODOS[1]: dp['p2_pts'].sum(), TODOS[2]: dp['p3_pts'].sum(), TODOS[3]: dp['p4_pts'].sum()}
+                    mvp_dia_sorted = sorted(pts_dia.items(), key=lambda x: x[1], reverse=True)
                     
-                    # CATEGORÍAS PARTIDA
+                    # 3. MVP ACUMULADO TEMPORADA
+                    pts_acum = {
+                        TODOS[0]: df_temp['p1_pts'].sum(), 
+                        TODOS[1]: df_temp['p2_pts'].sum(), 
+                        TODOS[2]: df_temp['p3_pts'].sum(), 
+                        TODOS[3]: df_temp['p4_pts'].sum()
+                    }
+                    mvp_acum_sorted = sorted(pts_acum.items(), key=lambda x: x[1], reverse=True)
+                    
+                    # 4. CATEGORÍAS PARTIDA
                     resumen_j = []
                     for i, jug in enumerate(TODOS):
                         col = f's{i}'; t = dp[dp[col] > 0].copy(); t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
                         resumen_j.append(f"{jug}: {len(t[t['dif']<=-2])} Eagle, {len(t[t['dif']==-1])} Birdie, {len(t[t['dif']==0])} Par")
 
-                    # MENSAJE WHATSAPP (Emojis simplificados para evitar errores de codificación)
+                    # MENSAJE WHATSAPP
                     msg = (f"⛳ *CAÑITA BRAVA*\n📅 {fecha_p}\n\n"
-                           f"🏆 *RESULTADO MATCH*\n🟢 {TODOS[0]}/{TODOS[1]}: *{p_a:g}*\n🔴 {TODOS[2]}/{TODOS[3]}: *{p_b:g}*\n\n"
-                           f"📈 *TEMPORADA {temp_p}*\nEquipo A: *{ac_a:g}* |  Equipo B: *{ac_b:g}*\n\n"
-                           f"⭐ *MVP RANKING*\n" + "\n".join([f"{i+1}. {n}: {p:g} pts" for i, (n, p) in enumerate(mvp_sorted)]) +
+                           f"🏆 *MATCH DIA*\n🟢 {TODOS[0]}/{TODOS[1]}: *{p_a:g}*\n🔴 {TODOS[2]}/{TODOS[3]}: *{p_b:g}*\n\n"
+                           f"📈 *MATCH ACUM. {temp_p}*\nEquipo A: *{ac_a:g}* |  Equipo B: *{ac_b:g}*\n\n"
+                           f"⭐ *MVP DIA*\n" + "\n".join([f"{n}: {p:g} pts" for n, p in mvp_dia_sorted]) +
+                           f"\n\n🌟 *MVP ACUMULADO*\n" + "\n".join([f"{n}: {p:g} pts" for n, p in mvp_acum_sorted]) +
                            f"\n\n🏅 *RESUMEN*\n" + "\n".join(resumen_j))
                     
                     st.link_button("📲", f"https://wa.me/?text={urllib.parse.quote(msg)}", use_container_width=True)
