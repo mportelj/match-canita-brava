@@ -116,26 +116,22 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     boton_volver_inicio()
     st.divider()
     
-    # --- VALIDACIÓN DE INTEGRIDAD ---
+    # --- VALIDACIÓN DE INTEGRIDAD SUAVIZADA ---
     if 'game' in st.session_state:
         df_verificar = leer_datos()
-        # Si la partida en sesión ya no existe en la base de datos, la forzamos a cerrarse
-        if not df_verificar.empty:
-            if st.session_state.game['id'] not in df_verificar['partido_id'].astype(str).values:
-                # Solo borramos si no es una partida recién creada (sin logs)
-                if len(st.session_state.game['logs']) > 0:
-                    del st.session_state.game
-                    st.rerun()
-        elif len(st.session_state.game['logs']) > 0:
-            # Si la DB está vacía pero tenemos logs, es que se borró todo
-            del st.session_state.game
-            st.rerun()
+        # Solo expulsamos si:
+        # 1. Hay datos en la DB.
+        # 2. El ID de nuestra partida NO está en la DB.
+        # 3. NO es una partida nueva (tiene al menos un hoyo con datos en logs).
+        if not df_verificar.empty and len(st.session_state.game['logs']) > 0:
+            if str(st.session_state.game['id']) not in df_verificar['partido_id'].astype(str).values:
+                del st.session_state.game
+                st.rerun()
     
     if 'game' not in st.session_state:
         st.subheader("Nueva Partida")
         f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
         if st.button("🚀 Iniciar Partida", use_container_width=True):
-            # Usamos microsegundos para asegurar un ID único
             st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'h_sel': 1, 'logs': {}, 'id': datetime.now().strftime("%Y%m%d%H%M%S")}
             st.rerun()
     else:
@@ -229,7 +225,6 @@ elif st.session_state.menu_seleccionado == "Admin":
                         if st.button("Confirmar Borrado", key=f"confirm_del_{p_id}", type="primary"):
                             conn = st.connection("gsheets", type=GSheetsConnection)
                             conn.update(worksheet="historial", data=df[df['partido_id'] != p_id])
-                            # LIMPIEZA INMEDIATA: Si la partida borrada es la activa, eliminar de sesión
                             if 'game' in st.session_state and str(st.session_state.game['id']) == str(p_id):
                                 del st.session_state.game
                             st.cache_data.clear()
