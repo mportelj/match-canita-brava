@@ -85,6 +85,7 @@ if st.session_state.menu_seleccionado == "Inicio":
     temps = sorted(df['temporada'].unique().tolist(), reverse=True) if not df.empty else [anio_actual]
     if anio_actual not in temps: temps.insert(0, anio_actual)
     sel_temp = st.selectbox("Temporada:", temps, index=temps.index(anio_actual))
+    
     pa_t, pb_t = 3.5, 3.5 
     if not df.empty:
         df_t = df[df['temporada'] == int(sel_temp)]
@@ -93,6 +94,7 @@ if st.session_state.menu_seleccionado == "Inicio":
             if r['resultado_a'] > r['resultado_b']: pa_t += 1
             elif r['resultado_b'] > r['resultado_a']: pb_t += 1
             else: pa_t += 0.5; pb_t += 0.5
+            
     st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;margin-top:10px;">
         <h3 style="margin:0;">MARCADOR ACTUAL {sel_temp}</h3>
         <div style="display:flex;justify-content:space-around; align-items:center; margin-top:15px;">
@@ -109,6 +111,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     else:
         g = st.session_state.game; h = int(g['h_sel']); ya = str(h) in g['logs']
         st.markdown(f"<h2 style='text-align:center; background:#2c3e50; color:white; border-radius:10px; padding:10px;'>HOYO {h} (PAR {PAR_RIA_VIGO[h]})</h2>", unsafe_allow_html=True)
+        
         c1, c2 = st.columns(2)
         if c1.button("⬅️ Anterior", use_container_width=True): g['h_sel'] = max(1, h-1); st.rerun()
         if c2.button("Siguiente ➡️", use_container_width=True): g['h_sel'] = min(18, h+1); st.rerun()
@@ -122,12 +125,11 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         
         if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
             ejecutar_guardado_automatico()
-            st.toast(f"✅ Hoyo {h} guardado", icon="⛳")
-            st.rerun() # Forzar recarga para mostrar marcador hoyo inmediatamente
+            st.rerun()
 
         if ya:
             pha, phb = g['logs'][str(h)]['pts']
-            st.markdown(f"<div style='text-align:center; font-weight:bold; background:#e8f4f8; padding:5px; border-radius:5px;'>Puntos Hoyo {h}: <span style='color:{COLOR_A}'>{pha:g}</span> - <span style='color:{COLOR_B}'>{phb:g}</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='text-align:center; font-weight:bold; background:#eef2f3; padding:10px; border-radius:10px; margin:10px 0;'>Puntos Hoyo {h}: <span style='color:{COLOR_A}'>{pha:g}</span> - <span style='color:{COLOR_B}'>{phb:g}</span></div>", unsafe_allow_html=True)
 
         pts_a = sum(v['pts'][0] for v in g['logs'].values()); pts_b = sum(v['pts'][1] for v in g['logs'].values())
         ma, mb = max(0, pts_a-pts_b), max(0, pts_b-pts_a)
@@ -136,6 +138,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             <span style="font-weight:900; color:{COLOR_A}; font-size:0.8em;">{TODOS[0]}/{TODOS[1]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_A};">{ma:g}</div></div>
             <div style="flex:1; border:3px solid {COLOR_B}; border-radius:15px; padding:10px; text-align:center; background:#fef2f2;">
             <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{mb:g}</div></div></div>""", unsafe_allow_html=True)
+        
         st.write("---")
         if st.button("🏁 Finalizar Partida", use_container_width=True): del st.session_state.game; st.rerun()
 
@@ -162,8 +165,8 @@ elif st.session_state.menu_seleccionado == "Admin":
     if not df.empty:
         for p_id in df['partido_id'].unique()[::-1]:
             dp = df[df['partido_id'] == p_id].sort_values('hoyo')
-            fecha_p = dp['fecha'].iloc[0]
-            with st.expander(f"📅 Partida: {fecha_p}"):
+            fecha_p = dp['fecha'].iloc[0]; temp_p = dp['temporada'].iloc[0]
+            with st.expander(f"📅 {fecha_p}"):
                 p_a, p_b = dp['resultado_a'].sum(), dp['resultado_b'].sum()
                 c1, c2, c3 = st.columns(3)
                 if c1.button("✏️", key=f"e_{p_id}", use_container_width=True):
@@ -172,22 +175,36 @@ elif st.session_state.menu_seleccionado == "Admin":
                     st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
                 with c2:
                     with st.popover("🗑️", use_container_width=True):
-                        if st.button("Borrar", key=f"conf_{p_id}"):
+                        if st.button("Confirmar", key=f"del_{p_id}"):
                             st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
                             st.cache_data.clear(); st.rerun()
                 with c3:
-                    # LÓGICA WHATSAPP MEJORADA
+                    # CÁLCULO ACUMULADO PARA EL MENSAJE
+                    df_temp = df[df['temporada'] == temp_p]
+                    # Excluimos esta partida para calcular el antes y luego sumamos
+                    df_prev = df_temp[df_temp['partido_id'] != p_id]
+                    ac_a, ac_b = 3.5, 3.5
+                    if not df_prev.empty:
+                        for _, grp in df_prev.groupby('partido_id'):
+                            sa, sb = grp['resultado_a'].sum(), grp['resultado_b'].sum()
+                            if sa > sb: ac_a += 1
+                            elif sb > sa: ac_b += 1
+                            else: ac_a += 0.5; ac_b += 0.5
+                    # Sumamos el resultado de esta partida
+                    if p_a > p_b: ac_a += 1
+                    elif p_b > p_a: ac_b += 1
+                    else: ac_a += 0.5; ac_b += 0.5
+
                     mvp_pts = {TODOS[0]: dp['p1_pts'].sum(), TODOS[1]: dp['p2_pts'].sum(), TODOS[2]: dp['p3_pts'].sum(), TODOS[3]: dp['p4_pts'].sum()}
                     mvp_sorted = sorted(mvp_pts.items(), key=lambda x: x[1], reverse=True)
-                    
-                    stats_jug = []
+                    stats_j = []
                     for i, jug in enumerate(TODOS):
                         col = f's{i}'; t = dp[dp[col] > 0].copy(); t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
-                        e, b, p = len(t[t['dif'] <= -2]), len(t[t['dif'] == -1]), len(t[t['dif'] == 0])
-                        stats_jug.append(f"👤 *{jug}*: {e}🦅 {b}🐦 {p}🅿️")
+                        stats_j.append(f"👤 *{jug}*: {len(t[t['dif']<=-2])}🦅 {len(t[t['dif']==-1])}🐦 {len(t[t['dif']==0])}🅿️")
 
                     msg = (f"⛳ *CAÑITA BRAVA*\n📅 {fecha_p}\n\n"
-                           f"🏆 *MATCH*\n🟢 {TODOS[0]}/{TODOS[1]}: *{p_a:g}*\n🔴 {TODOS[2]}/{TODOS[3]}: *{p_b:g}*\n\n"
-                           f"⭐ *MVP RANKING*\n" + "\n".join([f"{i+1}. {n}: {p:g} pts" for i, (n, p) in enumerate(mvp_sorted)]) + 
-                           f"\n\n🏅 *CATEGORÍAS*\n" + "\n".join(stats_jug))
+                           f"🏆 *RESULTADO MATCH*\n🟢 {TODOS[0]}/{TODOS[1]}: *{p_a:g}*\n🔴 {TODOS[2]}/{TODOS[3]}: *{p_b:g}*\n\n"
+                           f"📈 *TEMPORADA {temp_p}*\n🟢 A: *{ac_a:g}* |  🔴 B: *{ac_b:g}*\n\n"
+                           f"⭐ *MVP RANKING*\n" + "\n".join([f"{i+1}. {n}: {p:g} pts" for i, (n, p) in enumerate(mvp_sorted)]) +
+                           f"\n\n🏅 *RESUMEN*\n" + "\n".join(stats_j))
                     st.link_button("📲", f"https://wa.me/?text={urllib.parse.quote(msg)}", use_container_width=True)
