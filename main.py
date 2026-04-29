@@ -57,7 +57,8 @@ def calcular_puntos_hoyo(scores, hoyo_num):
 def ejecutar_guardado_automatico():
     g = st.session_state.game
     h = int(g['h_sel'])
-    s = [int(st.session_state[f"s{i+1}_h{h}"]) for i in range(4)]
+    s = [int(st.session_state[f"s1_h{h}"]), int(st.session_state[f"s2_h{h}"]), 
+         int(st.session_state[f"s3_h{h}"]), int(st.session_state[f"s4_h{h}"])]
     pa, pb, mi = calcular_puntos_hoyo(s, h)
     
     g['logs'][str(h)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
@@ -120,17 +121,14 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         
         if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
             ejecutar_guardado_automatico()
-            st.success(f"Hoyo {h} guardado correctamente")
+            st.toast(f"✅ Hoyo {h} guardado", icon="⛳")
 
-        # --- MARCADORES ---
         if ya:
             pha, phb = g['logs'][str(h)]['pts']
-            st.markdown(f"<p style='text-align:center; font-weight:bold; margin-top:10px;'>Puntos Hoyo {h}: <span style='color:{COLOR_A}'>{pha:g}</span> - <span style='color:{COLOR_B}'>{phb:g}</span></p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='text-align:center; font-weight:bold;'>Puntos Hoyo {h}: <span style='color:{COLOR_A}'>{pha:g}</span> - <span style='color:{COLOR_B}'>{phb:g}</span></p>", unsafe_allow_html=True)
 
-        pts_a = sum(v['pts'][0] for v in g['logs'].values())
-        pts_b = sum(v['pts'][1] for v in g['logs'].values())
+        pts_a = sum(v['pts'][0] for v in g['logs'].values()); pts_b = sum(v['pts'][1] for v in g['logs'].values())
         ma, mb = max(0, pts_a-pts_b), max(0, pts_b-pts_a)
-        
         st.markdown(f"""<div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
             <div style="flex:1; border:3px solid {COLOR_A}; border-radius:15px; padding:10px; text-align:center; background:#f1f8f1;">
             <span style="font-weight:900; color:{COLOR_A}; font-size:0.8em;">{TODOS[0]}/{TODOS[1]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_A};">{ma:g}</div></div>
@@ -164,11 +162,21 @@ elif st.session_state.menu_seleccionado == "Admin":
     if not df.empty:
         for p_id in df['partido_id'].unique()[::-1]:
             dp = df[df['partido_id'] == p_id].sort_values('hoyo')
-            with st.expander(f"📅 Partida: {dp['fecha'].iloc[0]}"):
-                if st.button("✏️ Editar", key=f"e_{p_id}"):
+            fecha_p = dp['fecha'].iloc[0]
+            with st.expander(f"📅 Partida: {fecha_p}"):
+                p_a, p_b = dp['resultado_a'].sum(), dp['resultado_b'].sum()
+                st.write(f"**Final:** {p_a:g} - {p_b:g}")
+                c1, c2, c3 = st.columns(3)
+                if c1.button("✏️ Editar", key=f"e_{p_id}", use_container_width=True):
                     rec = {str(int(f['hoyo'])): {'s':[f['s0'],f['s1'],f['s2'],f['s3']], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
-                    st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': str(p_id)}
+                    st.session_state.game = {'fecha': fecha_p, 'h_sel': 1, 'logs': rec, 'id': str(p_id)}
                     st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
-                if st.button("🗑️ Borrar", key=f"d_{p_id}"):
-                    st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
-                    st.cache_data.clear(); st.rerun()
+                with c2:
+                    with st.popover("🗑️ Borrar", use_container_width=True):
+                        st.write("¿Estás seguro?")
+                        if st.button("Confirmar Borrado", key=f"conf_{p_id}", type="primary"):
+                            st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
+                            st.cache_data.clear(); st.rerun()
+                with c3:
+                    msg = f"⛳ *CAÑITA BRAVA*\n📅 {fecha_p}\n\n🟢 {p_a:g}\n🔴 {p_b:g}"
+                    st.link_button("📲 WhatsApp", f"https://wa.me/?text={urllib.parse.quote(msg)}", use_container_width=True)
