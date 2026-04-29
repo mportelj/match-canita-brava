@@ -9,8 +9,9 @@ st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered
 PAR_RIA_VIGO = {i: p for i, p in zip(range(1, 19), [4,5,3,4,4,5,3,4,4,4,3,4,3,5,4,5,4,5])}
 TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
 COLOR_A, COLOR_B = "#2e7d32", "#c62828"
-# Puntos de inicio de la temporada 2026
-INICIO_2026_A, INICIO_2026_B = 3.5, 3.5
+
+# Puntos de inicio históricos (puedes añadir condiciones por año si fuera necesario)
+PUNTOS_INICIO = {"2026": (3.5, 3.5)} 
 
 # --- 2. GESTIÓN DE NAVEGACIÓN ---
 if "menu_seleccionado" not in st.session_state:
@@ -31,7 +32,6 @@ def leer_datos():
         df = conn.read(worksheet="historial", ttl=0)
         if df is None or df.empty: return pd.DataFrame()
         df = df.dropna(subset=['id'])
-        # Asegurar que temporada sea string para filtrar bien
         df['temporada'] = df['temporada'].astype(str)
         for c in ['resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3']:
             df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
@@ -75,14 +75,11 @@ def ejecutar_guardado_automatico():
     if 'game' not in st.session_state: return
     g = st.session_state.game
     h = g['h_sel']
-    s1 = st.session_state.get(f"s1_h{h}", PAR_RIA_VIGO[h])
-    s2 = st.session_state.get(f"s2_h{h}", PAR_RIA_VIGO[h])
-    s3 = st.session_state.get(f"s3_h{h}", PAR_RIA_VIGO[h])
-    s4 = st.session_state.get(f"s4_h{h}", PAR_RIA_VIGO[h])
+    s1, s2 = st.session_state.get(f"s1_h{h}", PAR_RIA_VIGO[h]), st.session_state.get(f"s2_h{h}", PAR_RIA_VIGO[h])
+    s3, s4 = st.session_state.get(f"s3_h{h}", PAR_RIA_VIGO[h]), st.session_state.get(f"s4_h{h}", PAR_RIA_VIGO[h])
     golpes = [s1, s2, s3, s4]
     pa, pb, mi = calcular_puntos_hoyo(golpes, h)
     g['logs'][str(h)] = {'s': golpes, 'pts': (pa, pb), 'mvp': mi}
-    # Extraemos el año de la fecha elegida para la columna temporada
     anio_partida = g['fecha'].split("/")[-1] 
     fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": anio_partida, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
     guardar_hoyo_db(fila)
@@ -93,32 +90,38 @@ if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
     
-    # --- FILTRO TEMPORADA 2026 ---
-    pts_a, pts_b = INICIO_2026_A, INICIO_2026_B
-    df_26 = pd.DataFrame()
+    # 1. Determinar temporadas disponibles
+    anios_disponibles = sorted(df['temporada'].unique().tolist(), reverse=True) if not df.empty else []
+    anio_actual = str(datetime.now().year)
+    if anio_actual not in anios_disponibles: anios_disponibles.insert(0, anio_actual)
     
-    if not df.empty:
-        # Filtrar solo registros de la temporada 2026
-        df_26 = df[df['temporada'] == "2026"]
-        if not df_26.empty:
-            res = df_26.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
-            for _, r in res.iterrows():
-                if r['resultado_a'] > r['resultado_b']: pts_a += 1
-                elif r['resultado_b'] > r['resultado_a']: pts_b += 1
-                else: pts_a += 0.5; pts_b += 0.5
+    # 2. Selector de temporada
+    temp_sel = st.selectbox("📅 Seleccionar Temporada:", anios_disponibles, index=anios_disponibles.index(anio_actual) if anio_actual in anios_disponibles else 0)
+
+    # 3. Calcular puntos de la temporada seleccionada
+    # Usamos 3.5/3.5 solo para 2026 como base histórica, otros años empiezan en 0/0 o lo que definas
+    p_ini_a, p_ini_b = PUNTOS_INICIO.get(temp_sel, (0.0, 0.0))
+    df_temp = df[df['temporada'] == temp_sel] if not df.empty else pd.DataFrame()
+    
+    if not df_temp.empty:
+        res = df_temp.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
+        for _, r in res.iterrows():
+            if r['resultado_a'] > r['resultado_b']: p_ini_a += 1
+            elif r['resultado_b'] > r['resultado_a']: p_ini_b += 1
+            else: p_ini_a += 0.5; p_ini_b += 0.5
 
     st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;margin-bottom:15px;">
-        <h3 style="margin:0;">TEMPORADA 2026</h3><div style="display:flex;justify-content:space-around;align-items:center;">
-        <div><h2 style="color:{COLOR_A};margin:0;">M&J</h2><h1 style="margin:0;">{pts_a:g}</h1></div>
+        <h3 style="margin:0;">TEMPORADA {temp_sel}</h3><div style="display:flex;justify-content:space-around;align-items:center;">
+        <div><h2 style="color:{COLOR_A};margin:0;">M&J</h2><h1 style="margin:0;">{p_ini_a:g}</h1></div>
         <h2 style="color:#999;margin:0;">VS</h2>
-        <div><h2 style="color:{COLOR_B};margin:0;">R&L</h2><h1 style="margin:0;">{pts_b:g}</h1></div></div></div>""", unsafe_allow_html=True)
+        <div><h2 style="color:{COLOR_B};margin:0;">R&L</h2><h1 style="margin:0;">{p_ini_b:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
-    with st.expander("🏆 Clasificación MVP Temporada 2026"):
-        if not df_26.empty:
-            ranking = {TODOS[0]: df_26['p1_pts'].sum(), TODOS[1]: df_26['p2_pts'].sum(), TODOS[2]: df_26['p3_pts'].sum(), TODOS[3]: df_26['p4_pts'].sum()}
+    with st.expander(f"🏆 Clasificación MVP {temp_sel}"):
+        if not df_temp.empty:
+            ranking = {TODOS[0]: df_temp['p1_pts'].sum(), TODOS[1]: df_temp['p2_pts'].sum(), TODOS[2]: df_temp['p3_pts'].sum(), TODOS[3]: df_temp['p4_pts'].sum()}
             df_rank = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in ranking.items()]).sort_values("Pts", ascending=False)
             st.table(df_rank.style.format({"Pts": "{:.1f}"}))
-        else: st.info("Sin datos para la temporada 2026.")
+        else: st.info(f"No hay datos registrados para {temp_sel}.")
 
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if 'game' not in st.session_state:
@@ -128,7 +131,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'h_sel': 1, 'logs': {}, 'id': f.strftime("%Y%m%d")}
             st.rerun()
     else:
-        # (El resto del código de juego se mantiene igual, ya calcula m_a y m_b correctamente)
         g = st.session_state.game
         h = g['h_sel']
         st.markdown(f"""<div style="background-color:#2c3e50; padding:10px; border-radius:10px; text-align:center; color:white; margin-bottom:10px;">
