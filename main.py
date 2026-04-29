@@ -105,7 +105,6 @@ if st.session_state.menu_seleccionado == "Inicio":
         <div><h2 style="color:{COLOR_B}; margin:0; font-size:1.2em;">{EQUIPO_B_NOMBRES}</h2><h1 style="font-size:3.5em; margin:0;">{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    # (El código de Jugar/Editar se mantiene igual que la versión anterior)
     if 'game' not in st.session_state:
         f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
         if st.button("🚀 Iniciar Partida", use_container_width=True):
@@ -157,8 +156,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if st.button("🏁 Finalizar Partida", use_container_width=True): del st.session_state.game; st.rerun()
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
-    # (Sección estadísticas sin cambios)
-    st.title("📊 Estadísticas")
+    st.title("📊 Estadísticas Temporada")
     df = leer_datos()
     if not df.empty:
         partidos = df.groupby('partido_id').agg({'p1_pts':'sum','p2_pts':'sum','p3_pts':'sum','p4_pts':'sum'})
@@ -170,10 +168,10 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     mvps_count[TODOS[int(idx_jugador[1])-1]] += 1
         res = []
         for i, jug in enumerate(TODOS):
-            col = f's{i}'; t = df[df[col] > 0].copy(); t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
-            total = len(t)
-            e, b, p = len(t[t['dif'] <= -2]), len(t[t['dif'] == -1]), len(t[t['dif'] == 0])
-            res.append({"Jugador": jug, "MVP": int(mvps_count[jug]), "Eagle": f"{e} ({e/total:.0%})" if total>0 else "0", "Birdie": f"{b} ({b/total:.0%})" if total>0 else "0", "Par": f"{p} ({p/total:.0%})" if total>0 else "0"})
+            col = f's{i}'; t = df[df[col] > 0].copy(); t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO); total = len(t)
+            e, b, p = len(t[t['dif']<=-2]), len(t[t['dif']==-1]), len(t[t['dif']==0])
+            bog, dbog, tplus = len(t[t['dif']==1]), len(t[t['dif']==2]), len(t[t['dif']>=3])
+            res.append({"Jugador": jug, "MVP": int(mvps_count[jug]), "Eag": e, "Bir": b, "Par": p, "Bog": bog, "Dbg": dbog, "T+": tplus})
         st.dataframe(pd.DataFrame(res).set_index("Jugador"), use_container_width=True)
 
 elif st.session_state.menu_seleccionado == "Admin":
@@ -204,32 +202,26 @@ elif st.session_state.menu_seleccionado == "Admin":
                         elif r['resultado_b'] > r['resultado_a']: ac_b += 1
                         else: ac_a += 0.5; ac_b += 0.5
                     
-                    # MVP del día y de temporada
                     mvp_d = sorted({TODOS[0]: dp['p1_pts'].sum(), TODOS[1]: dp['p2_pts'].sum(), TODOS[2]: dp['p3_pts'].sum(), TODOS[3]: dp['p4_pts'].sum()}.items(), key=lambda x: x[1], reverse=True)
                     mvp_temp = sorted({TODOS[0]: df_t['p1_pts'].sum(), TODOS[1]: df_t['p2_pts'].sum(), TODOS[2]: df_t['p3_pts'].sum(), TODOS[3]: df_t['p4_pts'].sum()}.items(), key=lambda x: x[1], reverse=True)
                     
-                    # --- CÁLCULO DE CATEGORÍAS (DÍA vs TEMPORADA) ---
-                    res_whatsapp = []
+                    res_wa = []
+                    header = "JUG | E | B | P | Bog | Dbg | T+"
                     for i, jug in enumerate(TODOS):
                         col = f's{i}'
-                        # Stats hoy
-                        th = dp[dp[col] > 0].copy(); th['dif'] = th[col] - th['hoyo'].map(PAR_RIA_VIGO); tot_h = len(th)
-                        # Stats temporada
-                        tt = df_t[df_t[col] > 0].copy(); tt['dif'] = tt[col] - tt['hoyo'].map(PAR_RIA_VIGO); tot_t = len(tt)
+                        th = dp[dp[col] > 0].copy(); th['dif'] = th[col] - th['hoyo'].map(PAR_RIA_VIGO)
+                        tt = df_t[df_t[col] > 0].copy(); tt['dif'] = tt[col] - tt['hoyo'].map(PAR_RIA_VIGO)
                         
-                        def get_stats(df_data, total):
-                            if total == 0: return "Sin datos"
-                            e = len(df_data[df_data['dif']<=-2]); b = len(df_data[df_data['dif']==-1]); p = len(df_data[df_data['dif']==0])
-                            bog = len(df_data[df_data['dif']==1]); dbog = len(df_data[df_data['dif']==2]); o = len(df_data[df_data['dif']>=3])
-                            return f"E:{e}({e/total:.0%}) B:{b}({b/total:.0%}) P:{p}({p/total:.0%}) Bog:{bog} Dbg:{dbog} O:{o}"
-
-                        res_whatsapp.append(f"👤 *{jug}*\n📍 *Hoy*: {get_stats(th, tot_h)}\n🌍 *Temporada*: {get_stats(tt, tot_t)}")
+                        def s(d): 
+                            return f"{len(d[d['dif']<=-2])}|{len(d[d['dif']==-1])}|{len(d[d['dif']==0])}|{len(d[d['dif']==1])}|{len(d[d['dif']==2])}|{len(d[d['dif']>=3])}"
+                        
+                        res_wa.append(f"*{jug}*\nHOY: {s(th)}\nACC: {s(tt)}")
 
                     msg = (f"⛳ *CAÑITA BRAVA*\n📅 {fecha_p}\n\n"
                            f"🏆 *MATCH DIA*\n🟢 {EQUIPO_A_NOMBRES}: *{p_a:g}*\n🔴 {EQUIPO_B_NOMBRES}: *{p_b:g}*\n\n"
                            f"📈 *MATCH ACUM. {temp_p}*\n{EQUIPO_A_NOMBRES}: *{ac_a:g}*\n{EQUIPO_B_NOMBRES}: *{ac_b:g}*\n\n"
                            f"⭐ *MVP DIA*\n" + "\n".join([f"{n}: {p:.1f}" for n, p in mvp_d]) + f"\n\n"
                            f"🌟 *MVP TEMPORADA*\n" + "\n".join([f"{n}: {p:.1f}" for n, p in mvp_temp]) + f"\n\n"
-                           f"🏅 *RESUMEN CATEGORÍAS*\n" + "\n\n".join(res_whatsapp))
+                           f"📊 *TABLA (E|B|P|Bog|Dbg|T+)*\n" + "\n".join(res_wa))
                     
                     st.link_button("📲 Enviar WA", f"https://wa.me/?text={urllib.parse.quote(msg)}", use_container_width=True)
