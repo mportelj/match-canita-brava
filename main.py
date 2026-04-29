@@ -86,6 +86,30 @@ def ejecutar_guardado_automatico():
     fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": anio_partida, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
     guardar_hoyo_db(fila)
 
+def generar_texto_whatsapp(g):
+    txt = f"⛳ *CAÑITA BRAVA - {g['fecha']}*\n\n"
+    pts_a = sum(v['pts'][0] for v in g['logs'].values())
+    pts_b = sum(v['pts'][1] for v in g['logs'].values())
+    
+    m_a, m_b = max(0, pts_a - pts_b), max(0, pts_b - pts_a)
+    txt += f"🏆 *RESULTADO MATCH*\n{TODOS[0]}/{TODOS[1]}: *{m_a:g}*\n{TODOS[2]}/{TODOS[3]}: *{m_b:g}*\n\n"
+    
+    p_mvp = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
+    ranking = sorted(p_mvp.items(), key=lambda x: x[1], reverse=True)
+    txt += "🎖️ *MVP PARTIDO*\n"
+    for j, (nom, p) in enumerate(ranking):
+        medalla = "🥇" if j==0 else "🥈" if j==1 else "🥉" if j==2 else "🎖️"
+        txt += f"{medalla} {nom}: {p:g} pts\n"
+    
+    txt += "\n⛳ *POR HOYOS (Res | MVP)*\n"
+    for h in sorted([int(k) for k in g['logs'].keys()]):
+        log = g['logs'][str(h)]
+        h_mvp = sorted(log['mvp'].items(), key=lambda x: x[1], reverse=True)[0]
+        idx_mvp = int(h_mvp[0][1]) - 1
+        txt += f"H{h}: {log['pts'][0]:g}-{log['pts'][1]:g} | {TODOS[idx_mvp]}\n"
+    
+    return txt
+
 # --- 4. LÓGICA DE PANTALLAS ---
 
 if st.session_state.menu_seleccionado == "Inicio":
@@ -126,7 +150,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             <h2 style="margin:0; color:#ecf0f1; font-size:1.5em;">HOYO {h} (PAR {PAR_RIA_VIGO[h]})</h2></div>""", unsafe_allow_html=True)
         
         c_nav1, c_nav2 = st.columns(2)
-        # RESTAURADO: Autoguardado al navegar
         if c_nav1.button("⬅️ Anterior", key="nav_up_prev", use_container_width=True): 
             ejecutar_guardado_automatico()
             g['h_sel'] = max(1, h-1); st.rerun()
@@ -165,16 +188,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             <div style="flex:1; border:3px solid {COLOR_B}; border-radius:12px; padding:10px; text-align:center; background:#fef2f2;">
             <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{m_b:g}</div></div></div>""", unsafe_allow_html=True)
 
-        if ya_guardado:
-            h_pts = g['logs'][str(h)]['pts']
-            html_puntos = f"""<div style="display:flex; justify-content:space-around; align-items:center;">
-                <b style="color:{COLOR_A}; font-size:1.3em;">{h_pts[0]:g}</b><span style="color:#999;">—</span><b style="color:{COLOR_B}; font-size:1.3em;">{h_pts[1]:g}</b>
-            </div>"""
-        else:
-            html_puntos = "Hoyo No Guardado"
-        st.markdown(f"""<div style="background:#f0f2f6; padding:12px; border-radius:10px; text-align:center; margin-bottom:10px;">{html_puntos}</div>""", unsafe_allow_html=True)
-
-        # RESTAURADO: Desglose de MVP (Hoyo y Partido)
         c1, c2 = st.columns(2)
         with c1:
             with st.popover("🎯 MVP Hoyo", use_container_width=True):
@@ -189,6 +202,11 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 st.table(df_p.style.format({"Pts": "{:.1f}"}))
 
         st.divider()
+        # BOTÓN WHATSAPP
+        if g['logs']:
+            msg_ws = generar_texto_whatsapp(g)
+            st.download_button("📱 Copiar Resumen WhatsApp", msg_ws, file_name="cañita_brava.txt", use_container_width=True)
+
         if st.button("🏁 Finalizar Partida", type="secondary", use_container_width=True): 
             if 'game' in st.session_state: del st.session_state.game
             st.rerun()
@@ -199,7 +217,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     if df.empty:
         st.info("No hay datos históricos.")
     else:
-        # Lógica de MVP Partido (agrupando por jornada)
         mvp_partidos = df.groupby('partido_id').agg({'p1_pts':'sum', 'p2_pts':'sum', 'p3_pts':'sum', 'p4_pts':'sum'})
         conteo_mvp = {jugador: 0 for jugador in TODOS}
         for _, fila in mvp_partidos.iterrows():
@@ -229,7 +246,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         st.dataframe(df_final, use_container_width=True)
         st.divider()
 
-        # Menciones con soporte para EMPATES
         c1, c2 = st.columns(2)
         max_birdies = df_final['Birdie'].max()
         reyes_birdie = df_final[df_final['Birdie'] == max_birdies].index.tolist()
@@ -238,6 +254,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         max_mvps = df_final['MVP Part.'].max()
         reyes_mvp = df_final[df_final['MVP Part.'] == max_mvps].index.tolist()
         c2.metric("Más MVP Partido 🏆", ", ".join(reyes_mvp) if max_mvps > 0 else "-", f"{max_mvps} Veces")
+        
+        # Botón para compartir histórico
+        msg_hist = "📊 *HISTÓRICO CAÑITA BRAVA*\n\n"
+        for _, row in df_final.iterrows():
+            msg_hist += f"👤 *{row.name}*\n🏆 MVPs: {row['MVP Part.']} | 🐥 Birdies: {row['Birdie']} | ⛳ Pars: {row['Par']}\n\n"
+        st.download_button("📱 Compartir Histórico WhatsApp", msg_hist, use_container_width=True)
 
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Admin")
