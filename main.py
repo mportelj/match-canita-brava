@@ -88,6 +88,7 @@ if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
     pts_a, pts_b = INICIO_2026_A, INICIO_2026_B
+    
     if not df.empty:
         df_26 = df[df['temporada'].astype(str).str.contains("2026")]
         if not df_26.empty:
@@ -96,11 +97,28 @@ if st.session_state.menu_seleccionado == "Inicio":
                 if r['resultado_a'] > r['resultado_b']: pts_a += 1
                 elif r['resultado_b'] > r['resultado_a']: pts_b += 1
                 else: pts_a += 0.5; pts_b += 0.5
-    st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;margin-bottom:20px;">
+
+    st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;margin-bottom:10px;">
         <h3 style="margin:0;">TEMPORADA 2026</h3><div style="display:flex;justify-content:space-around;align-items:center;">
         <div><h2 style="color:{COLOR_A};margin:0;">M&J</h2><h1 style="margin:0;">{pts_a:g}</h1></div>
         <h2 style="color:#999;margin:0;">VS</h2>
         <div><h2 style="color:{COLOR_B};margin:0;">R&L</h2><h1 style="margin:0;">{pts_b:g}</h1></div></div></div>""", unsafe_allow_html=True)
+
+    # --- NUEVA CLASIFICACIÓN MVP TEMPORADA ---
+    with st.expander("🏆 Ver Clasificación MVP Temporada"):
+        if not df.empty:
+            # Sumar puntos de cada columna pX_pts
+            ranking_temp = {
+                TODOS[0]: df['p1_pts'].sum(),
+                TODOS[1]: df['p2_pts'].sum(),
+                TODOS[2]: df['p3_pts'].sum(),
+                TODOS[3]: df['p4_pts'].sum()
+            }
+            df_ranking = pd.DataFrame([{"Jugador": k, "Pts Totales": v} for k, v in ranking_temp.items()])
+            df_ranking = df_ranking.sort_values("Pts Totales", ascending=False)
+            st.table(df_ranking.style.format({"Pts Totales": "{:.1f}"}))
+        else:
+            st.info("Aún no hay datos para calcular el MVP.")
 
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if 'game' not in st.session_state:
