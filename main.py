@@ -84,7 +84,7 @@ if st.session_state.menu_seleccionado == "Inicio":
     anio_actual = 2026
     temps = sorted(df['temporada'].unique().tolist(), reverse=True) if not df.empty else [anio_actual]
     if anio_actual not in temps: temps.insert(0, anio_actual)
-    sel_temp = st.selectbox("Temporada:", temps, index=temps.index(anio_actual))
+    sel_temp = st.selectbox("Temporada:", temps, index=temps.index(anio_actual) if anio_actual in temps else 0)
     
     pa_t, pb_t = 3.5, 3.5 
     if not df.empty:
@@ -165,7 +165,7 @@ elif st.session_state.menu_seleccionado == "Admin":
     if not df.empty:
         for p_id in df['partido_id'].unique()[::-1]:
             dp = df[df['partido_id'] == p_id].sort_values('hoyo')
-            fecha_p = dp['fecha'].iloc[0]; temp_p = dp['temporada'].iloc[0]
+            fecha_p = dp['fecha'].iloc[0]; temp_p = int(dp['temporada'].iloc[0])
             with st.expander(f"📅 {fecha_p}"):
                 p_a, p_b = dp['resultado_a'].sum(), dp['resultado_b'].sum()
                 c1, c2, c3 = st.columns(3)
@@ -175,36 +175,35 @@ elif st.session_state.menu_seleccionado == "Admin":
                     st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
                 with c2:
                     with st.popover("🗑️", use_container_width=True):
-                        if st.button("Confirmar", key=f"del_{p_id}"):
+                        if st.button("Borrar", key=f"del_{p_id}"):
                             st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
                             st.cache_data.clear(); st.rerun()
                 with c3:
-                    # CÁLCULO ACUMULADO PARA EL MENSAJE
+                    # CÁLCULO ACUMULADO TEMPORADA
                     df_temp = df[df['temporada'] == temp_p]
-                    # Excluimos esta partida para calcular el antes y luego sumamos
-                    df_prev = df_temp[df_temp['partido_id'] != p_id]
+                    # Agrupar por partido_id y sumar para obtener ganadores de cada día
+                    partidos_temp = df_temp.groupby('partido_id').agg({'resultado_a':'sum', 'resultado_b':'sum'})
                     ac_a, ac_b = 3.5, 3.5
-                    if not df_prev.empty:
-                        for _, grp in df_prev.groupby('partido_id'):
-                            sa, sb = grp['resultado_a'].sum(), grp['resultado_b'].sum()
-                            if sa > sb: ac_a += 1
-                            elif sb > sa: ac_b += 1
-                            else: ac_a += 0.5; ac_b += 0.5
-                    # Sumamos el resultado de esta partida
-                    if p_a > p_b: ac_a += 1
-                    elif p_b > p_a: ac_b += 1
-                    else: ac_a += 0.5; ac_b += 0.5
+                    for _, r in partidos_temp.iterrows():
+                        if r['resultado_a'] > r['resultado_b']: ac_a += 1
+                        elif r['resultado_b'] > r['resultado_a']: ac_b += 1
+                        else: ac_a += 0.5; ac_b += 0.5
 
+                    # RANKING MVP PARTIDA
                     mvp_pts = {TODOS[0]: dp['p1_pts'].sum(), TODOS[1]: dp['p2_pts'].sum(), TODOS[2]: dp['p3_pts'].sum(), TODOS[3]: dp['p4_pts'].sum()}
                     mvp_sorted = sorted(mvp_pts.items(), key=lambda x: x[1], reverse=True)
-                    stats_j = []
+                    
+                    # CATEGORÍAS PARTIDA
+                    resumen_j = []
                     for i, jug in enumerate(TODOS):
                         col = f's{i}'; t = dp[dp[col] > 0].copy(); t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
-                        stats_j.append(f"👤 *{jug}*: {len(t[t['dif']<=-2])}🦅 {len(t[t['dif']==-1])}🐦 {len(t[t['dif']==0])}🅿️")
+                        resumen_j.append(f"{jug}: {len(t[t['dif']<=-2])} Eagle, {len(t[t['dif']==-1])} Birdie, {len(t[t['dif']==0])} Par")
 
+                    # MENSAJE WHATSAPP (Emojis simplificados para evitar errores de codificación)
                     msg = (f"⛳ *CAÑITA BRAVA*\n📅 {fecha_p}\n\n"
                            f"🏆 *RESULTADO MATCH*\n🟢 {TODOS[0]}/{TODOS[1]}: *{p_a:g}*\n🔴 {TODOS[2]}/{TODOS[3]}: *{p_b:g}*\n\n"
-                           f"📈 *TEMPORADA {temp_p}*\n🟢 A: *{ac_a:g}* |  🔴 B: *{ac_b:g}*\n\n"
+                           f"📈 *TEMPORADA {temp_p}*\nEquipo A: *{ac_a:g}* |  Equipo B: *{ac_b:g}*\n\n"
                            f"⭐ *MVP RANKING*\n" + "\n".join([f"{i+1}. {n}: {p:g} pts" for i, (n, p) in enumerate(mvp_sorted)]) +
-                           f"\n\n🏅 *RESUMEN*\n" + "\n".join(stats_j))
+                           f"\n\n🏅 *RESUMEN*\n" + "\n".join(resumen_j))
+                    
                     st.link_button("📲", f"https://wa.me/?text={urllib.parse.quote(msg)}", use_container_width=True)
