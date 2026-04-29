@@ -179,22 +179,21 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 <div style="flex:1; border:3px solid {COLOR_B}; border-radius:12px; padding:10px; text-align:center; background:#fef2f2;">
                 <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{m_b:g}</div></div></div>""", unsafe_allow_html=True)
             
-            # --- MARCADOR DEL HOYO UNIFICADO EN UN BLOQUE ---
+            # --- BLOQUE DE MARCADOR DEL HOYO (CORREGIDO) ---
             if str(h) in g['logs']:
                 h_pts = g['logs'][str(h)]['pts']
-                contenido_hoyo = f"""
-                    <div style="display:flex; justify-content:space-around; align-items:center;">
-                        <b style="color:{COLOR_A}; font-size:1.3em;">{h_pts[0]:g}</b>
-                        <span style="color:#999;">—</span>
-                        <b style="color:{COLOR_B}; font-size:1.3em;">{h_pts[1]:g}</b>
-                    </div>"""
+                html_puntos = f"""<div style="display:flex; justify-content:space-around; align-items:center;">
+                    <b style="color:{COLOR_A}; font-size:1.3em;">{h_pts[0]:g}</b>
+                    <span style="color:#999;">—</span>
+                    <b style="color:{COLOR_B}; font-size:1.3em;">{h_pts[1]:g}</b>
+                </div>"""
             else:
-                contenido_hoyo = f"<div style='color:#999; font-style:italic; font-size:1.1em;'>Hoyo No Jugado</div>"
+                html_puntos = f"<div style='color:#999; font-style:italic; font-size:1.1em;'>Hoyo No Jugado</div>"
 
             st.markdown(f"""
                 <div style="background:#f0f2f6; border-radius:10px; padding:12px; margin-bottom:15px; border:1px solid #ddd; text-align:center;">
                     <div style="font-size:0.85em; color:#555; margin-bottom:8px; font-weight:bold; letter-spacing:1px; border-bottom:1px solid #ccc; padding-bottom:5px;">PUNTOS HOYO {h}</div>
-                    {contenido_hoyo}
+                    {html_puntos}
                 </div>""", unsafe_allow_html=True)
             
             c1, c2 = st.columns(2)
