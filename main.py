@@ -3,7 +3,7 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
-# --- 1. CONFIGURACIÓN ---
+# --- 1. CONFIGURACIÓN Y ESTILO ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
 PAR_RIA_VIGO = {i: p for i, p in zip(range(1, 19), [4,5,3,4,4,5,3,4,4,4,3,4,3,5,4,5,4,5])}
@@ -28,73 +28,65 @@ def leer_datos():
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet="historial", ttl=0)
         if df is None or df.empty: return pd.DataFrame()
-        # Asegurar que las columnas numéricas sean correctas
+        # Blindaje contra el error de tipos mixtos (convertimos todo a número limpio)
         cols_num = ['s0', 's1', 's2', 's3', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 'hoyo', 'resultado_a', 'resultado_b']
         for col in cols_num:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
         return df
-    except Exception as e:
-        st.error(f"Error cargando datos: {e}")
-        return pd.DataFrame()
-
-def guardar_hoyo_db(df_fila):
-    try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df_hist = leer_datos()
-        id_hoyo = str(df_fila["id"].iloc[0])
-        if not df_hist.empty:
-            df_hist['id'] = df_hist['id'].astype(str)
-            df_final = pd.concat([df_hist[df_hist["id"] != id_hoyo], df_fila], ignore_index=True)
-        else: df_final = df_fila
-        conn.update(worksheet="historial", data=df_final)
-        st.cache_data.clear()
-        return True
-    except: return False
+    except: return pd.DataFrame()
 
 def calcular_puntos_hoyo(scores, hoyo_num):
     par = PAR_RIA_VIGO[hoyo_num]
-    v = [s if s > 0 else 99 for s in scores]
+    # Forzamos enteros para evitar el error MixedNumericTypesError
+    v = [int(s) if s > 0 else 99 for s in scores]
     ba, wa, bb, wb = min(v[0], v[1]), max(v[0], v[1]), min(v[2], v[3]), max(v[2], v[3])
     pa = (1.0 if ba < bb else 0.0) + (1.0 if wa < wb else 0.0)
     pb = (1.0 if bb < ba else 0.0) + (1.0 if wb < wa else 0.0)
-    for i, s in enumerate(scores):
-        p_bonus = 2.0 if 0 < s <= par - 2 else (1.0 if 0 < s == par - 1 else 0)
+    for i, s in enumerate(v):
+        if s == 99: continue
+        p_bonus = 2.0 if s <= par - 2 else (1.0 if s == par - 1 else 0)
         if i < 2: pa += p_bonus 
         else: pb += p_bonus
     mvp = {f"p{i+1}": 0.0 for i in range(4)}
     for i in range(4):
-        if scores[i] <= 0: continue
+        if v[i] == 99: continue
         for j in range(4):
-            if i != j and scores[j] > 0 and scores[i] < scores[j]: mvp[f"p{i+1}"] += 0.5
-        if scores[i] <= par - 2: mvp[f"p{i+1}"] += 3.0
-        elif scores[i] == par - 1: mvp[f"p{i+1}"] += 1.5
-        elif scores[i] == par: mvp[f"p{i+1}"] += 0.5
+            if i != j and v[j] != 99 and v[i] < v[j]: mvp[f"p{i+1}"] += 0.5
+        if v[i] <= par - 2: mvp[f"p{i+1}"] += 3.0
+        elif v[i] == par - 1: mvp[f"p{i+1}"] += 1.5
+        elif v[i] == par: mvp[f"p{i+1}"] += 0.5
     return pa, pb, mvp
 
 def ejecutar_guardado_automatico():
     if 'game' not in st.session_state: return
     g = st.session_state.game
     h = g['h_sel']
-    s1 = st.session_state.get(f"s1_h{h}", PAR_RIA_VIGO[h])
-    s2 = st.session_state.get(f"s2_h{h}", PAR_RIA_VIGO[h])
-    s3 = st.session_state.get(f"s3_h{h}", PAR_RIA_VIGO[h])
-    s4 = st.session_state.get(f"s4_h{h}", PAR_RIA_VIGO[h])
-    golpes = [s1, s2, s3, s4]
-    pa, pb, mi = calcular_puntos_hoyo(golpes, h)
-    g['logs'][str(h)] = {'s': golpes, 'pts': (pa, pb), 'mvp': mi}
+    # Captura segura de los inputs
+    s = [int(st.session_state.get(f"s{i+1}_h{h}", PAR_RIA_VIGO[h])) for i in range(4)]
+    pa, pb, mi = calcular_puntos_hoyo(s, h)
+    g['logs'][str(h)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
     anio = str(datetime.strptime(g['fecha'], "%d/%m/%Y").year)
-    fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": anio, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
-    guardar_hoyo_db(fila)
+    
+    fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": anio, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s[0], "s1": s[1], "s2": s[2], "s3": s[3]}])
+    
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    df_h = leer_datos()
+    if not df_h.empty:
+        df_h['id'] = df_h['id'].astype(str)
+        df_f = pd.concat([df_h[df_h["id"] != f"{g['id']}_H{h}"], fila], ignore_index=True)
+    else: df_f = fila
+    conn.update(worksheet="historial", data=df_f)
+    st.cache_data.clear()
 
-def generar_texto_whatsapp_desde_df(df_partido):
-    fecha = df_partido['fecha'].iloc[0]
-    txt = f"⛳ *CAÑITA BRAVA - {fecha}*\n\n"
-    pts_a, pts_b = df_partido['resultado_a'].sum(), df_partido['resultado_b'].sum()
+def generar_texto_whatsapp(df_p):
+    f = df_p['fecha'].iloc[0]
+    txt = f"⛳ *CAÑITA BRAVA - {f}*\n\n"
+    pts_a, pts_b = df_p['resultado_a'].sum(), df_p['resultado_b'].sum()
     m_a, m_b = max(0, pts_a - pts_b), max(0, pts_b - pts_a)
     txt += f"🏆 *MATCH:* {TODOS[0]}/{TODOS[1]} *{m_a:g}* vs *{m_b:g}* {TODOS[2]}/{TODOS[3]}\n\n"
-    p_mvp = {TODOS[i]: df_partido[f'p{i+1}_pts'].sum() for i in range(4)}
-    ranking = sorted(p_mvp.items(), key=lambda x: x[1], reverse=True)
+    mvps = {TODOS[i]: df_p[f'p{i+1}_pts'].sum() for i in range(4)}
+    ranking = sorted(mvps.items(), key=lambda x: x[1], reverse=True)
     txt += "🎖️ *MVP PARTIDO:*\n"
     for j, (nom, p) in enumerate(ranking):
         med = "🥇" if j==0 else "🥈" if j==1 else "🥉" if j==2 else "🎖️"
@@ -106,17 +98,17 @@ def generar_texto_whatsapp_desde_df(df_partido):
 if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
-    p_ini_a, p_ini_b = 3.5, 3.5 # Base temporada 2026
+    p_a, p_b = 3.5, 3.5
     if not df.empty:
         res = df.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
         for _, r in res.iterrows():
-            if r['resultado_a'] > r['resultado_b']: p_ini_a += 1
-            elif r['resultado_b'] > r['resultado_a']: p_ini_b += 1
-            else: p_ini_a += 0.5; p_ini_b += 0.5
+            if r['resultado_a'] > r['resultado_b']: p_a += 1
+            elif r['resultado_b'] > r['resultado_a']: p_b += 1
+            else: p_a += 0.5; p_b += 0.5
     st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;">
         <h3>TEMPORADA 2026</h3><div style="display:flex;justify-content:space-around;">
-        <div><h2 style="color:{COLOR_A};">{TODOS[0]}/{TODOS[1]}</h2><h1>{p_ini_a:g}</h1></div>
-        <div><h2 style="color:{COLOR_B};">{TODOS[2]}/{TODOS[3]}</h2><h1>{p_ini_b:g}</h1></div></div></div>""", unsafe_allow_html=True)
+        <div><h2 style="color:{COLOR_A};">{TODOS[0]}/{TODOS[1]}</h2><h1>{p_a:g}</h1></div>
+        <div><h2 style="color:{COLOR_B};">{TODOS[2]}/{TODOS[3]}</h2><h1>{p_b:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if 'game' not in st.session_state:
@@ -127,83 +119,59 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     else:
         g = st.session_state.game
         h = g['h_sel']
-        ya_guardado = str(h) in g['logs']
+        ya = str(h) in g['logs']
         st.markdown(f"<h2 style='text-align:center; background:#2c3e50; color:white; border-radius:10px; padding:10px;'>HOYO {h} (PAR {PAR_RIA_VIGO[h]})</h2>", unsafe_allow_html=True)
-        c_nav1, c_nav2 = st.columns(2)
-        if c_nav1.button("⬅️ Anterior", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = max(1, h-1); st.rerun()
-        if c_nav2.button("Siguiente ➡️", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = min(18, h+1); st.rerun()
         
-        v = g['logs'][str(h)]['s'] if ya_guardado else [PAR_RIA_VIGO[h]]*4
-        c_izq, c_der = st.columns(2)
-        with c_izq:
-            s1 = st.number_input(TODOS[0], 0, 10, v[0], key=f"s1_h{h}")
-            s2 = st.number_input(TODOS[1], 0, 10, v[1], key=f"s2_h{h}")
-        with c_der:
-            s3 = st.number_input(TODOS[2], 0, 10, v[2], key=f"s3_h{h}")
-            s4 = st.number_input(TODOS[3], 0, 10, v[3], key=f"s4_h{h}")
+        c_n1, c_n2 = st.columns(2)
+        if c_n1.button("⬅️ Anterior", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = max(1, h-1); st.rerun()
+        if c_n2.button("Siguiente ➡️", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = min(18, h+1); st.rerun()
         
-        if ya_guardado: st.button("✅ Hoyo Registrado", disabled=True, use_container_width=True)
+        v = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
+        c_i, c_d = st.columns(2)
+        s1 = c_i.number_input(TODOS[0], 0, 10, v[0], key=f"s1_h{h}", step=1)
+        s2 = c_i.number_input(TODOS[1], 0, 10, v[1], key=f"s2_h{h}", step=1)
+        s3 = c_d.number_input(TODOS[2], 0, 10, v[2], key=f"s3_h{h}", step=1)
+        s4 = c_d.number_input(TODOS[3], 0, 10, v[3], key=f"s4_h{h}", step=1)
+        
+        if ya: st.button("✅ Hoyo Registrado", disabled=True, use_container_width=True)
         else:
             if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True): ejecutar_guardado_automatico(); st.rerun()
 
-        pts_a = sum(v['pts'][0] for v in g['logs'].values())
-        pts_b = sum(v['pts'][1] for v in g['logs'].values())
-        m_a, m_b = max(0, pts_a - pts_b), max(0, pts_b - pts_a)
+        pa, pb = sum(v['pts'][0] for v in g['logs'].values()), sum(v['pts'][1] for v in g['logs'].values())
+        ma, mb = max(0, pa-pb), max(0, pb-pa)
         st.markdown(f"""<div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
             <div style="flex:1; border:3px solid {COLOR_A}; border-radius:15px; padding:10px; text-align:center; background:#f1f8f1;">
-            <span style="font-weight:900; color:{COLOR_A}; font-size:0.8em;">{TODOS[0]}/{TODOS[1]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_A};">{m_a:g}</div></div>
+            <span style="font-weight:900; color:{COLOR_A}; font-size:0.8em;">{TODOS[0]}/{TODOS[1]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_A};">{ma:g}</div></div>
             <div style="flex:1; border:3px solid {COLOR_B}; border-radius:15px; padding:10px; text-align:center; background:#fef2f2;">
-            <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{m_b:g}</div></div></div>""", unsafe_allow_html=True)
-
-        st.divider()
+            <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{mb:g}</div></div></div>""", unsafe_allow_html=True)
+        
         if st.button("🏁 Finalizar Partida", type="secondary", use_container_width=True): del st.session_state.game; st.rerun()
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
-    st.title("📊 Estadísticas Detalladas")
+    st.title("📊 Estadísticas Históricas")
     df = leer_datos()
-    if df.empty:
-        st.warning("No hay datos suficientes para generar estadísticas.")
+    if df.empty: st.info("Sin datos.")
     else:
-        # Cálculo de MVPs
-        mvp_partidos = df.groupby('partido_id').agg({'p1_pts':'sum','p2_pts':'sum','p3_pts':'sum','p4_pts':'sum'})
-        conteo_mvp = {jugador: 0 for jugador in TODOS}
-        for _, fila in mvp_partidos.iterrows():
-            max_p = fila.max()
-            if max_p > 0:
-                for idx in fila[fila == max_p].index:
-                    conteo_mvp[TODOS[int(idx[1])-1]] += 1
-
-        # Construcción de la tabla
-        final_stats = []
-        for i, jug in enumerate(TODOS):
-            col_s = f's{i}'
-            # Filtro: solo donde el jugador tiene golpes anotados
-            datos_j = df[df[col_s] > 0].copy()
-            datos_j['par'] = datos_j['hoyo'].map(PAR_RIA_VIGO)
-            datos_j['dif'] = datos_j[col_s] - datos_j['par']
-
-            final_stats.append({
-                "Jugador": jug,
-                "MVP": int(conteo_mvp[jug]),
-                "Eagle/-": int(len(datos_j[datos_j['dif'] <= -2])),
-                "Birdie": int(len(datos_j[datos_j['dif'] == -1])),
-                "Par": int(len(datos_j[datos_j['dif'] == 0])),
-                "Bogey": int(len(datos_j[datos_j['dif'] == 1])),
-                "D.Bogey": int(len(datos_j[datos_j['dif'] == 2])),
-                "+D.Bogey": int(len(datos_j[datos_j['dif'] > 2]))
+        # MVP y Tabla Detallada
+        mvp_p = df.groupby('partido_id').agg({'p1_pts':'sum','p2_pts':'sum','p3_pts':'sum','p4_pts':'sum'})
+        c_mvp = {j: 0 for j in TODOS}
+        for _, f in mvp_p.iterrows():
+            m = f.max()
+            if m > 0:
+                for idx in f[f == m].index: c_mvp[TODOS[int(idx[1])-1]] += 1
+        
+        tabla = []
+        for i, j in enumerate(TODOS):
+            col = f's{i}'
+            t = df[df[col] > 0].copy()
+            t['diff'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
+            tabla.append({
+                "Jugador": j, "MVP": int(c_mvp[j]),
+                "Eagle/-": len(t[t['diff'] <= -2]), "Birdie": len(t[t['diff'] == -1]),
+                "Par": len(t[t['diff'] == 0]), "Bogey": len(t[t['diff'] == 1]),
+                "D.Bogey": len(t[t['diff'] == 2]), "+D.Bogey": len(t[t['diff'] > 2])
             })
-        
-        st.table(pd.DataFrame(final_stats).set_index("Jugador"))
-        
-        st.divider()
-        c1, c2 = st.columns(2)
-        df_f = pd.DataFrame(final_stats).set_index("Jugador")
-        max_b = df_f['Birdie'].max()
-        reyes_b = df_f[df_f['Birdie'] == max_b].index.tolist()
-        c1.metric("Rey del Birdie 🐥", ", ".join(reyes_b), f"{max_b} Birdies")
-        max_m = df_f['MVP'].max()
-        reyes_m = df_f[df_f['MVP'] == max_m].index.tolist()
-        c2.metric("Más MVP 🏆", ", ".join(reyes_m), f"{max_m} Veces")
+        st.table(pd.DataFrame(tabla).set_index("Jugador"))
 
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Admin")
@@ -213,10 +181,10 @@ elif st.session_state.menu_seleccionado == "Admin":
             dp = df[df['partido_id'] == p_id]
             with st.expander(f"📅 {dp['fecha'].iloc[0]}"):
                 c1, c2, c3 = st.columns(3)
-                wa_txt = generar_texto_whatsapp_desde_df(dp)
-                c1.download_button("📱 WhatsApp", wa_txt, key=f"wa_{p_id}")
+                c1.download_button("📱 WhatsApp", generar_texto_whatsapp(dp), key=f"wa_{p_id}")
                 if c2.button("✏️ Editar", key=f"ed_{p_id}"):
-                    rec = {str(int(f['hoyo'])): {'s':[f['s0'],f['s1'],f['s2'],f['s3']], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
+                    # Convertimos los datos de la DB al formato de sesión 'logs'
+                    rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
                     st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': str(p_id)}
                     st.session_state.menu_seleccionado = "Jugar/Editar"
                     st.rerun()
