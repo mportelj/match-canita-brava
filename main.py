@@ -145,26 +145,20 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if g['logs']:
             total_a = sum(v['pts'][0] for v in g['logs'].values())
             total_b = sum(v['pts'][1] for v in g['logs'].values())
-            # Lógica Match Play: Uno siempre a cero
+            # Lógica Match Play
             m_play_a = max(0, total_a - total_b)
             m_play_b = max(0, total_b - total_a)
-            
-            # Diferencia acumulada vs Par
-            par_acum = sum(PAR_RIA_VIGO[i] for i in range(1, h + 1))
-            golpes_a = sum((v['s'][0] + v['s'][1]) for k, v in g['logs'].items() if int(k) <= h)
-            golpes_b = sum((v['s'][2] + v['s'][3]) for k, v in g['logs'].items() if int(k) <= h)
-            dif_a, dif_b = golpes_a - (par_acum*2), golpes_b - (par_acum*2)
 
             st.markdown(f"""
             <div style="display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 15px;">
                 <div style="flex: 1; border: 3px solid {COLOR_A}; border-radius: 12px; padding: 10px; text-align: center; background-color: #f1f8f1;">
-                    <span style="font-weight: 900; color: {COLOR_A}; font-size: 0.8em;">M&J ({'+' if dif_a > 0 else ''}{dif_a})</span>
-                    <div style="font-size: 2.5em; font-weight: 900; color: {COLOR_A}; margin: 0;">{m_play_a:g}</div>
+                    <span style="font-weight: 900; color: {COLOR_A}; font-size: 0.85em;">{TODOS[0]} / {TODOS[1]}</span>
+                    <div style="font-size: 3em; font-weight: 900; color: {COLOR_A}; margin: 0;">{m_play_a:g}</div>
                 </div>
                 <div style="font-weight: 900; color: #999; font-size: 1.2em;">VS</div>
                 <div style="flex: 1; border: 3px solid {COLOR_B}; border-radius: 12px; padding: 10px; text-align: center; background-color: #fef2f2;">
-                    <span style="font-weight: 900; color: {COLOR_B}; font-size: 0.8em;">R&L ({'+' if dif_b > 0 else ''}{dif_b})</span>
-                    <div style="font-size: 2.5em; font-weight: 900; color: {COLOR_B}; margin: 0;">{m_play_b:g}</div>
+                    <span style="font-weight: 900; color: {COLOR_B}; font-size: 0.85em;">{TODOS[2]} / {TODOS[3]}</span>
+                    <div style="font-size: 3em; font-weight: 900; color: {COLOR_B}; margin: 0;">{m_play_b:g}</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
