@@ -20,16 +20,16 @@ menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Estadísticas", "Ad
                         index=["Inicio", "Jugar/Editar", "Estadísticas", "Admin"].index(st.session_state.menu_seleccionado),
                         key="radio_menu", on_change=cambiar_menu)
 
-# --- 2. FUNCIONES DE DATOS (PROTECCIÓN CONTRA DUPLICADOS) ---
+# --- 2. FUNCIONES DE DATOS ---
 def leer_datos():
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet="historial", ttl=0) 
         if df is None or df.empty: return pd.DataFrame()
         
-        # LIMPIEZA CRÍTICA: Eliminar cualquier fila vacía y quedarnos SOLO con la versión más reciente de cada hoyo
-        df = df.dropna(subset=['id'])
-        df = df.sort_values('id').drop_duplicates(subset=['id'], keep='last')
+        # LIMPIEZA CRÍTICA: Eliminar duplicados de ID de hoyo antes de cualquier proceso
+        # Nos quedamos con la última versión guardada de cada hoyo.
+        df = df.dropna(subset=['id']).sort_values('id').drop_duplicates(subset=['id'], keep='last')
         
         cols_num = ['s0', 's1', 's2', 's3', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 'hoyo', 'resultado_a', 'resultado_b', 'temporada']
         for col in cols_num:
@@ -84,16 +84,18 @@ if st.session_state.menu_seleccionado == "Inicio":
     df = leer_datos()
     temps = sorted(df['temporada'].unique().astype(int).tolist(), reverse=True) if not df.empty else [2026]
     sel_temp = st.selectbox("Temporada:", temps)
+    
     pa_ini, pb_ini = 3.5, 3.5
     if not df.empty:
-        df_t = df[df['temporada'] == int(sel_temp)].drop_duplicates(subset=['id'])
+        df_t = df[df['temporada'] == int(sel_temp)]
         res = df_t.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
         for _, r in res.iterrows():
             if r['resultado_a'] > r['resultado_b']: pa_ini += 1
             elif r['resultado_b'] > r['resultado_a']: pb_ini += 1
             else: pa_ini += 0.5; pb_ini += 0.5
+            
     st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;">
-        <h3>MARCADOR {sel_temp}</h3><div style="display:flex;justify-content:space-around;">
+        <h3>MARCADOR ACUMULADO {sel_temp}</h3><div style="display:flex;justify-content:space-around;">
         <div><h2 style="color:{COLOR_A};">{TODOS[0]}/{TODOS[1]}</h2><h1>{pa_ini:g}</h1></div>
         <div><h2 style="color:{COLOR_B};">{TODOS[2]}/{TODOS[3]}</h2><h1>{pb_ini:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
@@ -118,9 +120,9 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         s3 = c_d.number_input(TODOS[2], 0, 10, int(v_old[2]), key=f"s3_h{h}")
         s4 = c_d.number_input(TODOS[3], 0, 10, int(v_old[3]), key=f"s4_h{h}")
         
-        if ya: # MARCADOR DEL HOYO
+        if ya:
             p_ha, p_hb = g['logs'][str(h)]['pts']
-            st.markdown(f"<p style='text-align:center;'>Puntos Hoyo: <b>{p_ha:g}</b> - <b>{p_hb:g}</b></p>", unsafe_allow_html=True)
+            st.markdown(f"<div style='text-align:center; font-size:0.9em; margin-bottom:10px;'>Hoyo {h}: <b style='color:{COLOR_A}'>{p_ha:g}</b> - <b style='color:{COLOR_B}'>{p_hb:g}</b></div>", unsafe_allow_html=True)
 
         if not ya:
             if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True): ejecutar_guardado_automatico(); st.rerun()
@@ -143,6 +145,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     st.cache_data.clear()
     df = leer_datos()
     if not df.empty:
+        # Aquí forzamos de nuevo la deduplicación para que el conteo de hoyos sea exacto
         df_clean = df.drop_duplicates(subset=['id'])
         partidos = df_clean.groupby('partido_id').agg({'p1_pts':'sum','p2_pts':'sum','p3_pts':'sum','p4_pts':'sum'})
         mvps_c = {j: 0 for j in TODOS}
@@ -169,8 +172,8 @@ elif st.session_state.menu_seleccionado == "Admin":
                 if c2.button("✏️ Editar", key=f"ed_{p_id}"):
                     rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
                     st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': str(p_id)}; st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
-                with c3: # CONFIRMACIÓN BORRADO
+                with c3:
                     with st.popover("🗑️ Borrar"):
-                        if st.button("Confirmar", key=f"del_{p_id}", type="primary"):
+                        if st.button("Confirmar Borrado", key=f"del_{p_id}", type="primary"):
                             st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
                             st.cache_data.clear(); st.rerun()
