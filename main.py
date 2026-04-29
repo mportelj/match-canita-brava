@@ -135,27 +135,28 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if ya:
             pha, phb = g['logs'][str(h)]['pts']
             m_h = g['logs'][str(h)]['mvp']
-            
-            # Resultado del hoyo
-            st.markdown(f"""<div style="display:flex; justify-content:center; align-items:center; gap:10px; margin:10px 0;">
+            mvp_dia = {f"p{i+1}": sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
+
+            st.markdown(f"""<div style="display:flex; justify-content:center; align-items:center; gap:10px; margin-top:10px;">
                 <div style="background:{COLOR_A}; color:white; padding:5px 15px; border-radius:20px; font-weight:bold; font-size:1.1em;">{pha:g}</div>
                 <div style="color:#666; font-weight:bold; font-size:0.9em;">RESULTADO HOYO</div>
                 <div style="background:{COLOR_B}; color:white; padding:5px 15px; border-radius:20px; font-weight:bold; font-size:1.1em;">{phb:g}</div>
             </div>""", unsafe_allow_html=True)
             
-            # --- NUEVO: MVP HOYO Y ACUMULADO ---
-            mvp_dia = {f"p{i+1}": sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
+            # --- SECCIÓN MVP CON BOTONES Y 1 DECIMAL ---
+            st.write("---")
+            st.markdown("<div style='text-align:center; font-size:0.8em; color:#888; margin-bottom:5px;'>PUNTOS MVP</div>", unsafe_allow_html=True)
             
-            col_m1, col_m2 = st.columns(2)
-            with col_m1:
-                st.markdown(f"<div style='font-size:0.8em; color:#888; text-align:center;'>MVP HOYO</div>", unsafe_allow_html=True)
-                txt_h = " | ".join([f"**{TODOS[i][:3]}**: {m_h[f'p{i+1}']:g}" for i in range(4)])
-                st.markdown(f"<div style='font-size:0.85em; text-align:center;'>{txt_h}</div>", unsafe_allow_html=True)
-            with col_m2:
-                st.markdown(f"<div style='font-size:0.8em; color:#888; text-align:center;'>MVP ACUM. DÍA</div>", unsafe_allow_html=True)
-                txt_a = " | ".join([f"**{TODOS[i][:3]}**: {mvp_dia[f'p{i+1}']:g}" for i in range(4)])
-                st.markdown(f"<div style='font-size:0.85em; text-align:center;'>{txt_a}</div>", unsafe_allow_html=True)
+            col_mvp1, col_mvp2, col_mvp3, col_mvp4 = st.columns(4)
+            for i, col in enumerate([col_mvp1, col_mvp2, col_mvp3, col_mvp4]):
+                p_key = f"p{i+1}"
+                with col:
+                    # Formateo a 1 decimal
+                    val_h = f"{m_h[p_key]:.1f}"
+                    val_a = f"{mvp_dia[p_key]:.1f}"
+                    st.button(f"{TODOS[i][:4]}\nH:{val_h}\nΣ:{val_a}", key=f"btn_mvp_{i}_{h}", use_container_width=True, disabled=True)
 
+        # Marcador total Match
         pts_a = sum(v['pts'][0] for v in g['logs'].values()); pts_b = sum(v['pts'][1] for v in g['logs'].values())
         ma, mb = max(0, pts_a-pts_b), max(0, pts_b-pts_a)
         st.markdown(f"""<div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
