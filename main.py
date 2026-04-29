@@ -22,7 +22,7 @@ menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Estadísticas", "Ad
                         index=["Inicio", "Jugar/Editar", "Estadísticas", "Admin"].index(st.session_state.menu_seleccionado),
                         key="radio_menu", on_change=cambiar_menu)
 
-# --- 2. FUNCIONES DE DATOS ---
+# --- 2. FUNCIONES DE DATOS (ELIMINACIÓN DE DUPLICADOS) ---
 def leer_datos():
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -33,8 +33,9 @@ def leer_datos():
         for col in COL_NECESARIAS:
             if col not in df.columns: df[col] = 0
             
-        # LIMPIEZA RADICAL: Solo nos quedamos con la última versión de cada hoyo (ID único)
+        # PASO CRÍTICO: Limpiar duplicados nada más leer del Excel
         df['id'] = df['id'].astype(str).str.strip()
+        # Ordenamos por fecha/hora para que 'last' sea siempre la versión más reciente del hoyo
         df = df.sort_values(by=['id']).drop_duplicates(subset=['id'], keep='last')
         return df
     except:
@@ -50,7 +51,7 @@ def calcular_puntos_hoyo(scores, hoyo_num):
         p_bonus = 2.0 if s <= par - 2 else (1.0 if s == par - 1 else 0)
         if i < 2: pa += p_bonus 
         else: pb += p_bonus
-    mvp = {f"p1": 0.0, "p2": 0.0, "p3": 0.0, "p4": 0.0}
+    mvp = {f"p{i+1}": 0.0 for i in range(4)}
     for i in range(4):
         for j in range(4):
             if i != j and v[i] < v[j]: mvp[f"p{i+1}"] += 0.5
@@ -66,21 +67,20 @@ def ejecutar_guardado_automatico():
     s = [int(st.session_state[f"s{i+1}_h{h}"]) for i in range(4)]
     pa, pb, mi = calcular_puntos_hoyo(s, h)
     
-    # Actualizar log local
     g['logs'][str(h)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
     anio_int = int(datetime.strptime(g['fecha'], "%d/%m/%Y").year)
     fila_id = f"{g['id']}_H{h}"
     
-    nueva_fila = pd.DataFrame([{"id": fila_id, "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": anio_int, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s[0], "s1": s[1], "s2": s[2], "s3": s[3]}])
+    nueva_fila = pd.DataFrame([{"id": fila_id, "partido_id": str(g['id']), "hoyo": h, "fecha": g['fecha'], "temporada": anio_int, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s[0], "s1": s[1], "s2": s[2], "s3": s[3]}])
     
     conn = st.connection("gsheets", type=GSheetsConnection)
     st.cache_data.clear()
     
-    # 1. Leer datos
+    # 1. Leer y limpiar localmente antes de subir
     df_actual = leer_datos()
-    # 2. Filtrar para eliminar el hoyo si ya existía (evita duplicados al editar)
-    df_actual = df_actual[df_actual["id"].astype(str) != str(fila_id)]
-    # 3. Guardar todo el bloque limpio
+    df_actual = df_actual[df_actual["id"] != fila_id]
+    
+    # 2. Unir y actualizar el worksheet completo
     df_final = pd.concat([df_actual, nueva_fila], ignore_index=True)
     conn.update(worksheet="historial", data=df_final)
     st.cache_data.clear()
@@ -120,7 +120,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if c_nav1.button("⬅️ Anterior", use_container_width=True): g['h_sel'] = max(1, h-1); st.rerun()
         if c_nav2.button("Siguiente ➡️", use_container_width=True): g['h_sel'] = min(18, h+1); st.rerun()
         
-        # GOLPES POR DEFECTO
         v_old = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
         ci, cd = st.columns(2)
         s1 = ci.number_input(TODOS[0], 0, 10, v_old[0], key=f"s1_h{h}")
@@ -132,12 +131,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             ejecutar_guardado_automatico()
             st.rerun()
 
-        # Marcador del hoyo actual
-        if ya:
-            pha, phb = g['logs'][str(h)]['pts']
-            st.markdown(f"<p style='text-align:center; font-weight:bold;'>Puntos Hoyo {h}: <span style='color:{COLOR_A}'>{pha:g}</span> - <span style='color:{COLOR_B}'>{phb:g}</span></p>", unsafe_allow_html=True)
-
-        # MARCADOR DEL MATCH
         pts_a = sum(v['pts'][0] for v in g['logs'].values()); pts_b = sum(v['pts'][1] for v in g['logs'].values())
         ma, mb = max(0, pts_a-pts_b), max(0, pts_b-pts_a)
         st.markdown(f"""<div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
@@ -150,21 +143,29 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Histórico")
-    df = leer_datos()
+    df = leer_datos() # Aquí ya vienen sin duplicados
     if not df.empty:
-        # Volvemos a limpiar por si acaso
-        df_clean = df.drop_duplicates(subset=['id'])
-        partidos = df_clean.groupby('partido_id').agg({'p1_pts':'sum','p2_pts':'sum','p3_pts':'sum','p4_pts':'sum'})
+        # Agrupar por partido para los MVPs
+        partidos = df.groupby('partido_id').agg({'p1_pts':'sum','p2_pts':'sum','p3_pts':'sum','p4_pts':'sum'})
         mvps = {j: 0 for j in TODOS}
         for _, f_p in partidos.iterrows():
             m = f_p.max()
             if m > 0:
                 for idx in f_p[f_p == m].index: mvps[TODOS[int(idx[1])-1]] += 1
+        
         res = []
         for i, jug in enumerate(TODOS):
-            col = f's{i}'; t = df_clean[df_clean[col] > 0].copy()
+            col = f's{i}'
+            # Filtramos solo hoyos donde este jugador tenga golpes registrados (>0)
+            t = df[df[col] > 0].copy()
             t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
-            res.append({"Jugador": jug, "MVP": int(mvps[jug]), "Eagle": len(t[t['dif'] <= -2]), "Birdie": len(t[t['dif'] == -1]), "Par": len(t[t['dif'] == 0])})
+            res.append({
+                "Jugador": jug, 
+                "MVP": int(mvps[jug]), 
+                "Eagle": len(t[t['dif'] <= -2]), 
+                "Birdie": len(t[t['dif'] == -1]), 
+                "Par": len(t[t['dif'] == 0])
+            })
         st.table(pd.DataFrame(res).set_index("Jugador"))
 
 elif st.session_state.menu_seleccionado == "Admin":
