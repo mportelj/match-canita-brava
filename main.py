@@ -116,18 +116,27 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     boton_volver_inicio()
     st.divider()
     
-    df_actual = leer_datos()
-    if 'game' in st.session_state and not df_actual.empty:
-        if st.session_state.game['id'] not in df_actual['partido_id'].values:
-            if len(st.session_state.game['logs']) > 0:
-                del st.session_state.game
-                st.rerun()
+    # --- VALIDACIÓN DE INTEGRIDAD ---
+    if 'game' in st.session_state:
+        df_verificar = leer_datos()
+        # Si la partida en sesión ya no existe en la base de datos, la forzamos a cerrarse
+        if not df_verificar.empty:
+            if st.session_state.game['id'] not in df_verificar['partido_id'].astype(str).values:
+                # Solo borramos si no es una partida recién creada (sin logs)
+                if len(st.session_state.game['logs']) > 0:
+                    del st.session_state.game
+                    st.rerun()
+        elif len(st.session_state.game['logs']) > 0:
+            # Si la DB está vacía pero tenemos logs, es que se borró todo
+            del st.session_state.game
+            st.rerun()
     
     if 'game' not in st.session_state:
         st.subheader("Nueva Partida")
         f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
         if st.button("🚀 Iniciar Partida", use_container_width=True):
-            st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'h_sel': 1, 'logs': {}, 'id': f.strftime("%Y%m%d%H%M%S")}
+            # Usamos microsegundos para asegurar un ID único
+            st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'h_sel': 1, 'logs': {}, 'id': datetime.now().strftime("%Y%m%d%H%M%S")}
             st.rerun()
     else:
         g = st.session_state.game
@@ -157,7 +166,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.toast("✅ Guardado")
             st.rerun()
 
-        # MARCADOR DEL MATCH (HOY)
+        # Marcador del Match (Hoy)
         puntos_hoy_a = sum(v['pts'][0] for v in g['logs'].values()) if g['logs'] else 0
         puntos_hoy_b = sum(v['pts'][1] for v in g['logs'].values()) if g['logs'] else 0
         m_a, m_b = max(0, puntos_hoy_a - puntos_hoy_b), max(0, puntos_hoy_b - puntos_hoy_a)
@@ -170,7 +179,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             <div style="flex:1; border:3px solid {COLOR_B}; border-radius:12px; padding:10px; text-align:center; background:#fef2f2;">
             <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{m_b:g}</div></div></div>""", unsafe_allow_html=True)
 
-        # MARCADOR DEL HOYO ACTUAL (RESTAURADO)
         if str(h) in g['logs']:
             h_pts = g['logs'][str(h)]['pts']
             html_puntos = f"""<div style="display:flex; justify-content:space-around; align-items:center;">
@@ -183,7 +191,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             <div style="font-size:0.85em; color:#555; margin-bottom:8px; font-weight:bold; letter-spacing:1px; border-bottom:1px solid #ccc; padding-bottom:5px;">PUNTOS HOYO {h}</div>
             {html_puntos}</div>""", unsafe_allow_html=True)
         
-        # MVPS (RESTAURADO)
         c1, c2 = st.columns(2)
         with c1:
             with st.popover("🎯 MVP Hoyo", use_container_width=True):
@@ -199,7 +206,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
 
         st.divider()
         if st.button("🏁 Finalizar Partida", type="secondary", use_container_width=True): 
-            del st.session_state.game
+            if 'game' in st.session_state: del st.session_state.game
             st.rerun()
 
 elif st.session_state.menu_seleccionado == "Admin":
@@ -214,7 +221,7 @@ elif st.session_state.menu_seleccionado == "Admin":
                 c1, c2, c3 = st.columns(3)
                 if c2.button("✏️ Editar", key=f"ed_{p_id}", use_container_width=True):
                     rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
-                    st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': p_id}
+                    st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': str(p_id)}
                     st.session_state.menu_seleccionado = "Jugar/Editar"
                     st.rerun()
                 with c3:
@@ -222,5 +229,8 @@ elif st.session_state.menu_seleccionado == "Admin":
                         if st.button("Confirmar Borrado", key=f"confirm_del_{p_id}", type="primary"):
                             conn = st.connection("gsheets", type=GSheetsConnection)
                             conn.update(worksheet="historial", data=df[df['partido_id'] != p_id])
+                            # LIMPIEZA INMEDIATA: Si la partida borrada es la activa, eliminar de sesión
+                            if 'game' in st.session_state and str(st.session_state.game['id']) == str(p_id):
+                                del st.session_state.game
                             st.cache_data.clear()
                             st.rerun()
