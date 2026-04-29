@@ -81,31 +81,31 @@ def ejecutar_guardado_automatico():
 if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
+    
+    anio_actual = 2026
+    temps = sorted(df['temporada'].unique().tolist(), reverse=True) if not df.empty else [anio_actual]
+    if anio_actual not in temps: temps.insert(0, anio_actual)
+    
+    sel_temp = st.selectbox("Temporada:", temps, index=temps.index(anio_actual) if anio_actual in temps else 0)
+    
+    # MARCADOR BASE 3,5 vs 3,5 PARA EL 2026
+    pa_t, pb_t = 3.5, 3.5 
+    
     if not df.empty:
-        # Selector de Temporada (por defecto año actual)
-        anio_actual = datetime.now().year
-        temps = sorted(df['temporada'].unique().tolist(), reverse=True)
-        idx_defecto = temps.index(anio_actual) if anio_actual in temps else 0
-        sel_temp = st.selectbox("Temporada:", temps, index=idx_defecto)
-        
         df_t = df[df['temporada'] == int(sel_temp)]
-        
-        # Marcador Acumulado (Victorias/Empates)
-        pa_t, pb_t = 3.5, 3.5 
         partidos = df_t.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
         for _, r in partidos.iterrows():
             if r['resultado_a'] > r['resultado_b']: pa_t += 1
             elif r['resultado_b'] > r['resultado_a']: pb_t += 1
             else: pa_t += 0.5; pb_t += 0.5
             
-        st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;margin-top:10px;">
-            <h3 style="margin:0;">MARCADOR ACUMULADO {sel_temp}</h3>
-            <div style="display:flex;justify-content:space-around; align-items:center; margin-top:15px;">
-            <div><h2 style="color:{COLOR_A}; margin:0; font-size:1.2em;">{TODOS[0]}/{TODOS[1]}</h2><h1 style="font-size:3.5em; margin:0;">{pa_t:g}</h1></div>
-            <div style="font-size:1.5em; font-weight:bold; color:#777;">VS</div>
-            <div><h2 style="color:{COLOR_B}; margin:0; font-size:1.2em;">{TODOS[2]}/{TODOS[3]}</h2><h1 style="font-size:3.5em; margin:0;">{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
-    else:
-        st.info("No hay datos registrados aún. ¡Empieza una partida!")
+    st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;margin-top:10px;">
+        <h3 style="margin:0;">MARCADOR ACTUAL {sel_temp}</h3>
+        <p style="font-size:0.8em; color:gray; margin:0;">(Base 3.5 + resultados de la temporada)</p>
+        <div style="display:flex;justify-content:space-around; align-items:center; margin-top:15px;">
+        <div><h2 style="color:{COLOR_A}; margin:0; font-size:1.2em;">{TODOS[0]}/{TODOS[1]}</h2><h1 style="font-size:3.5em; margin:0;">{pa_t:g}</h1></div>
+        <div style="font-size:1.5em; font-weight:bold; color:#777;">VS</div>
+        <div><h2 style="color:{COLOR_B}; margin:0; font-size:1.2em;">{TODOS[2]}/{TODOS[3]}</h2><h1 style="font-size:3.5em; margin:0;">{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if 'game' not in st.session_state:
