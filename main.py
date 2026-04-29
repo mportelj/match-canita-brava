@@ -74,23 +74,33 @@ def ejecutar_guardado_automatico():
 def generar_texto_whatsapp(df_p):
     f = df_p['fecha'].iloc[0]
     txt = f"⛳ *CAÑITA BRAVA - {f}*\n\n"
-    pa, pb = df_p['resultado_a'].sum(), df_p['resultado_b'].sum()
-    ma, mb = max(0, pa-pb), max(0, pb-pa)
+    
+    # 1. Resultado del Partido (Match)
+    pa_total = df_p['resultado_a'].sum()
+    pb_total = df_p['resultado_b'].sum()
+    ma, mb = max(0, pa_total - pb_total), max(0, pb_total - pa_total)
     txt += f"🏆 *MATCH:* {TODOS[0]}/{TODOS[1]} *{ma:g}* vs *{mb:g}* {TODOS[2]}/{TODOS[3]}\n\n"
     
-    txt += "🎖️ *MVP PARTIDO:*\n"
+    # 2. Puntos MVP Acumulados en el partido
+    txt += "🎖️ *PUNTOS MVP PARTIDO:*\n"
     mvps = {TODOS[i]: df_p[f'p{i+1}_pts'].sum() for i in range(4)}
     for j, (nom, p) in enumerate(sorted(mvps.items(), key=lambda x: x[1], reverse=True)):
         med = "🥇" if j==0 else "🥈" if j==1 else "🥉" if j==2 else "🎖️"
         txt += f"{med} {nom}: {p:g} pts\n"
     
-    txt += "\n📊 *TARJETA:*\n"
+    # 3. Categorías por jugador (Eagles, Birdies, Pares)
+    txt += "\n📊 *DETALLE POR JUGADOR:*\n"
     for i, jug in enumerate(TODOS):
-        c = f's{i}'
-        t = df_p[df_p[c] > 0].copy()
-        t['dif'] = t[c] - t['hoyo'].map(PAR_RIA_VIGO)
-        e = len(t[t['dif'] <= -2]); b = len(t[t['dif'] == -1]); p = len(t[t['dif'] == 0])
-        txt += f"• {jug}: {e}🦅 {b}🐥 {p}Par\n"
+        col = f's{i}'
+        # Filtramos hoyos jugados (golpes > 0)
+        t = df_p[df_p[col] > 0].copy()
+        t['par_hoyo'] = t['hoyo'].map(PAR_RIA_VIGO)
+        t['dif'] = t[col] - t['par_hoyo']
+        
+        e = len(t[t['dif'] <= -2])
+        b = len(t[t['dif'] == -1])
+        p = len(t[t['dif'] == 0])
+        txt += f"• {jug}: {e}🦅 | {b}🐥 | {p}Par\n"
     return txt
 
 # --- 4. PANTALLAS ---
@@ -193,6 +203,7 @@ elif st.session_state.menu_seleccionado == "Admin":
             dp = df[df['partido_id'] == p_id]
             with st.expander(f"📅 {dp['fecha'].iloc[0]}"):
                 c1, c2, c3 = st.columns(3)
+                # WHATSAPP REPARADO AQUÍ
                 c1.download_button("📱 WhatsApp", generar_texto_whatsapp(dp), key=f"wa_{p_id}")
                 if c2.button("✏️ Editar", key=f"ed_{p_id}"):
                     rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
