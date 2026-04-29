@@ -125,7 +125,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         s3 = cd.number_input(TODOS[2], 0, 15, v_old[2], key=f"s3_h{h}")
         s4 = cd.number_input(TODOS[3], 0, 15, v_old[3], key=f"s4_h{h}")
         
-        # --- LÓGICA DE DESHABILITAR BOTÓN ---
         s_actuales = [s1, s2, s3, s4]
         deshabilitar = ya and (s_actuales == v_old)
 
@@ -133,14 +132,29 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             ejecutar_guardado_automatico()
             st.rerun()
 
-        # --- MARCADOR DEL HOYO MÁS BONITO ---
         if ya:
             pha, phb = g['logs'][str(h)]['pts']
-            st.markdown(f"""<div style="display:flex; justify-content:center; align-items:center; gap:10px; margin:15px 0;">
+            m_h = g['logs'][str(h)]['mvp']
+            
+            # Resultado del hoyo
+            st.markdown(f"""<div style="display:flex; justify-content:center; align-items:center; gap:10px; margin:10px 0;">
                 <div style="background:{COLOR_A}; color:white; padding:5px 15px; border-radius:20px; font-weight:bold; font-size:1.1em;">{pha:g}</div>
-                <div style="color:#666; font-weight:bold;">RESULTADO HOYO</div>
+                <div style="color:#666; font-weight:bold; font-size:0.9em;">RESULTADO HOYO</div>
                 <div style="background:{COLOR_B}; color:white; padding:5px 15px; border-radius:20px; font-weight:bold; font-size:1.1em;">{phb:g}</div>
             </div>""", unsafe_allow_html=True)
+            
+            # --- NUEVO: MVP HOYO Y ACUMULADO ---
+            mvp_dia = {f"p{i+1}": sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
+            
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                st.markdown(f"<div style='font-size:0.8em; color:#888; text-align:center;'>MVP HOYO</div>", unsafe_allow_html=True)
+                txt_h = " | ".join([f"**{TODOS[i][:3]}**: {m_h[f'p{i+1}']:g}" for i in range(4)])
+                st.markdown(f"<div style='font-size:0.85em; text-align:center;'>{txt_h}</div>", unsafe_allow_html=True)
+            with col_m2:
+                st.markdown(f"<div style='font-size:0.8em; color:#888; text-align:center;'>MVP ACUM. DÍA</div>", unsafe_allow_html=True)
+                txt_a = " | ".join([f"**{TODOS[i][:3]}**: {mvp_dia[f'p{i+1}']:g}" for i in range(4)])
+                st.markdown(f"<div style='font-size:0.85em; text-align:center;'>{txt_a}</div>", unsafe_allow_html=True)
 
         pts_a = sum(v['pts'][0] for v in g['logs'].values()); pts_b = sum(v['pts'][1] for v in g['logs'].values())
         ma, mb = max(0, pts_a-pts_b), max(0, pts_b-pts_a)
