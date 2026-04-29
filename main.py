@@ -168,10 +168,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     mvps_count[TODOS[int(idx_jugador[1])-1]] += 1
         res = []
         for i, jug in enumerate(TODOS):
-            col = f's{i}'; t = df[df[col] > 0].copy(); t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO); total = len(t)
-            e, b, p = len(t[t['dif']<=-2]), len(t[t['dif']==-1]), len(t[t['dif']==0])
-            bog, dbog, tplus = len(t[t['dif']==1]), len(t[t['dif']==2]), len(t[t['dif']>=3])
-            res.append({"Jugador": jug, "MVP": int(mvps_count[jug]), "Eag": e, "Bir": b, "Par": p, "Bog": bog, "Dbg": dbog, "T+": tplus})
+            col = f's{i}'; t = df[df[col] > 0].copy(); t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO); tot = len(t)
+            def fmt(c): return f"{len(t[c])} ({len(t[c])/tot:.0%})" if tot>0 else "0"
+            res.append({"Jugador": jug, "MVP": int(mvps_count[jug]), 
+                        "Eag": fmt(t['dif']<=-2), "Bir": fmt(t['dif']==-1), "Par": fmt(t['dif']==0),
+                        "Bog": fmt(t['dif']==1), "Dbg": fmt(t['dif']==2), "T+": fmt(t['dif']>=3)})
         st.dataframe(pd.DataFrame(res).set_index("Jugador"), use_container_width=True)
 
 elif st.session_state.menu_seleccionado == "Admin":
@@ -206,22 +207,25 @@ elif st.session_state.menu_seleccionado == "Admin":
                     mvp_temp = sorted({TODOS[0]: df_t['p1_pts'].sum(), TODOS[1]: df_t['p2_pts'].sum(), TODOS[2]: df_t['p3_pts'].sum(), TODOS[3]: df_t['p4_pts'].sum()}.items(), key=lambda x: x[1], reverse=True)
                     
                     res_wa = []
-                    header = "JUG | E | B | P | Bog | Dbg | T+"
                     for i, jug in enumerate(TODOS):
                         col = f's{i}'
-                        th = dp[dp[col] > 0].copy(); th['dif'] = th[col] - th['hoyo'].map(PAR_RIA_VIGO)
-                        tt = df_t[df_t[col] > 0].copy(); tt['dif'] = tt[col] - tt['hoyo'].map(PAR_RIA_VIGO)
+                        th = dp[dp[col] > 0].copy(); th['dif'] = th[col] - th['hoyo'].map(PAR_RIA_VIGO); tot_h = len(th)
+                        tt = df_t[df_t[col] > 0].copy(); tt['dif'] = tt[col] - tt['hoyo'].map(PAR_RIA_VIGO); tot_t = len(tt)
                         
-                        def s(d): 
-                            return f"{len(d[d['dif']<=-2])}|{len(d[d['dif']==-1])}|{len(d[d['dif']==0])}|{len(d[d['dif']==1])}|{len(d[d['dif']==2])}|{len(d[d['dif']>=3])}"
+                        def l(d, t):
+                            if t == 0: return "Sin datos"
+                            e = len(d[d['dif']<=-2]); b = len(d[d['dif']==-1]); p = len(d[d['dif']==0])
+                            bog = len(d[d['dif']==1]); dbog = len(d[d['dif']==2]); tp = len(d[d['dif']>=3])
+                            return (f"E:{e}({e/t:.0%}) B:{b}({b/t:.0%}) P:{p}({p/t:.0%})\n"
+                                    f"Bog:{bog}({bog/t:.0%}) Dbg:{dbog}({dbog/t:.0%}) T+:{tp}({tp/t:.0%})")
                         
-                        res_wa.append(f"*{jug}*\nHOY: {s(th)}\nACC: {s(tt)}")
+                        res_wa.append(f"👤 *{jug}*\n📍 *HOY*:\n{l(th, tot_h)}\n🌍 *TEMP*:\n{l(tt, tot_t)}")
 
                     msg = (f"⛳ *CAÑITA BRAVA*\n📅 {fecha_p}\n\n"
                            f"🏆 *MATCH DIA*\n🟢 {EQUIPO_A_NOMBRES}: *{p_a:g}*\n🔴 {EQUIPO_B_NOMBRES}: *{p_b:g}*\n\n"
                            f"📈 *MATCH ACUM. {temp_p}*\n{EQUIPO_A_NOMBRES}: *{ac_a:g}*\n{EQUIPO_B_NOMBRES}: *{ac_b:g}*\n\n"
                            f"⭐ *MVP DIA*\n" + "\n".join([f"{n}: {p:.1f}" for n, p in mvp_d]) + f"\n\n"
                            f"🌟 *MVP TEMPORADA*\n" + "\n".join([f"{n}: {p:.1f}" for n, p in mvp_temp]) + f"\n\n"
-                           f"📊 *TABLA (E|B|P|Bog|Dbg|T+)*\n" + "\n".join(res_wa))
+                           f"🏅 *RESUMEN CATEGORÍAS*\n" + "\n\n".join(res_wa))
                     
                     st.link_button("📲 Enviar WA", f"https://wa.me/?text={urllib.parse.quote(msg)}", use_container_width=True)
