@@ -33,10 +33,9 @@ def leer_datos():
         for col in COL_NECESARIAS:
             if col not in df.columns: df[col] = 0
             
-        # LA CLAVE: Antes de devolver los datos, eliminamos cualquier duplicado por ID
-        # Esto evita que MANU tenga 3 pares si solo jugó 2 hoyos
+        # LIMPIEZA RADICAL: Solo nos quedamos con la última versión de cada hoyo (ID único)
         df['id'] = df['id'].astype(str).str.strip()
-        df = df.sort_values('id').drop_duplicates(subset=['id'], keep='last')
+        df = df.sort_values(by=['id']).drop_duplicates(subset=['id'], keep='last')
         return df
     except:
         return pd.DataFrame(columns=COL_NECESARIAS)
@@ -51,7 +50,7 @@ def calcular_puntos_hoyo(scores, hoyo_num):
         p_bonus = 2.0 if s <= par - 2 else (1.0 if s == par - 1 else 0)
         if i < 2: pa += p_bonus 
         else: pb += p_bonus
-    mvp = {f"p{i+1}": 0.0 for i in range(4)}
+    mvp = {f"p1": 0.0, "p2": 0.0, "p3": 0.0, "p4": 0.0}
     for i in range(4):
         for j in range(4):
             if i != j and v[i] < v[j]: mvp[f"p{i+1}"] += 0.5
@@ -67,6 +66,7 @@ def ejecutar_guardado_automatico():
     s = [int(st.session_state[f"s{i+1}_h{h}"]) for i in range(4)]
     pa, pb, mi = calcular_puntos_hoyo(s, h)
     
+    # Actualizar log local
     g['logs'][str(h)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
     anio_int = int(datetime.strptime(g['fecha'], "%d/%m/%Y").year)
     fila_id = f"{g['id']}_H{h}"
@@ -75,8 +75,12 @@ def ejecutar_guardado_automatico():
     
     conn = st.connection("gsheets", type=GSheetsConnection)
     st.cache_data.clear()
+    
+    # 1. Leer datos
     df_actual = leer_datos()
-    df_actual = df_actual[df_actual["id"] != fila_id] # Borra el hoyo viejo
+    # 2. Filtrar para eliminar el hoyo si ya existía (evita duplicados al editar)
+    df_actual = df_actual[df_actual["id"].astype(str) != str(fila_id)]
+    # 3. Guardar todo el bloque limpio
     df_final = pd.concat([df_actual, nueva_fila], ignore_index=True)
     conn.update(worksheet="historial", data=df_final)
     st.cache_data.clear()
@@ -87,6 +91,7 @@ if st.session_state.menu_seleccionado == "Inicio":
     df = leer_datos()
     temps = sorted(df['temporada'].unique().astype(int).tolist(), reverse=True) if not df.empty else [2026]
     sel_temp = st.selectbox("Temporada:", temps)
+    
     pa_t, pb_t = 3.5, 3.5
     if not df.empty:
         df_t = df[df['temporada'] == int(sel_temp)]
@@ -95,6 +100,7 @@ if st.session_state.menu_seleccionado == "Inicio":
             if r['resultado_a'] > r['resultado_b']: pa_t += 1
             elif r['resultado_b'] > r['resultado_a']: pb_t += 1
             else: pa_t += 0.5; pb_t += 0.5
+            
     st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;">
         <h3>MARCADOR ACUMULADO {sel_temp}</h3><div style="display:flex;justify-content:space-around;">
         <div><h2 style="color:{COLOR_A};">{TODOS[0]}/{TODOS[1]}</h2><h1>{pa_t:g}</h1></div>
@@ -114,7 +120,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if c_nav1.button("⬅️ Anterior", use_container_width=True): g['h_sel'] = max(1, h-1); st.rerun()
         if c_nav2.button("Siguiente ➡️", use_container_width=True): g['h_sel'] = min(18, h+1); st.rerun()
         
-        # GOLPES POR DEFECTO = PAR DEL HOYO
+        # GOLPES POR DEFECTO
         v_old = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
         ci, cd = st.columns(2)
         s1 = ci.number_input(TODOS[0], 0, 10, v_old[0], key=f"s1_h{h}")
@@ -126,7 +132,12 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             ejecutar_guardado_automatico()
             st.rerun()
 
-        # MARCADOR VISUAL (RESTAURADO)
+        # Marcador del hoyo actual
+        if ya:
+            pha, phb = g['logs'][str(h)]['pts']
+            st.markdown(f"<p style='text-align:center; font-weight:bold;'>Puntos Hoyo {h}: <span style='color:{COLOR_A}'>{pha:g}</span> - <span style='color:{COLOR_B}'>{phb:g}</span></p>", unsafe_allow_html=True)
+
+        # MARCADOR DEL MATCH
         pts_a = sum(v['pts'][0] for v in g['logs'].values()); pts_b = sum(v['pts'][1] for v in g['logs'].values())
         ma, mb = max(0, pts_a-pts_b), max(0, pts_b-pts_a)
         st.markdown(f"""<div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
@@ -141,6 +152,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Histórico")
     df = leer_datos()
     if not df.empty:
+        # Volvemos a limpiar por si acaso
         df_clean = df.drop_duplicates(subset=['id'])
         partidos = df_clean.groupby('partido_id').agg({'p1_pts':'sum','p2_pts':'sum','p3_pts':'sum','p4_pts':'sum'})
         mvps = {j: 0 for j in TODOS}
@@ -166,12 +178,12 @@ elif st.session_state.menu_seleccionado == "Admin":
                 p_a, p_b = dp['resultado_a'].sum(), dp['resultado_b'].sum()
                 st.write(f"**Final:** {p_a:g} - {p_b:g}")
                 c1, c2, c3 = st.columns(3)
-                if c1.button("✏️ Editar Partida", key=f"e_{p_id}", use_container_width=True):
+                if c1.button("✏️ Editar", key=f"e_{p_id}", use_container_width=True):
                     rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
                     st.session_state.game = {'fecha': fecha_p, 'h_sel': 1, 'logs': rec, 'id': str(p_id)}; st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
                 with c2:
                     with st.popover("🗑️ Borrar", use_container_width=True):
-                        if st.button("Confirmar Borrado", key=f"d_{p_id}", type="primary"):
+                        if st.button("Confirmar", key=f"d_{p_id}", type="primary"):
                             st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
                             st.cache_data.clear(); st.rerun()
                 with c3:
