@@ -7,7 +7,7 @@ from datetime import datetime
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
 PAR_RIA_VIGO = {i: p for i, p in zip(range(1, 19), [4,5,3,4,4,5,3,4,4,4,3,4,3,5,4,5,4,5])}
-TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
+TODOS = ["MANU", "JOSE", "ROGE", "LALO"] # Cambio realizado: MANUEL -> MANU
 COLOR_A, COLOR_B = "#2e7d32", "#c62828"
 
 # --- 2. GESTIÓN DE NAVEGACIÓN ---
@@ -28,6 +28,7 @@ def leer_datos():
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet="historial", ttl=0)
         if df is None or df.empty: return pd.DataFrame()
+        # Aseguramos limpieza absoluta de tipos
         cols_num = ['s0', 's1', 's2', 's3', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 'hoyo', 'resultado_a', 'resultado_b']
         for col in cols_num:
             if col in df.columns:
@@ -74,32 +75,23 @@ def ejecutar_guardado_automatico():
 def generar_texto_whatsapp(df_p):
     f = df_p['fecha'].iloc[0]
     txt = f"⛳ *CAÑITA BRAVA - {f}*\n\n"
-    
-    # 1. Resultado del Partido (Match)
-    pa_total = df_p['resultado_a'].sum()
-    pb_total = df_p['resultado_b'].sum()
-    ma, mb = max(0, pa_total - pb_total), max(0, pb_total - pa_total)
+    pa_t, pb_t = df_p['resultado_a'].sum(), df_p['resultado_b'].sum()
+    ma, mb = max(0, pa_t - pb_t), max(0, pb_t - pa_t)
     txt += f"🏆 *MATCH:* {TODOS[0]}/{TODOS[1]} *{ma:g}* vs *{mb:g}* {TODOS[2]}/{TODOS[3]}\n\n"
     
-    # 2. Puntos MVP Acumulados en el partido
-    txt += "🎖️ *PUNTOS MVP PARTIDO:*\n"
+    txt += "🎖️ *MVP PARTIDO:*\n"
     mvps = {TODOS[i]: df_p[f'p{i+1}_pts'].sum() for i in range(4)}
     for j, (nom, p) in enumerate(sorted(mvps.items(), key=lambda x: x[1], reverse=True)):
         med = "🥇" if j==0 else "🥈" if j==1 else "🥉" if j==2 else "🎖️"
         txt += f"{med} {nom}: {p:g} pts\n"
     
-    # 3. Categorías por jugador (Eagles, Birdies, Pares)
-    txt += "\n📊 *DETALLE POR JUGADOR:*\n"
+    txt += "\n📊 *ESTADÍSTICAS HOYO A HOYO:*\n"
     for i, jug in enumerate(TODOS):
         col = f's{i}'
-        # Filtramos hoyos jugados (golpes > 0)
         t = df_p[df_p[col] > 0].copy()
         t['par_hoyo'] = t['hoyo'].map(PAR_RIA_VIGO)
         t['dif'] = t[col] - t['par_hoyo']
-        
-        e = len(t[t['dif'] <= -2])
-        b = len(t[t['dif'] == -1])
-        p = len(t[t['dif'] == 0])
+        e = len(t[t['dif'] <= -2]); b = len(t[t['dif'] == -1]); p = len(t[t['dif'] == 0])
         txt += f"• {jug}: {e}🦅 | {b}🐥 | {p}Par\n"
     return txt
 
@@ -108,17 +100,17 @@ def generar_texto_whatsapp(df_p):
 if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
-    pa_t, pb_t = 3.5, 3.5
+    pa_ini, pb_ini = 3.5, 3.5
     if not df.empty:
         res = df.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
         for _, r in res.iterrows():
-            if r['resultado_a'] > r['resultado_b']: pa_t += 1
-            elif r['resultado_b'] > r['resultado_a']: pb_t += 1
-            else: pa_t += 0.5; pb_t += 0.5
+            if r['resultado_a'] > r['resultado_b']: pa_ini += 1
+            elif r['resultado_b'] > r['resultado_a']: pb_ini += 1
+            else: pa_ini += 0.5; pb_ini += 0.5
     st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;">
         <h3>TEMPORADA 2026</h3><div style="display:flex;justify-content:space-around;">
-        <div><h2 style="color:{COLOR_A};">{TODOS[0]}/{TODOS[1]}</h2><h1>{pa_t:g}</h1></div>
-        <div><h2 style="color:{COLOR_B};">{TODOS[2]}/{TODOS[3]}</h2><h1>{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
+        <div><h2 style="color:{COLOR_A};">{TODOS[0]}/{TODOS[1]}</h2><h1>{pa_ini:g}</h1></div>
+        <div><h2 style="color:{COLOR_B};">{TODOS[2]}/{TODOS[3]}</h2><h1>{pb_ini:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if 'game' not in st.session_state:
@@ -156,23 +148,20 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             <div style="flex:1; border:3px solid {COLOR_B}; border-radius:15px; padding:10px; text-align:center; background:#fef2f2;">
             <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{mb:g}</div></div></div>""", unsafe_allow_html=True)
         
-        # MARCADOR HOYO ACTUAL
         if ya:
             hp = g['logs'][str(h)]['pts']
-            st.markdown(f"<div style='text-align:center; background:#eee; padding:5px; border-radius:5px;'><b>Hoyo {h}:</b> {hp[0]:g} — {hp[1]:g}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='text-align:center; background:#eee; padding:5px; border-radius:5px; margin-bottom:10px;'><b>Puntos Hoyo {h}:</b> {hp[0]:g} — {hp[1]:g}</div>", unsafe_allow_html=True)
 
-        # POPOVERS MVP
         c1, c2 = st.columns(2)
         with c1:
-            with st.popover("🎯 MVP Hoyo", use_container_width=True):
+            with st.popover("🎯 Clasif. Hoyo", use_container_width=True):
                 if ya:
-                    df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": g['logs'][str(h)]['mvp'][f"p{i+1}"]} for i in range(4)]).sort_values("Pts", ascending=False)
-                    st.table(df_h)
+                    st.table(pd.DataFrame([{"Jugador": TODOS[i], "Pts": g['logs'][str(h)]['mvp'][f"p{i+1}"]} for i in range(4)]).sort_values("Pts", ascending=False))
                 else: st.info("Hoyo no guardado")
         with c2:
-            with st.popover("🏆 MVP Partido", use_container_width=True):
-                mvps = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
-                st.table(pd.DataFrame(mvps.items(), columns=["Jugador", "Pts"]).sort_values("Pts", ascending=False))
+            with st.popover("🏆 Clasif. Acumulada", use_container_width=True):
+                mvp_ac = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
+                st.table(pd.DataFrame(mvp_ac.items(), columns=["Jugador", "Pts"]).sort_values("Pts", ascending=False))
 
         if st.button("🏁 Finalizar Partida", type="secondary", use_container_width=True): del st.session_state.game; st.rerun()
 
@@ -181,29 +170,35 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     df = leer_datos()
     if df.empty: st.info("Sin datos.")
     else:
-        mvp_p = df.groupby('partido_id').agg({'p1_pts':'sum','p2_pts':'sum','p3_pts':'sum','p4_pts':'sum'})
-        c_mvp = {j: 0 for j in TODOS}
-        for _, f in mvp_p.iterrows():
+        # Conteos de MVPs por partido
+        partidos = df.groupby('partido_id').agg({'p1_pts':'sum','p2_pts':'sum','p3_pts':'sum','p4_pts':'sum'})
+        mvp_counts = {j: 0 for j in TODOS}
+        for _, f in partidos.iterrows():
             m = f.max()
             if m > 0:
-                for idx in f[f == m].index: c_mvp[TODOS[int(idx[1])-1]] += 1
-        tabla = []
-        for i, j in enumerate(TODOS):
+                for idx in f[f == m].index: mvp_counts[TODOS[int(idx[1])-1]] += 1
+        
+        res_list = []
+        for i, jug in enumerate(TODOS):
             col = f's{i}'
             t = df[df[col] > 0].copy()
-            t['diff'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
-            tabla.append({"Jugador": j, "MVP": int(c_mvp[j]), "Eagle": len(t[t['diff'] <= -2]), "Birdie": len(t[t['diff'] == -1]), "Par": len(t[t['diff'] == 0]), "Bogey": len(t[t['diff'] == 1]), "D.Bogey": len(t[t['diff'] == 2]), "+D.Bogey": len(t[t['diff'] > 2])})
-        st.table(pd.DataFrame(tabla).set_index("Jugador"))
+            t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
+            res_list.append({
+                "Jugador": jug, "MVP": int(mvp_counts[jug]),
+                "Eagle": len(t[t['dif'] <= -2]), "Birdie": len(t[t['dif'] == -1]),
+                "Par": len(t[t['dif'] == 0]), "Bogey": len(t[t['dif'] == 1]),
+                "D.Bogey": len(t[t['dif'] == 2]), "+D.Bogey": len(t[t['dif'] > 2])
+            })
+        st.table(pd.DataFrame(res_list).set_index("Jugador"))
 
 elif st.session_state.menu_seleccionado == "Admin":
-    st.title("⚙️ Admin")
+    st.title("⚙️ Panel Control")
     df = leer_datos()
     if not df.empty:
         for p_id in df['partido_id'].unique()[::-1]:
             dp = df[df['partido_id'] == p_id]
             with st.expander(f"📅 {dp['fecha'].iloc[0]}"):
                 c1, c2, c3 = st.columns(3)
-                # WHATSAPP REPARADO AQUÍ
                 c1.download_button("📱 WhatsApp", generar_texto_whatsapp(dp), key=f"wa_{p_id}")
                 if c2.button("✏️ Editar", key=f"ed_{p_id}"):
                     rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
