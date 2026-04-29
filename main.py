@@ -132,7 +132,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     
     if 'game' not in st.session_state:
         st.subheader("Nueva Partida")
-        # FORMATO DE FECHA dd/mm/aaaa EN EL SELECTOR
         f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
         if st.button("🚀 Iniciar Partida", use_container_width=True):
             st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'h_sel': 1, 'logs': {}, 'id': f.strftime("%Y%m%d")}
@@ -147,6 +146,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if c_nav1.button("⬅️ Anterior", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = max(1, h-1); st.rerun()
         if c_nav2.button("Siguiente ➡️", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = min(18, h+1); st.rerun()
         
+        # --- ENTRADA DE RESULTADOS ---
         v_guardados = g['logs'][str(h)]['s'] if str(h) in g['logs'] else [PAR_RIA_VIGO[h]]*4
         c_izq, c_der = st.columns(2)
         with c_izq:
@@ -165,14 +165,22 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.toast("✅ Guardado")
 
         if g['logs']:
+            # 1. MARCADOR DEL MATCH (GRANDE)
             total_a, total_b = sum(v['pts'][0] for v in g['logs'].values()), sum(v['pts'][1] for v in g['logs'].values())
             m_a, m_b = max(0, total_a - total_b), max(0, total_b - total_a)
-            st.markdown(f"""<div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:15px;">
+            st.markdown(f"<h4 style='text-align:center; margin-bottom:5px; color:#666;'>Marcador del Match</h4>", unsafe_allow_html=True)
+            st.markdown(f"""<div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-bottom:20px;">
                 <div style="flex:1; border:3px solid {COLOR_A}; border-radius:12px; padding:10px; text-align:center; background:#f1f8f1;">
                 <span style="font-weight:900; color:{COLOR_A}; font-size:0.8em;">{TODOS[0]}/{TODOS[1]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_A};">{m_a:g}</div></div>
                 <div style="font-weight:900; color:#999;">VS</div>
                 <div style="flex:1; border:3px solid {COLOR_B}; border-radius:12px; padding:10px; text-align:center; background:#fef2f2;">
                 <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{m_b:g}</div></div></div>""", unsafe_allow_html=True)
+            
+            # 2. MARCADOR DEL HOYO (PEQUEÑO)
+            h_pts = g['logs'][str(h)]['pts'] if str(h) in g['logs'] else (0,0)
+            st.markdown(f"""<div style="display:flex; justify-content:center; gap:20px; background:#f0f2f6; border-radius:10px; padding:8px; margin-bottom:15px; border:1px solid #ddd;">
+                <div style="text-align:center;"><span style="font-size:0.8em; color:#666;">Hoyo {h}: </span><b style="color:{COLOR_A}; font-size:1.1em;">{h_pts[0]:g}</b></div>
+                <div style="text-align:center;"><span style="font-size:0.8em; color:#666;">Hoyo {h}: </span><b style="color:{COLOR_B}; font-size:1.1em;">{h_pts[1]:g}</b></div></div>""", unsafe_allow_html=True)
             
             c1, c2 = st.columns(2)
             with c1:
