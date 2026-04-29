@@ -15,11 +15,8 @@ PUNTOS_INICIO = {"2026": (3.5, 3.5)}
 if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-def cambiar_menu(nuevo_destino=None):
-    if nuevo_destino:
-        st.session_state.menu_seleccionado = nuevo_destino
-    else:
-        st.session_state.menu_seleccionado = st.session_state.radio_menu
+def cambiar_menu():
+    st.session_state.menu_seleccionado = st.session_state.radio_menu
 
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Estadísticas", "Admin"], 
                         index=["Inicio", "Jugar/Editar", "Estadísticas", "Admin"].index(st.session_state.menu_seleccionado),
@@ -124,11 +121,19 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         g = st.session_state.game
         h = g['h_sel']
         ya_guardado = str(h) in g['logs']
+        
         st.markdown(f"""<div style="background-color:#2c3e50; padding:10px; border-radius:10px; text-align:center; color:white; margin-bottom:10px;">
             <h2 style="margin:0; color:#ecf0f1; font-size:1.5em;">HOYO {h} (PAR {PAR_RIA_VIGO[h]})</h2></div>""", unsafe_allow_html=True)
+        
         c_nav1, c_nav2 = st.columns(2)
-        if c_nav1.button("⬅️ Anterior", key="nav_up_prev", use_container_width=True): g['h_sel'] = max(1, h-1); st.rerun()
-        if c_nav2.button("Siguiente ➡️", key="nav_up_next", use_container_width=True): g['h_sel'] = min(18, h+1); st.rerun()
+        # RESTAURADO: Autoguardado al navegar
+        if c_nav1.button("⬅️ Anterior", key="nav_up_prev", use_container_width=True): 
+            ejecutar_guardado_automatico()
+            g['h_sel'] = max(1, h-1); st.rerun()
+        if c_nav2.button("Siguiente ➡️", key="nav_up_next", use_container_width=True): 
+            ejecutar_guardado_automatico()
+            g['h_sel'] = min(18, h+1); st.rerun()
+        
         v_guardados = g['logs'][str(h)]['s'] if ya_guardado else [PAR_RIA_VIGO[h]]*4
         c_izq, c_der = st.columns(2)
         with c_izq:
@@ -141,37 +146,60 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             s3 = st.number_input(TODOS[2], 0, 10, v_guardados[2], key=f"s3_h{h}", label_visibility="collapsed")
             st.markdown(f"<p style='color:{COLOR_B}; font-weight:900; margin-top:10px; margin-bottom:0;'>{TODOS[3]}</p>", unsafe_allow_html=True)
             s4 = st.number_input(TODOS[3], 0, 10, v_guardados[3], key=f"s4_h{h}", label_visibility="collapsed")
+        
         if ya_guardado:
             st.button("✅ Hoyo Registrado", disabled=True, use_container_width=True)
         else:
             if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
-                ejecutar_guardado_automatico(); st.toast("✅ Hoyo Guardado"); st.rerun()
+                ejecutar_guardado_automatico(); st.toast("✅ Guardado"); st.rerun()
+
+        # Marcadores
         puntos_hoy_a = sum(v['pts'][0] for v in g['logs'].values()) if g['logs'] else 0
         puntos_hoy_b = sum(v['pts'][1] for v in g['logs'].values()) if g['logs'] else 0
         m_a, m_b = max(0, puntos_hoy_a - puntos_hoy_b), max(0, puntos_hoy_b - puntos_hoy_a)
+        
         st.markdown(f"<h4 style='text-align:center; color:#666;'>Marcador Match (Hoy)</h4>", unsafe_allow_html=True)
         st.markdown(f"""<div style="display:flex; gap:8px; justify-content:center; margin-bottom:20px;">
             <div style="flex:1; border:3px solid {COLOR_A}; border-radius:12px; padding:10px; text-align:center; background:#f1f8f1;">
             <span style="font-weight:900; color:{COLOR_A}; font-size:0.8em;">{TODOS[0]}/{TODOS[1]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_A};">{m_a:g}</div></div>
             <div style="flex:1; border:3px solid {COLOR_B}; border-radius:12px; padding:10px; text-align:center; background:#fef2f2;">
             <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{m_b:g}</div></div></div>""", unsafe_allow_html=True)
+
         if ya_guardado:
             h_pts = g['logs'][str(h)]['pts']
-            html_puntos = f"""<div style="display:flex; justify-content:space-around;"><b>{h_pts[0]:g}</b> — <b>{h_pts[1]:g}</b></div>"""
+            html_puntos = f"""<div style="display:flex; justify-content:space-around; align-items:center;">
+                <b style="color:{COLOR_A}; font-size:1.3em;">{h_pts[0]:g}</b><span style="color:#999;">—</span><b style="color:{COLOR_B}; font-size:1.3em;">{h_pts[1]:g}</b>
+            </div>"""
         else:
             html_puntos = "Hoyo No Guardado"
-        st.markdown(f"""<div style="background:#f0f2f6; padding:12px; border-radius:10px; text-align:center;">{html_puntos}</div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div style="background:#f0f2f6; padding:12px; border-radius:10px; text-align:center; margin-bottom:10px;">{html_puntos}</div>""", unsafe_allow_html=True)
+
+        # RESTAURADO: Desglose de MVP (Hoyo y Partido)
+        c1, c2 = st.columns(2)
+        with c1:
+            with st.popover("🎯 MVP Hoyo", use_container_width=True):
+                if ya_guardado:
+                    df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": g['logs'][str(h)]['mvp'][f"p{i+1}"]} for i in range(4)]).sort_values("Pts", ascending=False)
+                    st.table(df_h.style.format({"Pts": "{:.1f}"}))
+                else: st.info("Hoyo no guardado.")
+        with c2:
+            with st.popover("🏆 MVP Partido", use_container_width=True):
+                p_mvp = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
+                df_p = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in p_mvp.items()]).sort_values("Pts", ascending=False)
+                st.table(df_p.style.format({"Pts": "{:.1f}"}))
+
+        st.divider()
         if st.button("🏁 Finalizar Partida", type="secondary", use_container_width=True): 
             if 'game' in st.session_state: del st.session_state.game
             st.rerun()
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
-    st.title("📊 Estadísticas de Jugadores")
+    st.title("📊 Estadísticas")
     df = leer_datos()
     if df.empty:
         st.info("No hay datos históricos.")
     else:
-        # MVP Partidos (agrupar por id de partido)
+        # Lógica de MVP Partido (agrupando por jornada)
         mvp_partidos = df.groupby('partido_id').agg({'p1_pts':'sum', 'p2_pts':'sum', 'p3_pts':'sum', 'p4_pts':'sum'})
         conteo_mvp = {jugador: 0 for jugador in TODOS}
         for _, fila in mvp_partidos.iterrows():
@@ -180,7 +208,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 ganadores = fila[fila == max_p].index.tolist()
                 for g in ganadores: conteo_mvp[TODOS[int(g[1]) - 1]] += 1
 
-        # Golpes
         stats = []
         for i, jugador in enumerate(TODOS):
             s_col = f's{i}'
@@ -204,13 +231,10 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
         # Menciones con soporte para EMPATES
         c1, c2 = st.columns(2)
-        
-        # Rey del Birdie (Empates)
         max_birdies = df_final['Birdie'].max()
         reyes_birdie = df_final[df_final['Birdie'] == max_birdies].index.tolist()
         c1.metric("Rey del Birdie 🐥", ", ".join(reyes_birdie) if max_birdies > 0 else "-", f"{max_birdies} Birdies")
 
-        # Más MVP (Empates)
         max_mvps = df_final['MVP Part.'].max()
         reyes_mvp = df_final[df_final['MVP Part.'] == max_mvps].index.tolist()
         c2.metric("Más MVP Partido 🏆", ", ".join(reyes_mvp) if max_mvps > 0 else "-", f"{max_mvps} Veces")
