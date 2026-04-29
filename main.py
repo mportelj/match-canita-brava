@@ -3,13 +3,12 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
-# --- 1. CONFIGURACIÓN Y ESTILO ---
+# --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
 PAR_RIA_VIGO = {i: p for i, p in zip(range(1, 19), [4,5,3,4,4,5,3,4,4,4,3,4,3,5,4,5,4,5])}
 TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
 COLOR_A, COLOR_B = "#2e7d32", "#c62828"
-PUNTOS_INICIO = {"2026": (3.5, 3.5)} 
 
 # --- 2. GESTIÓN DE NAVEGACIÓN ---
 if "menu_seleccionado" not in st.session_state:
@@ -29,12 +28,15 @@ def leer_datos():
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet="historial", ttl=0)
         if df is None or df.empty: return pd.DataFrame()
-        df = df.dropna(subset=['id'])
-        df['temporada'] = pd.to_numeric(df['temporada'], errors='coerce').fillna(0).astype(int).astype(str)
-        for col in ['s0', 's1', 's2', 's3', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts']:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        # Asegurar que las columnas numéricas sean correctas
+        cols_num = ['s0', 's1', 's2', 's3', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 'hoyo', 'resultado_a', 'resultado_b']
+        for col in cols_num:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
         return df
-    except: return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error cargando datos: {e}")
+        return pd.DataFrame()
 
 def guardar_hoyo_db(df_fila):
     try:
@@ -74,20 +76,21 @@ def ejecutar_guardado_automatico():
     if 'game' not in st.session_state: return
     g = st.session_state.game
     h = g['h_sel']
-    s1, s2 = st.session_state.get(f"s1_h{h}", PAR_RIA_VIGO[h]), st.session_state.get(f"s2_h{h}", PAR_RIA_VIGO[h])
-    s3, s4 = st.session_state.get(f"s3_h{h}", PAR_RIA_VIGO[h]), st.session_state.get(f"s4_h{h}", PAR_RIA_VIGO[h])
+    s1 = st.session_state.get(f"s1_h{h}", PAR_RIA_VIGO[h])
+    s2 = st.session_state.get(f"s2_h{h}", PAR_RIA_VIGO[h])
+    s3 = st.session_state.get(f"s3_h{h}", PAR_RIA_VIGO[h])
+    s4 = st.session_state.get(f"s4_h{h}", PAR_RIA_VIGO[h])
     golpes = [s1, s2, s3, s4]
     pa, pb, mi = calcular_puntos_hoyo(golpes, h)
     g['logs'][str(h)] = {'s': golpes, 'pts': (pa, pb), 'mvp': mi}
-    anio_partida = str(datetime.strptime(g['fecha'], "%d/%m/%Y").year)
-    fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": anio_partida, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
+    anio = str(datetime.strptime(g['fecha'], "%d/%m/%Y").year)
+    fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": anio, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
     guardar_hoyo_db(fila)
 
 def generar_texto_whatsapp_desde_df(df_partido):
     fecha = df_partido['fecha'].iloc[0]
     txt = f"⛳ *CAÑITA BRAVA - {fecha}*\n\n"
-    pts_a = df_partido['resultado_a'].sum()
-    pts_b = df_partido['resultado_b'].sum()
+    pts_a, pts_b = df_partido['resultado_a'].sum(), df_partido['resultado_b'].sum()
     m_a, m_b = max(0, pts_a - pts_b), max(0, pts_b - pts_a)
     txt += f"🏆 *MATCH:* {TODOS[0]}/{TODOS[1]} *{m_a:g}* vs *{m_b:g}* {TODOS[2]}/{TODOS[3]}\n\n"
     p_mvp = {TODOS[i]: df_partido[f'p{i+1}_pts'].sum() for i in range(4)}
@@ -103,21 +106,15 @@ def generar_texto_whatsapp_desde_df(df_partido):
 if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
-    anios_db = df['temporada'].unique().tolist() if not df.empty else []
-    anio_hoy = str(datetime.now().year)
-    if anio_hoy not in anios_db: anios_db.append(anio_hoy)
-    anios_finales = sorted(list(set(anios_db)), reverse=True)
-    temp_sel = st.selectbox("📅 Temporada:", anios_finales, index=anios_finales.index(anio_hoy))
-    p_ini_a, p_ini_b = PUNTOS_INICIO.get(temp_sel, (0.0, 0.0))
-    df_temp = df[df['temporada'] == temp_sel] if not df.empty else pd.DataFrame()
-    if not df_temp.empty:
-        res = df_temp.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
+    p_ini_a, p_ini_b = 3.5, 3.5 # Base temporada 2026
+    if not df.empty:
+        res = df.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
         for _, r in res.iterrows():
             if r['resultado_a'] > r['resultado_b']: p_ini_a += 1
             elif r['resultado_b'] > r['resultado_a']: p_ini_b += 1
             else: p_ini_a += 0.5; p_ini_b += 0.5
     st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;">
-        <h3>TEMPORADA {temp_sel}</h3><div style="display:flex;justify-content:space-around;">
+        <h3>TEMPORADA 2026</h3><div style="display:flex;justify-content:space-around;">
         <div><h2 style="color:{COLOR_A};">{TODOS[0]}/{TODOS[1]}</h2><h1>{p_ini_a:g}</h1></div>
         <div><h2 style="color:{COLOR_B};">{TODOS[2]}/{TODOS[3]}</h2><h1>{p_ini_b:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
@@ -161,73 +158,52 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         st.divider()
         if st.button("🏁 Finalizar Partida", type="secondary", use_container_width=True): del st.session_state.game; st.rerun()
 
-# --- REEMPLAZA SOLO LA SECCIÓN DE ESTADÍSTICAS CON ESTA ---
-
 elif st.session_state.menu_seleccionado == "Estadísticas":
-    st.title("📊 Estadísticas Históricas")
-    
-    # Forzamos la actualización de datos para que no use caché vieja
+    st.title("📊 Estadísticas Detalladas")
     df = leer_datos()
-    
-    if df.empty: 
-        st.info("No hay datos registrados todavía.")
+    if df.empty:
+        st.warning("No hay datos suficientes para generar estadísticas.")
     else:
-        # 1. Cálculo de MVPs (Partidos Ganados como MVP)
+        # Cálculo de MVPs
         mvp_partidos = df.groupby('partido_id').agg({'p1_pts':'sum','p2_pts':'sum','p3_pts':'sum','p4_pts':'sum'})
         conteo_mvp = {jugador: 0 for jugador in TODOS}
         for _, fila in mvp_partidos.iterrows():
-            m = fila.max()
-            if m > 0:
-                ganadores = fila[fila == m].index.tolist()
-                for g in ganadores:
-                    conteo_mvp[TODOS[int(g[1])-1]] += 1
-        
-        # 2. Construcción de la tabla de detalles (Eagle, Birdie, Par, etc.)
-        stats = []
+            max_p = fila.max()
+            if max_p > 0:
+                for idx in fila[fila == max_p].index:
+                    conteo_mvp[TODOS[int(idx[1])-1]] += 1
+
+        # Construcción de la tabla
+        final_stats = []
         for i, jug in enumerate(TODOS):
-            col_jugador = f's{i}'
-            # Filtramos solo los hoyos que tienen golpes registrados para ese jugador
-            temp = df[df[col_jugador] > 0].copy()
-            
-            # Calculamos la diferencia contra el par de cada hoyo
-            temp['par_hoyo'] = temp['hoyo'].map(PAR_RIA_VIGO)
-            temp['diff'] = temp[col_jugador] - temp['par_hoyo']
-            
-            stats.append({
+            col_s = f's{i}'
+            # Filtro: solo donde el jugador tiene golpes anotados
+            datos_j = df[df[col_s] > 0].copy()
+            datos_j['par'] = datos_j['hoyo'].map(PAR_RIA_VIGO)
+            datos_j['dif'] = datos_j[col_s] - datos_j['par']
+
+            final_stats.append({
                 "Jugador": jug,
-                "MVP": conteo_mvp[jug],
-                "Eagle/-": int(len(temp[temp['diff'] <= -2])),
-                "Birdie": int(len(temp[temp['diff'] == -1])),
-                "Par": int(len(temp[temp['diff'] == 0])),
-                "Bogey": int(len(temp[temp['diff'] == 1])),
-                "D.Bogey": int(len(temp[temp['diff'] == 2])),
-                "+D.Bogey": int(len(temp[temp['diff'] > 2]))
+                "MVP": int(conteo_mvp[jug]),
+                "Eagle/-": int(len(datos_j[datos_j['dif'] <= -2])),
+                "Birdie": int(len(datos_j[datos_j['dif'] == -1])),
+                "Par": int(len(datos_j[datos_j['dif'] == 0])),
+                "Bogey": int(len(datos_j[datos_j['dif'] == 1])),
+                "D.Bogey": int(len(datos_j[datos_j['dif'] == 2])),
+                "+D.Bogey": int(len(datos_j[datos_j['dif'] > 2]))
             })
         
-        # 3. Mostrar la tabla
-        df_final = pd.DataFrame(stats).set_index("Jugador")
-        
-        # Usamos st.table para que se vean SIEMPRE todas las columnas
-        st.table(df_final)
+        st.table(pd.DataFrame(final_stats).set_index("Jugador"))
         
         st.divider()
-        
-        # 4. Menciones de honor con soporte para empates
         c1, c2 = st.columns(2)
-        
-        max_b = df_final['Birdie'].max()
-        if max_b > 0:
-            reyes_b = df_final[df_final['Birdie'] == max_b].index.tolist()
-            c1.metric("Rey del Birdie 🐥", ", ".join(reyes_b), f"{max_b} Birdies")
-        else:
-            c1.metric("Rey del Birdie 🐥", "-", "0 Birdies")
-            
-        max_m = df_final['MVP'].max()
-        if max_m > 0:
-            reyes_m = df_final[df_final['MVP'] == max_m].index.tolist()
-            c2.metric("Más MVP 🏆", ", ".join(reyes_m), f"{max_m} Veces")
-        else:
-            c2.metric("Más MVP 🏆", "-", "0 MVPs")
+        df_f = pd.DataFrame(final_stats).set_index("Jugador")
+        max_b = df_f['Birdie'].max()
+        reyes_b = df_f[df_f['Birdie'] == max_b].index.tolist()
+        c1.metric("Rey del Birdie 🐥", ", ".join(reyes_b), f"{max_b} Birdies")
+        max_m = df_f['MVP'].max()
+        reyes_m = df_f[df_f['MVP'] == max_m].index.tolist()
+        c2.metric("Más MVP 🏆", ", ".join(reyes_m), f"{max_m} Veces")
 
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Admin")
@@ -237,10 +213,10 @@ elif st.session_state.menu_seleccionado == "Admin":
             dp = df[df['partido_id'] == p_id]
             with st.expander(f"📅 {dp['fecha'].iloc[0]}"):
                 c1, c2, c3 = st.columns(3)
-                msg_wa = generar_texto_whatsapp_desde_df(dp)
-                c1.download_button("📱 WhatsApp", msg_wa, file_name=f"partida_{p_id}.txt", key=f"wa_{p_id}")
+                wa_txt = generar_texto_whatsapp_desde_df(dp)
+                c1.download_button("📱 WhatsApp", wa_txt, key=f"wa_{p_id}")
                 if c2.button("✏️ Editar", key=f"ed_{p_id}"):
-                    rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
+                    rec = {str(int(f['hoyo'])): {'s':[f['s0'],f['s1'],f['s2'],f['s3']], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
                     st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': str(p_id)}
                     st.session_state.menu_seleccionado = "Jugar/Editar"
                     st.rerun()
