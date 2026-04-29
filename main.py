@@ -21,7 +21,6 @@ def cambiar_menu(nuevo_destino=None):
     else:
         st.session_state.menu_seleccionado = st.session_state.radio_menu
 
-# Añadimos "Estadísticas" al menú lateral
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Estadísticas", "Admin"], 
                         index=["Inicio", "Jugar/Editar", "Estadísticas", "Admin"].index(st.session_state.menu_seleccionado),
                         key="radio_menu", on_change=cambiar_menu)
@@ -34,7 +33,10 @@ def leer_datos():
         df = conn.read(worksheet="historial", ttl=0)
         if df is None or df.empty: return pd.DataFrame()
         df = df.dropna(subset=['id'])
+        # Asegurar tipos de datos correctos
         df['temporada'] = pd.to_numeric(df['temporada'], errors='coerce').fillna(0).astype(int).astype(str)
+        for col in ['s0', 's1', 's2', 's3', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts']:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
         return df
     except:
         return pd.DataFrame()
@@ -122,14 +124,16 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     else:
         g = st.session_state.game
         h = g['h_sel']
+        ya_guardado = str(h) in g['logs']
+        
         st.markdown(f"""<div style="background-color:#2c3e50; padding:10px; border-radius:10px; text-align:center; color:white; margin-bottom:10px;">
             <h2 style="margin:0; color:#ecf0f1; font-size:1.5em;">HOYO {h} (PAR {PAR_RIA_VIGO[h]})</h2></div>""", unsafe_allow_html=True)
         
         c_nav1, c_nav2 = st.columns(2)
-        if c_nav1.button("⬅️ Anterior", key="nav_up_prev", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = max(1, h-1); st.rerun()
-        if c_nav2.button("Siguiente ➡️", key="nav_up_next", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = min(18, h+1); st.rerun()
+        if c_nav1.button("⬅️ Anterior", key="nav_up_prev", use_container_width=True): g['h_sel'] = max(1, h-1); st.rerun()
+        if c_nav2.button("Siguiente ➡️", key="nav_up_next", use_container_width=True): g['h_sel'] = min(18, h+1); st.rerun()
         
-        v_guardados = g['logs'][str(h)]['s'] if str(h) in g['logs'] else [PAR_RIA_VIGO[h]]*4
+        v_guardados = g['logs'][str(h)]['s'] if ya_guardado else [PAR_RIA_VIGO[h]]*4
         c_izq, c_der = st.columns(2)
         with c_izq:
             st.markdown(f"<p style='color:{COLOR_A}; font-weight:900; margin-bottom:0;'>{TODOS[0]}</p>", unsafe_allow_html=True)
@@ -142,16 +146,21 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.markdown(f"<p style='color:{COLOR_B}; font-weight:900; margin-top:10px; margin-bottom:0;'>{TODOS[3]}</p>", unsafe_allow_html=True)
             s4 = st.number_input(TODOS[3], 0, 10, v_guardados[3], key=f"s4_h{h}", label_visibility="collapsed")
         
-        if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
-            ejecutar_guardado_automatico()
-            st.toast("✅ Guardado")
-            st.rerun()
+        # --- BOTÓN GUARDAR DINÁMICO ---
+        if ya_guardado:
+            st.button("✅ Hoyo Registrado", disabled=True, use_container_width=True)
+            st.caption("Para modificar este hoyo, cambia los valores y pulsa 'Siguiente/Anterior' para auto-guardar (experimental) o usa Admin.")
+        else:
+            if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
+                ejecutar_guardado_automatico()
+                st.toast("✅ Hoyo Guardado")
+                st.rerun()
 
         puntos_hoy_a = sum(v['pts'][0] for v in g['logs'].values()) if g['logs'] else 0
         puntos_hoy_b = sum(v['pts'][1] for v in g['logs'].values()) if g['logs'] else 0
         m_a, m_b = max(0, puntos_hoy_a - puntos_hoy_b), max(0, puntos_hoy_b - puntos_hoy_a)
         
-        st.markdown(f"<h4 style='text-align:center; margin-bottom:5px; color:#666;'>Marcador del Match (Hoy)</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4 style='text-align:center; margin-bottom:5px; color:#666;'>Marcador Match (Hoy)</h4>", unsafe_allow_html=True)
         st.markdown(f"""<div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-bottom:20px;">
             <div style="flex:1; border:3px solid {COLOR_A}; border-radius:12px; padding:10px; text-align:center; background:#f1f8f1;">
             <span style="font-weight:900; color:{COLOR_A}; font-size:0.8em;">{TODOS[0]}/{TODOS[1]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_A};">{m_a:g}</div></div>
@@ -159,13 +168,13 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             <div style="flex:1; border:3px solid {COLOR_B}; border-radius:12px; padding:10px; text-align:center; background:#fef2f2;">
             <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{m_b:g}</div></div></div>""", unsafe_allow_html=True)
 
-        if str(h) in g['logs']:
+        if ya_guardado:
             h_pts = g['logs'][str(h)]['pts']
             html_puntos = f"""<div style="display:flex; justify-content:space-around; align-items:center;">
                 <b style="color:{COLOR_A}; font-size:1.3em;">{h_pts[0]:g}</b><span style="color:#999;">—</span><b style="color:{COLOR_B}; font-size:1.3em;">{h_pts[1]:g}</b>
             </div>"""
         else:
-            html_puntos = f"<div style='color:#999; font-style:italic; font-size:1.1em;'>Hoyo No Jugado</div>"
+            html_puntos = f"<div style='color:#999; font-style:italic; font-size:1.1em;'>Hoyo No Guardado</div>"
 
         st.markdown(f"""<div style="background:#f0f2f6; border-radius:10px; padding:12px; margin-bottom:15px; border:1px solid #ddd; text-align:center;">
             <div style="font-size:0.85em; color:#555; margin-bottom:8px; font-weight:bold; letter-spacing:1px; border-bottom:1px solid #ccc; padding-bottom:5px;">PUNTOS HOYO {h}</div>
@@ -174,10 +183,10 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         c1, c2 = st.columns(2)
         with c1:
             with st.popover("🎯 MVP Hoyo", use_container_width=True):
-                if str(h) in g['logs']:
+                if ya_guardado:
                     df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": g['logs'][str(h)]['mvp'][f"p{i+1}"]} for i in range(4)]).sort_values("Pts", ascending=False)
                     st.table(df_h.style.format({"Pts": "{:.1f}"}))
-                else: st.info("Hoyo no jugado.")
+                else: st.info("Hoyo no guardado.")
         with c2:
             with st.popover("🏆 MVP Partido", use_container_width=True):
                 p_mvp = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
@@ -193,10 +202,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas de Jugadores")
     df = leer_datos()
     if df.empty:
-        st.info("Aún no hay datos históricos para mostrar estadísticas.")
+        st.info("No hay datos históricos.")
     else:
-        # --- Cálculo de MVP del Partido ---
-        # Sumamos puntos de MVP por jugador en cada partido_id
         mvp_partidos = df.groupby('partido_id').agg({
             'p1_pts':'sum', 'p2_pts':'sum', 'p3_pts':'sum', 'p4_pts':'sum'
         })
@@ -205,21 +212,17 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         for _, fila in mvp_partidos.iterrows():
             max_puntos = fila.max()
             if max_puntos > 0:
-                # Puede haber empates en el MVP del partido
                 ganadores = fila[fila == max_puntos].index.tolist()
                 for g in ganadores:
-                    idx = int(g[1]) - 1 # de 'p1_pts' sacamos el 0
+                    idx = int(g[1]) - 1
                     conteo_mvp_partido[TODOS[idx]] += 1
 
-        # --- Cálculo de Golpes (Birdies, Pares...) ---
         stats_golpes = []
         for i, jugador in enumerate(TODOS):
             s_col = f's{i}'
             golpes_jug = df[['hoyo', s_col]].copy()
             golpes_jug['par'] = golpes_jug['hoyo'].map(PAR_RIA_VIGO)
             golpes_jug['diff'] = golpes_jug[s_col] - golpes_jug['par']
-            
-            # Filtramos solo hoyos jugados (golpes > 0)
             golpes_jug = golpes_jug[golpes_jug[s_col] > 0]
             
             stats_golpes.append({
@@ -233,41 +236,31 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "+D.Bogey": len(golpes_jug[golpes_jug['diff'] > 2])
             })
         
-        df_stats = pd.DataFrame(stats_golpes)
-        
-        # Mostrar Tabla General
-        st.subheader("Histórico Total")
-        st.dataframe(df_stats.set_index("Jugador"), use_container_width=True)
-        
-        # Menciones especiales
+        st.dataframe(pd.DataFrame(stats_golpes).set_index("Jugador"), use_container_width=True)
         st.divider()
-        col1, col2 = st.columns(2)
-        with col1:
-            top_birdie = df_stats.loc[df_stats['Birdie'].idxmax()]
-            st.metric("Rey del Birdie 🐥", top_birdie['Jugador'], f"{top_birdie['Birdie']} Birdies")
-        with col2:
-            top_mvp = df_stats.loc[df_stats['MVP Part.'].idxmax()]
-            st.metric("Más MVP Partido 🏆", top_mvp['Jugador'], f"{top_mvp['MVP Part.']} Veces")
+        c1, c2 = st.columns(2)
+        top_birdie = pd.DataFrame(stats_golpes).loc[pd.DataFrame(stats_golpes)['Birdie'].idxmax()]
+        c1.metric("Rey del Birdie 🐥", top_birdie['Jugador'], f"{top_birdie['Birdie']} Birdies")
+        top_mvp = pd.DataFrame(stats_golpes).loc[pd.DataFrame(stats_golpes)['MVP Part.'].idxmax()]
+        c2.metric("Más MVP Partido 🏆", top_mvp['Jugador'], f"{top_mvp['MVP Part.']} Veces")
 
 elif st.session_state.menu_seleccionado == "Admin":
-    st.title("⚙️ Gestión de Partidas")
+    st.title("⚙️ Admin")
     df = leer_datos()
     if not df.empty:
         for p_id in df['partido_id'].unique()[::-1]:
             dp = df[df['partido_id'] == p_id]
-            with st.expander(f"📅 {dp['fecha'].iloc[0]} (T. {dp['temporada'].iloc[0]})"):
-                c1, c2, c3 = st.columns(3)
+            with st.expander(f"📅 {dp['fecha'].iloc[0]}"):
+                c2, c3 = st.columns(2)
                 if c2.button("✏️ Editar", key=f"ed_{p_id}", use_container_width=True):
                     rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
                     st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': str(p_id)}
                     st.session_state.menu_seleccionado = "Jugar/Editar"
                     st.rerun()
                 with c3:
-                    with st.popover("🗑️ Borrar", use_container_width=True):
-                        if st.button("Confirmar Borrado", key=f"confirm_del_{p_id}", type="primary"):
-                            conn = st.connection("gsheets", type=GSheetsConnection)
-                            conn.update(worksheet="historial", data=df[df['partido_id'] != p_id])
-                            if 'game' in st.session_state and str(st.session_state.game['id']) == str(p_id):
-                                del st.session_state.game
-                            st.cache_data.clear()
-                            st.rerun()
+                    if st.button("🗑️ Borrar", key=f"del_{p_id}", type="primary", use_container_width=True):
+                        conn = st.connection("gsheets", type=GSheetsConnection)
+                        conn.update(worksheet="historial", data=df[df['partido_id'] != p_id])
+                        if 'game' in st.session_state and str(st.session_state.game['id']) == str(p_id): del st.session_state.game
+                        st.cache_data.clear()
+                        st.rerun()
