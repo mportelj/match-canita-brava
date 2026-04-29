@@ -20,17 +20,20 @@ menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Estadísticas", "Ad
                         index=["Inicio", "Jugar/Editar", "Estadísticas", "Admin"].index(st.session_state.menu_seleccionado),
                         key="radio_menu", on_change=cambiar_menu)
 
-# --- 2. FUNCIONES DE DATOS ---
+# --- 2. FUNCIONES DE DATOS (REFORZADAS CONTRA ERRORES DE TIPO) ---
 def leer_datos():
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet="historial", ttl=0) 
         if df is None or df.empty: return pd.DataFrame()
         
+        # SOLUCIÓN AL ERROR DE LA IMAGEN: Convertir todo a numérico explícitamente
         cols_num = ['s0', 's1', 's2', 's3', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 'hoyo', 'resultado_a', 'resultado_b', 'temporada']
         for col in cols_num:
             if col in df.columns:
+                # Convertimos a número y lo que no sea número lo hacemos 0
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                # Forzamos enteros en las columnas de golpes y hoyos
                 if col in ['s0', 's1', 's2', 's3', 'hoyo', 'temporada']:
                     df[col] = df[col].astype(int)
         return df
@@ -38,6 +41,7 @@ def leer_datos():
 
 def calcular_puntos_hoyo(scores, hoyo_num):
     par = PAR_RIA_VIGO[hoyo_num]
+    # Filtramos: solo cuentan golpes mayores a 0
     v = [int(s) if s > 0 else 99 for s in scores]
     ba, wa, bb, wb = min(v[0], v[1]), max(v[0], v[1]), min(v[2], v[3]), max(v[2], v[3])
     pa = (1.0 if ba < bb else 0.0) + (1.0 if wa < wb else 0.0)
@@ -61,6 +65,7 @@ def ejecutar_guardado_automatico():
     if 'game' not in st.session_state: return
     g = st.session_state.game
     h = int(g['h_sel'])
+    # Aseguramos que los valores del input sean enteros antes de procesar
     s = [int(st.session_state[f"s{i+1}_h{h}"]) for i in range(4)]
     
     pa, pb, mi = calcular_puntos_hoyo(s, h)
@@ -73,7 +78,12 @@ def ejecutar_guardado_automatico():
     st.cache_data.clear() 
     df_actual = leer_datos()
     
-    df_f = pd.concat([df_actual[df_actual["id"] != f"{g['id']}_H{h}"], fila], ignore_index=True) if not df_actual.empty else fila
+    # Combinar eliminando duplicados por ID (evita el "doble par")
+    if not df_actual.empty:
+        df_f = pd.concat([df_actual[df_actual["id"] != f"{g['id']}_H{h}"], fila], ignore_index=True)
+    else:
+        df_f = fila
+        
     conn.update(worksheet="historial", data=df_f)
     st.cache_data.clear()
 
@@ -82,19 +92,26 @@ def generar_texto_whatsapp(partido_id):
     df_fresh = leer_datos()
     df_p = df_fresh[df_fresh['partido_id'] == partido_id]
     if df_p.empty: return "Actualizando..."
+    
     f = df_p['fecha'].iloc[0]
     txt = f"⛳ *CAÑITA BRAVA - {f}*\n\n"
     pa_t, pb_t = df_p['resultado_a'].sum(), df_p['resultado_b'].sum()
     ma, mb = max(0, pa_t - pb_t), max(0, pb_t - pa_t)
-    txt += f"🏆 *MATCH:* {TODOS[0]}/{TODOS[1]} *{ma:g}* vs *{mb:g}* {TODOS[2]}/{TODOS[3]}\n\n🎖️ *MVP PARTIDO:*\n"
+    txt += f"🏆 *MATCH:* {TODOS[0]}/{TODOS[1]} *{ma:g}* vs *{mb:g}* {TODOS[2]}/{TODOS[3]}\n\n"
+    
+    txt += "🎖️ *MVP PARTIDO:*\n"
     mvps = {TODOS[i]: df_p[f'p{i+1}_pts'].sum() for i in range(4)}
     for j, (nom, p) in enumerate(sorted(mvps.items(), key=lambda x: x[1], reverse=True)):
         med = "🥇" if j==0 else "🥈" if j==1 else "🥉" if j==2 else "🎖️"
         txt += f"{med} {nom}: {p:g} pts\n"
+        
     txt += "\n📊 *ESTADÍSTICAS:*\n"
     for i, jug in enumerate(TODOS):
-        col = f's{i}'; t = df_p[df_p[col] > 0].copy()
-        t['par_hoyo'] = t['hoyo'].map(PAR_RIA_VIGO); t['dif'] = t[col] - t['par_hoyo']
+        col = f's{i}'
+        # IMPORTANTE: Solo contar si el golpe es > 0 para evitar sumar hoyos vacíos
+        t = df_p[df_p[col] > 0].copy()
+        t['par_hoyo'] = t['hoyo'].map(PAR_RIA_VIGO)
+        t['dif'] = t[col] - t['par_hoyo']
         e = len(t[t['dif'] <= -2]); b = len(t[t['dif'] == -1]); p = len(t[t['dif'] == 0])
         txt += f"• {jug}: {e}🦅 | {b}🐥 | {p}Par\n"
     return txt
@@ -132,12 +149,13 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if c_n1.button("⬅️ Anterior", use_container_width=True): g['h_sel'] = max(1, h-1); st.rerun()
         if c_n2.button("Siguiente ➡️", use_container_width=True): g['h_sel'] = min(18, h+1); st.rerun()
         
+        # Aseguramos que v[0] sea del tipo correcto para st.number_input
         v_old = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
         c_i, c_d = st.columns(2)
-        s1 = c_i.number_input(TODOS[0], 0, 10, v_old[0], key=f"s1_h{h}")
-        s2 = c_i.number_input(TODOS[1], 0, 10, v_old[1], key=f"s2_h{h}")
-        s3 = c_d.number_input(TODOS[2], 0, 10, v_old[2], key=f"s3_h{h}")
-        s4 = c_d.number_input(TODOS[3], 0, 10, v_old[3], key=f"s4_h{h}")
+        s1 = c_i.number_input(TODOS[0], 0, 10, int(v_old[0]), key=f"s1_h{h}")
+        s2 = c_i.number_input(TODOS[1], 0, 10, int(v_old[1]), key=f"s2_h{h}")
+        s3 = c_d.number_input(TODOS[2], 0, 10, int(v_old[2]), key=f"s3_h{h}")
+        s4 = c_d.number_input(TODOS[3], 0, 10, int(v_old[3]), key=f"s4_h{h}")
         
         if not ya:
             if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True): ejecutar_guardado_automatico(); st.rerun()
@@ -146,7 +164,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         else:
             st.button("✅ Guardado", disabled=True, use_container_width=True)
 
-        # MARCADOR MATCH
         p_a = sum(v['pts'][0] for v in g['logs'].values()); p_b = sum(v['pts'][1] for v in g['logs'].values())
         ma, mb = max(0, p_a-p_b), max(0, p_b-p_a)
         st.markdown(f"""<div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
@@ -155,7 +172,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             <div style="flex:1; border:3px solid {COLOR_B}; border-radius:15px; padding:10px; text-align:center; background:#fef2f2;">
             <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{mb:g}</div></div></div>""", unsafe_allow_html=True)
         
-        # TABLAS MVP (RESTAURADAS)
         if ya:
             st.write("---")
             c1, c2 = st.columns(2)
