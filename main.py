@@ -28,11 +28,14 @@ def leer_datos():
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet="historial", ttl=0) 
         if df is None or df.empty: return pd.DataFrame(columns=COL_NECESARIAS)
+        
         df.columns = [c.lower().strip() for c in df.columns]
         for col in COL_NECESARIAS:
             if col not in df.columns: df[col] = 0
+            
         df = df.dropna(subset=['id'])
         df['id'] = df['id'].astype(str).str.strip()
+        # CRÍTICO: Eliminamos duplicados antes de cualquier cálculo
         df = df.sort_values(by=['id']).drop_duplicates(subset=['id'], keep='last')
         return df
     except:
@@ -63,14 +66,21 @@ def ejecutar_guardado_automatico():
     h = int(g['h_sel'])
     s = [int(st.session_state[f"s{i+1}_h{h}"]) for i in range(4)]
     pa, pb, mi = calcular_puntos_hoyo(s, h)
+    
+    # Actualizar estado local
     g['logs'][str(h)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
     anio_int = int(datetime.strptime(g['fecha'], "%d/%m/%Y").year)
     fila_id = f"{g['id']}_H{h}"
+    
     nueva_fila = pd.DataFrame([{"id": fila_id, "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": anio_int, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s[0], "s1": s[1], "s2": s[2], "s3": s[3]}])
+    
     conn = st.connection("gsheets", type=GSheetsConnection)
     st.cache_data.clear()
+    
+    # LEER Y LIMPIAR: Forzamos la eliminación de la fila vieja antes de añadir la nueva
     df_actual = leer_datos()
-    df_actual = df_actual[df_actual["id"] != fila_id]
+    df_actual = df_actual[df_actual["id"].astype(str) != str(fila_id)]
+    
     df_final = pd.concat([df_actual, nueva_fila], ignore_index=True)
     conn.update(worksheet="historial", data=df_final)
     st.cache_data.clear()
@@ -81,6 +91,7 @@ if st.session_state.menu_seleccionado == "Inicio":
     df = leer_datos()
     temps = sorted(df['temporada'].unique().astype(int).tolist(), reverse=True) if not df.empty else [2026]
     sel_temp = st.selectbox("Temporada:", temps)
+    
     pa_t, pb_t = 3.5, 3.5
     if not df.empty:
         df_t = df[df['temporada'] == int(sel_temp)]
@@ -89,6 +100,7 @@ if st.session_state.menu_seleccionado == "Inicio":
             if r['resultado_a'] > r['resultado_b']: pa_t += 1
             elif r['resultado_b'] > r['resultado_a']: pb_t += 1
             else: pa_t += 0.5; pb_t += 0.5
+            
     st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;">
         <h3>MARCADOR ACUMULADO {sel_temp}</h3><div style="display:flex;justify-content:space-around;">
         <div><h2 style="color:{COLOR_A};">{TODOS[0]}/{TODOS[1]}</h2><h1>{pa_t:g}</h1></div>
@@ -108,9 +120,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if c_n1.button("⬅️ Anterior", use_container_width=True): g['h_sel'] = max(1, h-1); st.rerun()
         if c_n2.button("Siguiente ➡️", use_container_width=True): g['h_sel'] = min(18, h+1); st.rerun()
         
-        # RESTAURADO: El valor por defecto es el PAR del hoyo
         v_old = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
-        
         ci, cd = st.columns(2)
         s1 = ci.number_input(TODOS[0], 0, 10, v_old[0], key=f"s1_h{h}")
         s2 = ci.number_input(TODOS[1], 0, 10, v_old[1], key=f"s2_h{h}")
@@ -121,11 +131,9 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             pha, phb = g['logs'][str(h)]['pts']
             st.markdown(f"<p style='text-align:center; font-weight:bold;'>Puntos Hoyo {h}: <span style='color:{COLOR_A}'>{pha:g}</span> - <span style='color:{COLOR_B}'>{phb:g}</span></p>", unsafe_allow_html=True)
 
-        if not ya:
-            if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True): ejecutar_guardado_automatico(); st.rerun()
-        elif [s1, s2, s3, s4] != v_old:
-            if st.button("🔄 Actualizar Hoyo", type="primary", use_container_width=True): ejecutar_guardado_automatico(); st.rerun()
-        else: st.button("✅ Guardado", disabled=True, use_container_width=True)
+        if st.button("💾 Guardar/Actualizar Hoyo", type="primary", use_container_width=True): 
+            ejecutar_guardado_automatico()
+            st.rerun()
 
         pts_a = sum(v['pts'][0] for v in g['logs'].values()); pts_b = sum(v['pts'][1] for v in g['logs'].values())
         ma, mb = max(0, pts_a-pts_b), max(0, pts_b-pts_a)
@@ -141,6 +149,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Histórico")
     df = leer_datos()
     if not df.empty:
+        # Aseguramos limpieza total de duplicados antes de mostrar la tabla
         df_clean = df.drop_duplicates(subset=['id'])
         partidos = df_clean.groupby('partido_id').agg({'p1_pts':'sum','p2_pts':'sum','p3_pts':'sum','p4_pts':'sum'})
         mvps = {j: 0 for j in TODOS}
