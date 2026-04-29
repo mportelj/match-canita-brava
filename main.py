@@ -9,6 +9,8 @@ st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered
 
 PAR_RIA_VIGO = {i: p for i, p in zip(range(1, 19), [4,5,3,4,4,5,3,4,4,4,3,4,3,5,4,5,4,5])}
 TODOS = ["MANU", "JOSE", "ROGE", "LALO"] 
+EQUIPO_A_NOMBRES = f"{TODOS[0]}/{TODOS[1]}"
+EQUIPO_B_NOMBRES = f"{TODOS[2]}/{TODOS[3]}"
 COLOR_A, COLOR_B = "#2e7d32", "#c62828"
 COL_NECESARIAS = ['id', 'partido_id', 'hoyo', 'fecha', 'temporada', 'resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3']
 
@@ -98,9 +100,9 @@ if st.session_state.menu_seleccionado == "Inicio":
     st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;margin-top:10px;">
         <h3 style="margin:0;">MARCADOR ACTUAL {sel_temp}</h3>
         <div style="display:flex;justify-content:space-around; align-items:center; margin-top:15px;">
-        <div><h2 style="color:{COLOR_A}; margin:0; font-size:1.2em;">{TODOS[0]}/{TODOS[1]}</h2><h1 style="font-size:3.5em; margin:0;">{pa_t:g}</h1></div>
+        <div><h2 style="color:{COLOR_A}; margin:0; font-size:1.2em;">{EQUIPO_A_NOMBRES}</h2><h1 style="font-size:3.5em; margin:0;">{pa_t:g}</h1></div>
         <div style="font-size:1.5em; font-weight:bold; color:#777;">VS</div>
-        <div><h2 style="color:{COLOR_B}; margin:0; font-size:1.2em;">{TODOS[2]}/{TODOS[3]}</h2><h1 style="font-size:3.5em; margin:0;">{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
+        <div><h2 style="color:{COLOR_B}; margin:0; font-size:1.2em;">{EQUIPO_B_NOMBRES}</h2><h1 style="font-size:3.5em; margin:0;">{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if 'game' not in st.session_state:
@@ -135,9 +137,9 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         ma, mb = max(0, pts_a-pts_b), max(0, pts_b-pts_a)
         st.markdown(f"""<div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
             <div style="flex:1; border:3px solid {COLOR_A}; border-radius:15px; padding:10px; text-align:center; background:#f1f8f1;">
-            <span style="font-weight:900; color:{COLOR_A}; font-size:0.8em;">{TODOS[0]}/{TODOS[1]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_A};">{ma:g}</div></div>
+            <span style="font-weight:900; color:{COLOR_A}; font-size:0.8em;">{EQUIPO_A_NOMBRES}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_A};">{ma:g}</div></div>
             <div style="flex:1; border:3px solid {COLOR_B}; border-radius:15px; padding:10px; text-align:center; background:#fef2f2;">
-            <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{mb:g}</div></div></div>""", unsafe_allow_html=True)
+            <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{EQUIPO_B_NOMBRES}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{mb:g}</div></div></div>""", unsafe_allow_html=True)
         
         st.write("---")
         if st.button("🏁 Finalizar Partida", use_container_width=True): del st.session_state.game; st.rerun()
@@ -175,11 +177,11 @@ elif st.session_state.menu_seleccionado == "Admin":
                     st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
                 with c2:
                     with st.popover("🗑️", use_container_width=True):
-                        if st.button("Borrar", key=f"del_{p_id}"):
+                        if st.button("Confirmar", key=f"del_{p_id}"):
                             st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
                             st.cache_data.clear(); st.rerun()
                 with c3:
-                    # 1. CÁLCULO ACUMULADO TEMPORADA (MATCH)
+                    # 1. ACUMULADO TEMPORADA
                     df_temp = df[df['temporada'] == temp_p]
                     partidos_temp = df_temp.groupby('partido_id').agg({'resultado_a':'sum', 'resultado_b':'sum'})
                     ac_a, ac_b = 3.5, 3.5
@@ -188,20 +190,15 @@ elif st.session_state.menu_seleccionado == "Admin":
                         elif r['resultado_b'] > r['resultado_a']: ac_b += 1
                         else: ac_a += 0.5; ac_b += 0.5
 
-                    # 2. MVP DÍA (PARTIDA ACTUAL)
+                    # 2. MVP DÍA
                     pts_dia = {TODOS[0]: dp['p1_pts'].sum(), TODOS[1]: dp['p2_pts'].sum(), TODOS[2]: dp['p3_pts'].sum(), TODOS[3]: dp['p4_pts'].sum()}
                     mvp_dia_sorted = sorted(pts_dia.items(), key=lambda x: x[1], reverse=True)
                     
-                    # 3. MVP ACUMULADO TEMPORADA
-                    pts_acum = {
-                        TODOS[0]: df_temp['p1_pts'].sum(), 
-                        TODOS[1]: df_temp['p2_pts'].sum(), 
-                        TODOS[2]: df_temp['p3_pts'].sum(), 
-                        TODOS[3]: df_temp['p4_pts'].sum()
-                    }
+                    # 3. MVP ACUMULADO
+                    pts_acum = {TODOS[0]: df_temp['p1_pts'].sum(), TODOS[1]: df_temp['p2_pts'].sum(), TODOS[2]: df_temp['p3_pts'].sum(), TODOS[3]: df_temp['p4_pts'].sum()}
                     mvp_acum_sorted = sorted(pts_acum.items(), key=lambda x: x[1], reverse=True)
                     
-                    # 4. CATEGORÍAS PARTIDA
+                    # 4. CATEGORÍAS
                     resumen_j = []
                     for i, jug in enumerate(TODOS):
                         col = f's{i}'; t = dp[dp[col] > 0].copy(); t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
@@ -209,8 +206,8 @@ elif st.session_state.menu_seleccionado == "Admin":
 
                     # MENSAJE WHATSAPP
                     msg = (f"⛳ *CAÑITA BRAVA*\n📅 {fecha_p}\n\n"
-                           f"🏆 *MATCH DIA*\n🟢 {TODOS[0]}/{TODOS[1]}: *{p_a:g}*\n🔴 {TODOS[2]}/{TODOS[3]}: *{p_b:g}*\n\n"
-                           f"📈 *MATCH ACUM. {temp_p}*\nEquipo A: *{ac_a:g}* |  Equipo B: *{ac_b:g}*\n\n"
+                           f"🏆 *MATCH DIA*\n🟢 {EQUIPO_A_NOMBRES}: *{p_a:g}*\n🔴 {EQUIPO_B_NOMBRES}: *{p_b:g}*\n\n"
+                           f"📈 *MATCH ACUM. {temp_p}*\n{EQUIPO_A_NOMBRES}: *{ac_a:g}*\n{EQUIPO_B_NOMBRES}: *{ac_b:g}*\n\n"
                            f"⭐ *MVP DIA*\n" + "\n".join([f"{n}: {p:g} pts" for n, p in mvp_dia_sorted]) +
                            f"\n\n🌟 *MVP ACUMULADO*\n" + "\n".join([f"{n}: {p:g} pts" for n, p in mvp_acum_sorted]) +
                            f"\n\n🏅 *RESUMEN*\n" + "\n".join(resumen_j))
