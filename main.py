@@ -3,12 +3,13 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
-# --- 1. CONFIGURACIÓN ---
+# --- 1. CONFIGURACIÓN Y ESTILO ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
 PAR_RIA_VIGO = {i: p for i, p in zip(range(1, 19), [4,5,3,4,4,5,3,4,4,4,3,4,3,5,4,5,4,5])}
 TODOS = ["MANUEL", "JOSE", "ROGE", "LALO"]
 COLOR_A, COLOR_B = "#2e7d32", "#c62828"
+# Puntos de inicio de la temporada 2026
 INICIO_2026_A, INICIO_2026_B = 3.5, 3.5
 
 # --- 2. GESTIÓN DE NAVEGACIÓN ---
@@ -30,6 +31,8 @@ def leer_datos():
         df = conn.read(worksheet="historial", ttl=0)
         if df is None or df.empty: return pd.DataFrame()
         df = df.dropna(subset=['id'])
+        # Asegurar que temporada sea string para filtrar bien
+        df['temporada'] = df['temporada'].astype(str)
         for c in ['resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3']:
             df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
         return df
@@ -79,18 +82,24 @@ def ejecutar_guardado_automatico():
     golpes = [s1, s2, s3, s4]
     pa, pb, mi = calcular_puntos_hoyo(golpes, h)
     g['logs'][str(h)] = {'s': golpes, 'pts': (pa, pb), 'mvp': mi}
-    fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": "2026", "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
+    # Extraemos el año de la fecha elegida para la columna temporada
+    anio_partida = g['fecha'].split("/")[-1] 
+    fila = pd.DataFrame([{"id": f"{g['id']}_H{h}", "partido_id": g['id'], "hoyo": h, "fecha": g['fecha'], "temporada": anio_partida, "resultado_a": pa, "resultado_b": pb, "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], "s0": s1, "s1": s2, "s2": s3, "s3": s4}])
     guardar_hoyo_db(fila)
 
-# --- 4. PANTALLAS ---
+# --- 4. LÓGICA DE PANTALLAS ---
 
 if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
+    
+    # --- FILTRO TEMPORADA 2026 ---
     pts_a, pts_b = INICIO_2026_A, INICIO_2026_B
+    df_26 = pd.DataFrame()
     
     if not df.empty:
-        df_26 = df[df['temporada'].astype(str).str.contains("2026")]
+        # Filtrar solo registros de la temporada 2026
+        df_26 = df[df['temporada'] == "2026"]
         if not df_26.empty:
             res = df_26.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
             for _, r in res.iterrows():
@@ -98,27 +107,18 @@ if st.session_state.menu_seleccionado == "Inicio":
                 elif r['resultado_b'] > r['resultado_a']: pts_b += 1
                 else: pts_a += 0.5; pts_b += 0.5
 
-    st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;margin-bottom:10px;">
+    st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;margin-bottom:15px;">
         <h3 style="margin:0;">TEMPORADA 2026</h3><div style="display:flex;justify-content:space-around;align-items:center;">
         <div><h2 style="color:{COLOR_A};margin:0;">M&J</h2><h1 style="margin:0;">{pts_a:g}</h1></div>
         <h2 style="color:#999;margin:0;">VS</h2>
         <div><h2 style="color:{COLOR_B};margin:0;">R&L</h2><h1 style="margin:0;">{pts_b:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
-    # --- NUEVA CLASIFICACIÓN MVP TEMPORADA ---
-    with st.expander("🏆 Ver Clasificación MVP Temporada"):
-        if not df.empty:
-            # Sumar puntos de cada columna pX_pts
-            ranking_temp = {
-                TODOS[0]: df['p1_pts'].sum(),
-                TODOS[1]: df['p2_pts'].sum(),
-                TODOS[2]: df['p3_pts'].sum(),
-                TODOS[3]: df['p4_pts'].sum()
-            }
-            df_ranking = pd.DataFrame([{"Jugador": k, "Pts Totales": v} for k, v in ranking_temp.items()])
-            df_ranking = df_ranking.sort_values("Pts Totales", ascending=False)
-            st.table(df_ranking.style.format({"Pts Totales": "{:.1f}"}))
-        else:
-            st.info("Aún no hay datos para calcular el MVP.")
+    with st.expander("🏆 Clasificación MVP Temporada 2026"):
+        if not df_26.empty:
+            ranking = {TODOS[0]: df_26['p1_pts'].sum(), TODOS[1]: df_26['p2_pts'].sum(), TODOS[2]: df_26['p3_pts'].sum(), TODOS[3]: df_26['p4_pts'].sum()}
+            df_rank = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in ranking.items()]).sort_values("Pts", ascending=False)
+            st.table(df_rank.style.format({"Pts": "{:.1f}"}))
+        else: st.info("Sin datos para la temporada 2026.")
 
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if 'game' not in st.session_state:
@@ -128,32 +128,27 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'h_sel': 1, 'logs': {}, 'id': f.strftime("%Y%m%d")}
             st.rerun()
     else:
+        # (El resto del código de juego se mantiene igual, ya calcula m_a y m_b correctamente)
         g = st.session_state.game
         h = g['h_sel']
-        
         st.markdown(f"""<div style="background-color:#2c3e50; padding:10px; border-radius:10px; text-align:center; color:white; margin-bottom:10px;">
-            <h2 style="margin:0; color:#ecf0f1; font-size:1.5em;">HOYO {h} (PAR {PAR_RIA_VIGO[h]})</h2>
-            </div>""", unsafe_allow_html=True)
+            <h2 style="margin:0; color:#ecf0f1; font-size:1.5em;">HOYO {h} (PAR {PAR_RIA_VIGO[h]})</h2></div>""", unsafe_allow_html=True)
         
         c_nav1, c_nav2 = st.columns(2)
-        if c_nav1.button("⬅️ Anterior", use_container_width=True):
-            ejecutar_guardado_automatico()
-            g['h_sel'] = max(1, h-1); st.rerun()
-        if c_nav2.button("Siguiente ➡️", use_container_width=True):
-            ejecutar_guardado_automatico()
-            g['h_sel'] = min(18, h+1); st.rerun()
+        if c_nav1.button("⬅️ Anterior", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = max(1, h-1); st.rerun()
+        if c_nav2.button("Siguiente ➡️", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = min(18, h+1); st.rerun()
         
         v_guardados = g['logs'][str(h)]['s'] if str(h) in g['logs'] else [PAR_RIA_VIGO[h]]*4
-        col_izq, col_der = st.columns(2)
-        with col_izq:
-            st.markdown(f"<p style='color:{COLOR_A}; font-weight:900; margin-bottom:5px;'>🏌️ {TODOS[0]}</p>", unsafe_allow_html=True)
+        c_izq, c_der = st.columns(2)
+        with c_izq:
+            st.markdown(f"<p style='color:{COLOR_A}; font-weight:900; margin-bottom:0;'>{TODOS[0]}</p>", unsafe_allow_html=True)
             s1 = st.number_input(TODOS[0], 0, 10, v_guardados[0], key=f"s1_h{h}", label_visibility="collapsed")
-            st.markdown(f"<p style='color:{COLOR_A}; font-weight:900; margin-top:10px; margin-bottom:5px;'>🏌️ {TODOS[1]}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color:{COLOR_A}; font-weight:900; margin-top:10px; margin-bottom:0;'>{TODOS[1]}</p>", unsafe_allow_html=True)
             s2 = st.number_input(TODOS[1], 0, 10, v_guardados[1], key=f"s2_h{h}", label_visibility="collapsed")
-        with col_der:
-            st.markdown(f"<p style='color:{COLOR_B}; font-weight:900; margin-bottom:5px;'>🏌️ {TODOS[2]}</p>", unsafe_allow_html=True)
+        with c_der:
+            st.markdown(f"<p style='color:{COLOR_B}; font-weight:900; margin-bottom:0;'>{TODOS[2]}</p>", unsafe_allow_html=True)
             s3 = st.number_input(TODOS[2], 0, 10, v_guardados[2], key=f"s3_h{h}", label_visibility="collapsed")
-            st.markdown(f"<p style='color:{COLOR_B}; font-weight:900; margin-top:10px; margin-bottom:5px;'>🏌️ {TODOS[3]}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color:{COLOR_B}; font-weight:900; margin-top:10px; margin-bottom:0;'>{TODOS[3]}</p>", unsafe_allow_html=True)
             s4 = st.number_input(TODOS[3], 0, 10, v_guardados[3], key=f"s4_h{h}", label_visibility="collapsed")
         
         if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
@@ -161,57 +156,41 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.toast("✅ Guardado")
 
         if g['logs']:
-            total_a = sum(v['pts'][0] for v in g['logs'].values())
-            total_b = sum(v['pts'][1] for v in g['logs'].values())
-            m_play_a = max(0, total_a - total_b)
-            m_play_b = max(0, total_b - total_a)
-
-            st.markdown(f"""
-            <div style="display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 15px;">
-                <div style="flex: 1; border: 3px solid {COLOR_A}; border-radius: 12px; padding: 10px; text-align: center; background-color: #f1f8f1;">
-                    <span style="font-weight: 900; color: {COLOR_A}; font-size: 0.85em;">{TODOS[0]} / {TODOS[1]}</span>
-                    <div style="font-size: 3em; font-weight: 900; color: {COLOR_A}; margin: 0;">{m_play_a:g}</div>
-                </div>
-                <div style="font-weight: 900; color: #999; font-size: 1.2em;">VS</div>
-                <div style="flex: 1; border: 3px solid {COLOR_B}; border-radius: 12px; padding: 10px; text-align: center; background-color: #fef2f2;">
-                    <span style="font-weight: 900; color: {COLOR_B}; font-size: 0.85em;">{TODOS[2]} / {TODOS[3]}</span>
-                    <div style="font-size: 3em; font-weight: 900; color: {COLOR_B}; margin: 0;">{m_play_b:g}</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            total_a, total_b = sum(v['pts'][0] for v in g['logs'].values()), sum(v['pts'][1] for v in g['logs'].values())
+            m_a, m_b = max(0, total_a - total_b), max(0, total_b - total_a)
+            st.markdown(f"""<div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:15px;">
+                <div style="flex:1; border:3px solid {COLOR_A}; border-radius:12px; padding:10px; text-align:center; background:#f1f8f1;">
+                <span style="font-weight:900; color:{COLOR_A}; font-size:0.8em;">{TODOS[0]}/{TODOS[1]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_A};">{m_a:g}</div></div>
+                <div style="font-weight:900; color:#999;">VS</div>
+                <div style="flex:1; border:3px solid {COLOR_B}; border-radius:12px; padding:10px; text-align:center; background:#fef2f2;">
+                <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{m_b:g}</div></div></div>""", unsafe_allow_html=True)
             
             c1, c2 = st.columns(2)
             with c1:
                 with st.popover("🎯 MVP Hoyo", use_container_width=True):
                     if str(h) in g['logs']:
-                        h_mvp = g['logs'][str(h)]['mvp']
-                        df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": h_mvp[f"p{i+1}"]} for i in range(4)])
-                        df_h = df_h.sort_values("Pts", ascending=False)
+                        df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": g['logs'][str(h)]['mvp'][f"p{i+1}"]} for i in range(4)]).sort_values("Pts", ascending=False)
                         st.table(df_h.style.format({"Pts": "{:.1f}"}))
             with c2:
                 with st.popover("🏆 MVP Partido", use_container_width=True):
                     p_mvp = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
-                    df_p = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in p_mvp.items()])
-                    df_p = df_p.sort_values("Pts", ascending=False)
+                    df_p = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in p_mvp.items()]).sort_values("Pts", ascending=False)
                     st.table(df_p.style.format({"Pts": "{:.1f}"}))
 
-        if st.button("🏁 Finalizar Partida", use_container_width=True):
-            del st.session_state.game; st.rerun()
+        if st.button("🏁 Finalizar Partida", use_container_width=True): del st.session_state.game; st.rerun()
 
 elif st.session_state.menu_seleccionado == "Admin":
-    st.title("⚙️ Administración")
+    st.title("⚙️ Admin")
     df = leer_datos()
     if not df.empty:
         for p_id in df['partido_id'].unique()[::-1]:
             dp = df[df['partido_id'] == p_id]
-            with st.expander(f"📅 {dp['fecha'].iloc[0]} — {dp['resultado_a'].sum():g} vs {dp['resultado_b'].sum():g}"):
+            with st.expander(f"📅 {dp['fecha'].iloc[0]} (T. {dp['temporada'].iloc[0]})"):
                 c1, c2, c3 = st.columns(3)
                 with c1:
                     with st.popover("🏆 MVP", use_container_width=True):
-                        rk_h = {TODOS[i]: dp[f"p{i+1}_pts"].sum() for i in range(4)}
-                        df_adm = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in rk_h.items()])
-                        df_adm = df_adm.sort_values("Pts", ascending=False)
-                        st.table(df_adm.style.format({"Pts": "{:.1f}"}))
+                        rk = {TODOS[i]: dp[f"p{i+1}_pts"].sum() for i in range(4)}
+                        st.table(pd.DataFrame([{"Jugador":k,"Pts":v} for k,v in rk.items()]).sort_values("Pts",ascending=False).style.format({"Pts":"{:.1f}"}))
                 if c2.button("✏️ Editar", key=f"ed_{p_id}"):
                     rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
                     st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': p_id}
