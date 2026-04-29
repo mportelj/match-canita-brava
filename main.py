@@ -142,9 +142,10 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         st.markdown(f"""<div style="background-color:#2c3e50; padding:10px; border-radius:10px; text-align:center; color:white; margin-bottom:10px;">
             <h2 style="margin:0; color:#ecf0f1; font-size:1.5em;">HOYO {h} (PAR {PAR_RIA_VIGO[h]})</h2></div>""", unsafe_allow_html=True)
         
+        # --- NAVEGACIÓN SUPERIOR ---
         c_nav1, c_nav2 = st.columns(2)
-        if c_nav1.button("⬅️ Anterior", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = max(1, h-1); st.rerun()
-        if c_nav2.button("Siguiente ➡️", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = min(18, h+1); st.rerun()
+        if c_nav1.button("⬅️ Anterior", key="nav_up_prev", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = max(1, h-1); st.rerun()
+        if c_nav2.button("Siguiente ➡️", key="nav_up_next", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = min(18, h+1); st.rerun()
         
         # --- ENTRADA DE RESULTADOS ---
         v_guardados = g['logs'][str(h)]['s'] if str(h) in g['logs'] else [PAR_RIA_VIGO[h]]*4
@@ -194,7 +195,13 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                     df_p = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in p_mvp.items()]).sort_values("Pts", ascending=False)
                     st.table(df_p.style.format({"Pts": "{:.1f}"}))
 
-        if st.button("🏁 Finalizar Partida", use_container_width=True): del st.session_state.game; st.rerun()
+        # --- NAVEGACIÓN INFERIOR (DUPLICADA) ---
+        st.divider()
+        c_nav3, c_nav4 = st.columns(2)
+        if c_nav3.button("⬅️ Anterior", key="nav_down_prev", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = max(1, h-1); st.rerun()
+        if c_nav4.button("Siguiente ➡️", key="nav_down_next", use_container_width=True): ejecutar_guardado_automatico(); g['h_sel'] = min(18, h+1); st.rerun()
+
+        if st.button("🏁 Finalizar Partida", type="secondary", use_container_width=True): del st.session_state.game; st.rerun()
 
 elif st.session_state.menu_seleccionado == "Admin":
     boton_volver_inicio()
