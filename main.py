@@ -31,6 +31,7 @@ def leer_datos():
         df.columns = [c.lower().strip() for c in df.columns]
         df['partido_id'] = df['partido_id'].astype(str)
         df['hoyo'] = df['hoyo'].astype(int)
+        # Limpieza de duplicados: siempre la última versión de cada hoyo
         return df.drop_duplicates(subset=['partido_id', 'hoyo'], keep='last')
     except:
         return pd.DataFrame(columns=COL_NECESARIAS)
@@ -87,16 +88,22 @@ if st.session_state.menu_seleccionado == "Inicio":
         temps = sorted(df['temporada'].unique().astype(int).tolist(), reverse=True)
         sel_temp = st.selectbox("Temporada:", temps)
         df_t = df[df['temporada'] == int(sel_temp)]
-        pa_t, pb_t = 3.5, 3.5
+        
+        # LÓGICA MARCADOR ACUMULADO (V/D)
+        pa_t, pb_t = 3.5, 3.5 # Ventaja inicial histórica
         partidos = df_t.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
         for _, r in partidos.iterrows():
             if r['resultado_a'] > r['resultado_b']: pa_t += 1
             elif r['resultado_b'] > r['resultado_a']: pb_t += 1
             else: pa_t += 0.5; pb_t += 0.5
+            
         st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;">
-            <h3>MARCADOR ACUMULADO {sel_temp}</h3><div style="display:flex;justify-content:space-around;">
-            <div><h2 style="color:{COLOR_A};">{TODOS[0]}/{TODOS[1]}</h2><h1>{pa_t:g}</h1></div>
-            <div><h2 style="color:{COLOR_B};">{TODOS[2]}/{TODOS[3]}</h2><h1>{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
+            <h3 style="margin:0;">MARCADOR ACUMULADO {sel_temp}</h3>
+            <p style="font-size:0.8em; color:gray;">(Victorias y Empates)</p>
+            <div style="display:flex;justify-content:space-around; align-items:center;">
+            <div><h2 style="color:{COLOR_A}; margin-bottom:0;">{TODOS[0]}/{TODOS[1]}</h2><h1 style="font-size:3.5em; margin:0;">{pa_t:g}</h1></div>
+            <div style="font-size:2em; font-weight:bold;">VS</div>
+            <div><h2 style="color:{COLOR_B}; margin-bottom:0;">{TODOS[2]}/{TODOS[3]}</h2><h1 style="font-size:3.5em; margin:0;">{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if 'game' not in st.session_state:
@@ -142,18 +149,29 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas")
     df = leer_datos()
     if not df.empty:
+        # LÓGICA DE MVPs (Basada en puntos MVP del registro)
         partidos = df.groupby('partido_id').agg({'p1_pts':'sum','p2_pts':'sum','p3_pts':'sum','p4_pts':'sum'})
-        mvps = {j: 0 for j in TODOS}
-        for _, f_p in partidos.iterrows():
-            m = f_p.max()
-            if m > 0:
-                for idx in f_p[f_p == m].index: mvps[TODOS[int(idx[1])-1]] += 1
+        mvps_count = {j: 0 for j in TODOS}
+        for _, fila_p in partidos.iterrows():
+            ganador_puntos = fila_p.max()
+            if ganador_puntos > 0:
+                # En caso de empate en puntos MVP en un partido, ambos suman 1 victoria MVP
+                for idx_jugador in fila_p[fila_p == ganador_puntos].index:
+                    num_jugador = int(idx_jugador[1]) - 1
+                    mvps_count[TODOS[num_jugador]] += 1
+        
         res = []
         for i, jug in enumerate(TODOS):
-            col = f's{i}'
-            t = df[df[col] > 0].copy()
-            t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
-            res.append({"Jugador": jug, "MVP": int(mvps[jug]), "Eagle": len(t[t['dif'] <= -2]), "Birdie": len(t[t['dif'] == -1]), "Par": len(t[t['dif'] == 0])})
+            col_golpes = f's{i}'
+            t = df[df[col_golpes] > 0].copy()
+            t['dif'] = t[col_golpes] - t['hoyo'].map(PAR_RIA_VIGO)
+            res.append({
+                "Jugador": jug, 
+                "MVP": int(mvps_count[jug]), 
+                "Eagle": len(t[t['dif'] <= -2]), 
+                "Birdie": len(t[t['dif'] == -1]), 
+                "Par": len(t[t['dif'] == 0])
+            })
         st.table(pd.DataFrame(res).set_index("Jugador"))
 
 elif st.session_state.menu_seleccionado == "Admin":
@@ -173,8 +191,8 @@ elif st.session_state.menu_seleccionado == "Admin":
                     st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
                 with c2:
                     with st.popover("🗑️ Borrar", use_container_width=True):
-                        st.write("¿Estás seguro?")
-                        if st.button("Confirmar Borrado", key=f"conf_{p_id}", type="primary"):
+                        st.write("¿Confirmas el borrado?")
+                        if st.button("Sí, borrar", key=f"conf_{p_id}", type="primary"):
                             st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
                             st.cache_data.clear(); st.rerun()
                 with c3:
