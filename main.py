@@ -2,7 +2,7 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
-import urllib.parse  # Para formatear el mensaje de WhatsApp
+import urllib.parse
 
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
@@ -80,14 +80,7 @@ def ejecutar_guardado_automatico():
     conn.update(worksheet="historial", data=df_final)
     st.cache_data.clear()
 
-# --- 3. FUNCIÓN WHATSAPP ---
-def boton_whatsapp(p_a, p_b, fecha):
-    ganador = f"🏆 Ganadores: {TODOS[0]}/{TODOS[1]}" if p_a > p_b else (f"🏆 Ganadores: {TODOS[2]}/{TODOS[3]}" if p_b > p_a else "🤝 ¡Empate!")
-    texto = f"⛳ *RESULTADO CAÑITA BRAVA*\n📅 Fecha: {fecha}\n\n🟢 {TODOS[0]}/{TODOS[1]}: *{p_a:g} pts*\n🔴 {TODOS[2]}/{TODOS[3]}: *{p_b:g} pts*\n\n{ganador}\n\n_Enviado desde Cañita App_"
-    texto_url = urllib.parse.quote(texto)
-    st.link_button("📲 Compartir en WhatsApp", f"https://wa.me/?text={texto_url}", use_container_width=True)
-
-# --- 4. PANTALLAS ---
+# --- 3. PANTALLAS ---
 if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
@@ -116,8 +109,8 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         g = st.session_state.game; h = int(g['h_sel']); ya = str(h) in g['logs']
         st.markdown(f"<h3 style='text-align:center;'>HOYO {h} (PAR {PAR_RIA_VIGO[h]})</h3>", unsafe_allow_html=True)
         c1, c2 = st.columns(2)
-        if c1.button("⬅️", use_container_width=True): g['h_sel'] = max(1, h-1); st.rerun()
-        if c2.button("➡️", use_container_width=True): g['h_sel'] = min(18, h+1); st.rerun()
+        if c1.button("⬅️ Anterior", use_container_width=True): g['h_sel'] = max(1, h-1); st.rerun()
+        if c2.button("Siguiente ➡️", use_container_width=True): g['h_sel'] = min(18, h+1); st.rerun()
         v_old = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
         ci, cd = st.columns(2)
         s1 = ci.number_input(TODOS[0], 0, 10, v_old[0], key=f"s1_{h}")
@@ -128,16 +121,12 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             pha, phb = g['logs'][str(h)]['pts']
             st.markdown(f"<p style='text-align:center;'>Puntos Hoyo: {pha:g} - {phb:g}</p>", unsafe_allow_html=True)
         if not ya:
-            if st.button("💾 Guardar", type="primary", use_container_width=True): ejecutar_guardado_automatico(); st.rerun()
+            if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True): ejecutar_guardado_automatico(); st.rerun()
         elif [s1, s2, s3, s4] != v_old:
-            if st.button("🔄 Actualizar", type="primary", use_container_width=True): ejecutar_guardado_automatico(); st.rerun()
+            if st.button("🔄 Actualizar Hoyo", type="primary", use_container_width=True): ejecutar_guardado_automatico(); st.rerun()
         
-        # MARCADOR EN VIVO Y WHATSAPP
         p_a = sum(v['pts'][0] for v in g['logs'].values()); p_b = sum(v['pts'][1] for v in g['logs'].values())
-        st.markdown(f"<h2 style='text-align:center;'>{p_a:g} — {p_b:g}</h2>", unsafe_allow_html=True)
-        
-        # Botón de WhatsApp siempre visible para compartir el estado actual
-        boton_whatsapp(p_a, p_b, g['fecha'])
+        st.markdown(f"<h2 style='text-align:center; color:#555;'>MARCADOR PARTIDA</h2><h1 style='text-align:center;'>{p_a:g} — {p_b:g}</h1>", unsafe_allow_html=True)
         
         if st.button("🏁 Finalizar Partida", type="secondary", use_container_width=True): del st.session_state.game; st.rerun()
 
@@ -160,22 +149,35 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         st.table(pd.DataFrame(res).set_index("Jugador"))
 
 elif st.session_state.menu_seleccionado == "Admin":
-    st.title("⚙️ Admin")
+    st.title("⚙️ Administración")
     df = leer_datos()
     if not df.empty:
         for p_id in df['partido_id'].unique()[::-1]:
             dp = df[df['partido_id'] == p_id].sort_values('hoyo')
-            with st.expander(f"📅 {dp['fecha'].iloc[0]}"):
+            fecha_p = dp['fecha'].iloc[0]
+            with st.expander(f"📅 Partida: {fecha_p}"):
+                p_a, p_b = dp['resultado_a'].sum(), dp['resultado_b'].sum()
+                st.write(f"**Resultado Final:** {TODOS[0]}/{TODOS[1]} ({p_a:g}) vs {TODOS[2]}/{TODOS[3]} ({p_b:g})")
+                
+                # BOTONES CON TEXTO CLARO
                 c1, c2, c3 = st.columns(3)
-                if c1.button("✏️", key=f"e_{p_id}"):
+                
+                # 1. EDITAR
+                if c1.button("✏️ Editar Partida", key=f"e_{p_id}", use_container_width=True):
                     rec = {str(int(f['hoyo'])): {'s':[int(f['s0']),int(f['s1']),int(f['s2']),int(f['s3'])], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
-                    st.session_state.game = {'fecha': dp['fecha'].iloc[0], 'h_sel': 1, 'logs': rec, 'id': str(p_id)}; st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
+                    st.session_state.game = {'fecha': fecha_p, 'h_sel': 1, 'logs': rec, 'id': str(p_id)}; st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
+                
+                # 2. BORRAR
                 with c2:
-                    with st.popover("🗑️"):
-                        if st.button("Confirmar", key=f"d_{p_id}"):
+                    with st.popover("🗑️ Borrar Partida", use_container_width=True):
+                        st.warning("¿Seguro que quieres eliminar esta partida?")
+                        if st.button("Sí, borrar definitivamente", key=f"d_{p_id}", type="primary"):
                             st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
                             st.cache_data.clear(); st.rerun()
-                with c3: # Botón de WhatsApp para partidos antiguos
-                    p_a, p_b = dp['resultado_a'].sum(), dp['resultado_b'].sum()
-                    texto_ant = urllib.parse.quote(f"⛳ *RESUMEN GOLF*\n📅 {dp['fecha'].iloc[0]}\n🟢 {p_a:g} pts\n🔴 {p_b:g} pts")
-                    st.link_button("📲", f"https://wa.me/?text={texto_ant}")
+                
+                # 3. WHATSAPP (Solo aquí, con texto completo)
+                with c3:
+                    ganador = f"🏆 Ganadores: {TODOS[0]}/{TODOS[1]}" if p_a > p_b else (f"🏆 Ganadores: {TODOS[2]}/{TODOS[3]}" if p_b > p_a else "🤝 ¡Empate!")
+                    texto_ws = f"⛳ *RESULTADO CAÑITA BRAVA*\n📅 Fecha: {fecha_p}\n\n🟢 {TODOS[0]}/{TODOS[1]}: *{p_a:g} pts*\n🔴 {TODOS[2]}/{TODOS[3]}: *{p_b:g} pts*\n\n{ganador}"
+                    url_ws = f"https://wa.me/?text={urllib.parse.quote(texto_ws)}"
+                    st.link_button("📲 Enviar WhatsApp", url_ws, use_container_width=True)
