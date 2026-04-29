@@ -171,17 +171,19 @@ elif st.session_state.menu_seleccionado == "Admin":
             with st.expander(f"📅 {fecha_p}"):
                 p_a, p_b = dp['resultado_a'].sum(), dp['resultado_b'].sum()
                 c1, c2, c3 = st.columns(3)
-                if c1.button("✏️", key=f"e_{p_id}", use_container_width=True):
+                # BOTÓN EDITAR
+                if c1.button("✏️ Editar", key=f"e_{p_id}", use_container_width=True):
                     rec = {str(int(f['hoyo'])): {'s':[f['s0'],f['s1'],f['s2'],f['s3']], 'pts':(f['resultado_a'],f['resultado_b']), 'mvp':{'p1':f['p1_pts'],'p2':f['p2_pts'],'p3':f['p3_pts'],'p4':f['p4_pts']}} for _, f in dp.iterrows()}
                     st.session_state.game = {'fecha': fecha_p, 'h_sel': 1, 'logs': rec, 'id': str(p_id)}
                     st.session_state.menu_seleccionado = "Jugar/Editar"; st.rerun()
+                # BOTÓN BORRAR
                 with c2:
-                    with st.popover("🗑️", use_container_width=True):
-                        if st.button("Confirmar", key=f"del_{p_id}"):
+                    with st.popover("🗑️ Borrar", use_container_width=True):
+                        if st.button("Confirmar Borrado", key=f"del_{p_id}", type="primary", use_container_width=True):
                             st.connection("gsheets", type=GSheetsConnection).update(worksheet="historial", data=df[df['partido_id'] != p_id])
                             st.cache_data.clear(); st.rerun()
+                # BOTÓN WHATSAPP
                 with c3:
-                    # 1. ACUMULADO TEMPORADA
                     df_temp = df[df['temporada'] == temp_p]
                     partidos_temp = df_temp.groupby('partido_id').agg({'resultado_a':'sum', 'resultado_b':'sum'})
                     ac_a, ac_b = 3.5, 3.5
@@ -189,27 +191,13 @@ elif st.session_state.menu_seleccionado == "Admin":
                         if r['resultado_a'] > r['resultado_b']: ac_a += 1
                         elif r['resultado_b'] > r['resultado_a']: ac_b += 1
                         else: ac_a += 0.5; ac_b += 0.5
-
-                    # 2. MVP DÍA
                     pts_dia = {TODOS[0]: dp['p1_pts'].sum(), TODOS[1]: dp['p2_pts'].sum(), TODOS[2]: dp['p3_pts'].sum(), TODOS[3]: dp['p4_pts'].sum()}
                     mvp_dia_sorted = sorted(pts_dia.items(), key=lambda x: x[1], reverse=True)
-                    
-                    # 3. MVP ACUMULADO
                     pts_acum = {TODOS[0]: df_temp['p1_pts'].sum(), TODOS[1]: df_temp['p2_pts'].sum(), TODOS[2]: df_temp['p3_pts'].sum(), TODOS[3]: df_temp['p4_pts'].sum()}
                     mvp_acum_sorted = sorted(pts_acum.items(), key=lambda x: x[1], reverse=True)
-                    
-                    # 4. CATEGORÍAS
                     resumen_j = []
                     for i, jug in enumerate(TODOS):
                         col = f's{i}'; t = dp[dp[col] > 0].copy(); t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
                         resumen_j.append(f"{jug}: {len(t[t['dif']<=-2])} Eagle, {len(t[t['dif']==-1])} Birdie, {len(t[t['dif']==0])} Par")
-
-                    # MENSAJE WHATSAPP
-                    msg = (f"⛳ *CAÑITA BRAVA*\n📅 {fecha_p}\n\n"
-                           f"🏆 *MATCH DIA*\n🟢 {EQUIPO_A_NOMBRES}: *{p_a:g}*\n🔴 {EQUIPO_B_NOMBRES}: *{p_b:g}*\n\n"
-                           f"📈 *MATCH ACUM. {temp_p}*\n{EQUIPO_A_NOMBRES}: *{ac_a:g}*\n{EQUIPO_B_NOMBRES}: *{ac_b:g}*\n\n"
-                           f"⭐ *MVP DIA*\n" + "\n".join([f"{n}: {p:g} pts" for n, p in mvp_dia_sorted]) +
-                           f"\n\n🌟 *MVP ACUMULADO*\n" + "\n".join([f"{n}: {p:g} pts" for n, p in mvp_acum_sorted]) +
-                           f"\n\n🏅 *RESUMEN*\n" + "\n".join(resumen_j))
-                    
-                    st.link_button("📲", f"https://wa.me/?text={urllib.parse.quote(msg)}", use_container_width=True)
+                    msg = (f"⛳ *CAÑITA BRAVA*\n📅 {fecha_p}\n\n🏆 *MATCH DIA*\n🟢 {EQUIPO_A_NOMBRES}: *{p_a:g}*\n🔴 {EQUIPO_B_NOMBRES}: *{p_b:g}*\n\n📈 *MATCH ACUM. {temp_p}*\n{EQUIPO_A_NOMBRES}: *{ac_a:g}*\n{EQUIPO_B_NOMBRES}: *{ac_b:g}*\n\n⭐ *MVP DIA*\n" + "\n".join([f"{n}: {p:g} pts" for n, p in mvp_dia_sorted]) + f"\n\n🌟 *MVP ACUMULADO*\n" + "\n".join([f"{n}: {p:g} pts" for n, p in mvp_acum_sorted]) + f"\n\n🏅 *RESUMEN*\n" + "\n".join(resumen_j))
+                    st.link_button("📲 Enviar WA", f"https://wa.me/?text={urllib.parse.quote(msg)}", use_container_width=True)
