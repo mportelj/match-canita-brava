@@ -98,7 +98,7 @@ if st.session_state.menu_seleccionado == "Inicio":
             else: pa_t += 0.5; pb_t += 0.5
             
     st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;margin-top:10px;">
-        <h3 style="margin:0;">MARCADOR ACTUAL {sel_temp}</h3>
+        <h3 style="margin:0;">MATCH {sel_temp}</h3>
         <div style="display:flex;justify-content:space-around; align-items:center; margin-top:15px;">
         <div><h2 style="color:{COLOR_A}; margin:0; font-size:1.2em;">{EQUIPO_A_NOMBRES}</h2><h1 style="font-size:3.5em; margin:0;">{pa_t:g}</h1></div>
         <div style="font-size:1.5em; font-weight:bold; color:#777;">VS</div>
