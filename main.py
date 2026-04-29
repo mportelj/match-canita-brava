@@ -116,13 +116,9 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     boton_volver_inicio()
     st.divider()
     
-    # --- VERIFICACIÓN DE SESIÓN CORREGIDA ---
     df_actual = leer_datos()
-    # Solo limpiamos si hay una partida cargada PERO esa partida específica ya no está en la DB
     if 'game' in st.session_state and not df_actual.empty:
         if st.session_state.game['id'] not in df_actual['partido_id'].values:
-            # Si estamos editando algo que ya no existe (borrado por Admin), limpiamos.
-            # Pero si es una partida NUEVA (logs vacíos), no la borramos.
             if len(st.session_state.game['logs']) > 0:
                 del st.session_state.game
                 st.rerun()
@@ -161,6 +157,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.toast("✅ Guardado")
             st.rerun()
 
+        # MARCADOR DEL MATCH (HOY)
         puntos_hoy_a = sum(v['pts'][0] for v in g['logs'].values()) if g['logs'] else 0
         puntos_hoy_b = sum(v['pts'][1] for v in g['logs'].values()) if g['logs'] else 0
         m_a, m_b = max(0, puntos_hoy_a - puntos_hoy_b), max(0, puntos_hoy_b - puntos_hoy_a)
@@ -173,6 +170,34 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             <div style="flex:1; border:3px solid {COLOR_B}; border-radius:12px; padding:10px; text-align:center; background:#fef2f2;">
             <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{TODOS[2]}/{TODOS[3]}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{m_b:g}</div></div></div>""", unsafe_allow_html=True)
 
+        # MARCADOR DEL HOYO ACTUAL (RESTAURADO)
+        if str(h) in g['logs']:
+            h_pts = g['logs'][str(h)]['pts']
+            html_puntos = f"""<div style="display:flex; justify-content:space-around; align-items:center;">
+                <b style="color:{COLOR_A}; font-size:1.3em;">{h_pts[0]:g}</b><span style="color:#999;">—</span><b style="color:{COLOR_B}; font-size:1.3em;">{h_pts[1]:g}</b>
+            </div>"""
+        else:
+            html_puntos = f"<div style='color:#999; font-style:italic; font-size:1.1em;'>Hoyo No Jugado</div>"
+
+        st.markdown(f"""<div style="background:#f0f2f6; border-radius:10px; padding:12px; margin-bottom:15px; border:1px solid #ddd; text-align:center;">
+            <div style="font-size:0.85em; color:#555; margin-bottom:8px; font-weight:bold; letter-spacing:1px; border-bottom:1px solid #ccc; padding-bottom:5px;">PUNTOS HOYO {h}</div>
+            {html_puntos}</div>""", unsafe_allow_html=True)
+        
+        # MVPS (RESTAURADO)
+        c1, c2 = st.columns(2)
+        with c1:
+            with st.popover("🎯 MVP Hoyo", use_container_width=True):
+                if str(h) in g['logs']:
+                    df_h = pd.DataFrame([{"Jugador": TODOS[i], "Pts": g['logs'][str(h)]['mvp'][f"p{i+1}"]} for i in range(4)]).sort_values("Pts", ascending=False)
+                    st.table(df_h.style.format({"Pts": "{:.1f}"}))
+                else: st.info("Hoyo no jugado.")
+        with c2:
+            with st.popover("🏆 MVP Partido", use_container_width=True):
+                p_mvp = {TODOS[i]: sum(v['mvp'][f"p{i+1}"] for v in g['logs'].values()) for i in range(4)}
+                df_p = pd.DataFrame([{"Jugador": k, "Pts": v} for k, v in p_mvp.items()]).sort_values("Pts", ascending=False)
+                st.table(df_p.style.format({"Pts": "{:.1f}"}))
+
+        st.divider()
         if st.button("🏁 Finalizar Partida", type="secondary", use_container_width=True): 
             del st.session_state.game
             st.rerun()
