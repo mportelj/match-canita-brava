@@ -228,26 +228,38 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
         
-        # 2. Selector de Jornada (Por defecto la última)
-        fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
+        # 2. Preparar datos para el Cuadro Combinado (Fecha + Nº Hoyos)
+        # Agrupamos por fecha para contar cuántos registros (hoyos) hay en cada una
+        conteo_hoyos = df_historico.groupby(col_fecha).size().to_dict()
+        fechas_lista = sorted(conteo_hoyos.keys(), reverse=True)
         
-        # Usamos session_state para controlar si mostramos el acumulado o la jornada
+        # Creamos etiquetas amigables: "2023-10-25 (18 hoyos)"
+        opciones_fecha = {f: f"{f} ({conteo_hoyos[f]} hoyos)" for f in fechas_lista}
+        
         if "ver_acumulado" not in st.session_state:
             st.session_state.ver_acumulado = False
 
-        # El cuadro combinado para seleccionar jornada
-        fecha_sel = st.selectbox("Seleccionar Jornada:", fechas_disp, index=0)
+        # Cuadro combinado con el formato solicitado
+        fecha_sel_raw = st.selectbox(
+            "Seleccionar Jornada:", 
+            options=fechas_lista, 
+            format_func=lambda x: opciones_fecha[x],
+            index=0
+        )
 
         # 3. Lógica de Filtrado
         if st.session_state.ver_acumulado:
             df_final = df_historico
-            titulo_tabla = "Resumen Acumulado Histórico"
+            titulo_tabla = f"Resumen Acumulado ({sum(conteo_hoyos.values())} hoyos totales)"
         else:
-            df_final = df_historico[df_historico[col_fecha] == fecha_sel]
-            titulo_tabla = f"Resumen Jornada: {fecha_sel}"
+            df_final = df_historico[df_historico[col_fecha] == fecha_sel_raw]
+            titulo_tabla = f"Resumen Jornada: {fecha_sel_raw}"
 
         # 4. Procesamiento de datos (S0 a S3)
-        stats = {jug: {"Scratch": 0, "Albatros": 0, "Eagles": 0, "Birdies": 0, "Pares": 0, "Bogey": 0, "D.Bogey+": 0, "Hoyos": 0} for jug in TODOS}
+        stats = {jug: {
+            "Scratch": 0, "Relativo": 0, "Albatros": 0, "Eagles": 0, 
+            "Birdies": 0, "Pares": 0, "Bogey": 0, "D.Bogey+": 0, "Hoyos": 0
+        } for jug in TODOS}
         
         for _, fila in df_final.iterrows():
             try:
@@ -256,10 +268,14 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 for i, jug in enumerate(TODOS):
                     val_s = fila.get(f'S{i}')
                     if pd.isna(val_s) or str(val_s).strip() == "": continue
+                    
                     golpes = int(float(val_s))
                     diff = golpes - par_hoyo
-                    stats[jug]["Hoyos"] += 1
                     
+                    stats[jug]["Hoyos"] += 1
+                    stats[jug]["Relativo"] += diff  # Sumatorio de +/- respecto al par
+                    
+                    # Clasificación
                     if diff <= -3: stats[jug]["Albatros"] += 1
                     elif diff == -2: stats[jug]["Eagles"] += 1
                     elif diff == -1: stats[jug]["Birdies"] += 1
@@ -275,31 +291,39 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         datos_tabla = []
         for jug in TODOS:
             d = stats[jug]
-            total = d["Hoyos"] if d["Hoyos"] > 0 else 1
-            fmt = lambda v: f"{v} <br> <small style='color:gray;'>{(v/total)*100:.1f}%</small>"
+            total_h = d["Hoyos"] if d["Hoyos"] > 0 else 1
+            
+            # Formatear el Relativo al Par (ej: +5, -2, E)
+            rel = d["Relativo"]
+            rel_str = f"+{rel}" if rel > 0 else (str(rel) if rel < 0 else "E")
+            # Color para el relativo
+            color_rel = "red" if rel > 0 else ("blue" if rel < 0 else "green")
+
+            fmt = lambda v: f"{v} <br> <small style='color:gray;'>{(v/total_h)*100:.1f}%</small>"
             
             datos_tabla.append({
-                "Jugador": jug, 
+                "Jugador": jug,
+                "+/-": f"<b style='color:{color_rel};'>{rel_str}</b>",
                 "Scratch": d["Scratch"], 
                 "Albatros": fmt(d["Albatros"]),
                 "Eagles": fmt(d["Eagles"]), 
                 "Birdies": fmt(d["Birdies"]), 
                 "Pares": fmt(d["Pares"]),
                 "Bogey": fmt(d["Bogey"]), 
-                "D.Bogey+": fmt(d["D.Bogey+"]), 
-                "Hoyos": d["Hoyos"]
+                "D.Bogey+": fmt(d["D.Bogey+"])
             })
 
-        # 6. Renderizado de la Tabla
+        # 6. Estilo y Renderizado
         st.subheader(titulo_tabla)
         st.markdown("<style>th, td { text-align: center !important; vertical-align: middle !important; border: 1px solid #dee2e6; }</style>", unsafe_allow_html=True)
+        
         import pandas as pd
         df_resumen = pd.DataFrame(datos_tabla)
         st.write(df_resumen.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        st.write("") # Espaciado
+        st.write("") 
 
-        # 7. Botones de Control abajo de la tabla
+        # 7. Botones inferiores
         col_bt1, col_bt2 = st.columns(2)
         with col_bt1:
             if st.button("📊 Mostrar Acumulado Total"):
