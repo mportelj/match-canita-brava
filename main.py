@@ -7,7 +7,6 @@ import urllib.parse
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
-# Configuración de pares - Hoyo 18 corregido a PAR 4
 PAR_RIA_VIGO = {i: p for i, p in zip(range(1, 19), [4,5,3,4,4,5,3,4,4,4,3,4,3,5,4,5,4,4])}
 TODOS = ["MANU", "JOSE", "ROGE", "LALO"] 
 EQUIPO_A_NOMBRES = f"{TODOS[0]}/{TODOS[1]}"
@@ -169,17 +168,30 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             tot = len(t)
             t['scr'] = t.apply(lambda r: calc_scratch(r[col], PAR_RIA_VIGO[r['hoyo']]), axis=1)
             
-            # CORRECCIÓN AQUÍ: Forzamos a entero antes del formato
             dif_total = int(t['dif'].sum())
             txt_dif = f"{dif_total:+d}" if dif_total != 0 else "E"
             
             def fmt(c): return f"{len(t[c])} ({len(t[c])/tot:.0%})" if tot>0 else "0"
-            res.append({"Jugador": jug, "+/- Par": txt_dif, "Scratch": int(t['scr'].sum()), 
-                        "Bir": fmt(t['dif']==-1), "Par": fmt(t['dif']==0), "Bog": fmt(t['dif']==1), "T+": fmt(t['dif']>=2),
-                        "_sort": dif_total})
+            res.append({
+                "Jugador": jug, 
+                "+/- Par": txt_dif, 
+                "Scratch": int(t['scr'].sum()), 
+                "Bir": fmt(t['dif']==-1), 
+                "Par": fmt(t['dif']==0), 
+                "Bog": fmt(t['dif']==1), 
+                "T+": fmt(t['dif']>=2),
+                "_sort_par": dif_total,
+                "_sort_scr": int(t['scr'].sum())
+            })
         
         if res:
-            st.dataframe(pd.DataFrame(res).sort_values("_sort").drop(columns=["_sort"]).set_index("Jugador"), use_container_width=True)
+            df_res = pd.DataFrame(res).sort_values(by=["_sort_par", "_sort_scr"], ascending=[True, False])
+            # Configuración para centrar todas las columnas
+            st.dataframe(
+                df_res.drop(columns=["_sort_par", "_sort_scr"]).set_index("Jugador"), 
+                use_container_width=True,
+                column_config={col: st.column_config.Column(alignment="center") for col in df_res.columns}
+            )
         else:
             st.info("Aún no hay datos para mostrar estadísticas.")
 
