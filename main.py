@@ -221,16 +221,14 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     
     df_historico = leer_datos() 
     
-    if df_historico is None or df_historico.empty:
-        st.info("No hay datos registrados.")
-    else:
-        # 1. Normalización de datos
+    if df_historico is not None and not df_historico.empty:
+        # 1. Normalización
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
         
-        # 2. Selector de Jornada
+        # 2. Selector de Jornada con conteo de hoyos
         fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
-        conteo_hoyos_dict = df_historico.groupby(col_fecha).size().to_dict()
+        conteo_dict = df_historico.groupby(col_fecha).size().to_dict()
         
         if "modo_historia" not in st.session_state:
             st.session_state.modo_historia = "Jornada"
@@ -238,7 +236,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         fecha_sel = st.selectbox(
             "Seleccionar Jornada:", 
             options=fechas_disp, 
-            format_func=lambda x: f"{x} ({conteo_hoyos_dict[x]} hoyos)",
+            format_func=lambda x: f"{x} ({conteo_dict[x]} hoyos)",
             index=0
         )
 
@@ -263,13 +261,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     if golpes <= 0: continue
                     
                     # DIFERENCIA REAL (Fundamental para el +/-)
-                    # Si haces 6 en un par 4, diff es +2. Si haces 3, diff es -1.
+                    # Aquí sumamos la diferencia matemática pura: 6 en par 4 es +2, 7 en par 4 es +3.
                     diff = golpes - par_hoyo
                     
                     stats[jug]["H"] += 1
-                    stats[jug]["Relativo"] += diff # SUMA ARITMÉTICA PURA SIN LÍMITES
+                    stats[jug]["Relativo"] += diff # <--- ESTO CORRIGE A JOSE (+5) Y DIFERENCIA A ROGE
                     
-                    # LÓGICA SCRATCH (Tu escala: Birdie+3, Par+2, Bogey+1, Doble o más +0)
+                    # LÓGICA SCRATCH (Tu escala de puntos: Birdie+3, Par+2, Bogey+1, peor +0)
                     if diff <= -3: 
                         stats[jug]["ALB"] += 1
                         stats[jug]["Scratch"] += 4
@@ -285,12 +283,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     elif diff == 1: 
                         stats[jug]["BOG"] += 1
                         stats[jug]["Scratch"] += 1
-                    else: # Doble Bogey o peor (+2, +3, +4...)
+                    else: # Doble Bogey o peor
                         stats[jug]["DB"] += 1
                         stats[jug]["Scratch"] += 0 
             except: continue
 
-        # 4. CONSTRUCCIÓN DE LA TABLA
+        # 4. TABLA
         tabla_data = []
         for jug in TODOS:
             d = stats[jug]
@@ -310,7 +308,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "Pares": f_pct(d["PAR"]), "Bogey": f_pct(d["BOG"]), "D.Bogey+": f_pct(d["DB"])
             })
 
-        st.subheader(f"Resumen {'Histórico' if st.session_state.modo_historia == 'Acumulado' else 'Jornada'}")
+        st.subheader(f"Resumen de Resultados")
         st.markdown("<style>td, th {text-align:center !important; vertical-align:middle !important; border:1px solid #dee2e6 !important;}</style>", unsafe_allow_html=True)
         import pandas as pd
         st.write(pd.DataFrame(tabla_data).to_html(escape=False, index=False), unsafe_allow_html=True)
@@ -318,7 +316,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         # 5. BOTONES
         st.write("---")
         c1, c2 = st.columns(2)
-        if c1.button("📊 Mostrar Acumulado Total"):
+        if c1.button("📊 Ver Acumulado Total"):
             st.session_state.modo_historia = "Acumulado"
             st.rerun()
         if c2.button("📅 Volver a Vista Jornada"):
