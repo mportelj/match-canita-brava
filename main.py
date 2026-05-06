@@ -224,11 +224,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     if df_historico is None or df_historico.empty:
         st.info("No hay datos registrados en la Orden de Mérito.")
     else:
-        # 1. Normalización de columnas
+        # 1. Normalización de columnas (Mayúsculas y sin espacios)
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
 
-        # 2. Procesamiento (Ajustado para columnas S0 a S3)
+        # 2. Procesamiento de datos (Columnas S0 a S3)
         stats = {jug: {
             "Scratch": 0, "Albatros": 0, "Eagles": 0, "Birdies": 0,
             "Pares": 0, "Bogey": 0, "D.Bogey+": 0, "Hoyos": 0
@@ -242,10 +242,10 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 par_hoyo = int(PAR_RIA_VIGO[h_num])
                 
                 for i, jug in enumerate(TODOS):
-                    # CAMBIO CLAVE: Las columnas van de S0 a S3
+                    # Mapeo S0, S1, S2, S3
                     col_golpes = f'S{i}' 
-                    
                     val_golpes = fila.get(col_golpes)
+                    
                     if pd.isna(val_golpes) or str(val_golpes).strip() == "": continue
                     
                     golpes = int(float(val_golpes))
@@ -262,18 +262,20 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     elif diff == 1: stats[jug]["Bogey"] += 1
                     else: stats[jug]["D.Bogey+"] += 1
                     
-                    # Scratch: Par=1, Birdie=2, Eagle=3, Albatros=4. Bogey o peor=0.
-                    stats[jug]["Scratch"] += max(0, 1 - diff)
+                    # Cálculo Puntos Scratch basado en los hoyos jugados
+                    # (Gross Stableford: Bogey o peor = 0, Par = 1, Birdie = 2, etc.)
+                    puntos_scratch_hoyo = max(0, 1 - diff)
+                    stats[jug]["Scratch"] += puntos_scratch_hoyo
             except: continue
 
-        # 3. Construcción de la tabla
+        # 3. Preparación de la Tabla Acumulada
         datos_tabla = []
         for jug in TODOS:
             d = stats[jug]
-            total = d["Hoyos"] if d["Hoyos"] > 0 else 1
+            total_h = d["Hoyos"] if d["Hoyos"] > 0 else 1
             
             def fmt_con_pct(valor):
-                pct = (valor / total) * 100
+                pct = (valor / total_h) * 100
                 return f"{valor} <br> <small style='color:gray;'>{pct:.1f}%</small>"
 
             datos_tabla.append({
@@ -288,37 +290,51 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "Hoyos": d["Hoyos"]
             })
 
-        # 4. Estilo CSS y Renderizado
+        # 4. Estilo CSS para centrar y limpiar títulos
         st.markdown("""
             <style>
-                th { text-align: center !important; background-color: #f0f2f6; font-weight: bold !important; }
-                td { text-align: center !important; vertical-align: middle !important; border-bottom: 1px solid #eee; }
+                th { text-align: center !important; background-color: #f0f2f6; font-weight: bold !important; border: 1px solid #dee2e6; }
+                td { text-align: center !important; vertical-align: middle !important; border: 1px solid #dee2e6; }
+                table { border-collapse: collapse; width: 100%; }
             </style>
         """, unsafe_allow_html=True)
 
         st.subheader("Resumen Acumulado")
         import pandas as pd
         df_mostrar = pd.DataFrame(datos_tabla)
+        # Renderizado limpio sin asteriscos y con HTML para porcentajes
         st.write(df_mostrar.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # 5. Detalle por Jornada (también ajustado a S0-S3)
         st.divider()
+
+        # 5. Detalle por Jornada (Cálculo específico por hoyos de ese día)
         st.subheader("🔍 Detalle por Jornada")
-        fechas_disp = df_historico[col_fecha].unique().tolist()
+        fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
         fecha_sel = st.selectbox("Seleccionar Jornada:", fechas_disp)
         
         df_jornada = df_historico[df_historico[col_fecha] == fecha_sel]
         resumen_jornada = []
+        
         for i, jug in enumerate(TODOS):
             pts_j = 0
+            hoyos_j = 0
             for _, f in df_jornada.iterrows():
                 try:
                     h_idx = int(f['HOYO'])
-                    # Cambio a f'S{i}' aquí también
-                    diff_j = int(float(f[f'S{i}'])) - int(PAR_RIA_VIGO[h_idx])
+                    val_s = f[f'S{i}']
+                    if pd.isna(val_s) or str(val_s).strip() == "": continue
+                    
+                    golpes_j = int(float(val_s))
+                    diff_j = golpes_j - int(PAR_RIA_VIGO[h_idx])
                     pts_j += max(0, 1 - diff_j)
+                    hoyos_j += 1
                 except: continue
-            resumen_jornada.append({"Jugador": jug, "Scratch Jornada": pts_j})
+                
+            resumen_jornada.append({
+                "Jugador": jug, 
+                "Scratch Jornada": pts_j,
+                "Hoyos Jugados": hoyos_j
+            })
         
         st.table(resumen_jornada)
         
