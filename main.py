@@ -222,32 +222,23 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     df_historico = leer_datos() 
     
     if df_historico is not None and not df_historico.empty:
-        # 1. Preparación de datos
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
         
         fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
         conteo_h = df_historico.groupby(col_fecha).size().to_dict()
         
-        fecha_sel = st.selectbox(
-            "Seleccionar Jornada:", 
-            options=fechas_disp, 
-            format_func=lambda x: f"{x} ({conteo_h[x]} hoyos)",
-            index=0
-        )
+        fecha_sel = st.selectbox("Seleccionar Jornada:", options=fechas_disp, 
+                                 format_func=lambda x: f"{x} ({conteo_h[x]} hoyos)")
 
         df_jornada = df_historico[df_historico[col_fecha] == fecha_sel]
 
-        # 2. CÁLCULO ARITMÉTICO PURO
-        stats = {jug: {
-            "GOLPES_TOTALES": 0, "PAR_TOTAL": 0, "Scratch": 0, "H": 0,
-            "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0
-        } for jug in TODOS}
+        stats = {jug: {"Scratch": 0, "H": 0, "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0} for jug in TODOS}
         
         for _, fila in df_jornada.iterrows():
             try:
                 h_num = int(fila.get('HOYO'))
-                p_hoyo = int(PAR_RIA_VIGO[h_num]) # Par del hoyo según tu diccionario
+                p_hoyo = int(PAR_RIA_VIGO[h_num])
                 
                 for i, jug in enumerate(TODOS):
                     v = fila.get(f'S{i}')
@@ -255,13 +246,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                     g_hoyo = int(float(v))
                     diff = g_hoyo - p_hoyo
-                    
-                    # Acumuladores para el +/- exacto
-                    stats[jug]["GOLPES_TOTALES"] += g_hoyo
-                    stats[jug]["PAR_TOTAL"] += p_hoyo
                     stats[jug]["H"] += 1
                     
-                    # Lógica de categorías y puntos Scratch (3, 2, 1, 0)
+                    # Sistema de puntos: Birdie=3, Par=2, Bogey=1, Doble+=0
                     if diff <= -3: 
                         stats[jug]["ALB"] += 1; stats[jug]["Scratch"] += 4
                     elif diff == -2: 
@@ -272,18 +259,19 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         stats[jug]["PAR"] += 1; stats[jug]["Scratch"] += 2
                     elif diff == 1: 
                         stats[jug]["BOG"] += 1; stats[jug]["Scratch"] += 1
-                    else: # +2 o cualquier cifra superior
+                    else: 
                         stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
             except: continue
 
-        # 3. GENERACIÓN DE FILAS
         tabla_data = []
         for jug in TODOS:
             d = stats[jug]
             if d["H"] == 0: continue
             
-            # EL CÁLCULO REAL: Golpes hechos - Par de los hoyos jugados
-            relativo = d["GOLPES_TOTALES"] - d["PAR_TOTAL"]
+            # NUEVA LÓGICA REORGANIZADA: (Hoyos * 2) - Puntos Scratch
+            potencial_par = d["H"] * 2
+            puntos_reales = d["Scratch"]
+            relativo = potencial_par - puntos_reales
             
             c_rel = "red" if relativo > 0 else ("#3498db" if relativo < 0 else "green")
             s_rel = f"+{relativo}" if relativo > 0 else (str(relativo) if relativo < 0 else "E")
@@ -292,15 +280,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
             tabla_data.append({
                 "Jugador": f"<b>{jug}</b>",
-                "+/-": f"<span style='color:{c_rel}; font-weight:bold; font-size:1.1em;'>{s_rel}</span>",
-                "Scratch": f"<b>{d['Scratch']}</b>",
+                "+/-": f"<span style='color:{c_rel}; font-weight:bold;'>{s_rel}</span>",
+                "Scratch": f"<b>{puntos_reales}</b>",
                 "Albatros": f_p(d["ALB"]), "Eagles": f_p(d["EAG"]), "Birdies": f_p(d["BIR"]),
                 "Pares": f_p(d["PAR"]), "Bogey": f_p(d["BOG"]), "D.Bogey+": f_p(d["DB"])
             })
 
-        # 4. RENDER
-        st.markdown("<style>td, th {text-align:center !important; vertical-align:middle !important; border:1px solid #eee !important;}</style>", unsafe_allow_html=True)
-        import pandas as pd
+        st.markdown("<style>td, th {text-align:center !important;}</style>", unsafe_allow_html=True)
         st.write(pd.DataFrame(tabla_data).to_html(escape=False, index=False), unsafe_allow_html=True)
         
 elif st.session_state.menu_seleccionado == "Admin":
