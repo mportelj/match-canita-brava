@@ -221,12 +221,16 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     
     df_historico = leer_datos() 
     
-    if df_historico is not None and not df_historico.empty:
+    if df_historico is None or df_historico.empty:
+        st.info("No hay datos registrados.")
+    else:
+        # 1. Normalización total
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
         
+        # 2. Selector de Jornada
         fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
-        conteo_hoyos = df_historico.groupby(col_fecha).size().to_dict()
+        conteo_hoyos_dict = df_historico.groupby(col_fecha).size().to_dict()
         
         if "modo_historia" not in st.session_state:
             st.session_state.modo_historia = "Jornada"
@@ -234,16 +238,16 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         fecha_sel = st.selectbox(
             "Seleccionar Jornada:", 
             options=fechas_disp, 
-            format_func=lambda x: f"{x} ({conteo_hoyos[x]} hoyos)",
+            format_func=lambda x: f"{x} ({conteo_hoyos_dict[x]} hoyos)",
             index=0
         )
 
         df_final = df_historico if st.session_state.modo_historia == "Acumulado" else df_historico[df_historico[col_fecha] == fecha_sel]
 
-        # 3. PROCESAMIENTO CON LÓGICA DE GOLF REAL
+        # 3. PROCESAMIENTO MATEMÁTICO ESTRICTO
         stats = {jug: {
-            "Scratch": 0, "Rel": 0, "ALB": 0, "EAG": 0, 
-            "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0, "H": 0
+            "Scratch": 0, "Relativo": 0, "H": 0,
+            "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0
         } for jug in TODOS}
         
         for _, fila in df_final.iterrows():
@@ -252,16 +256,20 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 par_hoyo = int(PAR_RIA_VIGO[h_idx])
                 
                 for i, jug in enumerate(TODOS):
+                    # Forzamos la lectura de columnas S0, S1, S2, S3
                     val = fila.get(f'S{i}')
                     if pd.isna(val) or str(val).strip() == "": continue
                     
                     golpes = int(float(val))
-                    diff = golpes - par_hoyo # Diferencia real (ej: Birdie es -1)
+                    if golpes <= 0: continue
                     
+                    diff = golpes - par_hoyo
                     stats[jug]["H"] += 1
-                    stats[jug]["Rel"] += diff # Aquí se calcula el +/- real
                     
-                    # Lógica Scratch solicitada: Birdie+3, Par+2, Bogey+1, DB+0
+                    # Cálculo de +/- (Diferencia de golpes contra el par)
+                    stats[jug]["Relativo"] += diff
+                    
+                    # Clasificación y Puntos Scratch (Tu escala exacta)
                     if diff <= -3: 
                         stats[jug]["ALB"] += 1
                         stats[jug]["Scratch"] += 4
@@ -277,34 +285,42 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     elif diff == 1: 
                         stats[jug]["BOG"] += 1
                         stats[jug]["Scratch"] += 1
-                    else: 
+                    else: # +2 o más
                         stats[jug]["DB"] += 1
                         stats[jug]["Scratch"] += 0
             except: continue
 
-        # 4. TABLA
+        # 4. CONSTRUCCIÓN DE LA TABLA
         tabla_data = []
         for jug in TODOS:
             d = stats[jug]
             if d["H"] == 0: continue
             
-            color_rel = "red" if d["Rel"] > 0 else ("#3498db" if d["Rel"] < 0 else "green")
-            rel_str = f"+{d['Rel']}" if d["Rel"] > 0 else (str(d["Rel"]) if d["Rel"] < 0 else "E")
+            # Formato +/- (JOSE debe salir +5)
+            rel = d["Relativo"]
+            color_rel = "red" if rel > 0 else ("#3498db" if rel < 0 else "green")
+            rel_str = f"+{rel}" if rel > 0 else (str(rel) if rel < 0 else "E")
+            
             f_pct = lambda v: f"{v}<br><small style='color:gray;'>{(v/d['H'])*100:.1f}%</small>"
 
             tabla_data.append({
                 "Jugador": f"<b>{jug}</b>",
-                "+/-": f"<span style='color:{color_rel}; font-weight:bold;'>{rel_str}</span>",
+                "+/-": f"<span style='color:{color_rel}; font-weight:bold; font-size:1.1em;'>{rel_str}</span>",
                 "Scratch": f"<b>{d['Scratch']}</b>",
-                "Albatros": f_pct(d["ALB"]), "Eagles": f_pct(d["EAG"]), "Birdies": f_pct(d["BIR"]),
-                "Pares": f_pct(d["PAR"]), "Bogey": f_pct(d["BOG"]), "D.Bogey+": f_pct(d["DB"])
+                "Albatros": f_pct(d["ALB"]), 
+                "Eagles": f_pct(d["EAG"]), 
+                "Birdies": f_pct(d["BIR"]),
+                "Pares": f_pct(d["PAR"]), 
+                "Bogey": f_pct(d["BOG"]), 
+                "D.Bogey+": f_pct(d["DB"])
             })
 
         st.markdown("<style>td, th {text-align:center !important; vertical-align:middle !important; border:1px solid #dee2e6 !important;}</style>", unsafe_allow_html=True)
+        import pandas as pd
         st.write(pd.DataFrame(tabla_data).to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # 5. BOTONES
-        st.write("---")
+        # 5. BOTONES DE MODO
+        st.write("")
         c1, c2 = st.columns(2)
         if c1.button("📊 Ver Acumulado Total"):
             st.session_state.modo_historia = "Acumulado"
