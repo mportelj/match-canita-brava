@@ -96,6 +96,12 @@ if st.session_state.menu_seleccionado == "Inicio":
         <div style="font-size:2em; align-self:center;">VS</div>
         <div><h2 style="color:{COLOR_B};">{EQUIPO_B_NOMBRES}</h2><h1>{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
+# --- Actualización de nombres de equipo ---
+EQUIPO_A_NOMBRES = f"{TODOS[0]} & {TODOS[1]}"
+EQUIPO_B_NOMBRES = f"{TODOS[2]} & {TODOS[3]}"
+
+# ... (resto del código igual hasta llegar a Jugar/Editar)
+
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if 'game' not in st.session_state or st.session_state.game is None:
         st.subheader("No hay partida activa")
@@ -106,17 +112,23 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     else:
         g = st.session_state.game
         
-        # --- 1. MARCADOR TOTAL DE LA JORNADA ---
-        pts_a = sum(l['pts'][0] for l in g['logs'].values())
-        pts_b = sum(l['pts'][1] for l in g['logs'].values())
+        # --- 1. MARCADOR POR DIFERENCIA (MATCH PLAY) ---
+        pts_a_tot = sum(l['pts'][0] for l in g['logs'].values())
+        pts_b_tot = sum(l['pts'][1] for l in g['logs'].values())
+        
+        # Cálculo de diferencia: uno de los dos siempre será 0
+        if pts_a_tot >= pts_b_tot:
+            diff_a, diff_b = pts_a_tot - pts_b_tot, 0
+        else:
+            diff_a, diff_b = 0, pts_b_tot - pts_a_tot
         
         st.markdown(f"""
             <div style="background-color:#f0f2f6; padding:10px; border-radius:10px; text-align:center; margin-bottom:20px;">
-                <p style="margin:0; font-weight:bold; color:#555;">MARCADOR JORNADA</p>
+                <p style="margin:0; font-weight:bold; color:#555;">MARCADOR JORNADA (POR DIFERENCIA)</p>
                 <div style="display:flex; justify-content:space-around; align-items:center;">
-                    <div style="color:{COLOR_A};"><b>{EQUIPO_A_NOMBRES}</b><br><span style="font-size:25px;">{pts_a:g}</span></div>
-                    <div style="font-size:20px; font-weight:bold;">VS</div>
-                    <div style="color:{COLOR_B};"><b>{EQUIPO_B_NOMBRES}</b><br><span style="font-size:25px;">{pts_b:g}</span></div>
+                    <div style="color:{COLOR_A};"><b>{EQUIPO_A_NOMBRES}</b><br><span style="font-size:30px; font-weight:bold;">{diff_a:g}</span></div>
+                    <div style="font-size:20px; font-weight:bold; color:#888;">VS</div>
+                    <div style="color:{COLOR_B};"><b>{EQUIPO_B_NOMBRES}</b><br><span style="font-size:30px; font-weight:bold;">{diff_b:g}</span></div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -131,10 +143,20 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         
         if ya:
             h_pts = g['logs'][str(h)]['pts']
-            color_h = COLOR_A if h_pts[0] > h_pts[1] else COLOR_B if h_pts[1] > h_pts[0] else "#555"
-            texto_h = "EMPATE" if h_pts[0] == h_pts[1] else f"GANA {EQUIPO_A_NOMBRES if h_pts[0]>h_pts[1] else EQUIPO_B_NOMBRES}"
-            st.markdown(f"""<div style="text-align:center; color:{color_h}; font-weight:bold; border:1px solid {color_h}; border-radius:5px; margin-bottom:10px;">
-                        Resultado Hoyo {h}: {h_pts[0]:g} - {h_pts[1]:g} ({texto_h})</div>""", unsafe_allow_html=True)
+            # Marcador del hoyo por diferencia
+            if h_pts[0] >= h_pts[1]:
+                h_diff_a, h_diff_b = h_pts[0] - h_pts[1], 0
+            else:
+                h_diff_a, h_diff_b = 0, h_pts[1] - h_pts[0]
+                
+            color_h = COLOR_A if h_diff_a > h_diff_b else COLOR_B if h_diff_b > h_diff_a else "#555"
+            texto_h = "EMPATE" if h_diff_a == h_diff_b else f"GANA {EQUIPO_A_NOMBRES if h_diff_a > h_diff_b else EQUIPO_B_NOMBRES}"
+            
+            st.markdown(f"""
+                <div style="text-align:center; color:{color_h}; font-weight:bold; border:1px solid {color_h}; border-radius:5px; padding:5px; margin-bottom:15px;">
+                    Resultado Hoyo {h}: {h_diff_a:g} - {h_diff_b:g} ({texto_h})
+                </div>
+            """, unsafe_allow_html=True)
 
         # --- 3. ENTRADA DE GOLPES ---
         v_old = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
@@ -148,7 +170,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             ejecutar_guardado_automatico()
             st.rerun()
             
-        # --- 4. MVP DESPLEGABLE (BAJO BOTÓN) ---
+        # --- 4. MVP DESPLEGABLE ---
         if ya:
             with st.expander("🏆 Ver Clasificación MVP"):
                 df_hist = leer_datos()
