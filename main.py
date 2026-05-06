@@ -256,8 +256,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             df_final = df_historico
             subtitulo = "Histórico Acumulado"
 
-        # 3. PROCESAMIENTO
-        stats = {jug: {"Scratch": 0, "H": 0, "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0} for jug in TODOS}
+        # 3. PROCESAMIENTO (Desglose de Bogey, Doble Bogey y +Triple Bogey)
+        stats = {jug: {"Scratch": 0, "H": 0, "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0, "TB": 0} for jug in TODOS}
         for _, fila in df_final.iterrows():
             try:
                 h_num = int(fila.get('HOYO'))
@@ -268,26 +268,29 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     g_hoyo = int(float(v))
                     diff = g_hoyo - p_hoyo
                     stats[jug]["H"] += 1
+                    
                     if diff <= -3: stats[jug]["ALB"] += 1; stats[jug]["Scratch"] += 4
                     elif diff == -2: stats[jug]["EAG"] += 1; stats[jug]["Scratch"] += 4
                     elif diff == -1: stats[jug]["BIR"] += 1; stats[jug]["Scratch"] += 3
                     elif diff == 0: stats[jug]["PAR"] += 1; stats[jug]["Scratch"] += 2
                     elif diff == 1: stats[jug]["BOG"] += 1; stats[jug]["Scratch"] += 1
-                    else: stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
+                    elif diff == 2: stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
+                    else: stats[jug]["TB"] += 1; stats[jug]["Scratch"] += 0 # Triple Bogey o más
             except: continue
 
-        # 4. ORDENACIÓN Y PREPARACIÓN DE DATOS
+        # 4. ORDENACIÓN
         tabla_raw = []
         for jug in TODOS:
             d = stats[jug]
             if d["H"] == 0: continue
             rel = (d["H"] * 2) - d["Scratch"]
             tabla_raw.append({"Jugador": jug, "val_rel": rel, "Scratch": d["Scratch"], "H": d["H"], 
-                             "EAG": d["EAG"], "BIR": d["BIR"], "PAR": d["PAR"], "BOG": d["BOG"], "DB": d["DB"]})
+                             "EAG": d["EAG"], "BIR": d["BIR"], "PAR": d["PAR"], "BOG": d["BOG"], 
+                             "DB": d["DB"], "TB": d["TB"]})
 
         df_ranking = pd.DataFrame(tabla_raw).sort_values(by="val_rel", ascending=True)
 
-        # 5. GENERACIÓN DE MENSAJE WHATSAPP (Ordenado y con %)
+        # 5. GENERACIÓN DE MENSAJE WHATSAPP (Ordenado, con % y nuevas columnas)
         import urllib.parse
         txt_wa = f"🍺 *CAÑITA BRAVA* ⛳\n📍 _{subtitulo}_\n"
         txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
@@ -298,11 +301,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             
             txt_wa += f"👤 *{r['Jugador'].upper()}*\n"
             txt_wa += f"🏆 Resultado: *{rel_str}* ({r['Scratch']} pts)\n"
-            txt_wa += f"🦅 Egl: {r['EAG']} ({pct(r['EAG'])})\n"
-            txt_wa += f"🐥 Bir: {r['BIR']} ({pct(r['BIR'])})\n"
-            txt_wa += f"🛡️ Par: {r['PAR']} ({pct(r['PAR'])})\n"
-            txt_wa += f"⚠️ Bog: {r['BOG']} ({pct(r['BOG'])})\n"
-            txt_wa += f"💀 D.Bog+: {r['DB']} ({pct(r['DB'])})\n"
+            txt_wa += f"🦅 Egl: {r['EAG']} ({pct(r['EAG'])}) | 🐥 Bir: {r['BIR']} ({pct(r['BIR'])})\n"
+            txt_wa += f"🛡️ Par: {r['PAR']} ({pct(r['PAR'])}) | ⚠️ Bog: {r['BOG']} ({pct(r['BOG'])})\n"
+            txt_wa += f"💀 D.Bog: {r['DB']} ({pct(r['DB'])}) | 💣 +T.Bog: {r['TB']} ({pct(r['TB'])})\n"
             txt_wa += f"⛳ Hoyos: {r['H']}\n"
             txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
 
@@ -312,13 +313,14 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         if st.session_state.vista_stats == "Resumen":
             st.subheader(f"📋 RESUMEN - {subtitulo}")
             df_web = df_ranking.copy()
-            for cat in ["EAG", "BIR", "PAR", "BOG", "DB"]:
+            for cat in ["EAG", "BIR", "PAR", "BOG", "DB", "TB"]:
                 df_web[cat] = df_web.apply(lambda x: f"{x[cat]}<br><small style='color:gray;'>{(x[cat]/x['H'])*100:.1f}%</small>", axis=1)
             
-            # Formato estético para +/-
             df_web["+/-"] = df_web["val_rel"].apply(lambda x: f"<span style='color:{'red' if x > 0 else ('green' if x < 0 else 'gray')}; font-weight:bold;'>{'+'+str(x) if x > 0 else (str(x) if x < 0 else 'E')}</span>")
             
-            cols = ["Jugador", "+/-", "Scratch", "EAG", "BIR", "PAR", "BOG", "DB"]
+            # Ajuste de nombres de columnas para la tabla web
+            df_web.rename(columns={"DB": "D.Bogey", "TB": "+T.Bogey"}, inplace=True)
+            cols = ["Jugador", "+/-", "Scratch", "EAG", "BIR", "PAR", "BOG", "D.Bogey", "+T.Bogey"]
             st.write(df_web[cols].to_html(escape=False, index=False), unsafe_allow_html=True)
 
         elif st.session_state.vista_stats == "MVP":
