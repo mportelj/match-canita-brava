@@ -110,23 +110,22 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     else:
         g = st.session_state.game
         
-        # --- 1. MARCADOR MATCH JORNADA (RESALTADO) ---
+        # --- 1. MARCADOR MATCH JORNADA (ESTILO LIMPIO SIN TÍTULO) ---
         pts_a_tot = sum(l['pts'][0] for l in g['logs'].values())
         pts_b_tot = sum(l['pts'][1] for l in g['logs'].values())
         diff_a, diff_b = (pts_a_tot - pts_b_tot, 0) if pts_a_tot >= pts_b_tot else (0, pts_b_tot - pts_a_tot)
         
         st.markdown(f"""
-            <div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding:20px; border-radius:20px; text-align:center; margin-bottom:25px; border: 2px solid #2e7d32;">
-                <p style="margin:0; font-weight:bold; color:#1b5e20; font-size:1.1rem;">🏆 MARCADOR MATCH PLAY</p>
-                <div style="display:flex; justify-content:space-around; align-items:center; margin-top:15px;">
+            <div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding:20px; border-radius:20px; text-align:center; margin-bottom:25px; border: 2px solid #2e7d32; box-shadow: 0px 4px 10px rgba(0,0,0,0.05);">
+                <div style="display:flex; justify-content:space-around; align-items:center;">
                     <div style="color:{COLOR_A}; flex:1;">
-                        <b style="font-size:1.2rem;">{EQUIPO_A_NOMBRES}</b><br>
-                        <span style="font-size:50px; font-weight:900;">{diff_a:g}</span>
+                        <b style="font-size:1.1rem; display:block; margin-bottom:5px;">{EQUIPO_A_NOMBRES}</b>
+                        <span style="font-size:45px; font-weight:900;">{diff_a:g}</span>
                     </div>
-                    <div style="font-size:25px; font-weight:bold; color:#555; background:white; width:45px; height:45px; border-radius:50%; display:flex; align-items:center; justify-content:center; border: 2px solid #ddd;">VS</div>
+                    <div style="font-size:22px; font-weight:bold; color:#555; background:white; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; border: 2px solid #ddd;">VS</div>
                     <div style="color:{COLOR_B}; flex:1;">
-                        <b style="font-size:1.2rem;">{EQUIPO_B_NOMBRES}</b><br>
-                        <span style="font-size:50px; font-weight:900;">{diff_b:g}</span>
+                        <b style="font-size:1.1rem; display:block; margin-bottom:5px;">{EQUIPO_B_NOMBRES}</b>
+                        <span style="font-size:45px; font-weight:900;">{diff_b:g}</span>
                     </div>
                 </div>
             </div>
@@ -140,17 +139,22 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         
         ya_guardado = str(h) in g['logs']
 
-        # --- 3. MARCADOR DEL HOYO ---
+        # --- 3. MARCADOR DEL HOYO (DOS LÍNEAS) ---
         if ya_guardado:
             h_pts = g['logs'][str(h)]['pts']
             h_diff_a, h_diff_b = (h_pts[0]-h_pts[1], 0) if h_pts[0]>=h_pts[1] else (0, h_pts[1]-h_pts[0])
             color_h = COLOR_A if h_diff_a > h_diff_b else COLOR_B if h_diff_b > h_diff_a else "#666"
             texto_h = "EMPATE" if h_diff_a == h_diff_b else f"GANA {EQUIPO_A_NOMBRES if h_diff_a > h_diff_b else EQUIPO_B_NOMBRES}"
-            st.markdown(f"""<div style="text-align:center; color:{color_h}; font-weight:bold; border: 1px dashed {color_h}; border-radius:10px; padding:10px; margin-bottom:20px;">
-                        ⛳ Resultado Hoyo {h}: {h_diff_a:g} - {h_diff_b:g} ({texto_h})</div>""", unsafe_allow_html=True)
+            
+            st.markdown(f"""
+                <div style="text-align:center; background-color: #fff; border: 1px solid #eee; border-radius:12px; padding:12px; margin-bottom:20px; box-shadow: inset 0 0 5px rgba(0,0,0,0.02);">
+                    <span style="color:#888; font-size:0.9rem; font-weight:bold; text-transform:uppercase;">Resultado del hoyo {h}</span><br>
+                    <span style="color:{color_h}; font-size:1.8rem; font-weight:900;">{h_diff_a:g} — {h_diff_b:g}</span><br>
+                    <small style="color:{color_h}; font-weight:bold;">{texto_h}</small>
+                </div>
+            """, unsafe_allow_html=True)
 
         # --- 4. ENTRADA DE GOLPES ---
-        # Valores que se muestran inicialmente
         v_inicio = [int(x) for x in g['logs'][str(h)]['s']] if ya_guardado else [int(PAR_RIA_VIGO[h])]*4
         
         c1, c2 = st.columns(2)
@@ -159,21 +163,19 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         s3 = c2.number_input(TODOS[2], 0, 15, v_inicio[2], step=1, key=f"s3_h{h}_{g['id']}")
         s4 = c2.number_input(TODOS[3], 0, 15, v_inicio[3], step=1, key=f"s4_h{h}_{g['id']}")
         
-        # --- LÓGICA DE ACTIVACIÓN DEL BOTÓN ---
+        # Lógica de activación del botón
         v_actuales = [s1, s2, s3, s4]
         hubo_cambios = v_actuales != v_inicio
-        
-        # El botón se activa si es nuevo (no guardado) O si se ha cambiado algún valor
         boton_desactivado = ya_guardado and not hubo_cambios
         texto_boton = "🔄 Actualizar Hoyo" if ya_guardado else "💾 Guardar Hoyo"
         
         if st.button(texto_boton, type="primary", use_container_width=True, disabled=boton_desactivado):
             ejecutar_guardado_automatico()
-            st.success(f"Hoyo {h} {'actualizado' if ya_guardado else 'guardado'} correctamente")
             st.rerun()
             
-        # --- 5. CLASIFICACIÓN MVP ORDENADA ---
+        # --- 5. CLASIFICACIÓN MVP ORDENADA CON BOTONES ---
         if ya_guardado:
+            st.write("")
             with st.expander("⭐ Clasificaciones MVP"):
                 col_btn1, col_btn2 = st.columns(2)
                 if "mvp_view" not in st.session_state: st.session_state.mvp_view = "Hoyo"
