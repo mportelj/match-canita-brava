@@ -217,14 +217,13 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.rerun()
             
 elif st.session_state.menu_seleccionado == "Estadísticas":
-    st.header("📊 Estadísticas Globales")
+    st.header("🏆 Orden de Mérito")
     
-    # 1. Obtener datos directamente de Google Sheets
-    # Utilizamos la función que ya tienes definida para leer la hoja
+    # 1. Obtener datos directamente de la hoja de cálculo
     df_historico = leer_datos() 
     
     if df_historico is None or df_historico.empty:
-        st.info("Aún no hay datos guardados en la nube para generar estadísticas.")
+        st.info("Aún no hay datos registrados en la Orden de Mérito.")
     else:
         # 2. Procesar datos acumulados por jugador
         stats = {jug: {
@@ -234,57 +233,66 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             "birdies": 0
         } for jug in TODOS}
         
-        # Iterar sobre las filas de la hoja de cálculo
         for _, fila in df_historico.iterrows():
             try:
-                # Obtenemos el par del hoyo desde tu constante PAR_RIA_VIGO
                 h_num = int(fila['Hoyo'])
                 par_hoyo = int(PAR_RIA_VIGO[h_num])
                 
                 for i, jug in enumerate(TODOS):
-                    # Extraer golpes (S1, S2...) y puntos (MVP1, MVP2...)
-                    # Se usa float/int para asegurar cálculos correctos desde la nube
                     golpes = int(fila[f'S{i+1}'])
                     puntos = float(fila[f'MVP{i+1}'])
                     
                     stats[jug]["puntos_mvp"] += puntos
                     stats[jug]["hoyos_jugados"] += 1
                     
-                    # Hitos de rendimiento
                     if golpes <= par_hoyo:
                         stats[jug]["pars_o_mejor"] += 1
                     if golpes < par_hoyo:
                         stats[jug]["birdies"] += 1
             except Exception:
-                # Ignorar filas con errores de formato o vacías
                 continue
 
-        # 3. Rankings en columnas
+        # 3. Formatear Rankings estilo "Orden de Mérito"
+        ranking_mvp = sorted(stats.items(), key=lambda x: x[1]['puntos_mvp'], reverse=True)
+        
+        st.subheader("Clasificación General MVP")
+        # Crear una tabla simple para una visualización más limpia
+        tabla_om = []
+        for pos, (jug, data) in enumerate(ranking_mvp, 1):
+            tabla_om.append({
+                "Pos": pos,
+                "Jugador": jug,
+                "Puntos Totales": f"{data['puntos_mvp']:g}",
+                "Promedio": f"{(data['puntos_mvp']/data['hoyos_jugados'] if data['hoyos_jugados'] > 0 else 0):.2f}"
+            })
+        st.table(tabla_om)
+
+        st.divider()
+
+        # 4. Hitos Individuales
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("🏆 Ranking MVP")
-            ranking_mvp = sorted(stats.items(), key=lambda x: x[1]['puntos_mvp'], reverse=True)
-            for jug, data in ranking_mvp:
-                st.markdown(f"**{jug}**: `{data['puntos_mvp']:g}` pts")
-
-        with col2:
-            st.subheader("🎯 Efectividad (Par/-)")
+            st.markdown("### 🎯 Precisión (Pars/-)")
             ranking_prec = sorted(stats.items(), key=lambda x: x[1]['pars_o_mejor'], reverse=True)
             for jug, data in ranking_prec:
-                st.markdown(f"**{jug}**: `{data['pars_o_mejor']}` hoyos")
+                st.write(f"**{jug}**: {data['pars_o_mejor']} hoyos")
+
+        with col2:
+            st.markdown("### ✨ Total Birdies")
+            ranking_birdies = sorted(stats.items(), key=lambda x: x[1]['birdies'], reverse=True)
+            for jug, data in ranking_birdies:
+                st.write(f"**{jug}**: {data['birdies']}")
 
         st.divider()
         
-        # 4. Ficha detallada del jugador
-        jug_sel = st.selectbox("Selecciona un jugador para ver detalle:", TODOS)
+        # 5. Ficha de Jugador
+        jug_sel = st.selectbox("Análisis individual del jugador:", TODOS)
         d = stats[jug_sel]
-        promedio_mvp = d['puntos_mvp'] / d['hoyos_jugados'] if d['hoyos_jugados'] > 0 else 0
         
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         c1.metric("Puntos MVP", f"{d['puntos_mvp']:g}")
-        c2.metric("Promedio/Hoyo", f"{promedio_mvp:.2f}")
-        c3.metric("Birdies", f"{d['birdies']}")
+        c2.metric("Efectividad (Pars o mejor)", f"{d['pars_o_mejor']}")
 
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión")
