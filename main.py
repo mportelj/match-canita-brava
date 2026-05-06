@@ -224,11 +224,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     if df_historico is None or df_historico.empty:
         st.info("No hay datos registrados en la Orden de Mérito.")
     else:
-        # 1. Limpieza total de la tabla de Google Sheets
+        # 1. Normalización de columnas
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
 
-        # 2. Inicializar estadísticas
+        # 2. Procesamiento (Ajustado para columnas S0 a S3)
         stats = {jug: {
             "Scratch": 0, "Albatros": 0, "Eagles": 0, "Birdies": 0,
             "Pares": 0, "Bogey": 0, "D.Bogey+": 0, "Hoyos": 0
@@ -236,84 +236,92 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         
         for _, fila in df_historico.iterrows():
             try:
-                # Obtener hoyo y validar
-                val_hoyo = fila.get('HOYO')
-                if val_hoyo is None or str(val_hoyo).strip() == "": continue
-                h_num = int(float(val_hoyo))
+                h_val = fila.get('HOYO')
+                if pd.isna(h_val): continue
+                h_num = int(h_val)
                 par_hoyo = int(PAR_RIA_VIGO[h_num])
                 
                 for i, jug in enumerate(TODOS):
-                    col_s = f'S{i+1}' # S1, S2, S3, S4
+                    # CAMBIO CLAVE: Las columnas van de S0 a S3
+                    col_golpes = f'S{i}' 
                     
-                    val_golpes = fila.get(col_s)
+                    val_golpes = fila.get(col_golpes)
+                    if pd.isna(val_golpes) or str(val_golpes).strip() == "": continue
                     
-                    # Si el valor está vacío o no existe, saltamos ese jugador en ese hoyo
-                    if val_golpes is None or str(val_golpes).strip() == "" or str(val_golpes).lower() == "nan":
-                        continue
+                    golpes = int(float(val_golpes))
+                    if golpes <= 0: continue
                     
-                    try:
-                        golpes = int(float(str(val_golpes).replace(',', '.')))
-                        if golpes <= 0: continue
-                        
-                        diff = golpes - par_hoyo
-                        stats[jug]["Hoyos"] += 1
-                        
-                        # Clasificación por categoría
-                        if diff <= -3: stats[jug]["Albatros"] += 1
-                        elif diff == -2: stats[jug]["Eagles"] += 1
-                        elif diff == -1: stats[jug]["Birdies"] += 1
-                        elif diff == 0: stats[jug]["Pares"] += 1
-                        elif diff == 1: stats[jug]["Bogey"] += 1
-                        else: stats[jug]["D.Bogey+"] += 1
-                        
-                        # Cálculo Scratch (Par=1, Birdie=2, Eagle=3, etc.)
-                        # Si hace Par (diff=0), 1-0 = 1 punto.
-                        # Si hace Birdie (diff=-1), 1-(-1) = 2 puntos.
-                        stats[jug]["Scratch"] += max(0, 1 - diff)
-                    except:
-                        continue # Si los golpes de un jugador están mal escritos, seguimos con los demás
-            except:
-                continue
+                    diff = golpes - par_hoyo
+                    stats[jug]["Hoyos"] += 1
+                    
+                    # Clasificación por categorías
+                    if diff <= -3: stats[jug]["Albatros"] += 1
+                    elif diff == -2: stats[jug]["Eagles"] += 1
+                    elif diff == -1: stats[jug]["Birdies"] += 1
+                    elif diff == 0: stats[jug]["Pares"] += 1
+                    elif diff == 1: stats[jug]["Bogey"] += 1
+                    else: stats[jug]["D.Bogey+"] += 1
+                    
+                    # Scratch: Par=1, Birdie=2, Eagle=3, Albatros=4. Bogey o peor=0.
+                    stats[jug]["Scratch"] += max(0, 1 - diff)
+            except: continue
 
-        # 3. Construcción de la tabla para mostrar
+        # 3. Construcción de la tabla
         datos_tabla = []
         for jug in TODOS:
             d = stats[jug]
             total = d["Hoyos"] if d["Hoyos"] > 0 else 1
             
-            def fmt_pct(valor):
+            def fmt_con_pct(valor):
                 pct = (valor / total) * 100
-                # Solo mostrar el número; el estilo se aplica en el CSS
                 return f"{valor} <br> <small style='color:gray;'>{pct:.1f}%</small>"
 
             datos_tabla.append({
                 "Jugador": jug,
                 "Scratch": d["Scratch"],
-                "Albatros": fmt_pct(d["Albatros"]),
-                "Eagles": fmt_pct(d["Eagles"]),
-                "Birdies": fmt_pct(d["Birdies"]),
-                "Pares": fmt_pct(d["Pares"]),
-                "Bogey": fmt_pct(d["Bogey"]),
-                "D.Bogey+": fmt_pct(d["D.Bogey+"]),
+                "Albatros": fmt_con_pct(d["Albatros"]),
+                "Eagles": fmt_con_pct(d["Eagles"]),
+                "Birdies": fmt_con_pct(d["Birdies"]),
+                "Pares": fmt_con_pct(d["Pares"]),
+                "Bogey": fmt_con_pct(d["Bogey"]),
+                "D.Bogey+": fmt_con_pct(d["D.Bogey+"]),
                 "Hoyos": d["Hoyos"]
             })
 
-        # 4. CSS y Renderizado
+        # 4. Estilo CSS y Renderizado
         st.markdown("""
             <style>
-                th { text-align: center !important; background-color: #f8f9fa; font-weight: bold !important; border: 1px solid #dee2e6; }
-                td { text-align: center !important; vertical-align: middle !important; border: 1px solid #dee2e6; height: 50px; }
-                small { display: block; line-height: 1; margin-top: 2px; }
+                th { text-align: center !important; background-color: #f0f2f6; font-weight: bold !important; }
+                td { text-align: center !important; vertical-align: middle !important; border-bottom: 1px solid #eee; }
             </style>
         """, unsafe_allow_html=True)
 
         st.subheader("Resumen Acumulado")
+        import pandas as pd
         df_mostrar = pd.DataFrame(datos_tabla)
         st.write(df_mostrar.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # 5. Validación visual para depuración
-        if stats["LALO"]["Hoyos"] == 0:
-            st.error(f"⚠️ No se han detectado datos para LALO. Revisa que en el Excel existan datos en la columna 'S{TODOS.index('LALO')+1}'")
+        # 5. Detalle por Jornada (también ajustado a S0-S3)
+        st.divider()
+        st.subheader("🔍 Detalle por Jornada")
+        fechas_disp = df_historico[col_fecha].unique().tolist()
+        fecha_sel = st.selectbox("Seleccionar Jornada:", fechas_disp)
+        
+        df_jornada = df_historico[df_historico[col_fecha] == fecha_sel]
+        resumen_jornada = []
+        for i, jug in enumerate(TODOS):
+            pts_j = 0
+            for _, f in df_jornada.iterrows():
+                try:
+                    h_idx = int(f['HOYO'])
+                    # Cambio a f'S{i}' aquí también
+                    diff_j = int(float(f[f'S{i}'])) - int(PAR_RIA_VIGO[h_idx])
+                    pts_j += max(0, 1 - diff_j)
+                except: continue
+            resumen_jornada.append({"Jugador": jug, "Scratch Jornada": pts_j})
+        
+        st.table(resumen_jornada)
+        
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión")
     df = leer_datos()
