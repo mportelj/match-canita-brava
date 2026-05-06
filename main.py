@@ -219,14 +219,14 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.header("📊 Estadísticas Globales")
     
-    # 1. CARGAR DATOS DESDE GOOGLE SHEETS
-    # Asumo que tienes una función llamada leer_datos() que devuelve el DataFrame de la hoja
+    # 1. Obtener datos directamente de Google Sheets
+    # Utilizamos la función que ya tienes definida para leer la hoja
     df_historico = leer_datos() 
     
-    if df_historico.empty:
-        st.info("Aún no hay datos en la hoja de cálculo para generar estadísticas.")
+    if df_historico is None or df_historico.empty:
+        st.info("Aún no hay datos guardados en la nube para generar estadísticas.")
     else:
-        # 2. PROCESAR DATOS ACUMULADOS
+        # 2. Procesar datos acumulados por jugador
         stats = {jug: {
             "puntos_mvp": 0.0, 
             "hoyos_jugados": 0, 
@@ -234,29 +234,32 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             "birdies": 0
         } for jug in TODOS}
         
-        # Recorremos cada fila (cada fila es un hoyo de una partida)
+        # Iterar sobre las filas de la hoja de cálculo
         for _, fila in df_historico.iterrows():
             try:
+                # Obtenemos el par del hoyo desde tu constante PAR_RIA_VIGO
                 h_num = int(fila['Hoyo'])
                 par_hoyo = int(PAR_RIA_VIGO[h_num])
                 
                 for i, jug in enumerate(TODOS):
-                    # Extraer golpes y puntos MVP de las columnas de la hoja
-                    # Ajusta los nombres de columna ("S1", "MVP1", etc.) según tu hoja
+                    # Extraer golpes (S1, S2...) y puntos (MVP1, MVP2...)
+                    # Se usa float/int para asegurar cálculos correctos desde la nube
                     golpes = int(fila[f'S{i+1}'])
                     puntos = float(fila[f'MVP{i+1}'])
                     
                     stats[jug]["puntos_mvp"] += puntos
                     stats[jug]["hoyos_jugados"] += 1
                     
+                    # Hitos de rendimiento
                     if golpes <= par_hoyo:
                         stats[jug]["pars_o_mejor"] += 1
                     if golpes < par_hoyo:
                         stats[jug]["birdies"] += 1
-            except:
-                continue # Por si hay alguna fila vacía o error de formato
+            except Exception:
+                # Ignorar filas con errores de formato o vacías
+                continue
 
-        # 3. VISUALIZACIÓN: RANKINGS
+        # 3. Rankings en columnas
         col1, col2 = st.columns(2)
         
         with col1:
@@ -273,8 +276,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
         st.divider()
         
-        # 4. FICHA INDIVIDUAL
-        jug_sel = st.selectbox("Selecciona un jugador:", TODOS)
+        # 4. Ficha detallada del jugador
+        jug_sel = st.selectbox("Selecciona un jugador para ver detalle:", TODOS)
         d = stats[jug_sel]
         promedio_mvp = d['puntos_mvp'] / d['hoyos_jugados'] if d['hoyos_jugados'] > 0 else 0
         
