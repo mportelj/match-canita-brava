@@ -224,7 +224,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     if df_historico is None or df_historico.empty:
         st.info("No hay datos registrados en la Orden de Mérito.")
     else:
-        # 1. Normalización de columnas (Mayúsculas y sin espacios)
+        # 1. Normalización de columnas
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
 
@@ -242,7 +242,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 par_hoyo = int(PAR_RIA_VIGO[h_num])
                 
                 for i, jug in enumerate(TODOS):
-                    # Mapeo S0, S1, S2, S3
                     col_golpes = f'S{i}' 
                     val_golpes = fila.get(col_golpes)
                     
@@ -262,13 +261,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     elif diff == 1: stats[jug]["Bogey"] += 1
                     else: stats[jug]["D.Bogey+"] += 1
                     
-                    # Cálculo Puntos Scratch basado en los hoyos jugados
-                    # (Gross Stableford: Bogey o peor = 0, Par = 1, Birdie = 2, etc.)
-                    puntos_scratch_hoyo = max(0, 1 - diff)
-                    stats[jug]["Scratch"] += puntos_scratch_hoyo
+                    # CÁLCULO SCRATCH CORREGIDO: Bogey=1, Par=2, Birdie=3
+                    puntos_hoyo = max(0, 2 - diff)
+                    stats[jug]["Scratch"] += puntos_hoyo
             except: continue
 
-        # 3. Preparación de la Tabla Acumulada
+        # 3. Creación de la Tabla Acumulada
         datos_tabla = []
         for jug in TODOS:
             d = stats[jug]
@@ -290,7 +288,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "Hoyos": d["Hoyos"]
             })
 
-        # 4. Estilo CSS para centrar y limpiar títulos
+        # 4. Estilo y Renderizado
         st.markdown("""
             <style>
                 th { text-align: center !important; background-color: #f0f2f6; font-weight: bold !important; border: 1px solid #dee2e6; }
@@ -302,41 +300,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         st.subheader("Resumen Acumulado")
         import pandas as pd
         df_mostrar = pd.DataFrame(datos_tabla)
-        # Renderizado limpio sin asteriscos y con HTML para porcentajes
         st.write(df_mostrar.to_html(escape=False, index=False), unsafe_allow_html=True)
-
-        st.divider()
-
-        # 5. Detalle por Jornada (Cálculo específico por hoyos de ese día)
-        st.subheader("🔍 Detalle por Jornada")
-        fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
-        fecha_sel = st.selectbox("Seleccionar Jornada:", fechas_disp)
-        
-        df_jornada = df_historico[df_historico[col_fecha] == fecha_sel]
-        resumen_jornada = []
-        
-        for i, jug in enumerate(TODOS):
-            pts_j = 0
-            hoyos_j = 0
-            for _, f in df_jornada.iterrows():
-                try:
-                    h_idx = int(f['HOYO'])
-                    val_s = f[f'S{i}']
-                    if pd.isna(val_s) or str(val_s).strip() == "": continue
-                    
-                    golpes_j = int(float(val_s))
-                    diff_j = golpes_j - int(PAR_RIA_VIGO[h_idx])
-                    pts_j += max(0, 1 - diff_j)
-                    hoyos_j += 1
-                except: continue
-                
-            resumen_jornada.append({
-                "Jugador": jug, 
-                "Scratch Jornada": pts_j,
-                "Hoyos Jugados": hoyos_j
-            })
-        
-        st.table(resumen_jornada)
         
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión")
