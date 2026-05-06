@@ -244,7 +244,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
         df_final = df_historico if st.session_state.modo_historia == "Acumulado" else df_historico[df_historico[col_fecha] == fecha_sel]
 
-        # 3. PROCESAMIENTO MATEMÁTICO ABSOLUTO
+        # 3. PROCESAMIENTO MATEMÁTICO REAL
         stats = {jug: {
             "Scratch": 0, "Relativo": 0, "H": 0,
             "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0
@@ -256,7 +256,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 par_hoyo = int(PAR_RIA_VIGO[h_idx])
                 
                 for i, jug in enumerate(TODOS):
-                    # Acceso directo a columnas S0-S3
                     val = fila.get(f'S{i}')
                     if pd.isna(val) or str(val).strip() == "": continue
                     
@@ -264,12 +263,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     if golpes <= 0: continue
                     
                     # DIFERENCIA REAL (Fundamental para el +/-)
+                    # Si haces 6 en un par 4, diff es +2. Si haces 3, diff es -1.
                     diff = golpes - par_hoyo
                     
                     stats[jug]["H"] += 1
-                    stats[jug]["Relativo"] += diff # SUMA ARITMÉTICA PURA
+                    stats[jug]["Relativo"] += diff # SUMA ARITMÉTICA PURA SIN LÍMITES
                     
-                    # LÓGICA SCRATCH (Tu escala: Birdie+3, Par+2, Bogey+1, DB y + +0)
+                    # LÓGICA SCRATCH (Tu escala: Birdie+3, Par+2, Bogey+1, Doble o más +0)
                     if diff <= -3: 
                         stats[jug]["ALB"] += 1
                         stats[jug]["Scratch"] += 4
@@ -285,9 +285,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     elif diff == 1: 
                         stats[jug]["BOG"] += 1
                         stats[jug]["Scratch"] += 1
-                    else: # AQUÍ ESTABA EL ERROR: Doble Bogey o más (+2, +3, +4...)
+                    else: # Doble Bogey o peor (+2, +3, +4...)
                         stats[jug]["DB"] += 1
-                        stats[jug]["Scratch"] += 0 # 0 puntos para el Scratch
+                        stats[jug]["Scratch"] += 0 
             except: continue
 
         # 4. CONSTRUCCIÓN DE LA TABLA
@@ -296,7 +296,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             d = stats[jug]
             if d["H"] == 0: continue
             
-            # Formateo del Relativo (+/-)
             rel = d["Relativo"]
             color_rel = "red" if rel > 0 else ("#3498db" if rel < 0 else "green")
             rel_str = f"+{rel}" if rel > 0 else (str(rel) if rel < 0 else "E")
@@ -311,7 +310,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "Pares": f_pct(d["PAR"]), "Bogey": f_pct(d["BOG"]), "D.Bogey+": f_pct(d["DB"])
             })
 
-        st.subheader(f"Resumen {'Acumulado' if st.session_state.modo_historia == 'Acumulado' else 'Jornada'}")
+        st.subheader(f"Resumen {'Histórico' if st.session_state.modo_historia == 'Acumulado' else 'Jornada'}")
         st.markdown("<style>td, th {text-align:center !important; vertical-align:middle !important; border:1px solid #dee2e6 !important;}</style>", unsafe_allow_html=True)
         import pandas as pd
         st.write(pd.DataFrame(tabla_data).to_html(escape=False, index=False), unsafe_allow_html=True)
@@ -319,10 +318,10 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         # 5. BOTONES
         st.write("---")
         c1, c2 = st.columns(2)
-        if c1.button("📊 Ver Acumulado Total"):
+        if c1.button("📊 Mostrar Acumulado Total"):
             st.session_state.modo_historia = "Acumulado"
             st.rerun()
-        if c2.button("📅 Ver por Jornada"):
+        if c2.button("📅 Volver a Vista Jornada"):
             st.session_state.modo_historia = "Jornada"
             st.rerun()
         
