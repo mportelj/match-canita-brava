@@ -217,27 +217,60 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.rerun()
             
 elif st.session_state.menu_seleccionado == "Estadísticas":
-    st.title("📊 Orden de Mérito")
-    df = leer_datos()
-    if not df.empty:
-        res = []
-        for i, jug in enumerate(TODOS):
-            t = df[df[f's{i}'] > 0].copy()
-            if t.empty: continue
-            
-            # Cálculo corregido para evitar ValueError
-            scratch = 0
-            for _, r in t.iterrows():
-                dif = int(r[f's{i}']) - int(PAR_RIA_VIGO[r['hoyo']])
-                scratch += (5 if dif<=-3 else 4 if dif==-2 else 3 if dif==-1 else 2 if dif==0 else 1 if dif==1 else 0)
-            
-            dif_total = (len(t)*2) - scratch
-            txt_dif = f"{dif_total:+d}" if dif_total != 0 else "E"
-            
-            res.append({"Jugador": jug, "Hoyos": len(t), "MVP": round(t[f'p{i+1}_pts'].sum(),1), "+/- Par": txt_dif, "Scratch": scratch, "_sort": dif_total})
+    st.header("📊 Estadísticas Globales")
+    
+    # 1. Cargar datos históricos
+    partidas = cargar_todas_las_partidas() # Tu función que lee la carpeta /data
+    
+    if not partidas:
+        st.info("Aún no hay partidas guardadas para generar estadísticas.")
+    else:
+        # 2. Procesar datos
+        stats = {jug: {"puntos_mvp": 0, "hoyos_jugados": 0, "golpes_totales": 0, "pars_o_mejor": 0} for jug in TODOS}
         
-        df_res = pd.DataFrame(res).sort_values("_sort").drop(columns="_sort").set_index("Jugador")
-        st.dataframe(df_res, use_container_width=True)
+        for p in partidas:
+            for h_num, h_data in p['logs'].items():
+                par_hoyo = PAR_RIA_VIGO[int(h_num)]
+                for i, jug in enumerate(TODOS):
+                    golpes = h_data['s'][i]
+                    puntos = h_data['mvp'][f'p{i+1}']
+                    
+                    stats[jug]["puntos_mvp"] += puntos
+                    stats[jug]["hoyos_jugados"] += 1
+                    stats[jug]["golpes_totales"] += golpes
+                    if golpes <= par_hoyo:
+                        stats[jug]["pars_o_mejor"] += 1
+
+        # 3. Mostrar Rankings en Columnas
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("🏆 Reyes del MVP")
+            # Ordenar por puntos MVP
+            ranking_mvp = sorted(stats.items(), key=lambda x: x[1]['puntos_mvp'], reverse=True)
+            for jug, data in ranking_mvp:
+                st.write(f"**{jug}**: {data['puntos_mvp']:g} pts")
+
+        with col2:
+            st.subheader("🎯 Precisión (Pars/-)")
+            # Ordenar por hoyos al par o mejor
+            ranking_prec = sorted(stats.items(), key=lambda x: x[1]['pars_o_mejor'], reverse=True)
+            for jug, data in ranking_prec:
+                st.write(f"**{jug}**: {data['pars_o_mejor']} hoyos")
+
+        st.divider()
+        
+        # 4. Ficha Detallada por Jugador
+        st.subheader("👤 Perfil del Jugador")
+        jug_sel = st.selectbox("Selecciona un jugador para ver detalle:", TODOS)
+        
+        d = stats[jug_sel]
+        promedio_mvp = d['puntos_mvp'] / d['hoyos_jugados'] if d['hoyos_jugados'] > 0 else 0
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Puntos MVP Totales", f"{d['puntos_mvp']:g}")
+        c2.metric("Promedio MVP/Hoyo", f"{promedio_mvp:.2f}")
+        c3.metric("Hoyos al Par o menos", f"{d['pars_o_mejor']}")
 
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión")
