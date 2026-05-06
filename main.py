@@ -222,11 +222,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     df_historico = leer_datos() 
     
     if df_historico is not None and not df_historico.empty:
-        # 1. Normalización y Limpieza
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
         
-        # 2. Configuración del Selector
         fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
         conteo_hoyos = df_historico.groupby(col_fecha).size().to_dict()
         
@@ -240,10 +238,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             index=0
         )
 
-        # Filtrar datos según el modo seleccionado
         df_final = df_historico if st.session_state.modo_historia == "Acumulado" else df_historico[df_historico[col_fecha] == fecha_sel]
 
-        # 3. Procesamiento con Puntuación Exacta
+        # 3. PROCESAMIENTO CON LÓGICA DE GOLF REAL
         stats = {jug: {
             "Scratch": 0, "Rel": 0, "ALB": 0, "EAG": 0, 
             "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0, "H": 0
@@ -259,19 +256,18 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     if pd.isna(val) or str(val).strip() == "": continue
                     
                     golpes = int(float(val))
-                    diff = golpes - par_hoyo
+                    diff = golpes - par_hoyo # Diferencia real (ej: Birdie es -1)
+                    
                     stats[jug]["H"] += 1
+                    stats[jug]["Rel"] += diff # Aquí se calcula el +/- real
                     
-                    # A. Cálculo +/- (Relativo al Par real)
-                    stats[jug]["Rel"] += diff 
-                    
-                    # B. Clasificación y Puntos Scratch (Tu lógica exacta)
+                    # Lógica Scratch solicitada: Birdie+3, Par+2, Bogey+1, DB+0
                     if diff <= -3: 
                         stats[jug]["ALB"] += 1
                         stats[jug]["Scratch"] += 4
                     elif diff == -2: 
                         stats[jug]["EAG"] += 1
-                        stats[jug]["Scratch"] += 4 # Ajustar si Eagle tiene puntos distintos a Albatros
+                        stats[jug]["Scratch"] += 4
                     elif diff == -1: 
                         stats[jug]["BIR"] += 1
                         stats[jug]["Scratch"] += 3
@@ -286,35 +282,28 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         stats[jug]["Scratch"] += 0
             except: continue
 
-        # 4. Formateo y Visualización de la Tabla
+        # 4. TABLA
         tabla_data = []
         for jug in TODOS:
             d = stats[jug]
             if d["H"] == 0: continue
             
-            # Formato +/-
             color_rel = "red" if d["Rel"] > 0 else ("#3498db" if d["Rel"] < 0 else "green")
             rel_str = f"+{d['Rel']}" if d["Rel"] > 0 else (str(d["Rel"]) if d["Rel"] < 0 else "E")
-            
             f_pct = lambda v: f"{v}<br><small style='color:gray;'>{(v/d['H'])*100:.1f}%</small>"
 
             tabla_data.append({
                 "Jugador": f"<b>{jug}</b>",
                 "+/-": f"<span style='color:{color_rel}; font-weight:bold;'>{rel_str}</span>",
                 "Scratch": f"<b>{d['Scratch']}</b>",
-                "Albatros": f_pct(d["ALB"]), 
-                "Eagles": f_pct(d["EAG"]), 
-                "Birdies": f_pct(d["BIR"]),
-                "Pares": f_pct(d["PAR"]), 
-                "Bogey": f_pct(d["BOG"]), 
-                "D.Bogey+": f_pct(d["DB"])
+                "Albatros": f_pct(d["ALB"]), "Eagles": f_pct(d["EAG"]), "Birdies": f_pct(d["BIR"]),
+                "Pares": f_pct(d["PAR"]), "Bogey": f_pct(d["BOG"]), "D.Bogey+": f_pct(d["DB"])
             })
 
-        st.subheader("Resumen de Resultados")
         st.markdown("<style>td, th {text-align:center !important; vertical-align:middle !important; border:1px solid #dee2e6 !important;}</style>", unsafe_allow_html=True)
         st.write(pd.DataFrame(tabla_data).to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # 5. Botones de Control
+        # 5. BOTONES
         st.write("---")
         c1, c2 = st.columns(2)
         if c1.button("📊 Ver Acumulado Total"):
