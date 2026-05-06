@@ -97,36 +97,47 @@ if st.session_state.menu_seleccionado == "Inicio":
         <div><h2 style="color:{COLOR_B};">{EQUIPO_B_NOMBRES}</h2><h1>{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    # CONDICIÓN CRÍTICA: Solo mostrar juego si hay sesión de 'game' real
     if 'game' not in st.session_state or st.session_state.game is None:
         st.subheader("No hay partida activa")
         f = st.date_input("Fecha de la partida:", datetime.now(), format="DD/MM/YYYY")
         if st.button("🚀 Iniciar Nueva Partida", use_container_width=True):
-            st.session_state.game = {
-                'fecha': f.strftime("%d/%m/%Y"), 
-                'h_sel': 1, 
-                'logs': {}, 
-                'id': datetime.now().strftime("%Y%m%d%H%M%S")
-            }
+            st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'h_sel': 1, 'logs': {}, 'id': datetime.now().strftime("%Y%m%d%H%M%S")}
             st.rerun()
     else:
         g = st.session_state.game
         
-        # Selector de Hoyo con nombre en negrita y Par indicado
-        opciones_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
-        seleccion = st.selectbox(
-            "**Selecciona Hoyo:**", 
-            options=opciones_hoyos, 
-            index=g['h_sel'] - 1,
-            key=f"hoyo_active_{g['id']}" # Key vinculada al ID de partida
-        )
+        # --- 1. MARCADOR TOTAL DE LA JORNADA ---
+        pts_a = sum(l['pts'][0] for l in g['logs'].values())
+        pts_b = sum(l['pts'][1] for l in g['logs'].values())
         
+        st.markdown(f"""
+            <div style="background-color:#f0f2f6; padding:10px; border-radius:10px; text-align:center; margin-bottom:20px;">
+                <p style="margin:0; font-weight:bold; color:#555;">MARCADOR JORNADA</p>
+                <div style="display:flex; justify-content:space-around; align-items:center;">
+                    <div style="color:{COLOR_A};"><b>{EQUIPO_A_NOMBRES}</b><br><span style="font-size:25px;">{pts_a:g}</span></div>
+                    <div style="font-size:20px; font-weight:bold;">VS</div>
+                    <div style="color:{COLOR_B};"><b>{EQUIPO_B_NOMBRES}</b><br><span style="font-size:25px;">{pts_b:g}</span></div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # --- 2. SELECCIÓN DE HOYO Y MARCADOR DEL HOYO ---
+        opciones_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
+        seleccion = st.selectbox("**Hoyo:**", options=opciones_hoyos, index=g['h_sel'] - 1, key=f"h_act_{g['id']}")
         h = int(seleccion.split(" ")[1])
         st.session_state.game['h_sel'] = h
         
         ya = str(h) in g['logs']
-        v_old = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
         
+        if ya:
+            h_pts = g['logs'][str(h)]['pts']
+            color_h = COLOR_A if h_pts[0] > h_pts[1] else COLOR_B if h_pts[1] > h_pts[0] else "#555"
+            texto_h = "EMPATE" if h_pts[0] == h_pts[1] else f"GANA {EQUIPO_A_NOMBRES if h_pts[0]>h_pts[1] else EQUIPO_B_NOMBRES}"
+            st.markdown(f"""<div style="text-align:center; color:{color_h}; font-weight:bold; border:1px solid {color_h}; border-radius:5px; margin-bottom:10px;">
+                        Resultado Hoyo {h}: {h_pts[0]:g} - {h_pts[1]:g} ({texto_h})</div>""", unsafe_allow_html=True)
+
+        # --- 3. ENTRADA DE GOLPES ---
+        v_old = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
         c1, c2 = st.columns(2)
         s1 = c1.number_input(TODOS[0], 0, 15, int(v_old[0]), step=1, key=f"s1_h{h}_{g['id']}")
         s2 = c1.number_input(TODOS[1], 0, 15, int(v_old[1]), step=1, key=f"s2_h{h}_{g['id']}")
@@ -137,30 +148,28 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             ejecutar_guardado_automatico()
             st.rerun()
             
+        # --- 4. MVP DESPLEGABLE (BAJO BOTÓN) ---
         if ya:
-            st.success(f"Hoyo {h} registrado.")
-            df_hist = leer_datos()
-            st.subheader("⭐ Ránking MVP")
-            m1, m2, m3 = st.columns(3)
-            with m1:
-                st.caption("En este Hoyo")
-                for i, jug in enumerate(TODOS):
-                    st.write(f"**{jug}**: {g['logs'][str(h)]['mvp'][f'p{i+1}']:g}")
-            with m2:
-                st.caption("En la Jornada")
-                for i, jug in enumerate(TODOS):
-                    val = sum(l['mvp'][f'p{i+1}'] for l in g['logs'].values())
-                    st.write(f"**{jug}**: {val:g}")
-            with m3:
-                st.caption("Temporada")
-                for i, jug in enumerate(TODOS):
-                    val = df_hist[f'p{i+1}_pts'].sum() if not df_hist.empty else 0
-                    st.write(f"**{jug}**: {val:g}")
+            with st.expander("🏆 Ver Clasificación MVP"):
+                df_hist = leer_datos()
+                m1, m2, m3 = st.columns(3)
+                with m1:
+                    st.caption("En este Hoyo")
+                    for i, jug in enumerate(TODOS): st.write(f"**{jug}**: {g['logs'][str(h)]['mvp'][f'p{i+1}']:g}")
+                with m2:
+                    st.caption("Jornada")
+                    for i, jug in enumerate(TODOS):
+                        val = sum(l['mvp'][f'p{i+1}'] for l in g['logs'].values())
+                        st.write(f"**{jug}**: {val:g}")
+                with m3:
+                    st.caption("Temporada")
+                    for i, jug in enumerate(TODOS):
+                        val = df_hist[f'p{i+1}_pts'].sum() if not df_hist.empty else 0
+                        st.write(f"**{jug}**: {val:g}")
 
         st.divider()
-        if st.button("🏁 Guardar Partida (Finalizar Sesión)", use_container_width=True):
+        if st.button("🏁 Guardar Partida", use_container_width=True):
             st.session_state.game = None
-            if 'game' in st.session_state: del st.session_state['game']
             st.rerun()
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
