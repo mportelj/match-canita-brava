@@ -263,7 +263,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     else: stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
             except: continue
 
-        # 4. Preparación de datos para la Tabla Completa y Ordenación
+        # 4. Preparación de datos y Ordenación
         tabla_raw = []
         for jug in TODOS:
             d = stats[jug]
@@ -271,7 +271,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             relativo = (d["H"] * 2) - d["Scratch"]
             
             tabla_raw.append({
-                "Jugador": f"<b>{jug}</b>",
+                "Jugador": jug,
                 "val_rel": relativo,
                 "Scratch": d["Scratch"],
                 "ALB": d["ALB"], "EAG": d["EAG"], "BIR": d["BIR"],
@@ -279,57 +279,56 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "H": d["H"]
             })
 
-        # Ordenar por resultado (el más bajo primero)
         df_ranking = pd.DataFrame(tabla_raw).sort_values(by="val_rel", ascending=True)
 
-        # 5. Formateo de la Tabla (Restaurando el estilo anterior)
+        # 5. Formateo de Tabla HTML y Mensaje WhatsApp Detallado
         tabla_final_html = []
-        texto_whatsapp = f"🏆 *Orden de Mérito - {titulo_resumen}*\n\n"
+        texto_wa = f"🏆 *ORDEN DE MÉRITO*\n📍 _{titulo_resumen}_\n"
+        texto_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
         
         for _, row in df_ranking.iterrows():
             rel = row["val_rel"]
-            color = "red" if rel > 0 else ("#3498db" if rel < 0 else "green")
             rel_str = f"+{rel}" if rel > 0 else (str(rel) if rel < 0 else "E")
+            color = "red" if rel > 0 else ("#3498db" if rel < 0 else "green")
             
             f_p = lambda v: f"{v}<br><small style='color:gray;'>{(v/row['H'])*100:.1f}%</small>"
 
+            # Tabla para Web
             tabla_final_html.append({
-                "Jugador": row["Jugador"],
+                "Jugador": f"<b>{row['Jugador']}</b>",
                 "+/-": f"<span style='color:{color}; font-weight:bold; font-size:1.1em;'>{rel_str}</span>",
                 "Scratch": f"<b>{row['Scratch']}</b>",
-                "Albatros": f_p(row["ALB"]),
-                "Eagles": f_p(row["EAG"]),
-                "Birdies": f_p(row["BIR"]),
-                "Pares": f_p(row["PAR"]),
-                "Bogey": f_p(row["BOG"]),
-                "D.Bogey+": f_p(row["DB"])
+                "Albatros": f_p(row["ALB"]), "Eagles": f_p(row["EAG"]), "Birdies": f_p(row["BIR"]),
+                "Pares": f_p(row["PAR"]), "Bogey": f_p(row["BOG"]), "D.Bogey+": f_p(row["DB"])
             })
-            # Texto para el mensaje de WhatsApp
-            texto_whatsapp += f"• *{row['Jugador'].replace('<b>','').replace('</b>','')}*: {rel_str} ({row['Scratch']} pts)\n"
+
+            # Formato detallado para WhatsApp
+            texto_wa += f"👤 *{row['Jugador'].upper()}*\n"
+            texto_wa += f"⛳️ *Resultado: {rel_str}* ({row['Scratch']} pts)\n"
+            texto_wa += f"📊 _Detalle:_ {row['BIR']} Bir | {row['PAR']} Par | {row['BOG']} Bog | {row['DB']} D.Bog\n"
+            texto_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
 
         st.subheader(titulo_resumen)
         st.markdown("<style>td, th {text-align:center !important; vertical-align:middle !important; border:1px solid #eee !important;}</style>", unsafe_allow_html=True)
         st.write(pd.DataFrame(tabla_final_html).to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # 6. Botones inferiores
+        # 6. Botones
         st.write("---")
-        col1, col2 = st.columns([1, 1])
+        c1, c2 = st.columns([1, 1])
         
-        # Botón para cambiar de modo
         if st.session_state.modo_historia == "Jornada":
-            if col1.button("📊 Mostrar Acumulado Total"):
+            if c1.button("📊 Ver Acumulado Total"):
                 st.session_state.modo_historia = "Acumulado"; st.rerun()
         else:
-            if col1.button("📅 Volver a vista Jornada"):
+            if c1.button("📅 Ver Jornada"):
                 st.session_state.modo_historia = "Jornada"; st.rerun()
 
-        # Botón de WhatsApp
         import urllib.parse
-        mensaje_wa = urllib.parse.quote(texto_whatsapp)
-        col2.markdown(f"""
-            <a href="https://wa.me/?text={mensaje_wa}" target="_blank" style="text-decoration:none;">
-                <button style="background-color:#25D366; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold; width:100%;">
-                    Enviar por WhatsApp 📱
+        mensaje_final = urllib.parse.quote(texto_wa)
+        c2.markdown(f"""
+            <a href="https://wa.me/?text={mensaje_final}" target="_blank" style="text-decoration:none;">
+                <button style="background-color:#25D366; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold; width:100%; display:flex; align-items:center; justify-content:center;">
+                    Compartir Reporte Completo 📱
                 </button>
             </a>
         """, unsafe_allow_html=True)
