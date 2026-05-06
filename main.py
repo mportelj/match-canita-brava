@@ -222,20 +222,30 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     df_historico = leer_datos() 
     
     if df_historico is not None and not df_historico.empty:
+        # 1. Normalización y Estado
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
         
+        if "modo_historia" not in st.session_state:
+            st.session_state.modo_historia = "Jornada"
+
+        # 2. Selector de Jornada (Solo se muestra si no estamos en modo Acumulado)
         fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
         conteo_h = df_historico.groupby(col_fecha).size().to_dict()
         
-        fecha_sel = st.selectbox("Seleccionar Jornada:", options=fechas_disp, 
-                                 format_func=lambda x: f"{x} ({conteo_h[x]} hoyos)")
+        if st.session_state.modo_historia == "Jornada":
+            fecha_sel = st.selectbox("Seleccionar Jornada:", options=fechas_disp, 
+                                     format_func=lambda x: f"{x} ({conteo_h[x]} hoyos)")
+            df_final = df_historico[df_historico[col_fecha] == fecha_sel]
+            titulo_tabla = f"Resultados Jornada: {fecha_sel}"
+        else:
+            df_final = df_historico
+            titulo_tabla = "Resultados Acumulados (Histórico Total)"
 
-        df_jornada = df_historico[df_historico[col_fecha] == fecha_sel]
-
+        # 3. Procesamiento con la fórmula: (Hoyos * 2) - Puntos Scratch
         stats = {jug: {"Scratch": 0, "H": 0, "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0} for jug in TODOS}
         
-        for _, fila in df_jornada.iterrows():
+        for _, fila in df_final.iterrows():
             try:
                 h_num = int(fila.get('HOYO'))
                 p_hoyo = int(PAR_RIA_VIGO[h_num])
@@ -263,31 +273,65 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
             except: continue
 
-        tabla_data = []
+        # 4. Generación de datos y Ordenación
+        tabla_raw = []
         for jug in TODOS:
             d = stats[jug]
             if d["H"] == 0: continue
             
-            # NUEVA LÓGICA REORGANIZADA: (Hoyos * 2) - Puntos Scratch
-            potencial_par = d["H"] * 2
-            puntos_reales = d["Scratch"]
-            relativo = potencial_par - puntos_reales
+            # Fórmula exacta solicitada
+            relativo = (d["H"] * 2) - d["Scratch"]
             
-            c_rel = "red" if relativo > 0 else ("#3498db" if relativo < 0 else "green")
-            s_rel = f"+{relativo}" if relativo > 0 else (str(relativo) if relativo < 0 else "E")
-            
-            f_p = lambda v: f"{v}<br><small style='color:gray;'>{(v/d['H'])*100:.1f}%</small>"
-
-            tabla_data.append({
+            tabla_raw.append({
                 "Jugador": f"<b>{jug}</b>",
-                "+/-": f"<span style='color:{c_rel}; font-weight:bold;'>{s_rel}</span>",
-                "Scratch": f"<b>{puntos_reales}</b>",
-                "Albatros": f_p(d["ALB"]), "Eagles": f_p(d["EAG"]), "Birdies": f_p(d["BIR"]),
-                "Pares": f_p(d["PAR"]), "Bogey": f_p(d["BOG"]), "D.Bogey+": f_p(d["DB"])
+                "val_rel": relativo, # Campo auxiliar para ordenar
+                "+/-": relativo, 
+                "Scratch": d["Scratch"],
+                "Albatros": d["ALB"], "Eagles": d["EAG"], "Birdies": d["BIR"],
+                "Pares": d["PAR"], "Bogey": d["BOG"], "D.Bogey+": d["DB"],
+                "H": d["H"]
             })
 
-        st.markdown("<style>td, th {text-align:center !important;}</style>", unsafe_allow_html=True)
-        st.write(pd.DataFrame(tabla_data).to_html(escape=False, index=False), unsafe_allow_html=True)
+        # Ordenar por el valor del resultado (Menor a mayor)
+        df_ranking = pd.DataFrame(tabla_raw).sort_values(by="val_rel", ascending=True)
+
+        # 5. Formateo final para visualización
+        tabla_final = []
+        for _, row in df_ranking.iterrows():
+            rel = row["val_rel"]
+            color = "red" if rel > 0 else ("#3498db" if rel < 0 else "green")
+            rel_str = f"+{rel}" if rel > 0 else (str(rel) if rel < 0 else "E")
+            
+            f_p = lambda v: f"{v}<br><small style='color:gray;'>{(v/row['H'])*100:.1f}%</small>"
+
+            tabla_final.append({
+                "Jugador": row["Jugador"],
+                "+/-": f"<span style='color:{color}; font-weight:bold; font-size:1.1em;'>{rel_str}</span>",
+                "Scratch": f"<b>{row['Scratch']}</b>",
+                "Albatros": f_p(row["Albatros"]),
+                "Eagles": f_p(row["Eagles"]),
+                "Birdies": f_p(row["Birdies"]),
+                "Pares": f_p(row["Pares"]),
+                "Bogey": f_p(row["Bogey"]),
+                "D.Bogey+": f_p(row["D.Bogey+"])
+            })
+
+        st.subheader(titulo_tabla)
+        st.markdown("<style>td, th {text-align:center !important; vertical-align:middle !important; border:1px solid #eee !important;}</style>", unsafe_allow_html=True)
+        st.write(pd.DataFrame(tabla_final).to_html(escape=False, index=False), unsafe_allow_html=True)
+
+        # 6. Botones de Navegación
+        st.write("---")
+        col_btn1, col_btn2 = st.columns(2)
+        
+        if st.session_state.modo_historia == "Jornada":
+            if col_btn1.button("📊 Mostrar Acumulado Total"):
+                st.session_state.modo_historia = "Acumulado"
+                st.rerun()
+        else:
+            if col_btn1.button("📅 Volver a vista por Jornada"):
+                st.session_state.modo_historia = "Jornada"
+                st.rerun()
         
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión")
