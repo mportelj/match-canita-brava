@@ -229,7 +229,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         if "modo_historia" not in st.session_state:
             st.session_state.modo_historia = "Jornada"
 
-        # 2. Selector de Jornada (Solo se muestra si no estamos en modo Acumulado)
+        # 2. Selector de Jornada
         fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
         conteo_h = df_historico.groupby(col_fecha).size().to_dict()
         
@@ -237,101 +237,87 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             fecha_sel = st.selectbox("Seleccionar Jornada:", options=fechas_disp, 
                                      format_func=lambda x: f"{x} ({conteo_h[x]} hoyos)")
             df_final = df_historico[df_historico[col_fecha] == fecha_sel]
-            titulo_tabla = f"Resultados Jornada: {fecha_sel}"
+            titulo_resumen = f"Jornada: {fecha_sel}"
         else:
             df_final = df_historico
-            titulo_tabla = "Resultados Acumulados (Histórico Total)"
+            titulo_resumen = "Acumulado Histórico"
 
-        # 3. Procesamiento con la fórmula: (Hoyos * 2) - Puntos Scratch
+        # 3. Procesamiento (Fórmula: (H*2) - Scratch)
         stats = {jug: {"Scratch": 0, "H": 0, "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0} for jug in TODOS}
         
         for _, fila in df_final.iterrows():
             try:
                 h_num = int(fila.get('HOYO'))
                 p_hoyo = int(PAR_RIA_VIGO[h_num])
-                
                 for i, jug in enumerate(TODOS):
                     v = fila.get(f'S{i}')
                     if pd.isna(v) or str(v).strip() == "": continue
-                    
                     g_hoyo = int(float(v))
                     diff = g_hoyo - p_hoyo
                     stats[jug]["H"] += 1
-                    
-                    # Sistema de puntos: Birdie=3, Par=2, Bogey=1, Doble+=0
-                    if diff <= -3: 
-                        stats[jug]["ALB"] += 1; stats[jug]["Scratch"] += 4
-                    elif diff == -2: 
-                        stats[jug]["EAG"] += 1; stats[jug]["Scratch"] += 4
-                    elif diff == -1: 
-                        stats[jug]["BIR"] += 1; stats[jug]["Scratch"] += 3
-                    elif diff == 0: 
-                        stats[jug]["PAR"] += 1; stats[jug]["Scratch"] += 2
-                    elif diff == 1: 
-                        stats[jug]["BOG"] += 1; stats[jug]["Scratch"] += 1
-                    else: 
-                        stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
+                    if diff <= -3: stats[jug]["ALB"] += 1; stats[jug]["Scratch"] += 4
+                    elif diff == -2: stats[jug]["EAG"] += 1; stats[jug]["Scratch"] += 4
+                    elif diff == -1: stats[jug]["BIR"] += 1; stats[jug]["Scratch"] += 3
+                    elif diff == 0: stats[jug]["PAR"] += 1; stats[jug]["Scratch"] += 2
+                    elif diff == 1: stats[jug]["BOG"] += 1; stats[jug]["Scratch"] += 1
+                    else: stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
             except: continue
 
-        # 4. Generación de datos y Ordenación
+        # 4. Ordenación y Preparación de Datos
         tabla_raw = []
         for jug in TODOS:
             d = stats[jug]
             if d["H"] == 0: continue
-            
-            # Fórmula exacta solicitada
             relativo = (d["H"] * 2) - d["Scratch"]
-            
-            tabla_raw.append({
-                "Jugador": f"<b>{jug}</b>",
-                "val_rel": relativo, # Campo auxiliar para ordenar
-                "+/-": relativo, 
-                "Scratch": d["Scratch"],
-                "Albatros": d["ALB"], "Eagles": d["EAG"], "Birdies": d["BIR"],
-                "Pares": d["PAR"], "Bogey": d["BOG"], "D.Bogey+": d["DB"],
-                "H": d["H"]
-            })
+            tabla_raw.append({"Jugador": jug, "val_rel": relativo, "Scratch": d["Scratch"], "H": d["H"]})
 
-        # Ordenar por el valor del resultado (Menor a mayor)
         df_ranking = pd.DataFrame(tabla_raw).sort_values(by="val_rel", ascending=True)
 
-        # 5. Formateo final para visualización
-        tabla_final = []
+        # 5. Visualización de la Tabla
+        tabla_final_html = []
+        texto_whatsapp = f"🏆 *Orden de Mérito - {titulo_resumen}*\n\n"
+        
         for _, row in df_ranking.iterrows():
             rel = row["val_rel"]
             color = "red" if rel > 0 else ("#3498db" if rel < 0 else "green")
             rel_str = f"+{rel}" if rel > 0 else (str(rel) if rel < 0 else "E")
             
-            f_p = lambda v: f"{v}<br><small style='color:gray;'>{(v/row['H'])*100:.1f}%</small>"
-
-            tabla_final.append({
-                "Jugador": row["Jugador"],
-                "+/-": f"<span style='color:{color}; font-weight:bold; font-size:1.1em;'>{rel_str}</span>",
-                "Scratch": f"<b>{row['Scratch']}</b>",
-                "Albatros": f_p(row["Albatros"]),
-                "Eagles": f_p(row["Eagles"]),
-                "Birdies": f_p(row["Birdies"]),
-                "Pares": f_p(row["Pares"]),
-                "Bogey": f_p(row["Bogey"]),
-                "D.Bogey+": f_p(row["D.Bogey+"])
+            tabla_final_html.append({
+                "Jugador": f"<b>{row['Jugador']}</b>",
+                "+/-": f"<span style='color:{color}; font-weight:bold;'>{rel_str}</span>",
+                "Scratch": f"<b>{row['Scratch']}</b>"
             })
+            # Construir texto para WhatsApp
+            texto_whatsapp += f"• *{row['Jugador']}*: {rel_str} ({row['Scratch']} pts)\n"
 
-        st.subheader(titulo_tabla)
-        st.markdown("<style>td, th {text-align:center !important; vertical-align:middle !important; border:1px solid #eee !important;}</style>", unsafe_allow_html=True)
-        st.write(pd.DataFrame(tabla_final).to_html(escape=False, index=False), unsafe_allow_html=True)
+        st.subheader(titulo_resumen)
+        st.markdown("<style>td, th {text-align:center !important;}</style>", unsafe_allow_html=True)
+        st.write(pd.DataFrame(tabla_final_html).to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # 6. Botones de Navegación
+        # 6. Botones y WhatsApp
         st.write("---")
-        col_btn1, col_btn2 = st.columns(2)
+        col1, col2, col3 = st.columns([1, 1, 1])
         
+        # Botón Acumulado
         if st.session_state.modo_historia == "Jornada":
-            if col_btn1.button("📊 Mostrar Acumulado Total"):
-                st.session_state.modo_historia = "Acumulado"
-                st.rerun()
+            if col1.button("📊 Ver Acumulado"):
+                st.session_state.modo_historia = "Acumulado"; st.rerun()
         else:
-            if col_btn1.button("📅 Volver a vista por Jornada"):
-                st.session_state.modo_historia = "Jornada"
-                st.rerun()
+            if col1.button("📅 Ver Jornada"):
+                st.session_state.modo_historia = "Jornada"; st.rerun()
+
+        # Botón WhatsApp (Enlace dinámico)
+        import urllib.parse
+        mensaje_codificado = urllib.parse.quote(texto_whatsapp)
+        link_wa = f"https://wa.me/?text={mensaje_codificado}"
+        
+        col3.markdown(f"""
+            <a href="{link_wa}" target="_blank" style="text-decoration:none;">
+                <button style="background-color:#25D366; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-weight:bold; width:100%;">
+                    WhatsApp 📱
+                </button>
+            </a>
+        """, unsafe_allow_html=True)
         
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión")
