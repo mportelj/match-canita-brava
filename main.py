@@ -246,7 +246,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
         st.write("---")
 
-        # 2. FILTRADO
+        # 2. FILTRADO DE DATOS
         fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
         if st.session_state.modo_historia == "Jornada":
             f_sel = st.selectbox("Seleccionar Partido:", fechas_disp)
@@ -256,85 +256,85 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             df_final = df_historico
             subtitulo = "Histórico Acumulado"
 
-        # 3. PROCESAMIENTO
-        stats = {jug: {"Scratch": 0, "H": 0, "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0, "TB": 0} for jug in TODOS}
-        total_hoyos_jornada = 0
+        # 3. PROCESAMIENTO: LECTURA DE PUNTOS REALES (Oponente + Bonus)
+        # Asumimos que en tu Excel las columnas de puntos se llaman P0, P1, P2... correspondientes a cada jugador
+        stats = {jug: {"Puntos_Reales": 0, "H": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0, "TB": 0, "Scratch": 0} for jug in TODOS}
         
         for _, fila in df_final.iterrows():
             try:
                 h_num = int(fila.get('HOYO'))
                 p_hoyo = int(PAR_RIA_VIGO[h_num])
                 for i, jug in enumerate(TODOS):
-                    v = fila.get(f'S{i}')
-                    if pd.isna(v) or str(v).strip() == "": continue
-                    g_hoyo = int(float(v))
-                    diff = g_hoyo - p_hoyo
-                    stats[jug]["H"] += 1
+                    # --- GOLPES (Para el desglose de calidad) ---
+                    v_golpes = fila.get(f'S{i}')
+                    if pd.notna(v_golpes) and str(v_golpes).strip() != "":
+                        g_hoyo = int(float(v_golpes))
+                        diff = g_hoyo - p_hoyo
+                        stats[jug]["H"] += 1
+                        if diff <= -2: stats[jug]["EAG"] += 1
+                        elif diff == -1: stats[jug]["BIR"] += 1
+                        elif diff == 0: stats[jug]["PAR"] += 1
+                        elif diff == 1: stats[jug]["BOG"] += 1
+                        elif diff == 2: stats[jug]["DB"] += 1
+                        else: stats[jug]["TB"] += 1
                     
-                    if diff <= -3: stats[jug]["ALB"] += 1; stats[jug]["Scratch"] += 4
-                    elif diff == -2: stats[jug]["EAG"] += 1; stats[jug]["Scratch"] += 4
-                    elif diff == -1: stats[jug]["BIR"] += 1; stats[jug]["Scratch"] += 3
-                    elif diff == 0: stats[jug]["PAR"] += 1; stats[jug]["Scratch"] += 2
-                    elif diff == 1: stats[jug]["BOG"] += 1; stats[jug]["Scratch"] += 1
-                    elif diff == 2: stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
-                    else: stats[jug]["TB"] += 1; stats[jug]["Scratch"] += 0
+                    # --- PUNTOS GRABADOS (Oponente + Bonus Calidad) ---
+                    # Buscamos la columna de puntos (ej: P0, P1, P2...)
+                    v_puntos = fila.get(f'P{i}')
+                    if pd.notna(v_puntos):
+                        stats[jug]["Puntos_Reales"] += float(v_puntos)
             except: continue
 
-        # Obtener el número de hoyos (asumiendo que todos juegan lo mismo)
-        lista_hoyos = [d["H"] for d in stats.values() if d["H"] > 0]
-        total_hoyos_jornada = lista_hoyos[0] if lista_hoyos else 0
-
-        # 4. ORDENACIÓN
+        # 4. ORDENACIÓN POR PUNTOS REALES (MVP)
         tabla_raw = []
         for jug in TODOS:
             d = stats[jug]
             if d["H"] == 0: continue
-            rel = (d["H"] * 2) - d["Scratch"]
-            tabla_raw.append({"Jugador": jug, "val_rel": rel, "Scratch": d["Scratch"], "H": d["H"], 
-                             "EAG": d["EAG"], "BIR": d["BIR"], "PAR": d["PAR"], "BOG": d["BOG"], 
-                             "DB": d["DB"], "TB": d["TB"]})
+            tabla_raw.append({
+                "Jugador": jug,
+                "Puntos": d["Puntos_Reales"],
+                "H": d["H"],
+                "EAG": d["EAG"], "BIR": d["BIR"], "PAR": d["PAR"], 
+                "BOG": d["BOG"], "DB": d["DB"], "TB": d["TB"]
+            })
 
-        df_ranking = pd.DataFrame(tabla_raw).sort_values(by="val_rel", ascending=True)
+        # El MVP es quien más puntos reales tiene (Puntos_Reales de mayor a menor)
+        df_ranking = pd.DataFrame(tabla_raw).sort_values(by="Puntos", ascending=False)
 
-        # 5. GENERACIÓN DE MENSAJE WHATSAPP (Hoyos arriba)
+        # 5. MENSAJE WHATSAPP
         import urllib.parse
-        txt_wa = f"🍺 *CAÑITA BRAVA* ⛳\n📍 _{subtitulo}_\n⛳ *Hoyos Jugados: {total_hoyos_jornada}*\n"
+        txt_wa = f"🍺 *CAÑITA BRAVA* ⛳\n📍 _{subtitulo}_\n⛳ *Hoyos: {df_ranking['H'].max() if not df_ranking.empty else 0}*\n"
         txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
 
         for _, r in df_ranking.iterrows():
-            rel_str = f"+{r['val_rel']}" if r['val_rel'] > 0 else (str(r['val_rel']) if r['val_rel'] < 0 else "E")
             pct = lambda v: f"{(v/r['H'])*100:.1f}%"
-            
             txt_wa += f"👤 *{r['Jugador'].upper()}*\n"
-            txt_wa += f"🏆 Resultado: *{rel_str}* ({r['Scratch']} pts)\n"
+            txt_wa += f"🏆 *PUNTOS REALES: {r['Puntos']}*\n"
             txt_wa += f"🦅 Egl: {r['EAG']} ({pct(r['EAG'])}) | 🐥 Bir: {r['BIR']} ({pct(r['BIR'])})\n"
             txt_wa += f"🛡️ Par: {r['PAR']} ({pct(r['PAR'])}) | ⚠️ Bog: {r['BOG']} ({pct(r['BOG'])})\n"
             txt_wa += f"💀 D.Bog: {r['DB']} ({pct(r['DB'])}) | 💣 +T.Bog: {r['TB']} ({pct(r['TB'])})\n"
             txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
 
         # 6. RENDER WEB
-        st.markdown("<style>th, td { text-align: center !important; vertical-align: middle !important; }</style>", unsafe_allow_html=True)
-        
         if st.session_state.vista_stats == "Resumen":
             st.subheader(f"📋 RESUMEN - {subtitulo}")
             df_web = df_ranking.copy()
             for cat in ["EAG", "BIR", "PAR", "BOG", "DB", "TB"]:
                 df_web[cat] = df_web.apply(lambda x: f"{x[cat]}<br><small style='color:gray;'>{(x[cat]/x['H'])*100:.1f}%</small>", axis=1)
             
-            df_web["+/-"] = df_web["val_rel"].apply(lambda x: f"<span style='color:{'red' if x > 0 else ('green' if x < 0 else 'gray')}; font-weight:bold;'>{'+'+str(x) if x > 0 else (str(x) if x < 0 else 'E')}</span>")
-            df_web.rename(columns={"DB": "D.Bogey", "TB": "+T.Bogey"}, inplace=True)
-            cols = ["Jugador", "+/-", "Scratch", "EAG", "BIR", "PAR", "BOG", "D.Bogey", "+T.Bogey"]
+            cols = ["Jugador", "Puntos", "EAG", "BIR", "PAR", "BOG", "DB", "TB"]
             st.write(df_web[cols].to_html(escape=False, index=False), unsafe_allow_html=True)
 
         elif st.session_state.vista_stats == "MVP":
             st.subheader(f"🌟 MVP - {subtitulo}")
-            ganador = df_ranking.iloc[0]
-            st.balloons()
-            c1, c2, c3 = st.columns(3)
-            c1.metric("🏆 LÍDER", ganador["Jugador"])
-            c2.metric("PUNTOS +/-", f"{ganador['val_rel']}", delta_color="inverse")
-            c3.metric("HOYOS", f"{total_hoyos_jornada}")
-            st.write(df_ranking[["Jugador", "val_rel", "Scratch", "H"]].to_html(escape=False, index=False), unsafe_allow_html=True)
+            if not df_ranking.empty:
+                ganador = df_ranking.iloc[0]
+                st.balloons()
+                c1, c2 = st.columns(2)
+                c1.metric("🏆 LÍDER", ganador["Jugador"])
+                c2.metric("PUNTOS TOTALES", f"{ganador['Puntos']} pts")
+                st.write("### Clasificación de Honor")
+                st.write(df_ranking[["Jugador", "Puntos", "H"]].to_html(escape=False, index=False), unsafe_allow_html=True)
 
         # 7. BOTÓN COMPARTIR
         st.markdown(f"""
