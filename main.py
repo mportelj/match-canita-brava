@@ -9,16 +9,13 @@ st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered
 
 PAR_RIA_VIGO = {i: p for i, p in zip(range(1, 19), [4,5,3,4,4,5,3,4,4,4,3,4,3,5,4,5,4,4])}
 TODOS = ["MANU", "JOSE", "ROGE", "LALO"] 
-EQUIPO_A_NOMBRES = f"{TODOS[0]}/{TODOS[1]}"
-EQUIPO_B_NOMBRES = f"{TODOS[2]}/{TODOS[3]}"
+EQUIPO_A_NOMBRES, EQUIPO_B_NOMBRES = f"{TODOS[0]}/{TODOS[1]}", f"{TODOS[2]}/{TODOS[3]}"
 COLOR_A, COLOR_B = "#2e7d32", "#c62828"
 COL_NECESARIAS = ['id', 'partido_id', 'hoyo', 'fecha', 'temporada', 'resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3']
 
-if "menu_seleccionado" not in st.session_state:
-    st.session_state.menu_seleccionado = "Inicio"
+if "menu_seleccionado" not in st.session_state: st.session_state.menu_seleccionado = "Inicio"
 
-def cambiar_menu():
-    st.session_state.menu_seleccionado = st.session_state.radio_menu
+def cambiar_menu(): st.session_state.menu_seleccionado = st.session_state.radio_menu
 
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Estadísticas", "Admin"], 
                         index=["Inicio", "Jugar/Editar", "Estadísticas", "Admin"].index(st.session_state.menu_seleccionado),
@@ -31,22 +28,13 @@ def leer_datos():
         df = conn.read(worksheet="historial", ttl=0) 
         if df is None or df.empty: return pd.DataFrame(columns=COL_NECESARIAS)
         df.columns = [c.lower().strip() for c in df.columns]
-        df['partido_id'] = df['partido_id'].astype(str)
-        df['hoyo'] = df['hoyo'].astype(int)
-        df['temporada'] = pd.to_numeric(df['temporada'], errors='coerce').fillna(0).astype(int)
         return df.drop_duplicates(subset=['partido_id', 'hoyo'], keep='last')
-    except:
-        return pd.DataFrame(columns=COL_NECESARIAS)
+    except: return pd.DataFrame(columns=COL_NECESARIAS)
 
 def calc_scratch(golpes, par):
     if golpes <= 0: return 0
-    dif = golpes - par
-    if dif <= -3: return 5 # Albatros
-    if dif == -2: return 4 # Eagle
-    if dif == -1: return 3 # Birdie
-    if dif == 0:  return 2 # Par
-    if dif == 1:  return 1 # Bogey
-    return 0 
+    d = golpes - par
+    return 5 if d<=-3 else 4 if d==-2 else 3 if d==-1 else 2 if d==0 else 1 if d==1 else 0
 
 def calcular_puntos_hoyo(scores, hoyo_num):
     par = PAR_RIA_VIGO[hoyo_num]
@@ -58,36 +46,30 @@ def calcular_puntos_hoyo(scores, hoyo_num):
         p_bonus = 2.0 if s <= par - 2 else (1.0 if s == par - 1 else 0)
         if i < 2: pa += p_bonus 
         else: pb += p_bonus
-    mvp = {f"p1": 0.0, f"p2": 0.0, f"p3": 0.0, f"p4": 0.0}
-    for i in range(4):
-        for j in range(4):
-            if i != j and v[i] < v[j]: mvp[f"p{i+1}"] += 0.5
-        if v[i] <= par - 2: mvp[f"p{i+1}"] += 3.0
-        elif v[i] == par - 1: mvp[f"p{i+1}"] += 1.5
-        elif v[i] == par: mvp[f"p{i+1}"] += 0.5
+    mvp = {f"p{i+1}": sum(0.5 for j in range(4) if i!=j and v[i]<v[j]) + (3.0 if v[i]<=par-2 else 1.5 if v[i]==par-1 else 0.5 if v[i]==par else 0) for i in range(4)}
     return pa, pb, mvp
 
 def ejecutar_guardado_automatico():
     g = st.session_state.game
     h = int(g['h_sel'])
-    s = [int(st.session_state[f"s1_h{h}"]), int(st.session_state[f"s2_h{h}"]), 
-         int(st.session_state[f"s3_h{h}"]), int(st.session_state[f"s4_h{h}"])]
+    s = [int(st.session_state[f"s{i+1}_h{h}"]) for i in range(4)]
     pa, pb, mi = calcular_puntos_hoyo(s, h)
-    g['logs'][str(h)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
+    
     anio_int = int(datetime.strptime(g['fecha'], "%d/%m/%Y").year)
     p_id = str(g['id'])
-    nueva_fila = {
-        "id": f"{p_id}_H{h}", "partido_id": p_id, "hoyo": h, "fecha": g['fecha'], 
-        "temporada": anio_int, "resultado_a": pa, "resultado_b": pb, 
-        "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], 
-        "s0": s[0], "s1": s[1], "s2": s[2], "s3": s[3]
-    }
+    nueva_fila = {"id": f"{p_id}_H{h}", "partido_id": p_id, "hoyo": h, "fecha": g['fecha'], "temporada": anio_int, 
+                  "resultado_a": pa, "resultado_b": pb, **{f"p{i+1}_pts": mi[f"p{i+1}"] for i in range(4)},
+                  "s0": s[0], "s1": s[1], "s2": s[2], "s3": s[3]}
+    
     conn = st.connection("gsheets", type=GSheetsConnection)
-    df_actual = leer_datos()
-    df_actual = df_actual[~((df_actual['partido_id'] == p_id) & (df_actual['hoyo'] == h))]
-    df_final = pd.concat([df_actual, pd.DataFrame([nueva_fila])], ignore_index=True)
-    conn.update(worksheet="historial", data=df_final)
+    df = leer_datos()
+    df = pd.concat([df[~((df['partido_id']==p_id) & (df['hoyo']==h))], pd.DataFrame([nueva_fila])], ignore_index=True)
+    conn.update(worksheet="historial", data=df)
     st.cache_data.clear()
+    
+    # Actualizar estado local y saltar hoyo
+    st.session_state.game['logs'][str(h)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
+    if h < 18: st.session_state.game['h_sel'] = h + 1
 
 # --- 3. PANTALLAS ---
 if st.session_state.menu_seleccionado == "Inicio":
@@ -95,70 +77,62 @@ if st.session_state.menu_seleccionado == "Inicio":
     df = leer_datos()
     anio_actual = 2026
     temps = sorted(df['temporada'].unique().tolist(), reverse=True) if not df.empty else [anio_actual]
-    if anio_actual not in temps: temps.insert(0, anio_actual)
-    sel_temp = st.selectbox("Temporada:", temps, index=temps.index(anio_actual) if anio_actual in temps else 0)
+    sel_temp = st.selectbox("Temporada:", temps)
     
     pa_t, pb_t = 3.5, 3.5 
     if not df.empty:
         df_t = df[df['temporada'] == int(sel_temp)]
-        partidos = df_t.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
-        for _, r in partidos.iterrows():
+        for _, r in df_t.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'}).iterrows():
             if r['resultado_a'] > r['resultado_b']: pa_t += 1
             elif r['resultado_b'] > r['resultado_a']: pb_t += 1
             else: pa_t += 0.5; pb_t += 0.5
             
-    st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;margin-top:10px;">
-        <h3 style="margin:0;">MATCH {sel_temp}</h3>
-        <div style="display:flex;justify-content:space-around; align-items:center; margin-top:15px;">
-        <div><h2 style="color:{COLOR_A}; margin:0; font-size:1.2em;">{EQUIPO_A_NOMBRES}</h2><h1 style="font-size:3.5em; margin:0;">{pa_t:g}</h1></div>
-        <div style="font-size:1.5em; font-weight:bold; color:#777;">VS</div>
-        <div><h2 style="color:{COLOR_B}; margin:0; font-size:1.2em;">{EQUIPO_B_NOMBRES}</h2><h1 style="font-size:3.5em; margin:0;">{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;">
+        <h3>MATCH {sel_temp}</h3><div style="display:flex;justify-content:space-around;">
+        <div><h2 style="color:{COLOR_A};">{EQUIPO_A_NOMBRES}</h2><h1>{pa_t:g}</h1></div>
+        <div style="font-size:2em; align-self:center;">VS</div>
+        <div><h2 style="color:{COLOR_B};">{EQUIPO_B_NOMBRES}</h2><h1>{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if 'game' not in st.session_state:
         f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
-        if st.button("🚀 Iniciar Partida", use_container_width=True):
+        if st.button("🚀 Iniciar Nueva Partida", use_container_width=True):
             st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'h_sel': 1, 'logs': {}, 'id': datetime.now().strftime("%Y%m%d%H%M%S")}
             st.rerun()
     else:
         g = st.session_state.game
-        h = g['h_sel']
-        seleccion = st.selectbox("Hoyo:", [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1,19)], index=h-1)
-        g['h_sel'] = int(seleccion.split(" ")[1])
-        h = g['h_sel']
-        
+        h = st.selectbox("Hoyo:", range(1,19), index=g['h_sel']-1)
+        st.session_state.game['h_sel'] = h
         ya = str(h) in g['logs']
-        v_old = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
+        v_old = g['logs'][str(h)]['s'] if ya else [PAR_RIA_VIGO[h]]*4
         
         c1, c2 = st.columns(2)
-        s1 = c1.number_input(TODOS[0], 0, 15, v_old[0], key=f"s1_h{h}")
-        s2 = c1.number_input(TODOS[1], 0, 15, v_old[1], key=f"s2_h{h}")
-        s3 = c2.number_input(TODOS[2], 0, 15, v_old[2], key=f"s3_h{h}")
-        s4 = c2.number_input(TODOS[3], 0, 15, v_old[3], key=f"s4_h{h}")
+        s = [c1.number_input(TODOS[0], 0, 15, v_old[0], key=f"s1_h{h}"), c1.number_input(TODOS[1], 0, 15, v_old[1], key=f"s2_h{h}"),
+             c2.number_input(TODOS[2], 0, 15, v_old[2], key=f"s3_h{h}"), c2.number_input(TODOS[3], 0, 15, v_old[3], key=f"s4_h{h}")]
         
-        if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
+        if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True, disabled=ya):
             ejecutar_guardado_automatico()
             st.rerun()
-
+            
         if ya:
-            # MOSTRAR MVP DEL HOYO
-            st.write("⭐ **MVP del Hoyo**")
-            mvps = g['logs'][str(h)]['mvp']
-            cm = st.columns(4)
-            for idx, jug in enumerate(TODOS):
-                cm[idx].button(f"{jug}\n{mvps[f'p{idx+1}']}", key=f"mvp_btn_{idx}")
+            st.info(f"Hoyo {h} ya guardado. Para modificarlo, cambia los golpes y el botón se habilitará (lógica simplificada: usa Admin para editar partidas cerradas).")
+            # MVP DEL DÍA Y ACUMULADO
+            st.subheader("⭐ Rendimiento MVP")
+            df_hist = leer_datos()
+            col_m1, col_m2 = st.columns(2)
+            
+            with col_m1:
+                st.write("**Hoy**")
+                for i, jug in enumerate(TODOS):
+                    p_hoy = sum(l['mvp'][f'p{i+1}'] for l in g['logs'].values())
+                    st.write(f"{jug}: {p_hoy:g}")
+            with col_m2:
+                st.write("**Temp**")
+                for i, jug in enumerate(TODOS):
+                    p_temp = df_hist[f'p{i+1}_pts'].sum() if not df_hist.empty else 0
+                    st.write(f"{jug}: {p_temp:g}")
 
-            pts_a = sum(v['pts'][0] for v in g['logs'].values())
-            pts_b = sum(v['pts'][1] for v in g['logs'].values())
-            ma, mb = max(0, pts_a-pts_b), max(0, pts_b-pts_a)
-            st.markdown(f"""<div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
-                <div style="flex:1; border:3px solid {COLOR_A}; border-radius:15px; padding:10px; text-align:center; background:#f1f8f1;">
-                <span style="font-weight:900; color:{COLOR_A}; font-size:0.8em;">{EQUIPO_A_NOMBRES}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_A};">{ma:g}</div></div>
-                <div style="flex:1; border:3px solid {COLOR_B}; border-radius:15px; padding:10px; text-align:center; background:#fef2f2;">
-                <span style="font-weight:900; color:{COLOR_B}; font-size:0.8em;">{EQUIPO_B_NOMBRES}</span><div style="font-size:2.5em; font-weight:900; color:{COLOR_B};">{mb:g}</div></div></div>""", unsafe_allow_html=True)
-        
-        st.write("---")
-        if st.button("🏁 Finalizar Partida", use_container_width=True):
+        if st.button("🏁 Cerrar Sesión de Juego", use_container_width=True):
             del st.session_state.game
             st.rerun()
 
@@ -168,55 +142,32 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     if not df.empty:
         res = []
         for i, jug in enumerate(TODOS):
-            col = f's{i}'; t = df[df[col] > 0].copy()
+            t = df[df[f's{i}'] > 0].copy()
             if t.empty: continue
-            
-            t['dif_golpes'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
-            t['scr'] = t.apply(lambda r: calc_scratch(r[col], PAR_RIA_VIGO[r['hoyo']]), axis=1)
-            
-            tot_hoyos = len(t)
-            tot_scr = int(t['scr'].sum())
-            tot_mvp = t[f'p{i+1}_pts'].sum() # Puntos MVP acumulados
-            par_puntos = tot_hoyos * 2 
-            
-            dif_final = par_puntos - tot_scr
-            txt_dif = f"{dif_final:+d}" if dif_final != 0 else "E"
-            
-            def fmt(c): return f"{len(t[c])} ({len(t[c])/tot_hoyos:.0%})" if tot_hoyos>0 else "0"
-            res.append({
-                "Jugador": jug,
-                "Hoyos": tot_hoyos,
-                "MVP": round(tot_mvp, 1),
-                "+/- Par": txt_dif, 
-                "Scratch": tot_scr, 
-                "Bir": fmt(t['dif_golpes']==-1), 
-                "Par": fmt(t['dif_golpes']==0), 
-                "Bog": fmt(t['dif_golpes']==1), 
-                "T+": fmt(t['dif_golpes']>=2),
-                "_sort": dif_final
-            })
-        
-        if res:
-            df_res = pd.DataFrame(res).sort_values(by="_sort", ascending=True)
-            st.dataframe(
-                df_res.drop(columns=["_sort"]).set_index("Jugador"), 
-                use_container_width=True,
-                column_config={col: st.column_config.Column(alignment="center") for col in df_res.columns}
-            )
+            pts = sum(calc_scratch(r[f's{i}'], PAR_RIA_VIGO[r['hoyo']]) for _,r in t.iterrows())
+            dif = (len(t)*2) - pts
+            res.append({"Jugador": jug, "Hoyos": len(t), "MVP": round(t[f'p{i+1}_pts'].sum(),1), "+/- Par": f"{dif:+d}" if dif!=0 else "E", "Scratch": pts, "_s": dif})
+        st.dataframe(pd.DataFrame(res).sort_values("_s").drop(columns="_s").set_index("Jugador"), use_container_width=True, 
+                     column_config={c: st.column_config.Column(alignment="center") for c in ["Hoyos","MVP","+/- Par","Scratch"]})
 
 elif st.session_state.menu_seleccionado == "Admin":
-    st.title("⚙️ Administración")
+    st.title("⚙️ Gestión")
     df = leer_datos()
-    if not df.empty:
-        for p_id in df['partido_id'].unique()[::-1]:
-            dp = df[df['partido_id'] == p_id].sort_values('hoyo')
-            with st.expander(f"📅 {dp['fecha'].iloc[0]}"):
-                if st.button("📲 WhatsApp", key=f"wa_{p_id}"):
-                    res_wa = []
-                    for i, jug in enumerate(TODOS):
-                        th = dp[dp[f's{i}'] > 0]
-                        pts = sum(calc_scratch(r[f's{i}'], PAR_RIA_VIGO[r['hoyo']]) for _,r in th.iterrows())
-                        dif = (len(th)*2) - pts
-                        res_wa.append(f"👤 *{jug}*: {pts} pts ({dif:+d})")
-                    msg = f"⛳ *CAÑITA BRAVA*\n\n" + "\n".join(res_wa)
-                    st.link_button("Enviar", f"https://wa.me/?text={urllib.parse.quote(msg)}")
+    for p_id in df['partido_id'].unique()[::-1]:
+        dp = df[df['partido_id'] == p_id]
+        with st.expander(f"Partida {dp['fecha'].iloc[0]} ({len(dp)} hoyos)"):
+            c1, c2 = st.columns(2)
+            if c1.button("✏️ Editar", key=f"ed_{p_id}"):
+                logs = {str(r['hoyo']): {'s':[r['s0'],r['s1'],r['s2'],r['s3']], 'pts':(r['resultado_a'],r['resultado_b']), 
+                        'mvp':{f'p{i+1}':r[f'p{i+1}_pts'] for i in range(4)}} for _,r in dp.iterrows()}
+                st.session_state.game = {'fecha':dp['fecha'].iloc[0], 'h_sel':1, 'logs':logs, 'id':p_id}
+                st.session_state.menu_seleccionado = "Jugar/Editar"
+                st.rerun()
+            
+            if c2.checkbox("Confirmar Borrado", key=f"del_cb_{p_id}"):
+                if st.button("🗑️ ELIMINAR AHORA", key=f"del_btn_{p_id}", type="primary"):
+                    conn = st.connection("gsheets", type=GSheetsConnection)
+                    df_new = df[df['partido_id'] != p_id]
+                    conn.update(worksheet="historial", data=df_new)
+                    st.cache_data.clear()
+                    st.rerun()
