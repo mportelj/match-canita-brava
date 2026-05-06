@@ -242,16 +242,16 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
         df_final = df_historico if st.session_state.modo_historia == "Acumulado" else df_historico[df_historico[col_fecha] == fecha_sel]
 
-        # 3. PROCESAMIENTO: Suma de golpes y par total
+        # 3. PROCESAMIENTO: Suma de golpes y par total para el +/- exacto
         stats = {jug: {
-            "GOLPES_TOTALES": 0, "PAR_TOTAL_JUGADO": 0, "Scratch": 0, "H": 0,
+            "GOLPES_ACUM": 0, "PAR_ACUM": 0, "Scratch": 0, "H": 0,
             "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0
         } for jug in TODOS}
         
         for _, fila in df_final.iterrows():
             try:
                 h_idx = int(fila.get('HOYO'))
-                par_h_valor = int(PAR_RIA_VIGO[h_idx])
+                par_hoyo = int(PAR_RIA_VIGO[h_idx])
                 
                 for i, jug in enumerate(TODOS):
                     val = fila.get(f'S{i}')
@@ -260,13 +260,14 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     golpes_hoyo = int(float(val))
                     if golpes_hoyo <= 0: continue
                     
-                    # Acumuladores para el +/- exacto
-                    stats[jug]["GOLPES_TOTALES"] += golpes_hoyo
-                    stats[jug]["PAR_TOTAL_JUGADO"] += par_h_valor
+                    # ACUMULADORES FUNDAMENTALES
+                    stats[jug]["GOLPES_ACUM"] += golpes_hoyo
+                    stats[jug]["PAR_ACUM"] += par_hoyo
                     stats[jug]["H"] += 1
                     
                     # Lógica de categorías y puntos Scratch
-                    diff = golpes_hoyo - par_h_valor
+                    diff = golpes_hoyo - par_hoyo
+                    
                     if diff <= -3: 
                         stats[jug]["ALB"] += 1; stats[jug]["Scratch"] += 4
                     elif diff == -2: 
@@ -277,18 +278,18 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         stats[jug]["PAR"] += 1; stats[jug]["Scratch"] += 2
                     elif diff == 1: 
                         stats[jug]["BOG"] += 1; stats[jug]["Scratch"] += 1
-                    else: 
+                    else: # Doble Bogey o cualquier cosa peor (+2, +3, +4...)
                         stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
             except: continue
 
-        # 4. CÁLCULO FINAL Y TABLA
+        # 4. CONSTRUCCIÓN DE LA TABLA CON EL +/- REAL
         tabla_data = []
         for jug in TODOS:
             d = stats[jug]
             if d["H"] == 0: continue
             
-            # EL CÁLCULO QUE PEDISTE: Golpes arriba o abajo respecto al par total jugado
-            relativo_total = d["GOLPES_TOTALES"] - d["PAR_TOTAL_JUGADO"]
+            # EL CÁLCULO DEFINITIVO: Diferencia total de golpes contra el par total jugado
+            relativo_total = d["GOLPES_ACUM"] - d["PAR_ACUM"]
             
             color_rel = "red" if relativo_total > 0 else ("#3498db" if relativo_total < 0 else "green")
             rel_str = f"+{relativo_total}" if relativo_total > 0 else (str(relativo_total) if relativo_total < 0 else "E")
@@ -303,7 +304,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "Pares": f_pct(d["PAR"]), "Bogey": f_pct(d["BOG"]), "D.Bogey+": f_pct(d["DB"])
             })
 
-        st.subheader(f"Resumen de Resultados")
+        st.subheader("Resumen de Resultados")
         st.markdown("<style>td, th {text-align:center !important; vertical-align:middle !important; border:1px solid #dee2e6 !important;}</style>", unsafe_allow_html=True)
         import pandas as pd
         st.write(pd.DataFrame(tabla_data).to_html(escape=False, index=False), unsafe_allow_html=True)
