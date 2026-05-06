@@ -131,13 +131,26 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             </div>
         """, unsafe_allow_html=True)
 
-        # --- 2. SELECTOR DE HOYO Y NAVEGACIÓN ---
+        # --- 2. SELECTOR DE HOYO Y NAVEGACIÓN CORREGIDA ---
         opciones = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
-        seleccion = st.selectbox("**Hoyo actual:**", options=opciones, index=g['h_sel'] - 1, key=f"h_act_{g['id']}")
-        h = int(seleccion.split(" ")[1])
-        st.session_state.game['h_sel'] = h
         
-        # Botones de Hoyo Anterior / Siguiente
+        # Usamos el valor guardado en g['h_sel'] para el índice
+        # Agregamos on_change para sincronizar si el usuario usa el desplegable
+        def actualizar_hoyo_desde_select():
+            h_str = st.session_state[f"sb_h_{g['id']}"]
+            st.session_state.game['h_sel'] = int(h_str.split(" ")[1])
+
+        seleccion = st.selectbox(
+            "**Hoyo actual:**", 
+            options=opciones, 
+            index=g['h_sel'] - 1, 
+            key=f"sb_h_{g['id']}",
+            on_change=actualizar_hoyo_desde_select
+        )
+        
+        h = st.session_state.game['h_sel']
+        
+        # Botones de Hoyo Anterior / Siguiente con actualización directa de g['h_sel']
         col_prev, col_next = st.columns(2)
         if col_prev.button("← Anterior", use_container_width=True, disabled=(h <= 1)):
             st.session_state.game['h_sel'] = h - 1
@@ -164,6 +177,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             """, unsafe_allow_html=True)
 
         # --- 4. ENTRADA DE GOLPES ---
+        # Es vital resetear los inputs al cambiar de hoyo usando una key dinámica que dependa de h
         v_inicio = [int(x) for x in g['logs'][str(h)]['s']] if ya_guardado else [int(PAR_RIA_VIGO[h])]*4
         
         c1, c2 = st.columns(2)
@@ -172,7 +186,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         s3 = c2.number_input(TODOS[2], 0, 15, v_inicio[2], step=1, key=f"s3_h{h}_{g['id']}")
         s4 = c2.number_input(TODOS[3], 0, 15, v_inicio[3], step=1, key=f"s4_h{h}_{g['id']}")
         
-        # Lógica de activación del botón de guardado
         v_actuales = [s1, s2, s3, s4]
         hubo_cambios = v_actuales != v_inicio
         boton_desactivado = ya_guardado and not hubo_cambios
