@@ -164,31 +164,35 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             col = f's{i}'; t = df[df[col] > 0].copy()
             if t.empty: continue
             
-            t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
-            tot = len(t)
+            t['dif_golpes'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
             t['scr'] = t.apply(lambda r: calc_scratch(r[col], PAR_RIA_VIGO[r['hoyo']]), axis=1)
             
-            dif_total = int(t['dif'].sum())
-            txt_dif = f"{dif_total:+d}" if dif_total != 0 else "E"
+            tot_hoyos = len(t)
+            tot_scr = int(t['scr'].sum())
+            par_puntos = tot_hoyos * 2 # El par scratch siempre es 2 por hoyo
             
-            def fmt(c): return f"{len(t[c])} ({len(t[c])/tot:.0%})" if tot>0 else "0"
+            # Nueva lógica solicitada: Par Scratch - Resultado Real
+            dif_final = par_puntos - tot_scr
+            txt_dif = f"{dif_final:+d}" if dif_final != 0 else "E"
+            
+            def fmt(c): return f"{len(t[c])} ({len(t[c])/tot_hoyos:.0%})" if tot_hoyos>0 else "0"
             res.append({
-                "Jugador": jug, 
+                "Jugador": jug,
+                "Hoyos": tot_hoyos,
                 "+/- Par": txt_dif, 
-                "Scratch": int(t['scr'].sum()), 
-                "Bir": fmt(t['dif']==-1), 
-                "Par": fmt(t['dif']==0), 
-                "Bog": fmt(t['dif']==1), 
-                "T+": fmt(t['dif']>=2),
-                "_sort_par": dif_total,
-                "_sort_scr": int(t['scr'].sum())
+                "Scratch": tot_scr, 
+                "Bir": fmt(t['dif_golpes']==-1), 
+                "Par": fmt(t['dif_golpes']==0), 
+                "Bog": fmt(t['dif_golpes']==1), 
+                "T+": fmt(t['dif_golpes']>=2),
+                "_sort": dif_final
             })
         
         if res:
-            df_res = pd.DataFrame(res).sort_values(by=["_sort_par", "_sort_scr"], ascending=[True, False])
-            # Configuración para centrar todas las columnas
+            df_res = pd.DataFrame(res).sort_values(by="_sort", ascending=True)
+            # Aplicar centrado a todas las columnas usando column_config
             st.dataframe(
-                df_res.drop(columns=["_sort_par", "_sort_scr"]).set_index("Jugador"), 
+                df_res.drop(columns=["_sort"]).set_index("Jugador"), 
                 use_container_width=True,
                 column_config={col: st.column_config.Column(alignment="center") for col in df_res.columns}
             )
@@ -209,25 +213,25 @@ elif st.session_state.menu_seleccionado == "Admin":
                     res_wa = []
                     for i, jug in enumerate(TODOS):
                         col = f's{i}'
-                        th = dp[dp[col] > 0].copy(); th['dif'] = th[col] - th['hoyo'].map(PAR_RIA_VIGO)
-                        tt = df_t[df_t[col] > 0].copy(); tt['dif'] = tt[col] - tt['hoyo'].map(PAR_RIA_VIGO)
+                        th = dp[dp[col] > 0].copy()
+                        tt = df_t[df_t[col] > 0].copy()
                         
-                        d_h = int(th['dif'].sum()) if not th.empty else 0
-                        d_t = int(tt['dif'].sum()) if not tt.empty else 0
-                        txt_h = f"{d_h:+d}" if d_h != 0 else "E"
-                        txt_t = f"{d_t:+d}" if d_t != 0 else "E"
+                        def get_wa_stats(d):
+                            if d.empty: return 0, "E"
+                            hols = len(d)
+                            pts = sum(calc_scratch(r[col], PAR_RIA_VIGO[r['hoyo']]) for _, r in d.iterrows())
+                            dfn = (hols * 2) - pts
+                            return pts, f"{dfn:+d}" if dfn != 0 else "E"
                         
-                        def l(d, t, txt):
-                            if t == 0: return "Sin datos"
-                            b = len(d[d['dif']==-1]); p = len(d[d['dif']==0]); bog = len(d[d['dif']==1]); tp = len(d[d['dif']>=2])
-                            return (f"SCORE: {txt}\nB:{b} | P:{p} | Bog:{bog} | T+:{tp}")
+                        pts_h, dif_h = get_wa_stats(th)
+                        pts_t, dif_t = get_wa_stats(tt)
                         
-                        res_wa.append(f"👤 *{jug}*\n📍 *HOY*: {l(th, len(th), txt_h)}\n🌍 *TEMP*: {l(tt, len(tt), txt_t)}")
+                        res_wa.append(f"👤 *{jug}*\n📍 *HOY*: {pts_h} pts ({dif_h})\n🌍 *TEMP*: {pts_t} pts ({dif_t})")
 
                     p_a, p_b = dp['resultado_a'].sum(), dp['resultado_b'].sum()
                     msg = (f"⛳ *CAÑITA BRAVA*\n📅 {fecha_p}\n\n"
                            f"🏆 *MATCH DIA*: 🟢{p_a:g} vs 🔴{p_b:g}\n\n"
-                           f"🏅 *STATS (+/- PAR)*\n\n" + "\n\n".join(res_wa))
+                           f"🏅 *STATS SCRATCH*\n\n" + "\n\n".join(res_wa))
                     
                     wa_url = f"https://wa.me/?text={urllib.parse.quote(msg)}"
                     st.link_button("Abrir WhatsApp", wa_url, use_container_width=True)
