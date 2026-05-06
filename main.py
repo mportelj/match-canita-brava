@@ -216,140 +216,123 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.session_state.game = None
             st.rerun()
             
-elif st.session_state.menu_seleccionado == "EstadISTICS":
+elif st.session_state.menu_seleccionado == "Estadísticas":
     st.header("🏆 Orden de Mérito")
     
     df_historico = leer_datos() 
     
     if df_historico is None or df_historico.empty:
-        st.info("No hay datos registrados en la Orden de Mérito.")
+        st.warning("⚠️ No se han podido cargar datos desde Google Sheets. Revisa la conexión.")
     else:
-        # 1. Normalización de columnas
+        # 1. Limpieza total de columnas
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
-        col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
         
-        # 2. Preparar el Cuadro Combinado con el conteo de hoyos
-        conteo_hoyos_fecha = df_historico.groupby(col_fecha).size().to_dict()
-        fechas_lista = sorted(conteo_hoyos_fecha.keys(), reverse=True)
-        opciones_fecha = {f: f"{f} ({conteo_hoyos_fecha[f]} hoyos)" for f in fechas_lista}
+        # Buscar columna de fecha (flexible)
+        posibles_fechas = [c for c in df_historico.columns if 'FECHA' in c]
+        col_fecha = posibles_fechas[0] if posibles_fechas else df_historico.columns[0]
         
-        if "ver_acumulado" not in st.session_state:
-            st.session_state.ver_acumulado = False
+        # 2. Selector de Jornada y Estado
+        fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
+        conteo_hoyos = df_historico.groupby(col_fecha).size().to_dict()
+        
+        # Inicializar estado si no existe
+        if "modo_historia" not in st.session_state:
+            st.session_state.modo_historia = "Jornada"
 
-        fecha_sel_raw = st.selectbox(
-            "Seleccionar Jornada:", 
-            options=fechas_lista, 
-            format_func=lambda x: opciones_fecha[x],
-            index=0
-        )
+        col_sel, col_btn = st.columns([2, 1])
+        with col_sel:
+            fecha_sel = st.selectbox(
+                "Seleccionar Jornada:", 
+                options=fechas_disp, 
+                format_func=lambda x: f"{x} ({conteo_hoyos[x]} hoyos)",
+                disabled=(st.session_state.modo_historia == "Acumulado")
+            )
 
-        # 3. Filtrado de Datos
-        if st.session_state.ver_acumulado:
+        # 3. Filtrado
+        if st.session_state.modo_historia == "Acumulado":
             df_final = df_historico
-            titulo_tabla = f"Resumen Acumulado Histórico ({sum(conteo_hoyos_fecha.values())} hoyos)"
+            titulo_resumen = "Resumen Acumulado Total"
         else:
-            df_final = df_historico[df_historico[col_fecha] == fecha_sel_raw]
-            titulo_tabla = f"Resumen Jornada: {fecha_sel_raw}"
+            df_final = df_historico[df_historico[col_fecha] == fecha_sel]
+            titulo_resumen = f"Resumen Jornada: {fecha_sel}"
 
-        # 4. Procesamiento Detallado
+        # 4. Procesamiento Robusto
         stats = {jug: {
-            "Scratch": 0, "Golpes_Totales": 0, "Par_Total": 0,
-            "Albatros": 0, "Eagles": 0, "Birdies": 0, 
-            "Pares": 0, "Bogey": 0, "D.Bogey+": 0, "Hoyos": 0
+            "S": 0, "Rel": 0, "G": 0, "P": 0,
+            "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0, "H": 0
         } for jug in TODOS}
         
         for _, fila in df_final.iterrows():
             try:
-                h_num = int(fila.get('HOYO'))
-                par_hoyo = int(PAR_RIA_VIGO[h_num])
+                h_idx = int(fila.get('HOYO'))
+                par_hoyo = int(PAR_RIA_VIGO[h_idx])
                 
                 for i, jug in enumerate(TODOS):
-                    col_s = f'S{i}'
-                    val_s = fila.get(col_s)
+                    val = fila.get(f'S{i}')
+                    if val is None or str(val).strip() == "" or pd.isna(val): continue
                     
-                    if pd.isna(val_s) or str(val_s).strip() == "": continue
-                    
-                    golpes = int(float(val_s))
+                    golpes = int(float(val))
                     diff = golpes - par_hoyo
                     
-                    stats[jug]["Hoyos"] += 1
-                    stats[jug]["Golpes_Totales"] += golpes
-                    stats[jug]["Par_Total"] += par_hoyo
+                    stats[jug]["H"] += 1
+                    stats[jug]["G"] += golpes
+                    stats[jug]["P"] += par_hoyo
                     
-                    # Categorías
-                    if diff <= -3: stats[jug]["Albatros"] += 1
-                    elif diff == -2: stats[jug]["Eagles"] += 1
-                    elif diff == -1: stats[jug]["Birdies"] += 1
-                    elif diff == 0: stats[jug]["Pares"] += 1
-                    elif diff == 1: stats[jug]["Bogey"] += 1
-                    else: stats[jug]["D.Bogey+"] += 1
+                    # Conteo categorías
+                    if diff <= -3: stats[jug]["ALB"] += 1
+                    elif diff == -2: stats[jug]["EAG"] += 1
+                    elif diff == -1: stats[jug]["BIR"] += 1
+                    elif diff == 0: stats[jug]["PAR"] += 1
+                    elif diff == 1: stats[jug]["BOG"] += 1
+                    else: stats[jug]["DB"] += 1
                     
-                    # Scratch (Bogey=1, Par=2, Birdie=3, Eagle=4)
-                    stats[jug]["Scratch"] += max(0, 2 - diff)
+                    # Scratch: Bogey=1, Par=2, Birdie=3
+                    stats[jug]["S"] += max(0, 2 - diff)
             except: continue
 
-        # 5. Generación de Filas de Tabla
-        datos_tabla = []
+        # 5. Tabla de Resultados
+        tabla_data = []
         for jug in TODOS:
             d = stats[jug]
-            total_h = d["Hoyos"] if d["Hoyos"] > 0 else 1
+            if d["H"] == 0: continue # No mostrar jugadores sin datos
             
-            # CÁLCULO +/-: Golpes totales realizados menos el par total de esos hoyos
-            relativo = d["Golpes_Totales"] - d["Par_Total"]
+            rel = d["G"] - d["P"]
+            color = "red" if rel > 0 else ("#3498db" if rel < 0 else "green")
+            rel_str = f"+{rel}" if rel > 0 else (str(rel) if rel < 0 else "E")
             
-            if relativo > 0:
-                rel_str = f"+{relativo}"
-                color_rel = "#e74c3c" # Rojo
-            elif relativo < 0:
-                rel_str = str(relativo)
-                color_rel = "#3498db" # Azul
-            else:
-                rel_str = "E"
-                color_rel = "#27ae60" # Verde
+            def f_pct(v): 
+                p = (v/d["H"])*100
+                return f"{v}<br><small style='color:gray;'>{p:.1f}%</small>"
 
-            def fmt_pct(valor):
-                pct = (valor / total_h) * 100
-                return f"{valor} <br> <small style='color:gray;'>{pct:.1f}%</small>"
-
-            datos_tabla.append({
+            tabla_data.append({
                 "Jugador": f"<b>{jug}</b>",
-                "+/-": f"<span style='color:{color_rel}; font-weight:bold; font-size:1.1em;'>{rel_str}</span>",
-                "Scratch": f"<b>{d['Scratch']}</b>", 
-                "Albatros": fmt_pct(d["Albatros"]),
-                "Eagles": fmt_pct(d["Eagles"]), 
-                "Birdies": fmt_pct(d["Birdies"]), 
-                "Pares": fmt_pct(d["Pares"]),
-                "Bogey": fmt_pct(d["Bogey"]), 
-                "D.Bogey+": fmt_pct(d["D.Bogey+"])
+                "+/-": f"<span style='color:{color}; font-weight:bold;'>{rel_str}</span>",
+                "Scratch": f"<b>{d['S']}</b>",
+                "Albatros": f_pct(d["ALB"]),
+                "Eagles": f_pct(d["EAG"]),
+                "Birdies": f_pct(d["BIR"]),
+                "Pares": f_pct(d["PAR"]),
+                "Bogey": f_pct(d["BOG"]),
+                "D.Bogey+": f_pct(d["DB"])
             })
 
-        # 6. Visualización
-        st.subheader(titulo_tabla)
+        st.subheader(titulo_resumen)
+        st.markdown("<style>td, th {text-align:center !important; vertical-align:middle !important; border:1px solid #eee !important;}</style>", unsafe_allow_html=True)
         
-        # CSS para centrar todo y mejorar estética
-        st.markdown("""
-            <style>
-                table { width: 100%; border-collapse: collapse; }
-                th { text-align: center !important; background-color: #f8f9fa; padding: 12px !important; border: 1px solid #dee2e6 !important; }
-                td { text-align: center !important; vertical-align: middle !important; padding: 10px !important; border: 1px solid #dee2e6 !important; }
-            </style>
-        """, unsafe_allow_html=True)
-        
-        import pandas as pd
-        df_resumen = pd.DataFrame(datos_tabla)
-        st.write(df_resumen.to_html(escape=False, index=False), unsafe_allow_html=True)
+        if not tabla_data:
+            st.info("No hay golpes registrados para esta selección.")
+        else:
+            st.write(pd.DataFrame(tabla_data).to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # 7. Botones de Acción
-        st.write("")
+        # 6. Botones
+        st.write("---")
         c1, c2 = st.columns(2)
-        with c1:
-            if st.button("📊 Ver Acumulado Total"):
-                st.session_state.ver_acumulado = True
-                st.rerun()
-        with c2:
-            if st.button("📅 Ver por Jornada"):
-                st.session_state.ver_acumulado = False
-                st.rerun()
+        if c1.button("📊 Ver Acumulado"):
+            st.session_state.modo_historia = "Acumulado"
+            st.rerun()
+        if c2.button("📅 Ver por Jornada"):
+            st.session_state.modo_historia = "Jornada"
+            st.rerun()
         
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión")
