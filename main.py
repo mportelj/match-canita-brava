@@ -221,45 +221,32 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     
     df_historico = leer_datos() 
     
-    if df_historico is None or df_historico.empty:
-        st.warning("⚠️ No se han podido cargar datos desde Google Sheets. Revisa la conexión.")
-    else:
-        # 1. Limpieza total de columnas
+    if df_historico is not None and not df_historico.empty:
+        # 1. Normalización y Limpieza
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
+        col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
         
-        # Buscar columna de fecha (flexible)
-        posibles_fechas = [c for c in df_historico.columns if 'FECHA' in c]
-        col_fecha = posibles_fechas[0] if posibles_fechas else df_historico.columns[0]
-        
-        # 2. Selector de Jornada y Estado
+        # 2. Configuración del Selector
         fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
         conteo_hoyos = df_historico.groupby(col_fecha).size().to_dict()
         
-        # Inicializar estado si no existe
         if "modo_historia" not in st.session_state:
             st.session_state.modo_historia = "Jornada"
 
-        col_sel, col_btn = st.columns([2, 1])
-        with col_sel:
-            fecha_sel = st.selectbox(
-                "Seleccionar Jornada:", 
-                options=fechas_disp, 
-                format_func=lambda x: f"{x} ({conteo_hoyos[x]} hoyos)",
-                disabled=(st.session_state.modo_historia == "Acumulado")
-            )
+        fecha_sel = st.selectbox(
+            "Seleccionar Jornada:", 
+            options=fechas_disp, 
+            format_func=lambda x: f"{x} ({conteo_hoyos[x]} hoyos)",
+            index=0
+        )
 
-        # 3. Filtrado
-        if st.session_state.modo_historia == "Acumulado":
-            df_final = df_historico
-            titulo_resumen = "Resumen Acumulado Total"
-        else:
-            df_final = df_historico[df_historico[col_fecha] == fecha_sel]
-            titulo_resumen = f"Resumen Jornada: {fecha_sel}"
+        # Filtrar datos según el modo seleccionado
+        df_final = df_historico if st.session_state.modo_historia == "Acumulado" else df_historico[df_historico[col_fecha] == fecha_sel]
 
-        # 4. Procesamiento Robusto
+        # 3. Procesamiento con Puntuación Exacta
         stats = {jug: {
-            "S": 0, "Rel": 0, "G": 0, "P": 0,
-            "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0, "H": 0
+            "Scratch": 0, "Rel": 0, "ALB": 0, "EAG": 0, 
+            "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0, "H": 0
         } for jug in TODOS}
         
         for _, fila in df_final.iterrows():
@@ -269,65 +256,68 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 
                 for i, jug in enumerate(TODOS):
                     val = fila.get(f'S{i}')
-                    if val is None or str(val).strip() == "" or pd.isna(val): continue
+                    if pd.isna(val) or str(val).strip() == "": continue
                     
                     golpes = int(float(val))
                     diff = golpes - par_hoyo
-                    
                     stats[jug]["H"] += 1
-                    stats[jug]["G"] += golpes
-                    stats[jug]["P"] += par_hoyo
                     
-                    # Conteo categorías
-                    if diff <= -3: stats[jug]["ALB"] += 1
-                    elif diff == -2: stats[jug]["EAG"] += 1
-                    elif diff == -1: stats[jug]["BIR"] += 1
-                    elif diff == 0: stats[jug]["PAR"] += 1
-                    elif diff == 1: stats[jug]["BOG"] += 1
-                    else: stats[jug]["DB"] += 1
+                    # A. Cálculo +/- (Relativo al Par real)
+                    stats[jug]["Rel"] += diff 
                     
-                    # Scratch: Bogey=1, Par=2, Birdie=3
-                    stats[jug]["S"] += max(0, 2 - diff)
+                    # B. Clasificación y Puntos Scratch (Tu lógica exacta)
+                    if diff <= -3: 
+                        stats[jug]["ALB"] += 1
+                        stats[jug]["Scratch"] += 4
+                    elif diff == -2: 
+                        stats[jug]["EAG"] += 1
+                        stats[jug]["Scratch"] += 4 # Ajustar si Eagle tiene puntos distintos a Albatros
+                    elif diff == -1: 
+                        stats[jug]["BIR"] += 1
+                        stats[jug]["Scratch"] += 3
+                    elif diff == 0: 
+                        stats[jug]["PAR"] += 1
+                        stats[jug]["Scratch"] += 2
+                    elif diff == 1: 
+                        stats[jug]["BOG"] += 1
+                        stats[jug]["Scratch"] += 1
+                    else: 
+                        stats[jug]["DB"] += 1
+                        stats[jug]["Scratch"] += 0
             except: continue
 
-        # 5. Tabla de Resultados
+        # 4. Formateo y Visualización de la Tabla
         tabla_data = []
         for jug in TODOS:
             d = stats[jug]
-            if d["H"] == 0: continue # No mostrar jugadores sin datos
+            if d["H"] == 0: continue
             
-            rel = d["G"] - d["P"]
-            color = "red" if rel > 0 else ("#3498db" if rel < 0 else "green")
-            rel_str = f"+{rel}" if rel > 0 else (str(rel) if rel < 0 else "E")
+            # Formato +/-
+            color_rel = "red" if d["Rel"] > 0 else ("#3498db" if d["Rel"] < 0 else "green")
+            rel_str = f"+{d['Rel']}" if d["Rel"] > 0 else (str(d["Rel"]) if d["Rel"] < 0 else "E")
             
-            def f_pct(v): 
-                p = (v/d["H"])*100
-                return f"{v}<br><small style='color:gray;'>{p:.1f}%</small>"
+            f_pct = lambda v: f"{v}<br><small style='color:gray;'>{(v/d['H'])*100:.1f}%</small>"
 
             tabla_data.append({
                 "Jugador": f"<b>{jug}</b>",
-                "+/-": f"<span style='color:{color}; font-weight:bold;'>{rel_str}</span>",
-                "Scratch": f"<b>{d['S']}</b>",
-                "Albatros": f_pct(d["ALB"]),
-                "Eagles": f_pct(d["EAG"]),
+                "+/-": f"<span style='color:{color_rel}; font-weight:bold;'>{rel_str}</span>",
+                "Scratch": f"<b>{d['Scratch']}</b>",
+                "Albatros": f_pct(d["ALB"]), 
+                "Eagles": f_pct(d["EAG"]), 
                 "Birdies": f_pct(d["BIR"]),
-                "Pares": f_pct(d["PAR"]),
-                "Bogey": f_pct(d["BOG"]),
+                "Pares": f_pct(d["PAR"]), 
+                "Bogey": f_pct(d["BOG"]), 
                 "D.Bogey+": f_pct(d["DB"])
             })
 
-        st.subheader(titulo_resumen)
-        st.markdown("<style>td, th {text-align:center !important; vertical-align:middle !important; border:1px solid #eee !important;}</style>", unsafe_allow_html=True)
-        
-        if not tabla_data:
-            st.info("No hay golpes registrados para esta selección.")
-        else:
-            st.write(pd.DataFrame(tabla_data).to_html(escape=False, index=False), unsafe_allow_html=True)
+        st.subheader("Resumen de Resultados")
+        st.markdown("<style>td, th {text-align:center !important; vertical-align:middle !important; border:1px solid #dee2e6 !important;}</style>", unsafe_allow_html=True)
+        st.write(pd.DataFrame(tabla_data).to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # 6. Botones
+        # 5. Botones de Control
         st.write("---")
         c1, c2 = st.columns(2)
-        if c1.button("📊 Ver Acumulado"):
+        if c1.button("📊 Ver Acumulado Total"):
             st.session_state.modo_historia = "Acumulado"
             st.rerun()
         if c2.button("📅 Ver por Jornada"):
