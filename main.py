@@ -221,9 +221,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     
     df_historico = leer_datos()
     
-    if df_historico is None or df_historico.empty:
-        st.info("No hay datos registrados todavía.")
-    else:
+    if df_historico is not None and not df_historico.empty:
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
         
@@ -232,18 +230,15 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         if "modo_historia" not in st.session_state:
             st.session_state.modo_historia = "Jornada"
 
-        # 1. BOTONES DE NAVEGACIÓN (Deshabilitación dinámica)
+        # 1. BOTONES DE NAVEGACIÓN
         col_nav1, col_nav2, col_nav3 = st.columns(3)
-        
         if col_nav1.button("📋 RESUMEN", disabled=(st.session_state.vista_stats == "Resumen"), use_container_width=True):
             st.session_state.vista_stats = "Resumen"
             st.rerun()
-
         if col_nav2.button("🌟 MVP Jornada", disabled=(st.session_state.vista_stats == "MVP" and st.session_state.modo_historia == "Jornada"), use_container_width=True):
             st.session_state.vista_stats = "MVP"
             st.session_state.modo_historia = "Jornada"
             st.rerun()
-
         if col_nav3.button("👑 MVP Acumulado", disabled=(st.session_state.vista_stats == "MVP" and st.session_state.modo_historia == "Acumulado"), use_container_width=True):
             st.session_state.vista_stats = "MVP"
             st.session_state.modo_historia = "Acumulado"
@@ -259,9 +254,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             subtitulo = f"Jornada: {f_sel}"
         else:
             df_final = df_historico
-            subtitulo = "Acumulado Histórico"
+            subtitulo = "Histórico Acumulado"
 
-        # 3. PROCESAMIENTO MATEMÁTICO
+        # 3. PROCESAMIENTO
         stats = {jug: {"Scratch": 0, "H": 0, "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0} for jug in TODOS}
         for _, fila in df_final.iterrows():
             try:
@@ -281,63 +276,58 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     else: stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
             except: continue
 
-        # 4. PREPARACIÓN DE TABLA COMÚN
+        # 4. CÁLCULO DE VALORES DE CLASIFICACIÓN
         tabla_base = []
         for jug in TODOS:
             d = stats[jug]
             if d["H"] == 0: continue
             rel = (d["H"] * 2) - d["Scratch"]
             
-            # Formato de color para +/-
             color_rel = "red" if rel > 0 else ("green" if rel < 0 else "gray")
             rel_str = f"+{rel}" if rel > 0 else (str(rel) if rel < 0 else "E")
             
-            calc_pct = lambda x: f"{(x/d['H'])*100:.1f}%"
-            
             tabla_base.append({
                 "Jugador": f"<b>{jug}</b>",
-                "val_rel": rel, # Para ordenar
+                "val_rel": rel,
                 "+/-": f"<span style='color:{color_rel}; font-weight:bold;'>{rel_str}</span>",
-                "Scratch": f"<b>{d['Scratch']}</b>",
-                "Eagles": f"{d['EAG']}<br><small style='color:gray;'>{calc_pct(d['EAG'])}</small>",
-                "Birdies": f"{d['BIR']}<br><small style='color:gray;'>{calc_pct(d['BIR'])}</small>",
-                "Pares": f"{d['PAR']}<br><small style='color:gray;'>{calc_pct(d['PAR'])}</small>",
-                "Bogeys": f"{d['BOG']}<br><small style='color:gray;'>{calc_pct(d['BOG'])}</small>",
-                "D.Bogey+": f"{d['DB']}<br><small style='color:gray;'>{calc_pct(d['DB'])}</small>",
-                "TEXTO_WA": f"• *{jug}*: {rel_str} ({d['Scratch']} pts)"
+                "Puntos": d["Scratch"],
+                "Eagles": d["EAG"],
+                "Birdies": d["BIR"],
+                "Pares": d["PAR"],
+                "H": d["H"]
             })
 
         df_ranking = pd.DataFrame(tabla_base).sort_values(by="val_rel", ascending=True)
+        st.markdown("<style>th, td { text-align: center !important; }</style>", unsafe_allow_html=True)
 
-        # CSS para centrar todo
-        st.markdown("<style>th, td { text-align: center !important; vertical-align: middle !important; }</style>", unsafe_allow_html=True)
-
-        # 5. VISTA RESUMEN
+        # 5. VISTA RESUMEN (Tabla completa con porcentajes)
         if st.session_state.vista_stats == "Resumen":
             st.subheader(f"📋 RESUMEN - {subtitulo}")
-            cols_mostrar = ["Jugador", "+/-", "Scratch", "Eagles", "Birdies", "Pares", "Bogeys", "D.Bogey+"]
-            st.write(df_ranking[cols_mostrar].to_html(escape=False, index=False), unsafe_allow_html=True)
+            # Re-calculamos porcentajes solo para esta vista
+            df_resumen = df_ranking.copy()
+            for cat in ["Eagles", "Birdies", "Pares"]:
+                df_resumen[cat] = df_resumen.apply(lambda x: f"{x[cat]}<br><small style='color:gray;'>{(x[cat]/x['H'])*100:.1f}%</small>", axis=1)
             
-            # WhatsApp
-            import urllib.parse
-            txt_wa = f"🏆 *RESUMEN GOLF - {subtitulo}*\n\n" + "\n".join(df_ranking["TEXTO_WA"].tolist())
-            st.markdown(f'<a href="https://wa.me/?text={urllib.parse.quote(txt_wa)}" target="_blank"><button style="background-color:#25D366; color:white; border:none; padding:12px; border-radius:5px; width:100%; cursor:pointer; font-weight:bold; margin-top:20px;">Compartir Resumen 📱</button></a>', unsafe_allow_html=True)
+            cols_res = ["Jugador", "+/-", "Puntos", "Eagles", "Birdies", "Pares"]
+            st.write(df_resumen[cols_res].to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # 6. VISTA MVP
+        # 6. VISTA MVP (Valores de clasificación)
         elif st.session_state.vista_stats == "MVP":
-            st.subheader(f"🌟 CLASIFICACIÓN MVP - {subtitulo}")
+            st.subheader(f"🌟 MVP - {subtitulo}")
             
             if not df_ranking.empty:
                 ganador = df_ranking.iloc[0]
                 st.balloons()
                 
-                c1, c2 = st.columns(2)
-                c1.metric("🥇 Líder", ganador["Jugador"].replace("<b>","").replace("</b>",""))
-                # Extraer valor limpio para el delta
-                c2.metric("Puntuación +/-", f"{ganador['val_rel']}", delta=None)
+                # Cuadros de Honor
+                c1, c2, c3 = st.columns(3)
+                c1.metric("🏆 CAMPEÓN", ganador["Jugador"].replace("<b>","").replace("</b>",""))
+                c2.metric("PUNTUACIÓN", f"{ganador['val_rel']}", delta_color="inverse")
+                c3.metric("HOYOS", f"{ganador['H']}")
 
-                st.write("### Clasificación Detallada")
-                cols_mvp = ["Jugador", "+/-", "Scratch"]
+                st.write("### Clasificación de Honor")
+                # Aquí mostramos los VALORES de mérito (cuántos birdies/eagles hizo para ser MVP)
+                cols_mvp = ["Jugador", "+/-", "Puntos", "Eagles", "Birdies", "Pares"]
                 st.write(df_ranking[cols_mvp].to_html(escape=False, index=False), unsafe_allow_html=True)
         
 elif st.session_state.menu_seleccionado == "Admin":
