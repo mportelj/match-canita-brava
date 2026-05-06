@@ -40,8 +40,8 @@ def leer_datos():
         return pd.DataFrame(columns=COL_NECESARIAS)
 
 def calc_scratch(golpes, par):
+    if golpes <= 0: return 0
     dif = golpes - par
-    if golpes == 0: return 0
     if dif <= -3: return 5 # Albatros
     if dif == -2: return 4 # Eagle
     if dif == -1: return 3 # Birdie
@@ -163,12 +163,14 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         res = []
         for i, jug in enumerate(TODOS):
             col = f's{i}'; t = df[df[col] > 0].copy()
+            if t.empty: continue
+            
             t['dif'] = t[col] - t['hoyo'].map(PAR_RIA_VIGO)
             tot = len(t)
             t['scr'] = t.apply(lambda r: calc_scratch(r[col], PAR_RIA_VIGO[r['hoyo']]), axis=1)
             
-            # Nueva lógica: Diferencia total respecto al par
-            dif_total = t['dif'].sum()
+            # CORRECCIÓN AQUÍ: Forzamos a entero antes del formato
+            dif_total = int(t['dif'].sum())
             txt_dif = f"{dif_total:+d}" if dif_total != 0 else "E"
             
             def fmt(c): return f"{len(t[c])} ({len(t[c])/tot:.0%})" if tot>0 else "0"
@@ -176,8 +178,10 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         "Bir": fmt(t['dif']==-1), "Par": fmt(t['dif']==0), "Bog": fmt(t['dif']==1), "T+": fmt(t['dif']>=2),
                         "_sort": dif_total})
         
-        # Ordenamos por la diferencia respecto al par (menor es mejor)
-        st.dataframe(pd.DataFrame(res).sort_values("_sort").drop(columns=["_sort"]).set_index("Jugador"), use_container_width=True)
+        if res:
+            st.dataframe(pd.DataFrame(res).sort_values("_sort").drop(columns=["_sort"]).set_index("Jugador"), use_container_width=True)
+        else:
+            st.info("Aún no hay datos para mostrar estadísticas.")
 
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Administración")
@@ -196,9 +200,8 @@ elif st.session_state.menu_seleccionado == "Admin":
                         th = dp[dp[col] > 0].copy(); th['dif'] = th[col] - th['hoyo'].map(PAR_RIA_VIGO)
                         tt = df_t[df_t[col] > 0].copy(); tt['dif'] = tt[col] - tt['hoyo'].map(PAR_RIA_VIGO)
                         
-                        # +/- Hoy y +/- Temporada
-                        d_h = th['dif'].sum()
-                        d_t = tt['dif'].sum()
+                        d_h = int(th['dif'].sum()) if not th.empty else 0
+                        d_t = int(tt['dif'].sum()) if not tt.empty else 0
                         txt_h = f"{d_h:+d}" if d_h != 0 else "E"
                         txt_t = f"{d_t:+d}" if d_t != 0 else "E"
                         
