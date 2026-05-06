@@ -230,7 +230,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         if "modo_historia" not in st.session_state:
             st.session_state.modo_historia = "Jornada"
 
-        # 1. BOTONES DE NAVEGACIÓN
+        # 1. NAVEGACIÓN
         col_nav1, col_nav2, col_nav3 = st.columns(3)
         if col_nav1.button("📋 RESUMEN", disabled=(st.session_state.vista_stats == "Resumen"), use_container_width=True):
             st.session_state.vista_stats = "Resumen"
@@ -246,7 +246,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
         st.write("---")
 
-        # 2. SELECCIÓN DE DATOS
+        # 2. FILTRADO
         fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
         if st.session_state.modo_historia == "Jornada":
             f_sel = st.selectbox("Seleccionar Partido:", fechas_disp)
@@ -276,67 +276,66 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     else: stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
             except: continue
 
-        # 4. TABLA BASE Y TEXTO PARA WHATSAPP
-        tabla_base = []
-        txt_wa = f"📊 *ESTADÍSTICAS GOLF - {subtitulo}*\n"
-        txt_wa += "--------------------------------\n\n"
-
+        # 4. ORDENACIÓN Y PREPARACIÓN DE DATOS
+        tabla_raw = []
         for jug in TODOS:
             d = stats[jug]
             if d["H"] == 0: continue
             rel = (d["H"] * 2) - d["Scratch"]
-            color_rel = "red" if rel > 0 else ("green" if rel < 0 else "gray")
-            rel_str = f"+{rel}" if rel > 0 else (str(rel) if rel < 0 else "E")
-            
-            # Construcción de fila para tabla web
-            tabla_base.append({
-                "Jugador": f"<b>{jug}</b>",
-                "val_rel": rel,
-                "+/-": f"<span style='color:{color_rel}; font-weight:bold;'>{rel_str}</span>",
-                "Puntos": f"<b>{d['Scratch']}</b>",
-                "Eagles": d["EAG"], "Birdies": d["BIR"], "Pares": d["PAR"], "Bogeys": d["BOG"], "D.Bogey+": d["DB"],
-                "H": d["H"]
-            })
-            
-            # Construcción de bloque para WhatsApp
-            txt_wa += f"👤 *{jug.upper()}*\n"
-            txt_wa += f"🏆 Resultado: *{rel_str}* ({d['Scratch']} pts)\n"
-            txt_wa += f"🦅 Egl: {d['EAG']} | 🐥 Bir: {d['BIR']} | 🛡️ Par: {d['PAR']}\n"
-            txt_wa += f"⚠️ Bog: {d['BOG']} | 💀 D.Bog+: {d['DB']}\n"
-            txt_wa += f"⛳ Hoyos: {d['H']}\n\n"
+            tabla_raw.append({"Jugador": jug, "val_rel": rel, "Scratch": d["Scratch"], "H": d["H"], 
+                             "EAG": d["EAG"], "BIR": d["BIR"], "PAR": d["PAR"], "BOG": d["BOG"], "DB": d["DB"]})
 
-        df_ranking = pd.DataFrame(tabla_base).sort_values(by="val_rel", ascending=True)
+        df_ranking = pd.DataFrame(tabla_raw).sort_values(by="val_rel", ascending=True)
+
+        # 5. GENERACIÓN DE MENSAJE WHATSAPP (Ordenado y con %)
+        import urllib.parse
+        txt_wa = f"🍺 *CAÑITA BRAVA* ⛳\n📍 _{subtitulo}_\n"
+        txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+
+        for _, r in df_ranking.iterrows():
+            rel_str = f"+{r['val_rel']}" if r['val_rel'] > 0 else (str(r['val_rel']) if r['val_rel'] < 0 else "E")
+            pct = lambda v: f"{(v/r['H'])*100:.1f}%"
+            
+            txt_wa += f"👤 *{r['Jugador'].upper()}*\n"
+            txt_wa += f"🏆 Resultado: *{rel_str}* ({r['Scratch']} pts)\n"
+            txt_wa += f"🦅 Egl: {r['EAG']} ({pct(r['EAG'])})\n"
+            txt_wa += f"🐥 Bir: {r['BIR']} ({pct(r['BIR'])})\n"
+            txt_wa += f"🛡️ Par: {r['PAR']} ({pct(r['PAR'])})\n"
+            txt_wa += f"⚠️ Bog: {r['BOG']} ({pct(r['BOG'])})\n"
+            txt_wa += f"💀 D.Bog+: {r['DB']} ({pct(r['DB'])})\n"
+            txt_wa += f"⛳ Hoyos: {r['H']}\n"
+            txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+
+        # 6. RENDER WEB
         st.markdown("<style>th, td { text-align: center !important; vertical-align: middle !important; }</style>", unsafe_allow_html=True)
-
-        # 5. RENDERIZADO DE VISTAS
+        
         if st.session_state.vista_stats == "Resumen":
             st.subheader(f"📋 RESUMEN - {subtitulo}")
-            df_resumen = df_ranking.copy()
-            for cat in ["Eagles", "Birdies", "Pares", "Bogeys", "D.Bogey+"]:
-                df_resumen[cat] = df_resumen.apply(lambda x: f"{x[cat]}<br><small style='color:gray;'>{(x[cat]/x['H'])*100:.1f}%</small>", axis=1)
+            df_web = df_ranking.copy()
+            for cat in ["EAG", "BIR", "PAR", "BOG", "DB"]:
+                df_web[cat] = df_web.apply(lambda x: f"{x[cat]}<br><small style='color:gray;'>{(x[cat]/x['H'])*100:.1f}%</small>", axis=1)
             
-            cols_res = ["Jugador", "+/-", "Puntos", "Eagles", "Birdies", "Pares", "Bogeys", "D.Bogey+"]
-            st.write(df_resumen[cols_res].to_html(escape=False, index=False), unsafe_allow_html=True)
+            # Formato estético para +/-
+            df_web["+/-"] = df_web["val_rel"].apply(lambda x: f"<span style='color:{'red' if x > 0 else ('green' if x < 0 else 'gray')}; font-weight:bold;'>{'+'+str(x) if x > 0 else (str(x) if x < 0 else 'E')}</span>")
+            
+            cols = ["Jugador", "+/-", "Scratch", "EAG", "BIR", "PAR", "BOG", "DB"]
+            st.write(df_web[cols].to_html(escape=False, index=False), unsafe_allow_html=True)
 
         elif st.session_state.vista_stats == "MVP":
             st.subheader(f"🌟 MVP - {subtitulo}")
-            if not df_ranking.empty:
-                ganador = df_ranking.iloc[0]
-                st.balloons()
-                c1, c2, c3 = st.columns(3)
-                c1.metric("🏆 LÍDER", ganador["Jugador"].replace("<b>","").replace("</b>",""))
-                c2.metric("RESULTADO", f"{ganador['val_rel']}", delta_color="inverse")
-                c3.metric("HOYOS", f"{ganador['H']}")
-                
-                cols_mvp = ["Jugador", "+/-", "Puntos", "Eagles", "Birdies", "Pares", "Bogeys", "D.Bogey+"]
-                st.write(df_ranking[cols_mvp].to_html(escape=False, index=False), unsafe_allow_html=True)
+            ganador = df_ranking.iloc[0]
+            st.balloons()
+            c1, c2, c3 = st.columns(3)
+            c1.metric("🏆 LÍDER", ganador["Jugador"])
+            c2.metric("PUNTOS +/-", f"{ganador['val_rel']}", delta_color="inverse")
+            c3.metric("HOYOS", f"{ganador['H']}")
+            st.write(df_ranking[["Jugador", "val_rel", "Scratch", "H"]].to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # 6. BOTÓN COMPARTIR (Común a ambas vistas)
-        import urllib.parse
+        # 7. BOTÓN COMPARTIR
         st.markdown(f"""
             <a href="https://wa.me/?text={urllib.parse.quote(txt_wa)}" target="_blank" style="text-decoration:none;">
                 <button style="background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; width:100%; cursor:pointer; font-weight:bold; margin-top:25px; font-size:16px;">
-                    Compartir Estadísticas Completas por WhatsApp 📱
+                    Compartir Reporte CAÑITA BRAVA 📱
                 </button>
             </a>
         """, unsafe_allow_html=True)
