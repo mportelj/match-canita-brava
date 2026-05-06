@@ -46,7 +46,7 @@ def calc_scratch(golpes, par):
     if dif == -1: return 3 # Birdie
     if dif == 0:  return 2 # Par
     if dif == 1:  return 1 # Bogey
-    return 0 # Doble+
+    return 0 
 
 def calcular_puntos_hoyo(scores, hoyo_num):
     par = PAR_RIA_VIGO[hoyo_num]
@@ -122,25 +122,32 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.rerun()
     else:
         g = st.session_state.game
-        opciones_hoyo = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
-        seleccion = st.selectbox("Seleccionar Hoyo:", opciones_hoyo, index=int(g['h_sel'])-1)
-        h = int(seleccion.split(" ")[1])
-        g['h_sel'] = h
+        h = g['h_sel']
+        seleccion = st.selectbox("Hoyo:", [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1,19)], index=h-1)
+        g['h_sel'] = int(seleccion.split(" ")[1])
+        h = g['h_sel']
         
         ya = str(h) in g['logs']
         v_old = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
         
-        ci, cd = st.columns(2)
-        s1 = ci.number_input(TODOS[0], 0, 15, v_old[0], key=f"s1_h{h}")
-        s2 = ci.number_input(TODOS[1], 0, 15, v_old[1], key=f"s2_h{h}")
-        s3 = cd.number_input(TODOS[2], 0, 15, v_old[2], key=f"s3_h{h}")
-        s4 = cd.number_input(TODOS[3], 0, 15, v_old[3], key=f"s4_h{h}")
+        c1, c2 = st.columns(2)
+        s1 = c1.number_input(TODOS[0], 0, 15, v_old[0], key=f"s1_h{h}")
+        s2 = c1.number_input(TODOS[1], 0, 15, v_old[1], key=f"s2_h{h}")
+        s3 = c2.number_input(TODOS[2], 0, 15, v_old[2], key=f"s3_h{h}")
+        s4 = c2.number_input(TODOS[3], 0, 15, v_old[3], key=f"s4_h{h}")
         
         if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
             ejecutar_guardado_automatico()
-            st.success(f"Hoyo {h} guardado")
-            
+            st.rerun()
+
         if ya:
+            # MOSTRAR MVP DEL HOYO
+            st.write("⭐ **MVP del Hoyo**")
+            mvps = g['logs'][str(h)]['mvp']
+            cm = st.columns(4)
+            for idx, jug in enumerate(TODOS):
+                cm[idx].button(f"{jug}\n{mvps[f'p{idx+1}']}", key=f"mvp_btn_{idx}")
+
             pts_a = sum(v['pts'][0] for v in g['logs'].values())
             pts_b = sum(v['pts'][1] for v in g['logs'].values())
             ma, mb = max(0, pts_a-pts_b), max(0, pts_b-pts_a)
@@ -169,9 +176,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             
             tot_hoyos = len(t)
             tot_scr = int(t['scr'].sum())
-            par_puntos = tot_hoyos * 2 # El par scratch siempre es 2 por hoyo
+            tot_mvp = t[f'p{i+1}_pts'].sum() # Puntos MVP acumulados
+            par_puntos = tot_hoyos * 2 
             
-            # Nueva lógica solicitada: Par Scratch - Resultado Real
             dif_final = par_puntos - tot_scr
             txt_dif = f"{dif_final:+d}" if dif_final != 0 else "E"
             
@@ -179,6 +186,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             res.append({
                 "Jugador": jug,
                 "Hoyos": tot_hoyos,
+                "MVP": round(tot_mvp, 1),
                 "+/- Par": txt_dif, 
                 "Scratch": tot_scr, 
                 "Bir": fmt(t['dif_golpes']==-1), 
@@ -190,14 +198,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         
         if res:
             df_res = pd.DataFrame(res).sort_values(by="_sort", ascending=True)
-            # Aplicar centrado a todas las columnas usando column_config
             st.dataframe(
                 df_res.drop(columns=["_sort"]).set_index("Jugador"), 
                 use_container_width=True,
                 column_config={col: st.column_config.Column(alignment="center") for col in df_res.columns}
             )
-        else:
-            st.info("Aún no hay datos para mostrar estadísticas.")
 
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Administración")
@@ -205,33 +210,13 @@ elif st.session_state.menu_seleccionado == "Admin":
     if not df.empty:
         for p_id in df['partido_id'].unique()[::-1]:
             dp = df[df['partido_id'] == p_id].sort_values('hoyo')
-            fecha_p = dp['fecha'].iloc[0]; temp_p = int(dp['temporada'].iloc[0])
-            with st.expander(f"📅 {fecha_p}"):
-                c1, c2, c3 = st.columns(3)
-                if c3.button("📲 WhatsApp", key=f"wa_{p_id}", use_container_width=True):
-                    df_t = df[df['temporada'] == temp_p]
+            with st.expander(f"📅 {dp['fecha'].iloc[0]}"):
+                if st.button("📲 WhatsApp", key=f"wa_{p_id}"):
                     res_wa = []
                     for i, jug in enumerate(TODOS):
-                        col = f's{i}'
-                        th = dp[dp[col] > 0].copy()
-                        tt = df_t[df_t[col] > 0].copy()
-                        
-                        def get_wa_stats(d):
-                            if d.empty: return 0, "E"
-                            hols = len(d)
-                            pts = sum(calc_scratch(r[col], PAR_RIA_VIGO[r['hoyo']]) for _, r in d.iterrows())
-                            dfn = (hols * 2) - pts
-                            return pts, f"{dfn:+d}" if dfn != 0 else "E"
-                        
-                        pts_h, dif_h = get_wa_stats(th)
-                        pts_t, dif_t = get_wa_stats(tt)
-                        
-                        res_wa.append(f"👤 *{jug}*\n📍 *HOY*: {pts_h} pts ({dif_h})\n🌍 *TEMP*: {pts_t} pts ({dif_t})")
-
-                    p_a, p_b = dp['resultado_a'].sum(), dp['resultado_b'].sum()
-                    msg = (f"⛳ *CAÑITA BRAVA*\n📅 {fecha_p}\n\n"
-                           f"🏆 *MATCH DIA*: 🟢{p_a:g} vs 🔴{p_b:g}\n\n"
-                           f"🏅 *STATS SCRATCH*\n\n" + "\n\n".join(res_wa))
-                    
-                    wa_url = f"https://wa.me/?text={urllib.parse.quote(msg)}"
-                    st.link_button("Abrir WhatsApp", wa_url, use_container_width=True)
+                        th = dp[dp[f's{i}'] > 0]
+                        pts = sum(calc_scratch(r[f's{i}'], PAR_RIA_VIGO[r['hoyo']]) for _,r in th.iterrows())
+                        dif = (len(th)*2) - pts
+                        res_wa.append(f"👤 *{jug}*: {pts} pts ({dif:+d})")
+                    msg = f"⛳ *CAÑITA BRAVA*\n\n" + "\n".join(res_wa)
+                    st.link_button("Enviar", f"https://wa.me/?text={urllib.parse.quote(msg)}")
