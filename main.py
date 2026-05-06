@@ -242,57 +242,73 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
         df_final = df_historico if st.session_state.modo_historia == "Acumulado" else df_historico[df_historico[col_fecha] == fecha_sel]
 
-        # 3. PROCESAMIENTO: Suma de golpes y par total para el +/- exacto
+        # 3. REORGANIZACIÓN DEL CÁLCULO (Aritmética de Tarjeta)
+        # Inicializamos contadores para asegurar que cada jugador sume lo suyo
         stats = {jug: {
-            "GOLPES_ACUM": 0, "PAR_ACUM": 0, "Scratch": 0, "H": 0,
+            "GOLPES_SUMA": 0, 
+            "PAR_SUMA": 0, 
+            "Scratch": 0, 
+            "H": 0,
             "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0
         } for jug in TODOS}
         
         for _, fila in df_final.iterrows():
             try:
-                h_idx = int(fila.get('HOYO'))
-                par_hoyo = int(PAR_RIA_VIGO[h_idx])
+                hoyo_num = int(fila.get('HOYO'))
+                valor_par_hoyo = int(PAR_RIA_VIGO[hoyo_num])
                 
                 for i, jug in enumerate(TODOS):
-                    val = fila.get(f'S{i}')
-                    if pd.isna(val) or str(val).strip() == "": continue
+                    val_golpes = fila.get(f'S{i}')
                     
-                    golpes_hoyo = int(float(val))
-                    if golpes_hoyo <= 0: continue
+                    # Validar que haya un número de golpes válido
+                    if pd.isna(val_golpes) or str(val_golpes).strip() == "":
+                        continue
                     
-                    # ACUMULADORES FUNDAMENTALES
-                    stats[jug]["GOLPES_ACUM"] += golpes_hoyo
-                    stats[jug]["PAR_ACUM"] += par_hoyo
+                    golpes = int(float(val_golpes))
+                    if golpes <= 0: continue
+                    
+                    # --- CÁLCULO DEL +/- (RELATIVO AL PAR) ---
+                    # Acumulamos golpes totales y par total para ese jugador
+                    stats[jug]["GOLPES_SUMA"] += golpes
+                    stats[jug]["PAR_SUMA"] += valor_par_hoyo
                     stats[jug]["H"] += 1
                     
-                    # Lógica de categorías y puntos Scratch
-                    diff = golpes_hoyo - par_hoyo
+                    # --- PUNTUACIÓN SCRATCH Y CATEGORÍAS ---
+                    diff = golpes - valor_par_hoyo
                     
                     if diff <= -3: 
-                        stats[jug]["ALB"] += 1; stats[jug]["Scratch"] += 4
+                        stats[jug]["ALB"] += 1
+                        stats[jug]["Scratch"] += 4
                     elif diff == -2: 
-                        stats[jug]["EAG"] += 1; stats[jug]["Scratch"] += 4
+                        stats[jug]["EAG"] += 1
+                        stats[jug]["Scratch"] += 4
                     elif diff == -1: 
-                        stats[jug]["BIR"] += 1; stats[jug]["Scratch"] += 3
+                        stats[jug]["BIR"] += 1
+                        stats[jug]["Scratch"] += 3
                     elif diff == 0: 
-                        stats[jug]["PAR"] += 1; stats[jug]["Scratch"] += 2
+                        stats[jug]["PAR"] += 1
+                        stats[jug]["Scratch"] += 2
                     elif diff == 1: 
-                        stats[jug]["BOG"] += 1; stats[jug]["Scratch"] += 1
-                    else: # Doble Bogey o cualquier cosa peor (+2, +3, +4...)
-                        stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
-            except: continue
+                        stats[jug]["BOG"] += 1
+                        stats[jug]["Scratch"] += 1
+                    else: # Doble Bogey o peor
+                        stats[jug]["DB"] += 1
+                        stats[jug]["Scratch"] += 0
+            except:
+                continue
 
-        # 4. CONSTRUCCIÓN DE LA TABLA CON EL +/- REAL
+        # 4. CONSTRUCCIÓN DE LA TABLA
         tabla_data = []
         for jug in TODOS:
             d = stats[jug]
             if d["H"] == 0: continue
             
-            # EL CÁLCULO DEFINITIVO: Diferencia total de golpes contra el par total jugado
-            relativo_total = d["GOLPES_ACUM"] - d["PAR_ACUM"]
+            # El +/- es la resta directa de los acumulados
+            resultado_relativo = d["GOLPES_SUMA"] - d["PAR_SUMA"]
             
-            color_rel = "red" if relativo_total > 0 else ("#3498db" if relativo_total < 0 else "green")
-            rel_str = f"+{relativo_total}" if relativo_total > 0 else (str(relativo_total) if relativo_total < 0 else "E")
+            # Formato visual
+            color_rel = "red" if resultado_relativo > 0 else ("#3498db" if resultado_relativo < 0 else "green")
+            rel_str = f"+{resultado_relativo}" if resultado_relativo > 0 else (str(resultado_relativo) if resultado_relativo < 0 else "E")
             
             f_pct = lambda v: f"{v}<br><small style='color:gray;'>{(v/d['H'])*100:.1f}%</small>"
 
@@ -300,24 +316,29 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "Jugador": f"<b>{jug}</b>",
                 "+/-": f"<span style='color:{color_rel}; font-weight:bold; font-size:1.1em;'>{rel_str}</span>",
                 "Scratch": f"<b>{d['Scratch']}</b>",
-                "Albatros": f_pct(d["ALB"]), "Eagles": f_pct(d["EAG"]), "Birdies": f_pct(d["BIR"]),
-                "Pares": f_pct(d["PAR"]), "Bogey": f_pct(d["BOG"]), "D.Bogey+": f_pct(d["DB"])
+                "Albatros": f_pct(d["ALB"]), 
+                "Eagles": f_pct(d["EAG"]), 
+                "Birdies": f_pct(d["BIR"]),
+                "Pares": f_pct(d["PAR"]), 
+                "Bogey": f_pct(d["BOG"]), 
+                "D.Bogey+": f_pct(d["DB"])
             })
 
-        st.subheader("Resumen de Resultados")
+        st.subheader("Análisis de Rendimiento")
         st.markdown("<style>td, th {text-align:center !important; vertical-align:middle !important; border:1px solid #dee2e6 !important;}</style>", unsafe_allow_html=True)
         import pandas as pd
         st.write(pd.DataFrame(tabla_data).to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # 5. BOTONES
-        st.write("---")
-        c1, c2 = st.columns(2)
-        if c1.button("📊 Ver Acumulado Total"):
-            st.session_state.modo_historia = "Acumulado"
-            st.rerun()
-        if c2.button("📅 Volver a Vista Jornada"):
-            st.session_state.modo_historia = "Jornada"
-            st.rerun()
+        # 5. BOTÓN DE ACUMULADO
+        st.write("")
+        if st.session_state.modo_historia == "Jornada":
+            if st.button("📊 Mostrar Acumulado Histórico"):
+                st.session_state.modo_historia = "Acumulado"
+                st.rerun()
+        else:
+            if st.button("📅 Volver a Selección por Jornada"):
+                st.session_state.modo_historia = "Jornada"
+                st.rerun()
         
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión")
