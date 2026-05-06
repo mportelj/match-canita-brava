@@ -281,7 +281,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
         df_ranking = pd.DataFrame(tabla_raw).sort_values(by="val_rel", ascending=True)
 
-        # 5. Formateo de Tabla HTML y Mensaje WhatsApp Detallado
+        # 5. Formateo de Tabla HTML y Mensaje WhatsApp Detallado con Porcentajes
         tabla_final_html = []
         texto_wa = f"🏆 *ORDEN DE MÉRITO*\n📍 _{titulo_resumen}_\n"
         texto_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
@@ -291,7 +291,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             rel_str = f"+{rel}" if rel > 0 else (str(rel) if rel < 0 else "E")
             color = "red" if rel > 0 else ("#3498db" if rel < 0 else "green")
             
-            f_p = lambda v: f"{v}<br><small style='color:gray;'>{(v/row['H'])*100:.1f}%</small>"
+            # Helper para calcular %
+            calc_pct = lambda x: f"{(x/row['H'])*100:.1f}%"
+            f_p = lambda v: f"{v}<br><small style='color:gray;'>{calc_pct(v)}</small>"
 
             # Tabla para Web
             tabla_final_html.append({
@@ -302,10 +304,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "Pares": f_p(row["PAR"]), "Bogey": f_p(row["BOG"]), "D.Bogey+": f_p(row["DB"])
             })
 
-            # Formato detallado para WhatsApp
+            # Formato detallado para WhatsApp con porcentajes
             texto_wa += f"👤 *{row['Jugador'].upper()}*\n"
             texto_wa += f"⛳️ *Resultado: {rel_str}* ({row['Scratch']} pts)\n"
-            texto_wa += f"📊 _Detalle:_ {row['BIR']} Bir | {row['PAR']} Par | {row['BOG']} Bog | {row['DB']} D.Bog\n"
+            texto_wa += f"• Birdies: {row['BIR']} ({calc_pct(row['BIR'])})\n"
+            texto_wa += f"• Pares: {row['PAR']} ({calc_pct(row['PAR'])})\n"
+            texto_wa += f"• Bogeys: {row['BOG']} ({calc_pct(row['BOG'])})\n"
+            texto_wa += f"• D.Bogeys+: {row['DB']} ({calc_pct(row['DB'])})\n"
             texto_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
 
         st.subheader(titulo_resumen)
@@ -328,7 +333,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         c2.markdown(f"""
             <a href="https://wa.me/?text={mensaje_final}" target="_blank" style="text-decoration:none;">
                 <button style="background-color:#25D366; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold; width:100%; display:flex; align-items:center; justify-content:center;">
-                    Compartir Reporte Completo 📱
+                    Compartir Reporte con % 📱
                 </button>
             </a>
         """, unsafe_allow_html=True)
