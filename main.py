@@ -222,13 +222,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     df_historico = leer_datos() 
     
     if df_historico is not None and not df_historico.empty:
-        # 1. Normalización
+        # 1. Normalización de columnas
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
         
-        # 2. Selector de Jornada con conteo de hoyos
+        # 2. Selector de Jornada
         fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
-        conteo_dict = df_historico.groupby(col_fecha).size().to_dict()
+        conteo_hoyos_dict = df_historico.groupby(col_fecha).size().to_dict()
         
         if "modo_historia" not in st.session_state:
             st.session_state.modo_historia = "Jornada"
@@ -236,67 +236,62 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         fecha_sel = st.selectbox(
             "Seleccionar Jornada:", 
             options=fechas_disp, 
-            format_func=lambda x: f"{x} ({conteo_dict[x]} hoyos)",
+            format_func=lambda x: f"{x} ({conteo_hoyos_dict[x]} hoyos)",
             index=0
         )
 
         df_final = df_historico if st.session_state.modo_historia == "Acumulado" else df_historico[df_historico[col_fecha] == fecha_sel]
 
-        # 3. PROCESAMIENTO MATEMÁTICO REAL
+        # 3. PROCESAMIENTO: Suma de golpes y par total
         stats = {jug: {
-            "Scratch": 0, "Relativo": 0, "H": 0,
+            "GOLPES_TOTALES": 0, "PAR_TOTAL_JUGADO": 0, "Scratch": 0, "H": 0,
             "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0
         } for jug in TODOS}
         
         for _, fila in df_final.iterrows():
             try:
                 h_idx = int(fila.get('HOYO'))
-                par_hoyo = int(PAR_RIA_VIGO[h_idx])
+                par_h_valor = int(PAR_RIA_VIGO[h_idx])
                 
                 for i, jug in enumerate(TODOS):
                     val = fila.get(f'S{i}')
                     if pd.isna(val) or str(val).strip() == "": continue
                     
-                    golpes = int(float(val))
-                    if golpes <= 0: continue
+                    golpes_hoyo = int(float(val))
+                    if golpes_hoyo <= 0: continue
                     
-                    # DIFERENCIA REAL (Fundamental para el +/-)
-                    # Aquí sumamos la diferencia matemática pura: 6 en par 4 es +2, 7 en par 4 es +3.
-                    diff = golpes - par_hoyo
-                    
+                    # Acumuladores para el +/- exacto
+                    stats[jug]["GOLPES_TOTALES"] += golpes_hoyo
+                    stats[jug]["PAR_TOTAL_JUGADO"] += par_h_valor
                     stats[jug]["H"] += 1
-                    stats[jug]["Relativo"] += diff # <--- ESTO CORRIGE A JOSE (+5) Y DIFERENCIA A ROGE
                     
-                    # LÓGICA SCRATCH (Tu escala de puntos: Birdie+3, Par+2, Bogey+1, peor +0)
+                    # Lógica de categorías y puntos Scratch
+                    diff = golpes_hoyo - par_h_valor
                     if diff <= -3: 
-                        stats[jug]["ALB"] += 1
-                        stats[jug]["Scratch"] += 4
+                        stats[jug]["ALB"] += 1; stats[jug]["Scratch"] += 4
                     elif diff == -2: 
-                        stats[jug]["EAG"] += 1
-                        stats[jug]["Scratch"] += 4
+                        stats[jug]["EAG"] += 1; stats[jug]["Scratch"] += 4
                     elif diff == -1: 
-                        stats[jug]["BIR"] += 1
-                        stats[jug]["Scratch"] += 3
+                        stats[jug]["BIR"] += 1; stats[jug]["Scratch"] += 3
                     elif diff == 0: 
-                        stats[jug]["PAR"] += 1
-                        stats[jug]["Scratch"] += 2
+                        stats[jug]["PAR"] += 1; stats[jug]["Scratch"] += 2
                     elif diff == 1: 
-                        stats[jug]["BOG"] += 1
-                        stats[jug]["Scratch"] += 1
-                    else: # Doble Bogey o peor
-                        stats[jug]["DB"] += 1
-                        stats[jug]["Scratch"] += 0 
+                        stats[jug]["BOG"] += 1; stats[jug]["Scratch"] += 1
+                    else: 
+                        stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
             except: continue
 
-        # 4. TABLA
+        # 4. CÁLCULO FINAL Y TABLA
         tabla_data = []
         for jug in TODOS:
             d = stats[jug]
             if d["H"] == 0: continue
             
-            rel = d["Relativo"]
-            color_rel = "red" if rel > 0 else ("#3498db" if rel < 0 else "green")
-            rel_str = f"+{rel}" if rel > 0 else (str(rel) if rel < 0 else "E")
+            # EL CÁLCULO QUE PEDISTE: Golpes arriba o abajo respecto al par total jugado
+            relativo_total = d["GOLPES_TOTALES"] - d["PAR_TOTAL_JUGADO"]
+            
+            color_rel = "red" if relativo_total > 0 else ("#3498db" if relativo_total < 0 else "green")
+            rel_str = f"+{relativo_total}" if relativo_total > 0 else (str(relativo_total) if relativo_total < 0 else "E")
             
             f_pct = lambda v: f"{v}<br><small style='color:gray;'>{(v/d['H'])*100:.1f}%</small>"
 
