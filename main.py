@@ -229,35 +229,49 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
         
         if "vista_stats" not in st.session_state:
-            st.session_state.vista_stats = "Orden de Mérito"
+            st.session_state.vista_stats = "Resumen"
         if "modo_historia" not in st.session_state:
             st.session_state.modo_historia = "Jornada"
 
-        # 2. BOTONES DE NAVEGACIÓN PRINCIPAL
+        # 2. BOTONES DE NAVEGACIÓN (Con deshabilitación dinámica)
         col_nav1, col_nav2, col_nav3 = st.columns(3)
-        if col_nav1.button("🏆 Orden de Mérito"):
-            st.session_state.vista_stats = "Orden de Mérito"
-        if col_nav2.button("🌟 MVP Jornada"):
+        
+        btn_resumen = col_nav1.button("📋 RESUMEN", 
+                                      disabled=(st.session_state.vista_stats == "Resumen"),
+                                      use_container_width=True)
+        if btn_resumen:
+            st.session_state.vista_stats = "Resumen"
+            st.rerun()
+
+        btn_mvp_j = col_nav2.button("🌟 MVP Jornada", 
+                                    disabled=(st.session_state.vista_stats == "MVP" and st.session_state.modo_historia == "Jornada"),
+                                    use_container_width=True)
+        if btn_mvp_j:
             st.session_state.vista_stats = "MVP"
             st.session_state.modo_historia = "Jornada"
-        if col_nav3.button("👑 MVP Acumulado"):
+            st.rerun()
+
+        btn_mvp_a = col_nav3.button("👑 MVP Acumulado", 
+                                    disabled=(st.session_state.vista_stats == "MVP" and st.session_state.modo_historia == "Acumulado"),
+                                    use_container_width=True)
+        if btn_mvp_a:
             st.session_state.vista_stats = "MVP"
             st.session_state.modo_historia = "Acumulado"
+            st.rerun()
 
         st.write("---")
 
-        # 3. PROCESAMIENTO COMÚN DE DATOS
+        # 3. PROCESAMIENTO DE DATOS
         fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
         
         if st.session_state.modo_historia == "Jornada":
             f_sel = st.selectbox("Seleccionar Partido:", fechas_disp)
             df_final = df_historico[df_historico[col_fecha] == f_sel]
-            subtitulo = f"Datos de: {f_sel}"
+            subtitulo = f"Jornada: {f_sel}"
         else:
             df_final = df_historico
-            subtitulo = "Datos Acumulados Históricos"
+            subtitulo = "Acumulado Histórico"
 
-        # Cálculo de estadísticas base
         stats = {jug: {"Scratch": 0, "H": 0, "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0} for jug in TODOS}
         for _, fila in df_final.iterrows():
             try:
@@ -277,11 +291,10 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     else: stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
             except: continue
 
-        # 4. RENDERIZADO SEGÚN VISTA SELECCIONADA
-        if st.session_state.vista_stats == "Orden de Mérito":
-            st.subheader(f"🏆 {subtitulo}")
+        # 4. RENDERIZADO
+        if st.session_state.vista_stats == "Resumen":
+            st.subheader(f"📋 RESUMEN - {subtitulo}")
             
-            # (Aquí va tu lógica de tabla Orden de Mérito con WhatsApp que ya funciona perfecto)
             tabla_raw = []
             for jug in TODOS:
                 d = stats[jug]
@@ -292,51 +305,75 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             
             df_ranking = pd.DataFrame(tabla_raw).sort_values(by="val_rel", ascending=True)
             
-            # Formateo visual
             tabla_html = []
-            texto_wa = f"🏆 *ORDEN DE MÉRITO - {subtitulo}*\n\n"
+            texto_wa = f"🏆 *RESUMEN DE GOLF - {subtitulo}*\n\n"
+            
             for _, row in df_ranking.iterrows():
-                rel_str = f"+{row['val_rel']}" if row['val_rel'] > 0 else (str(row['val_rel']) if row['val_rel'] < 0 else "E")
+                rel = row['val_rel']
+                # Lógica de color y símbolos: Rojo (+), Verde (-), Gris (E)
+                if rel > 0:
+                    color_rel = "red"
+                    rel_str = f"+{rel}"
+                elif rel < 0:
+                    color_rel = "green"
+                    rel_str = f"{rel}" # El signo - ya viene con el número
+                else:
+                    color_rel = "gray"
+                    rel_str = "E"
+
                 calc_pct = lambda x: f"{(x/row['H'])*100:.1f}%"
+                
                 tabla_html.append({
                     "Jugador": f"<b>{row['Jugador']}</b>",
-                    "+/-": rel_str, "Scratch": row['Scratch'],
-                    "Birdies": f"{row['BIR']} ({calc_pct(row['BIR'])})",
-                    "Pares": f"{row['PAR']} ({calc_pct(row['PAR'])})",
-                    "Bogeys": f"{row['BOG']} ({calc_pct(row['BOG'])})",
-                    "D.Bogey+": f"{row['DB']} ({calc_pct(row['DB'])})"
+                    "+/-": f"<span style='color:{color_rel}; font-weight:bold; font-size:1.1em;'>{rel_str}</span>",
+                    "Scratch": f"<b>{row['Scratch']}</b>",
+                    "Birdies": f"{row['BIR']}<br><small style='color:gray;'>{calc_pct(row['BIR'])}</small>",
+                    "Pares": f"{row['PAR']}<br><small style='color:gray;'>{calc_pct(row['PAR'])}</small>",
+                    "Bogeys": f"{row['BOG']}<br><small style='color:gray;'>{calc_pct(row['BOG'])}</small>",
+                    "D.Bogey+": f"{row['DB']}<br><small style='color:gray;'>{calc_pct(row['DB'])}</small>"
                 })
                 texto_wa += f"• *{row['Jugador']}*: {rel_str} ({row['Scratch']} pts)\n"
 
+            # CSS para centrar todas las columnas y cabeceras
+            st.markdown("""
+                <style>
+                    th, td { text-align: center !important; vertical-align: middle !important; }
+                </style>
+            """, unsafe_allow_html=True)
+            
             st.write(pd.DataFrame(tabla_html).to_html(escape=False, index=False), unsafe_allow_html=True)
             
             # Botón WhatsApp
             import urllib.parse
-            st.markdown(f'<a href="https://wa.me/?text={urllib.parse.quote(texto_wa)}" target="_blank"><button style="background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; width:100%; cursor:pointer; font-weight:bold;">Compartir en WhatsApp 📱</button></a>', unsafe_allow_html=True)
+            mensaje_wa = urllib.parse.quote(texto_wa)
+            st.markdown(f"""
+                <a href="https://wa.me/?text={mensaje_wa}" target="_blank" style="text-decoration:none;">
+                    <button style="background-color:#25D366; color:white; border:none; padding:12px; border-radius:5px; width:100%; cursor:pointer; font-weight:bold; margin-top:20px;">
+                        Compartir Resumen en WhatsApp 📱
+                    </button>
+                </a>
+            """, unsafe_allow_html=True)
 
         elif st.session_state.vista_stats == "MVP":
             st.subheader(f"🌟 MVP {subtitulo}")
             
-            # Lógica MVP: Ganador de la jornada (quien tenga el +/- más bajo)
             tabla_mvp = []
             for jug, d in stats.items():
                 if d["H"] == 0: continue
                 rel = (d["H"] * 2) - d["Scratch"]
-                tabla_mvp.append({"Jugador": jug, "Resultado": rel, "Puntos": d["Scratch"]})
+                tabla_mvp.append({"Jugador": jug, "Resultado": rel, "Puntos Scratch": d["Scratch"]})
             
             if tabla_mvp:
                 df_mvp = pd.DataFrame(tabla_mvp).sort_values(by="Resultado", ascending=True)
                 ganador = df_mvp.iloc[0]
                 
-                # Visualización destacada
                 st.balloons()
-                c1, c2 = st.columns([1, 2])
-                with c1:
-                    st.metric("🥇 Ganador", ganador["Jugador"])
-                with c2:
-                    st.metric("Puntuación", f"{ganador['Resultado']} (+/-)", f"{ganador['Puntos']} pts Scratch")
+                col_mvp1, col_mvp2 = st.columns([1, 1])
+                col_mvp1.metric("🥇 Mejor Jugador", ganador["Jugador"])
+                col_mvp2.metric("Resultado", f"{ganador['Resultado']}", delta_color="inverse")
                 
-                st.table(df_mvp)
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.dataframe(df_mvp, use_container_width=True, hide_index=True)
         
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión")
