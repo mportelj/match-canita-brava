@@ -216,7 +216,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.session_state.game = None
             st.rerun()
             
-elif st.session_state.menu_seleccionado == "Estadísticas":
+elif st.session_state.menu_seleccionado == "EstadISTICS":
     st.header("🏆 Orden de Mérito")
     
     df_historico = leer_datos() 
@@ -228,18 +228,14 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
         
-        # 2. Preparar datos para el Cuadro Combinado (Fecha + Nº Hoyos)
-        # Agrupamos por fecha para contar cuántos registros (hoyos) hay en cada una
-        conteo_hoyos = df_historico.groupby(col_fecha).size().to_dict()
-        fechas_lista = sorted(conteo_hoyos.keys(), reverse=True)
-        
-        # Creamos etiquetas amigables: "2023-10-25 (18 hoyos)"
-        opciones_fecha = {f: f"{f} ({conteo_hoyos[f]} hoyos)" for f in fechas_lista}
+        # 2. Preparar el Cuadro Combinado con el conteo de hoyos
+        conteo_hoyos_fecha = df_historico.groupby(col_fecha).size().to_dict()
+        fechas_lista = sorted(conteo_hoyos_fecha.keys(), reverse=True)
+        opciones_fecha = {f: f"{f} ({conteo_hoyos_fecha[f]} hoyos)" for f in fechas_lista}
         
         if "ver_acumulado" not in st.session_state:
             st.session_state.ver_acumulado = False
 
-        # Cuadro combinado con el formato solicitado
         fecha_sel_raw = st.selectbox(
             "Seleccionar Jornada:", 
             options=fechas_lista, 
@@ -247,35 +243,40 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             index=0
         )
 
-        # 3. Lógica de Filtrado
+        # 3. Filtrado de Datos
         if st.session_state.ver_acumulado:
             df_final = df_historico
-            titulo_tabla = f"Resumen Acumulado ({sum(conteo_hoyos.values())} hoyos totales)"
+            titulo_tabla = f"Resumen Acumulado Histórico ({sum(conteo_hoyos_fecha.values())} hoyos)"
         else:
             df_final = df_historico[df_historico[col_fecha] == fecha_sel_raw]
             titulo_tabla = f"Resumen Jornada: {fecha_sel_raw}"
 
-        # 4. Procesamiento de datos (S0 a S3)
+        # 4. Procesamiento Detallado
         stats = {jug: {
-            "Scratch": 0, "Relativo": 0, "Albatros": 0, "Eagles": 0, 
-            "Birdies": 0, "Pares": 0, "Bogey": 0, "D.Bogey+": 0, "Hoyos": 0
+            "Scratch": 0, "Golpes_Totales": 0, "Par_Total": 0,
+            "Albatros": 0, "Eagles": 0, "Birdies": 0, 
+            "Pares": 0, "Bogey": 0, "D.Bogey+": 0, "Hoyos": 0
         } for jug in TODOS}
         
         for _, fila in df_final.iterrows():
             try:
                 h_num = int(fila.get('HOYO'))
                 par_hoyo = int(PAR_RIA_VIGO[h_num])
+                
                 for i, jug in enumerate(TODOS):
-                    val_s = fila.get(f'S{i}')
+                    col_s = f'S{i}'
+                    val_s = fila.get(col_s)
+                    
                     if pd.isna(val_s) or str(val_s).strip() == "": continue
                     
                     golpes = int(float(val_s))
                     diff = golpes - par_hoyo
                     
                     stats[jug]["Hoyos"] += 1
-                    stats[jug]["Relativo"] += diff  # Sumatorio de +/- respecto al par
+                    stats[jug]["Golpes_Totales"] += golpes
+                    stats[jug]["Par_Total"] += par_hoyo
                     
-                    # Clasificación
+                    # Categorías
                     if diff <= -3: stats[jug]["Albatros"] += 1
                     elif diff == -2: stats[jug]["Eagles"] += 1
                     elif diff == -1: stats[jug]["Birdies"] += 1
@@ -283,54 +284,70 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     elif diff == 1: stats[jug]["Bogey"] += 1
                     else: stats[jug]["D.Bogey+"] += 1
                     
-                    # Scratch: Bogey=1, Par=2, Birdie=3
+                    # Scratch (Bogey=1, Par=2, Birdie=3, Eagle=4)
                     stats[jug]["Scratch"] += max(0, 2 - diff)
             except: continue
 
-        # 5. Construcción de la Tabla
+        # 5. Generación de Filas de Tabla
         datos_tabla = []
         for jug in TODOS:
             d = stats[jug]
             total_h = d["Hoyos"] if d["Hoyos"] > 0 else 1
             
-            # Formatear el Relativo al Par (ej: +5, -2, E)
-            rel = d["Relativo"]
-            rel_str = f"+{rel}" if rel > 0 else (str(rel) if rel < 0 else "E")
-            # Color para el relativo
-            color_rel = "red" if rel > 0 else ("blue" if rel < 0 else "green")
-
-            fmt = lambda v: f"{v} <br> <small style='color:gray;'>{(v/total_h)*100:.1f}%</small>"
+            # CÁLCULO +/-: Golpes totales realizados menos el par total de esos hoyos
+            relativo = d["Golpes_Totales"] - d["Par_Total"]
             
+            if relativo > 0:
+                rel_str = f"+{relativo}"
+                color_rel = "#e74c3c" # Rojo
+            elif relativo < 0:
+                rel_str = str(relativo)
+                color_rel = "#3498db" # Azul
+            else:
+                rel_str = "E"
+                color_rel = "#27ae60" # Verde
+
+            def fmt_pct(valor):
+                pct = (valor / total_h) * 100
+                return f"{valor} <br> <small style='color:gray;'>{pct:.1f}%</small>"
+
             datos_tabla.append({
-                "Jugador": jug,
-                "+/-": f"<b style='color:{color_rel};'>{rel_str}</b>",
-                "Scratch": d["Scratch"], 
-                "Albatros": fmt(d["Albatros"]),
-                "Eagles": fmt(d["Eagles"]), 
-                "Birdies": fmt(d["Birdies"]), 
-                "Pares": fmt(d["Pares"]),
-                "Bogey": fmt(d["Bogey"]), 
-                "D.Bogey+": fmt(d["D.Bogey+"])
+                "Jugador": f"<b>{jug}</b>",
+                "+/-": f"<span style='color:{color_rel}; font-weight:bold; font-size:1.1em;'>{rel_str}</span>",
+                "Scratch": f"<b>{d['Scratch']}</b>", 
+                "Albatros": fmt_pct(d["Albatros"]),
+                "Eagles": fmt_pct(d["Eagles"]), 
+                "Birdies": fmt_pct(d["Birdies"]), 
+                "Pares": fmt_pct(d["Pares"]),
+                "Bogey": fmt_pct(d["Bogey"]), 
+                "D.Bogey+": fmt_pct(d["D.Bogey+"])
             })
 
-        # 6. Estilo y Renderizado
+        # 6. Visualización
         st.subheader(titulo_tabla)
-        st.markdown("<style>th, td { text-align: center !important; vertical-align: middle !important; border: 1px solid #dee2e6; }</style>", unsafe_allow_html=True)
+        
+        # CSS para centrar todo y mejorar estética
+        st.markdown("""
+            <style>
+                table { width: 100%; border-collapse: collapse; }
+                th { text-align: center !important; background-color: #f8f9fa; padding: 12px !important; border: 1px solid #dee2e6 !important; }
+                td { text-align: center !important; vertical-align: middle !important; padding: 10px !important; border: 1px solid #dee2e6 !important; }
+            </style>
+        """, unsafe_allow_html=True)
         
         import pandas as pd
         df_resumen = pd.DataFrame(datos_tabla)
         st.write(df_resumen.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        st.write("") 
-
-        # 7. Botones inferiores
-        col_bt1, col_bt2 = st.columns(2)
-        with col_bt1:
-            if st.button("📊 Mostrar Acumulado Total"):
+        # 7. Botones de Acción
+        st.write("")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("📊 Ver Acumulado Total"):
                 st.session_state.ver_acumulado = True
                 st.rerun()
-        with col_bt2:
-            if st.button("📅 Volver a Vista por Jornada"):
+        with c2:
+            if st.button("📅 Ver por Jornada"):
                 st.session_state.ver_acumulado = False
                 st.rerun()
         
