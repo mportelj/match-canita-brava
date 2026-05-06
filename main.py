@@ -131,29 +131,26 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             </div>
         """, unsafe_allow_html=True)
 
-        # --- 2. SELECTOR DE HOYO Y NAVEGACIÓN (CON FIX DE KEY DINÁMICA) ---
+        # --- 2. NAVEGACIÓN Y SELECTOR (SIN ETIQUETA) ---
         opciones = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
         
         col_prev, col_next = st.columns(2)
-        
         if col_prev.button("← Anterior", use_container_width=True, disabled=(g['h_sel'] <= 1)):
             st.session_state.game['h_sel'] -= 1
             st.rerun()
-            
         if col_next.button("Siguiente →", use_container_width=True, disabled=(g['h_sel'] >= 18)):
             st.session_state.game['h_sel'] += 1
             st.rerun()
 
-        # Al meter h_sel en la KEY, el selectbox se "resetea" visualmente al cambiar de hoyo
-        h_actual_index = g['h_sel'] - 1
+        # Selector sin el texto "Ir al hoyo" (label="") y con key dinámica
         seleccion_manual = st.selectbox(
-            "**Ir al hoyo:**", 
+            label="Selector de Hoyo",
+            label_visibility="collapsed", # Oculta la línea de texto
             options=opciones, 
-            index=h_actual_index, 
+            index=g['h_sel'] - 1, 
             key=f"sb_h_{g['h_sel']}_{g['id']}" 
         )
         
-        # Sincronizamos si el usuario cambia el selectbox manualmente
         h_nueva = int(seleccion_manual.split(" ")[1])
         if h_nueva != g['h_sel']:
             st.session_state.game['h_sel'] = h_nueva
@@ -195,7 +192,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             ejecutar_guardado_automatico()
             st.rerun()
             
-        # --- 5. CLASIFICACIÓN MVP ORDENADA ---
+        # --- 5. CLASIFICACIÓN MVP ---
         if ya_guardado:
             st.write("")
             with st.expander("⭐ Clasificaciones MVP"):
