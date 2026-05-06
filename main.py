@@ -219,23 +219,19 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.header("🏆 Orden de Mérito")
     
-    # 1. Obtener datos de Google Sheets
     df_historico = leer_datos() 
     
     if df_historico is None or df_historico.empty:
         st.info("No hay datos registrados en la Orden de Mérito.")
     else:
+        # 1. Normalizar nombres de columnas para evitar el KeyError
+        df_historico.columns = [c.strip() for c in df_historico.columns]
+        col_fecha = 'Fecha' if 'Fecha' in df_historico.columns else df_historico.columns[0]
+
         # 2. Procesamiento de datos acumulados
-        # Definimos las categorías de puntuación
         stats = {jug: {
-            "Puntos Scratch": 0,
-            "Albatros": 0,
-            "Eagles": 0,
-            "Birdies": 0,
-            "Pares": 0,
-            "Bogey": 0,
-            "D.Bogey+": 0,
-            "Hoyos": 0
+            "Scratch": 0, "Albatros": 0, "Eagles": 0, "Birdies": 0,
+            "Pares": 0, "Bogey": 0, "D.Bogey+": 0, "Hoyos": 0
         } for jug in TODOS}
         
         for _, fila in df_historico.iterrows():
@@ -245,12 +241,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 
                 for i, jug in enumerate(TODOS):
                     golpes = int(fila[f'S{i+1}'])
-                    if golpes <= 0: continue # Evitar errores si hay celdas vacías
+                    if golpes <= 0: continue
                     
                     diff = golpes - par_hoyo
                     stats[jug]["Hoyos"] += 1
                     
-                    # Cálculo de Categorías
                     if diff <= -3: stats[jug]["Albatros"] += 1
                     elif diff == -2: stats[jug]["Eagles"] += 1
                     elif diff == -1: stats[jug]["Birdies"] += 1
@@ -258,74 +253,65 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     elif diff == 1: stats[jug]["Bogey"] += 1
                     else: stats[jug]["D.Bogey+"] += 1
                     
-                    # Cálculo Puntos Scratch (Sistema Stableford Scratch estándar)
-                    # 0: Bogey o peor, 1: Par, 2: Birdie, 3: Eagle, 4: Albatros
-                    p_scratch = max(0, 2 - diff) if diff <= 0 else (1 if diff == 0 else 0)
-                    # Ajuste simplificado de Scratch:
-                    # Albatros: 5, Eagle: 4, Birdie: 3, Par: 2, Bogey: 1, D.Bogey: 0
-                    stats[jug]["Puntos Scratch"] += max(0, par_hoyo - golpes + 2)
+                    # Puntos Scratch (2 para Par, +1 por cada golpe menos, -1 por cada golpe más)
+                    stats[jug]["Scratch"] += max(0, par_hoyo - golpes + 2)
+            except: continue
 
-            except Exception:
-                continue
-
-        # 3. Creación de la Tabla Detallada
-        # Convertimos el diccionario a una lista para el DataFrame de visualización
+        # 3. Creación de la Tabla con Porcentajes
         datos_tabla = []
         for jug in TODOS:
             d = stats[jug]
+            total = d["Hoyos"] if d["Hoyos"] > 0 else 1
+            
+            # Función interna para formatear valor + porcentaje
+            def fmt(valor):
+                pct = (valor / total) * 100
+                return f"{valor} <br> <small style='color:gray;'>{pct:.1f}%</small>"
+
             datos_tabla.append({
                 "**Jugador**": f"**{jug}**",
-                "**Scratch**": d["Puntos Scratch"],
-                "**Albatros**": d["Albatros"],
-                "**Eagles**": d["Eagles"],
-                "**Birdies**": d["Birdies"],
-                "**Pares**": d["Pares"],
-                "**Bogey**": d["Bogey"],
-                "**D.Bogey+**": d["D.Bogey+"],
+                "**Scratch**": f"**{d['Scratch']}**",
+                "**Albatros**": fmt(d["Albatros"]),
+                "**Eagles**": fmt(d["Eagles"]),
+                "**Birdies**": fmt(d["Birdies"]),
+                "**Pares**": fmt(d["Pares"]),
+                "**Bogey**": fmt(d["Bogey"]),
+                "**D.Bogey+**": fmt(d["D.Bogey+"]),
                 "**Hoyos**": d["Hoyos"]
             })
 
-        # 4. Estilo de la tabla (Centrado y Negrita)
-        # Usamos CSS inyectado para asegurar que las columnas estén centradas
+        # 4. Estilo CSS para centrar y permitir HTML en tablas
         st.markdown("""
             <style>
-                div[data-testid="stTable"] table {
-                    width: 100%;
-                }
-                div[data-testid="stTable"] th {
-                    text-align: center !important;
-                    background-color: #f0f2f6;
-                }
-                div[data-testid="stTable"] td {
-                    text-align: center !important;
-                }
+                div[data-testid="stTable"] th { text-align: center !important; background-color: #f0f2f6; }
+                div[data-testid="stTable"] td { text-align: center !important; vertical-align: middle !important; }
             </style>
         """, unsafe_allow_html=True)
 
-        st.subheader("Resumen Acumulado por Jugador")
-        st.table(datos_tabla)
+        st.subheader("Resumen Acumulado y Porcentajes")
+        # Usamos to_html para permitir que el <small> se renderice correctamente
+        import pandas as pd
+        df_mostrar = pd.DataFrame(datos_tabla)
+        st.write(df_mostrar.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # 5. Desglose por Jornada (Opcional - Filtro por Fecha)
         st.divider()
+
+        # 5. Detalle por Jornada corregido (evita el KeyError)
         st.subheader("🔍 Detalle por Jornada")
-        fechas_disp = df_historico['Fecha'].unique().tolist()
+        fechas_disp = df_historico[col_fecha].unique().tolist()
         fecha_sel = st.selectbox("Seleccionar Jornada:", fechas_disp)
         
-        df_jornada = df_historico[df_historico['Fecha'] == fecha_sel]
+        df_jornada = df_historico[df_historico[col_fecha] == fecha_sel]
         
-        # Repetir lógica simplificada para la jornada seleccionada
         resumen_jornada = []
         for i, jug in enumerate(TODOS):
-            pts_jornada = 0
+            pts_j = 0
             for _, f in df_jornada.iterrows():
-                diff = int(f[f'S{i+1}']) - int(PAR_RIA_VIGO[int(f['Hoyo'])])
-                pts_jornada += max(0, 2 - diff)
-            
-            resumen_jornada.append({
-                "**Jugador**": jug,
-                "**Fecha**": fecha_sel,
-                "**Puntos Scratch Jornada**": pts_jornada
-            })
+                try:
+                    diff = int(f[f'S{i+1}']) - int(PAR_RIA_VIGO[int(f['Hoyo'])])
+                    pts_j += max(0, 2 - diff)
+                except: continue
+            resumen_jornada.append({"Jugador": jug, "Puntos Scratch": pts_j})
         
         st.table(resumen_jornada)
 
