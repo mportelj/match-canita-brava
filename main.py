@@ -6,6 +6,7 @@ from datetime import datetime
 # --- 1. CONFIGURACIÓN Y ESTILO ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
+# CSS para el selector de hoyo (Grande y Negrita)
 st.markdown("""
     <style>
     div[data-baseweb="select"] > div {
@@ -16,9 +17,11 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Datos de campo y jugadores
 PAR_RIA_VIGO = {i: p for i, p in zip(range(1, 19), [4,5,3,4,4,5,3,4,4,4,3,4,3,5,4,5,4,4])}
 TODOS = ["MANU", "JOSE", "ROGE", "LALO"] 
-EQUIPO_A_NOMBRES, EQUIPO_B_NOMBRES = f"{TODOS[0]}/{TODOS[1]}", f"{TODOS[2]}/{TODOS[3]}"
+EQUIPO_A_NOMBRES = f"{TODOS[0]} & {TODOS[1]}"
+EQUIPO_B_NOMBRES = f"{TODOS[2]} & {TODOS[3]}"
 COLOR_A, COLOR_B = "#2e7d32", "#c62828"
 
 if "menu_seleccionado" not in st.session_state: st.session_state.menu_seleccionado = "Inicio"
@@ -57,7 +60,8 @@ def calcular_puntos_hoyo(scores, hoyo_num):
 def ejecutar_guardado_automatico():
     g = st.session_state.game
     h = int(g['h_sel'])
-    s = [int(st.session_state[f"s{i+1}_h{h}"]) for i in range(4)]
+    s = [int(st.session_state[f"s1_h{h}_{g['id']}"]), int(st.session_state[f"s2_h{h}_{g['id']}"]),
+         int(st.session_state[f"s3_h{h}_{g['id']}"]), int(st.session_state[f"s4_h{h}_{g['id']}"])]
     pa, pb, mi = calcular_puntos_hoyo(s, h)
     
     anio_int = int(datetime.strptime(g['fecha'], "%d/%m/%Y").year)
@@ -82,7 +86,7 @@ if st.session_state.menu_seleccionado == "Inicio":
     temps = sorted(df['temporada'].unique().tolist(), reverse=True) if not df.empty else [2026]
     sel_temp = st.selectbox("Temporada:", temps, format_func=lambda x: str(int(x)))
     
-    pa_t, pb_t = 3.5, 3.5 
+    pa_t, pb_t = 3.5, 3.5 # Puntuación inicial histórica
     if not df.empty:
         df_t = df[df['temporada'] == int(sel_temp)]
         for _, r in df_t.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'}).iterrows():
@@ -96,69 +100,41 @@ if st.session_state.menu_seleccionado == "Inicio":
         <div style="font-size:2em; align-self:center;">VS</div>
         <div><h2 style="color:{COLOR_B};">{EQUIPO_B_NOMBRES}</h2><h1>{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
-# --- Actualización de nombres de equipo ---
-EQUIPO_A_NOMBRES = f"{TODOS[0]} & {TODOS[1]}"
-EQUIPO_B_NOMBRES = f"{TODOS[2]} & {TODOS[3]}"
-
-# ... (resto del código igual hasta llegar a Jugar/Editar)
-
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if 'game' not in st.session_state or st.session_state.game is None:
         st.subheader("No hay partida activa")
-        f = st.date_input("Fecha de la partida:", datetime.now(), format="DD/MM/YYYY")
+        f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
         if st.button("🚀 Iniciar Nueva Partida", use_container_width=True):
             st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'h_sel': 1, 'logs': {}, 'id': datetime.now().strftime("%Y%m%d%H%M%S")}
             st.rerun()
     else:
         g = st.session_state.game
         
-        # --- 1. MARCADOR POR DIFERENCIA (MATCH PLAY) ---
+        # Marcador Jornada por Diferencia
         pts_a_tot = sum(l['pts'][0] for l in g['logs'].values())
         pts_b_tot = sum(l['pts'][1] for l in g['logs'].values())
+        diff_a, diff_b = (pts_a_tot - pts_b_tot, 0) if pts_a_tot >= pts_b_tot else (0, pts_b_tot - pts_a_tot)
         
-        # Cálculo de diferencia: uno de los dos siempre será 0
-        if pts_a_tot >= pts_b_tot:
-            diff_a, diff_b = pts_a_tot - pts_b_tot, 0
-        else:
-            diff_a, diff_b = 0, pts_b_tot - pts_a_tot
-        
-        st.markdown(f"""
-            <div style="background-color:#f0f2f6; padding:10px; border-radius:10px; text-align:center; margin-bottom:20px;">
-                <p style="margin:0; font-weight:bold; color:#555;">MARCADOR JORNADA (POR DIFERENCIA)</p>
-                <div style="display:flex; justify-content:space-around; align-items:center;">
-                    <div style="color:{COLOR_A};"><b>{EQUIPO_A_NOMBRES}</b><br><span style="font-size:30px; font-weight:bold;">{diff_a:g}</span></div>
-                    <div style="font-size:20px; font-weight:bold; color:#888;">VS</div>
-                    <div style="color:{COLOR_B};"><b>{EQUIPO_B_NOMBRES}</b><br><span style="font-size:30px; font-weight:bold;">{diff_b:g}</span></div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""<div style="background-color:#f0f2f6; padding:10px; border-radius:10px; text-align:center; margin-bottom:20px;">
+            <p style="margin:0; font-weight:bold; color:#555;">MARCADOR JORNADA (DIFERENCIA)</p>
+            <div style="display:flex; justify-content:space-around; align-items:center;">
+                <div style="color:{COLOR_A};"><b>{EQUIPO_A_NOMBRES}</b><br><span style="font-size:30px;">{diff_a:g}</span></div>
+                <div style="font-size:20px;">VS</div>
+                <div style="color:{COLOR_B};"><b>{EQUIPO_B_NOMBRES}</b><br><span style="font-size:30px;">{diff_b:g}</span></div>
+            </div></div>""", unsafe_allow_html=True)
 
-        # --- 2. SELECCIÓN DE HOYO Y MARCADOR DEL HOYO ---
-        opciones_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
-        seleccion = st.selectbox("**Hoyo:**", options=opciones_hoyos, index=g['h_sel'] - 1, key=f"h_act_{g['id']}")
+        opciones = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
+        seleccion = st.selectbox("**Hoyo:**", options=opciones, index=g['h_sel'] - 1, key=f"h_act_{g['id']}")
         h = int(seleccion.split(" ")[1])
         st.session_state.game['h_sel'] = h
         
         ya = str(h) in g['logs']
-        
         if ya:
             h_pts = g['logs'][str(h)]['pts']
-            # Marcador del hoyo por diferencia
-            if h_pts[0] >= h_pts[1]:
-                h_diff_a, h_diff_b = h_pts[0] - h_pts[1], 0
-            else:
-                h_diff_a, h_diff_b = 0, h_pts[1] - h_pts[0]
-                
-            color_h = COLOR_A if h_diff_a > h_diff_b else COLOR_B if h_diff_b > h_diff_a else "#555"
-            texto_h = "EMPATE" if h_diff_a == h_diff_b else f"GANA {EQUIPO_A_NOMBRES if h_diff_a > h_diff_b else EQUIPO_B_NOMBRES}"
-            
-            st.markdown(f"""
-                <div style="text-align:center; color:{color_h}; font-weight:bold; border:1px solid {color_h}; border-radius:5px; padding:5px; margin-bottom:15px;">
-                    Resultado Hoyo {h}: {h_diff_a:g} - {h_diff_b:g} ({texto_h})
-                </div>
-            """, unsafe_allow_html=True)
+            h_diff_a, h_diff_b = (h_pts[0]-h_pts[1], 0) if h_pts[0]>=h_pts[1] else (0, h_pts[1]-h_pts[0])
+            txt_h = "EMPATE" if h_diff_a == h_diff_b else f"GANA {EQUIPO_A_NOMBRES if h_diff_a > h_diff_b else EQUIPO_B_NOMBRES}"
+            st.info(f"Resultado Hoyo {h}: {h_diff_a:g} - {h_diff_b:g} ({txt_h})")
 
-        # --- 3. ENTRADA DE GOLPES ---
         v_old = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
         c1, c2 = st.columns(2)
         s1 = c1.number_input(TODOS[0], 0, 15, int(v_old[0]), step=1, key=f"s1_h{h}_{g['id']}")
@@ -170,26 +146,20 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             ejecutar_guardado_automatico()
             st.rerun()
             
-        # --- 4. MVP DESPLEGABLE ---
         if ya:
-            with st.expander("🏆 Ver Clasificación MVP"):
+            with st.expander("🏆 Ver MVP"):
                 df_hist = leer_datos()
                 m1, m2, m3 = st.columns(3)
                 with m1:
-                    st.caption("En este Hoyo")
-                    for i, jug in enumerate(TODOS): st.write(f"**{jug}**: {g['logs'][str(h)]['mvp'][f'p{i+1}']:g}")
+                    st.caption("Hoyo")
+                    for i, j in enumerate(TODOS): st.write(f"**{j}**: {g['logs'][str(h)]['mvp'][f'p{i+1}']:g}")
                 with m2:
-                    st.caption("Jornada")
-                    for i, jug in enumerate(TODOS):
-                        val = sum(l['mvp'][f'p{i+1}'] for l in g['logs'].values())
-                        st.write(f"**{jug}**: {val:g}")
+                    st.caption("Día")
+                    for i, j in enumerate(TODOS): st.write(f"**{j}**: {sum(l['mvp'][f'p{i+1}'] for l in g['logs'].values()):g}")
                 with m3:
-                    st.caption("Temporada")
-                    for i, jug in enumerate(TODOS):
-                        val = df_hist[f'p{i+1}_pts'].sum() if not df_hist.empty else 0
-                        st.write(f"**{jug}**: {val:g}")
+                    st.caption("Total")
+                    for i, j in enumerate(TODOS): st.write(f"**{j}**: {df_hist[f'p{i+1}_pts'].sum() if not df_hist.empty else 0:g}")
 
-        st.divider()
         if st.button("🏁 Guardar Partida", use_container_width=True):
             st.session_state.game = None
             st.rerun()
@@ -202,10 +172,20 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         for i, jug in enumerate(TODOS):
             t = df[df[f's{i}'] > 0].copy()
             if t.empty: continue
-            pts = sum(5 if (r[f's{i}']-PAR_RIA_VIGO[r['hoyo']])<=-3 else 4 if (r[f's{i}']-PAR_RIA_VIGO[r['hoyo']])==-2 else 3 if (r[f's{i}']-PAR_RIA_VIGO[r['hoyo']])==-1 else 2 if (r[f's{i}']-PAR_RIA_VIGO[r['hoyo']])==0 else 1 if (r[f's{i}']-PAR_RIA_VIGO[r['hoyo']])==1 else 0 for _,r in t.iterrows())
-            dif = (len(t)*2) - pts
-            res.append({"Jugador": jug, "Hoyos": len(t), "MVP": round(t[f'p{i+1}_pts'].sum(),1), "+/- Par": f"{dif:+d}" if dif!=0 else "E", "Scratch": pts, "_s": dif})
-        st.dataframe(pd.DataFrame(res).sort_values("_s").drop(columns="_s").set_index("Jugador"), use_container_width=True)
+            
+            # Cálculo corregido para evitar ValueError
+            scratch = 0
+            for _, r in t.iterrows():
+                dif = int(r[f's{i}']) - int(PAR_RIA_VIGO[r['hoyo']])
+                scratch += (5 if dif<=-3 else 4 if dif==-2 else 3 if dif==-1 else 2 if dif==0 else 1 if dif==1 else 0)
+            
+            dif_total = (len(t)*2) - scratch
+            txt_dif = f"{dif_total:+d}" if dif_total != 0 else "E"
+            
+            res.append({"Jugador": jug, "Hoyos": len(t), "MVP": round(t[f'p{i+1}_pts'].sum(),1), "+/- Par": txt_dif, "Scratch": scratch, "_sort": dif_total})
+        
+        df_res = pd.DataFrame(res).sort_values("_sort").drop(columns="_sort").set_index("Jugador")
+        st.dataframe(df_res, use_container_width=True)
 
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión")
@@ -215,14 +195,14 @@ elif st.session_state.menu_seleccionado == "Admin":
             dp = df[df['partido_id'] == p_id]
             with st.expander(f"Partida {dp['fecha'].iloc[0]} ({len(dp)} hoyos)"):
                 c1, c2 = st.columns(2)
-                if c1.button("✏️ Editar Partida", key=f"ed_{p_id}"):
+                if c1.button("✏️ Editar", key=f"ed_{p_id}"):
                     logs = {str(r['hoyo']): {'s':[r['s0'],r['s1'],r['s2'],r['s3']], 'pts':(r['resultado_a'],r['resultado_b']), 
                             'mvp':{f'p{i+1}':r[f'p{i+1}_pts'] for i in range(4)}} for _,r in dp.iterrows()}
                     st.session_state.game = {'fecha':dp['fecha'].iloc[0], 'h_sel':1, 'logs':logs, 'id':p_id}
                     st.session_state.menu_seleccionado = "Jugar/Editar"
                     st.rerun()
-                if c2.checkbox("Confirmar Borrado", key=f"del_cb_{p_id}"):
-                    if st.button("🗑️ Eliminar", key=f"del_btn_{p_id}", type="primary"):
+                if c2.checkbox("Borrar", key=f"del_cb_{p_id}"):
+                    if st.button("🗑️ Confirmar", key=f"del_btn_{p_id}", type="primary"):
                         conn = st.connection("gsheets", type=GSheetsConnection)
                         conn.update(worksheet="historial", data=df[df['partido_id'] != p_id])
                         st.cache_data.clear()
