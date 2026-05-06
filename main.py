@@ -276,59 +276,70 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     else: stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
             except: continue
 
-        # 4. CÁLCULO DE VALORES DE CLASIFICACIÓN
+        # 4. TABLA BASE Y TEXTO PARA WHATSAPP
         tabla_base = []
+        txt_wa = f"📊 *ESTADÍSTICAS GOLF - {subtitulo}*\n"
+        txt_wa += "--------------------------------\n\n"
+
         for jug in TODOS:
             d = stats[jug]
             if d["H"] == 0: continue
             rel = (d["H"] * 2) - d["Scratch"]
-            
             color_rel = "red" if rel > 0 else ("green" if rel < 0 else "gray")
             rel_str = f"+{rel}" if rel > 0 else (str(rel) if rel < 0 else "E")
             
+            # Construcción de fila para tabla web
             tabla_base.append({
                 "Jugador": f"<b>{jug}</b>",
                 "val_rel": rel,
                 "+/-": f"<span style='color:{color_rel}; font-weight:bold;'>{rel_str}</span>",
-                "Puntos": d["Scratch"],
-                "Eagles": d["EAG"],
-                "Birdies": d["BIR"],
-                "Pares": d["PAR"],
+                "Puntos": f"<b>{d['Scratch']}</b>",
+                "Eagles": d["EAG"], "Birdies": d["BIR"], "Pares": d["PAR"], "Bogeys": d["BOG"], "D.Bogey+": d["DB"],
                 "H": d["H"]
             })
+            
+            # Construcción de bloque para WhatsApp
+            txt_wa += f"👤 *{jug.upper()}*\n"
+            txt_wa += f"🏆 Resultado: *{rel_str}* ({d['Scratch']} pts)\n"
+            txt_wa += f"🦅 Egl: {d['EAG']} | 🐥 Bir: {d['BIR']} | 🛡️ Par: {d['PAR']}\n"
+            txt_wa += f"⚠️ Bog: {d['BOG']} | 💀 D.Bog+: {d['DB']}\n"
+            txt_wa += f"⛳ Hoyos: {d['H']}\n\n"
 
         df_ranking = pd.DataFrame(tabla_base).sort_values(by="val_rel", ascending=True)
-        st.markdown("<style>th, td { text-align: center !important; }</style>", unsafe_allow_html=True)
+        st.markdown("<style>th, td { text-align: center !important; vertical-align: middle !important; }</style>", unsafe_allow_html=True)
 
-        # 5. VISTA RESUMEN (Tabla completa con porcentajes)
+        # 5. RENDERIZADO DE VISTAS
         if st.session_state.vista_stats == "Resumen":
             st.subheader(f"📋 RESUMEN - {subtitulo}")
-            # Re-calculamos porcentajes solo para esta vista
             df_resumen = df_ranking.copy()
-            for cat in ["Eagles", "Birdies", "Pares"]:
+            for cat in ["Eagles", "Birdies", "Pares", "Bogeys", "D.Bogey+"]:
                 df_resumen[cat] = df_resumen.apply(lambda x: f"{x[cat]}<br><small style='color:gray;'>{(x[cat]/x['H'])*100:.1f}%</small>", axis=1)
             
-            cols_res = ["Jugador", "+/-", "Puntos", "Eagles", "Birdies", "Pares"]
+            cols_res = ["Jugador", "+/-", "Puntos", "Eagles", "Birdies", "Pares", "Bogeys", "D.Bogey+"]
             st.write(df_resumen[cols_res].to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # 6. VISTA MVP (Valores de clasificación)
         elif st.session_state.vista_stats == "MVP":
             st.subheader(f"🌟 MVP - {subtitulo}")
-            
             if not df_ranking.empty:
                 ganador = df_ranking.iloc[0]
                 st.balloons()
-                
-                # Cuadros de Honor
                 c1, c2, c3 = st.columns(3)
-                c1.metric("🏆 CAMPEÓN", ganador["Jugador"].replace("<b>","").replace("</b>",""))
-                c2.metric("PUNTUACIÓN", f"{ganador['val_rel']}", delta_color="inverse")
+                c1.metric("🏆 LÍDER", ganador["Jugador"].replace("<b>","").replace("</b>",""))
+                c2.metric("RESULTADO", f"{ganador['val_rel']}", delta_color="inverse")
                 c3.metric("HOYOS", f"{ganador['H']}")
-
-                st.write("### Clasificación de Honor")
-                # Aquí mostramos los VALORES de mérito (cuántos birdies/eagles hizo para ser MVP)
-                cols_mvp = ["Jugador", "+/-", "Puntos", "Eagles", "Birdies", "Pares"]
+                
+                cols_mvp = ["Jugador", "+/-", "Puntos", "Eagles", "Birdies", "Pares", "Bogeys", "D.Bogey+"]
                 st.write(df_ranking[cols_mvp].to_html(escape=False, index=False), unsafe_allow_html=True)
+
+        # 6. BOTÓN COMPARTIR (Común a ambas vistas)
+        import urllib.parse
+        st.markdown(f"""
+            <a href="https://wa.me/?text={urllib.parse.quote(txt_wa)}" target="_blank" style="text-decoration:none;">
+                <button style="background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; width:100%; cursor:pointer; font-weight:bold; margin-top:25px; font-size:16px;">
+                    Compartir Estadísticas Completas por WhatsApp 📱
+                </button>
+            </a>
+        """, unsafe_allow_html=True)
         
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión")
