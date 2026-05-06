@@ -131,10 +131,9 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             </div>
         """, unsafe_allow_html=True)
 
-        # --- 2. SELECTOR DE HOYO Y NAVEGACIÓN SINCRONIZADA ---
+        # --- 2. SELECTOR DE HOYO Y NAVEGACIÓN (CON FIX DE KEY DINÁMICA) ---
         opciones = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
         
-        # Lógica para cambiar hoyo desde botones
         col_prev, col_next = st.columns(2)
         
         if col_prev.button("← Anterior", use_container_width=True, disabled=(g['h_sel'] <= 1)):
@@ -145,19 +144,20 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.session_state.game['h_sel'] += 1
             st.rerun()
 
-        # Función para detectar cambio manual en el selectbox
-        def manual_change():
-            nueva_sel = st.session_state[f"sb_h_{g['id']}"]
-            st.session_state.game['h_sel'] = int(nueva_sel.split(" ")[1])
-
-        # El selector ahora usa g['h_sel'] como índice maestro
-        st.selectbox(
+        # Al meter h_sel en la KEY, el selectbox se "resetea" visualmente al cambiar de hoyo
+        h_actual_index = g['h_sel'] - 1
+        seleccion_manual = st.selectbox(
             "**Ir al hoyo:**", 
             options=opciones, 
-            index=g['h_sel'] - 1, 
-            key=f"sb_h_{g['id']}",
-            on_change=manual_change
+            index=h_actual_index, 
+            key=f"sb_h_{g['h_sel']}_{g['id']}" 
         )
+        
+        # Sincronizamos si el usuario cambia el selectbox manualmente
+        h_nueva = int(seleccion_manual.split(" ")[1])
+        if h_nueva != g['h_sel']:
+            st.session_state.game['h_sel'] = h_nueva
+            st.rerun()
         
         h = g['h_sel']
         ya_guardado = str(h) in g['logs']
