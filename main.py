@@ -222,6 +222,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     df_historico = leer_datos()
     
     if df_historico is not None and not df_historico.empty:
+        # Normalizamos nombres de columnas a mayúsculas para evitar errores
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
         
@@ -246,7 +247,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
         st.write("---")
 
-        # 2. FILTRADO DE DATOS
+        # 2. SELECCIÓN DE DATOS
         fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
         if st.session_state.modo_historia == "Jornada":
             f_sel = st.selectbox("Seleccionar Partido:", fechas_disp)
@@ -256,19 +257,26 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             df_final = df_historico
             subtitulo = "Histórico Acumulado"
 
-        # 3. PROCESAMIENTO: LECTURA DE PUNTOS REALES (Oponente + Bonus)
-        # Asumimos que en tu Excel las columnas de puntos se llaman P0, P1, P2... correspondientes a cada jugador
-        stats = {jug: {"Puntos_Reales": 0, "H": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0, "TB": 0, "Scratch": 0} for jug in TODOS}
+        # 3. PROCESAMIENTO (Puntos reales de P1_PTS, P2_PTS...)
+        stats = {jug: {"Puntos": 0, "H": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0, "TB": 0} for jug in TODOS}
         
         for _, fila in df_final.iterrows():
             try:
                 h_num = int(fila.get('HOYO'))
                 p_hoyo = int(PAR_RIA_VIGO[h_num])
+                
                 for i, jug in enumerate(TODOS):
-                    # --- GOLPES (Para el desglose de calidad) ---
-                    v_golpes = fila.get(f'S{i}')
-                    if pd.notna(v_golpes) and str(v_golpes).strip() != "":
-                        g_hoyo = int(float(v_golpes))
+                    # 1. Sumar Puntos Reales (P1_PTS, P2_PTS, P3_PTS, P4_PTS)
+                    # i+1 porque tus columnas empiezan en 1
+                    col_pts = f"P{i+1}_PTS" 
+                    val_p = fila.get(col_pts)
+                    if pd.notna(val_p):
+                        stats[jug]["Puntos"] += float(val_p)
+                    
+                    # 2. Contar Calidad de Golpes (S0, S1, S2, S3)
+                    val_g = fila.get(f'S{i}')
+                    if pd.notna(val_g) and str(val_g).strip() != "":
+                        g_hoyo = int(float(val_g))
                         diff = g_hoyo - p_hoyo
                         stats[jug]["H"] += 1
                         if diff <= -2: stats[jug]["EAG"] += 1
@@ -277,52 +285,47 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         elif diff == 1: stats[jug]["BOG"] += 1
                         elif diff == 2: stats[jug]["DB"] += 1
                         else: stats[jug]["TB"] += 1
-                    
-                    # --- PUNTOS GRABADOS (Oponente + Bonus Calidad) ---
-                    # Buscamos la columna de puntos (ej: P0, P1, P2...)
-                    v_puntos = fila.get(f'P{i}')
-                    if pd.notna(v_puntos):
-                        stats[jug]["Puntos_Reales"] += float(v_puntos)
             except: continue
 
-        # 4. ORDENACIÓN POR PUNTOS REALES (MVP)
+        # 4. TABLA Y ORDENACIÓN (Por Puntos DESC)
         tabla_raw = []
         for jug in TODOS:
             d = stats[jug]
             if d["H"] == 0: continue
             tabla_raw.append({
-                "Jugador": jug,
-                "Puntos": d["Puntos_Reales"],
-                "H": d["H"],
+                "Jugador": jug, "Puntos": d["Puntos"], "H": d["H"],
                 "EAG": d["EAG"], "BIR": d["BIR"], "PAR": d["PAR"], 
                 "BOG": d["BOG"], "DB": d["DB"], "TB": d["TB"]
             })
 
-        # El MVP es quien más puntos reales tiene (Puntos_Reales de mayor a menor)
         df_ranking = pd.DataFrame(tabla_raw).sort_values(by="Puntos", ascending=False)
 
         # 5. MENSAJE WHATSAPP
         import urllib.parse
-        txt_wa = f"🍺 *CAÑITA BRAVA* ⛳\n📍 _{subtitulo}_\n⛳ *Hoyos: {df_ranking['H'].max() if not df_ranking.empty else 0}*\n"
+        total_h = int(df_ranking['H'].max()) if not df_ranking.empty else 0
+        txt_wa = f"🍺 *CAÑITA BRAVA* ⛳\n📍 _{subtitulo}_\n⛳ *Hoyos: {total_h}*\n"
         txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
 
         for _, r in df_ranking.iterrows():
             pct = lambda v: f"{(v/r['H'])*100:.1f}%"
             txt_wa += f"👤 *{r['Jugador'].upper()}*\n"
-            txt_wa += f"🏆 *PUNTOS REALES: {r['Puntos']}*\n"
+            txt_wa += f"🏆 *PUNTOS: {r['Puntos']:.1f}*\n"
             txt_wa += f"🦅 Egl: {r['EAG']} ({pct(r['EAG'])}) | 🐥 Bir: {r['BIR']} ({pct(r['BIR'])})\n"
             txt_wa += f"🛡️ Par: {r['PAR']} ({pct(r['PAR'])}) | ⚠️ Bog: {r['BOG']} ({pct(r['BOG'])})\n"
             txt_wa += f"💀 D.Bog: {r['DB']} ({pct(r['DB'])}) | 💣 +T.Bog: {r['TB']} ({pct(r['TB'])})\n"
             txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
 
         # 6. RENDER WEB
+        st.markdown("<style>th, td { text-align: center !important; vertical-align: middle !important; }</style>", unsafe_allow_html=True)
+        
         if st.session_state.vista_stats == "Resumen":
             st.subheader(f"📋 RESUMEN - {subtitulo}")
             df_web = df_ranking.copy()
             for cat in ["EAG", "BIR", "PAR", "BOG", "DB", "TB"]:
                 df_web[cat] = df_web.apply(lambda x: f"{x[cat]}<br><small style='color:gray;'>{(x[cat]/x['H'])*100:.1f}%</small>", axis=1)
             
-            cols = ["Jugador", "Puntos", "EAG", "BIR", "PAR", "BOG", "DB", "TB"]
+            df_web.rename(columns={"DB": "D.Bogey", "TB": "+T.Bogey"}, inplace=True)
+            cols = ["Jugador", "Puntos", "EAG", "BIR", "PAR", "BOG", "D.Bogey", "+T.Bogey"]
             st.write(df_web[cols].to_html(escape=False, index=False), unsafe_allow_html=True)
 
         elif st.session_state.vista_stats == "MVP":
@@ -332,11 +335,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 st.balloons()
                 c1, c2 = st.columns(2)
                 c1.metric("🏆 LÍDER", ganador["Jugador"])
-                c2.metric("PUNTOS TOTALES", f"{ganador['Puntos']} pts")
-                st.write("### Clasificación de Honor")
+                c2.metric("PUNTOS TOTALES", f"{ganador['Puntos']:.1f} pts")
+                st.write("### Clasificación")
                 st.write(df_ranking[["Jugador", "Puntos", "H"]].to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # 7. BOTÓN COMPARTIR
+        # 7. BOTÓN WHATSAPP
         st.markdown(f"""
             <a href="https://wa.me/?text={urllib.parse.quote(txt_wa)}" target="_blank" style="text-decoration:none;">
                 <button style="background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; width:100%; cursor:pointer; font-weight:bold; margin-top:25px; font-size:16px;">
