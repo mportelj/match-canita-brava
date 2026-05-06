@@ -222,36 +222,31 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     df_historico = leer_datos() 
     
     if df_historico is None or df_historico.empty:
-        st.info("No hay datos registrados.")
+        st.info("No hay datos registrados en la Orden de Mérito.")
     else:
         # 1. Normalización de columnas
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
         
-        # 2. Control de Interfaz: Selección de Vista
-        st.subheader("Configuración de Vista")
-        col_ctrl1, col_ctrl2 = st.columns([1, 2])
-        
-        with col_ctrl1:
-            modo_vista = st.radio("Mostrar datos de:", ["Última Jornada", "Por Jornada", "Acumulado Total"], horizontal=True)
-        
-        # Obtener fechas únicas ordenadas (la más reciente primero)
+        # 2. Selector de Jornada (Por defecto la última)
         fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
         
-        fecha_a_procesar = None
-        if modo_vista == "Última Jornada":
-            fecha_a_procesar = fechas_disp[0]
-            st.info(f"Mostrando resultados de la jornada: **{fecha_a_procesar}**")
-        elif modo_vista == "Por Jornada":
-            fecha_a_procesar = st.selectbox("Selecciona la fecha de la partida:", fechas_disp)
-        
-        # 3. Filtrado de Datos
-        if modo_vista == "Acumulado Total":
-            df_final = df_historico
-        else:
-            df_final = df_historico[df_historico[col_fecha] == fecha_a_procesar]
+        # Usamos session_state para controlar si mostramos el acumulado o la jornada
+        if "ver_acumulado" not in st.session_state:
+            st.session_state.ver_acumulado = False
 
-        # 4. Procesamiento de Puntos
+        # El cuadro combinado para seleccionar jornada
+        fecha_sel = st.selectbox("Seleccionar Jornada:", fechas_disp, index=0)
+
+        # 3. Lógica de Filtrado
+        if st.session_state.ver_acumulado:
+            df_final = df_historico
+            titulo_tabla = "Resumen Acumulado Histórico"
+        else:
+            df_final = df_historico[df_historico[col_fecha] == fecha_sel]
+            titulo_tabla = f"Resumen Jornada: {fecha_sel}"
+
+        # 4. Procesamiento de datos (S0 a S3)
         stats = {jug: {"Scratch": 0, "Albatros": 0, "Eagles": 0, "Birdies": 0, "Pares": 0, "Bogey": 0, "D.Bogey+": 0, "Hoyos": 0} for jug in TODOS}
         
         for _, fila in df_final.iterrows():
@@ -272,11 +267,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     elif diff == 1: stats[jug]["Bogey"] += 1
                     else: stats[jug]["D.Bogey+"] += 1
                     
-                    # Fórmula Scratch: Birdie=3, Par=2, Bogey=1
+                    # Scratch: Bogey=1, Par=2, Birdie=3
                     stats[jug]["Scratch"] += max(0, 2 - diff)
             except: continue
 
-        # 5. Construcción de Tabla
+        # 5. Construcción de la Tabla
         datos_tabla = []
         for jug in TODOS:
             d = stats[jug]
@@ -295,18 +290,25 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "Hoyos": d["Hoyos"]
             })
 
-        # 6. Renderizado
-        st.markdown("<style>th, td { text-align: center !important; vertical-align: middle !important; border: 1px solid #dee2e6; font-family: sans-serif; }</style>", unsafe_allow_html=True)
+        # 6. Renderizado de la Tabla
+        st.subheader(titulo_tabla)
+        st.markdown("<style>th, td { text-align: center !important; vertical-align: middle !important; border: 1px solid #dee2e6; }</style>", unsafe_allow_html=True)
         import pandas as pd
         df_resumen = pd.DataFrame(datos_tabla)
-        
-        st.subheader(f"Resumen {modo_vista}")
         st.write(df_resumen.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # Botón rápido para volver al acumulado si estás en modo jornada
-        if modo_vista != "Acumulado Total":
-            if st.button("📊 Ver Acumulado Histórico"):
-                st.rerun() # Esto reiniciaría la vista, pero el radio manda.
+        st.write("") # Espaciado
+
+        # 7. Botones de Control abajo de la tabla
+        col_bt1, col_bt2 = st.columns(2)
+        with col_bt1:
+            if st.button("📊 Mostrar Acumulado Total"):
+                st.session_state.ver_acumulado = True
+                st.rerun()
+        with col_bt2:
+            if st.button("📅 Volver a Vista por Jornada"):
+                st.session_state.ver_acumulado = False
+                st.rerun()
         
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión")
