@@ -110,7 +110,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     else:
         g = st.session_state.game
         
-        # --- 1. MARCADOR MATCH JORNADA (ESTILO LIMPIO SIN TÍTULO) ---
+        # --- 1. MARCADOR MATCH JORNADA ---
         pts_a_tot = sum(l['pts'][0] for l in g['logs'].values())
         pts_b_tot = sum(l['pts'][1] for l in g['logs'].values())
         diff_a, diff_b = (pts_a_tot - pts_b_tot, 0) if pts_a_tot >= pts_b_tot else (0, pts_b_tot - pts_a_tot)
@@ -131,15 +131,24 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             </div>
         """, unsafe_allow_html=True)
 
-        # --- 2. SELECTOR DE HOYO ---
+        # --- 2. SELECTOR DE HOYO Y NAVEGACIÓN ---
         opciones = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
         seleccion = st.selectbox("**Hoyo actual:**", options=opciones, index=g['h_sel'] - 1, key=f"h_act_{g['id']}")
         h = int(seleccion.split(" ")[1])
         st.session_state.game['h_sel'] = h
         
+        # Botones de Hoyo Anterior / Siguiente
+        col_prev, col_next = st.columns(2)
+        if col_prev.button("← Anterior", use_container_width=True, disabled=(h <= 1)):
+            st.session_state.game['h_sel'] = h - 1
+            st.rerun()
+        if col_next.button("Siguiente →", use_container_width=True, disabled=(h >= 18)):
+            st.session_state.game['h_sel'] = h + 1
+            st.rerun()
+        
         ya_guardado = str(h) in g['logs']
 
-        # --- 3. MARCADOR DEL HOYO (DOS LÍNEAS) ---
+        # --- 3. MARCADOR DEL HOYO ---
         if ya_guardado:
             h_pts = g['logs'][str(h)]['pts']
             h_diff_a, h_diff_b = (h_pts[0]-h_pts[1], 0) if h_pts[0]>=h_pts[1] else (0, h_pts[1]-h_pts[0])
@@ -147,7 +156,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             texto_h = "EMPATE" if h_diff_a == h_diff_b else f"GANA {EQUIPO_A_NOMBRES if h_diff_a > h_diff_b else EQUIPO_B_NOMBRES}"
             
             st.markdown(f"""
-                <div style="text-align:center; background-color: #fff; border: 1px solid #eee; border-radius:12px; padding:12px; margin-bottom:20px; box-shadow: inset 0 0 5px rgba(0,0,0,0.02);">
+                <div style="text-align:center; background-color: #fff; border: 1px solid #eee; border-radius:12px; padding:12px; margin-top:10px; margin-bottom:20px; box-shadow: inset 0 0 5px rgba(0,0,0,0.02);">
                     <span style="color:#888; font-size:0.9rem; font-weight:bold; text-transform:uppercase;">Resultado del hoyo {h}</span><br>
                     <span style="color:{color_h}; font-size:1.8rem; font-weight:900;">{h_diff_a:g} — {h_diff_b:g}</span><br>
                     <small style="color:{color_h}; font-weight:bold;">{texto_h}</small>
@@ -163,7 +172,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         s3 = c2.number_input(TODOS[2], 0, 15, v_inicio[2], step=1, key=f"s3_h{h}_{g['id']}")
         s4 = c2.number_input(TODOS[3], 0, 15, v_inicio[3], step=1, key=f"s4_h{h}_{g['id']}")
         
-        # Lógica de activación del botón
+        # Lógica de activación del botón de guardado
         v_actuales = [s1, s2, s3, s4]
         hubo_cambios = v_actuales != v_inicio
         boton_desactivado = ya_guardado and not hubo_cambios
@@ -173,7 +182,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             ejecutar_guardado_automatico()
             st.rerun()
             
-        # --- 5. CLASIFICACIÓN MVP ORDENADA CON BOTONES ---
+        # --- 5. CLASIFICACIÓN MVP ORDENADA ---
         if ya_guardado:
             st.write("")
             with st.expander("⭐ Clasificaciones MVP"):
