@@ -224,7 +224,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     if df_historico is None or df_historico.empty:
         st.info("No hay datos registrados en la Orden de Mérito.")
     else:
-        # 1. Normalizar nombres de columnas para evitar el KeyError
+        # 1. Limpieza de columnas y detección de Fecha
         df_historico.columns = [c.strip() for c in df_historico.columns]
         col_fecha = 'Fecha' if 'Fecha' in df_historico.columns else df_historico.columns[0]
 
@@ -246,6 +246,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     diff = golpes - par_hoyo
                     stats[jug]["Hoyos"] += 1
                     
+                    # Clasificación por categoría
                     if diff <= -3: stats[jug]["Albatros"] += 1
                     elif diff == -2: stats[jug]["Eagles"] += 1
                     elif diff == -1: stats[jug]["Birdies"] += 1
@@ -253,50 +254,63 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     elif diff == 1: stats[jug]["Bogey"] += 1
                     else: stats[jug]["D.Bogey+"] += 1
                     
-                    # Puntos Scratch (2 para Par, +1 por cada golpe menos, -1 por cada golpe más)
-                    stats[jug]["Scratch"] += max(0, par_hoyo - golpes + 2)
+                    # Cálculo Puntos Scratch (Stableford Gross)
+                    # Par=1, Birdie=2, Eagle=3, Albatros=4. Bogey o más = 0.
+                    puntos_hoyo = max(0, 1 - diff) 
+                    stats[jug]["Scratch"] += puntos_hoyo
             except: continue
 
-        # 3. Creación de la Tabla con Porcentajes
+        # 3. Creación de la Tabla (Sin asteriscos en los títulos)
         datos_tabla = []
         for jug in TODOS:
             d = stats[jug]
             total = d["Hoyos"] if d["Hoyos"] > 0 else 1
             
-            # Función interna para formatear valor + porcentaje
-            def fmt(valor):
+            def fmt_con_pct(valor):
                 pct = (valor / total) * 100
                 return f"{valor} <br> <small style='color:gray;'>{pct:.1f}%</small>"
 
             datos_tabla.append({
-                "**Jugador**": f"**{jug}**",
-                "**Scratch**": f"**{d['Scratch']}**",
-                "**Albatros**": fmt(d["Albatros"]),
-                "**Eagles**": fmt(d["Eagles"]),
-                "**Birdies**": fmt(d["Birdies"]),
-                "**Pares**": fmt(d["Pares"]),
-                "**Bogey**": fmt(d["Bogey"]),
-                "**D.Bogey+**": fmt(d["D.Bogey+"]),
-                "**Hoyos**": d["Hoyos"]
+                "Jugador": jug,
+                "Scratch": d["Scratch"],
+                "Albatros": fmt_con_pct(d["Albatros"]),
+                "Eagles": fmt_con_pct(d["Eagles"]),
+                "Birdies": fmt_con_pct(d["Birdies"]),
+                "Pares": fmt_con_pct(d["Pares"]),
+                "Bogey": fmt_con_pct(d["Bogey"]),
+                "D.Bogey+": fmt_con_pct(d["D.Bogey+"]),
+                "Hoyos": d["Hoyos"]
             })
 
-        # 4. Estilo CSS para centrar y permitir HTML en tablas
+        # 4. Estilo CSS para centrar y diseño de cabecera
         st.markdown("""
             <style>
-                div[data-testid="stTable"] th { text-align: center !important; background-color: #f0f2f6; }
-                div[data-testid="stTable"] td { text-align: center !important; vertical-align: middle !important; }
+                table { width: 100%; border-collapse: collapse; }
+                th { 
+                    text-align: center !important; 
+                    background-color: #f0f2f6; 
+                    padding: 10px !important;
+                    font-weight: bold !important;
+                }
+                td { 
+                    text-align: center !important; 
+                    padding: 8px !important;
+                    vertical-align: middle !important; 
+                    border-bottom: 1px solid #eee;
+                }
             </style>
         """, unsafe_allow_html=True)
 
-        st.subheader("Resumen Acumulado y Porcentajes")
-        # Usamos to_html para permitir que el <small> se renderice correctamente
+        st.subheader("Resumen Acumulado")
+        
+        # Renderizado de tabla limpia sin asteriscos
         import pandas as pd
         df_mostrar = pd.DataFrame(datos_tabla)
         st.write(df_mostrar.to_html(escape=False, index=False), unsafe_allow_html=True)
 
         st.divider()
 
-        # 5. Detalle por Jornada corregido (evita el KeyError)
+        # 5. Detalle por Jornada
         st.subheader("🔍 Detalle por Jornada")
         fechas_disp = df_historico[col_fecha].unique().tolist()
         fecha_sel = st.selectbox("Seleccionar Jornada:", fechas_disp)
@@ -308,10 +322,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             pts_j = 0
             for _, f in df_jornada.iterrows():
                 try:
-                    diff = int(f[f'S{i+1}']) - int(PAR_RIA_VIGO[int(f['Hoyo'])])
-                    pts_j += max(0, 2 - diff)
+                    h_idx = int(f['Hoyo'])
+                    diff_j = int(f[f'S{i+1}']) - int(PAR_RIA_VIGO[h_idx])
+                    pts_j += max(0, 1 - diff_j)
                 except: continue
-            resumen_jornada.append({"Jugador": jug, "Puntos Scratch": pts_j})
+            resumen_jornada.append({"Jugador": jug, "Scratch Jornada": pts_j})
         
         st.table(resumen_jornada)
 
