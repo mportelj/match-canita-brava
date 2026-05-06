@@ -7,11 +7,20 @@ import urllib.parse
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
+# Estilo para agrandar el selector de Hoyo y ponerlo en negrita
+st.markdown("""
+    <style>
+    div[data-baseweb="select"] > div {
+        font-size: 1.3rem !important;
+        font-weight: bold !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 PAR_RIA_VIGO = {i: p for i, p in zip(range(1, 19), [4,5,3,4,4,5,3,4,4,4,3,4,3,5,4,5,4,4])}
 TODOS = ["MANU", "JOSE", "ROGE", "LALO"] 
 EQUIPO_A_NOMBRES, EQUIPO_B_NOMBRES = f"{TODOS[0]}/{TODOS[1]}", f"{TODOS[2]}/{TODOS[3]}"
 COLOR_A, COLOR_B = "#2e7d32", "#c62828"
-COL_NECESARIAS = ['id', 'partido_id', 'hoyo', 'fecha', 'temporada', 'resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3']
 
 if "menu_seleccionado" not in st.session_state: st.session_state.menu_seleccionado = "Inicio"
 
@@ -26,13 +35,12 @@ def leer_datos():
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet="historial", ttl=0) 
-        if df is None or df.empty: return pd.DataFrame(columns=COL_NECESARIAS)
+        if df is None or df.empty: return pd.DataFrame()
         df.columns = [c.lower().strip() for c in df.columns]
-        # Asegurar tipos numéricos correctos
         for col in ['temporada', 'hoyo', 's0', 's1', 's2', 's3']:
             if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
         return df.drop_duplicates(subset=['partido_id', 'hoyo'], keep='last')
-    except: return pd.DataFrame(columns=COL_NECESARIAS)
+    except: return pd.DataFrame()
 
 def calc_scratch(golpes, par):
     if golpes <= 0: return 0
@@ -55,7 +63,6 @@ def calcular_puntos_hoyo(scores, hoyo_num):
 def ejecutar_guardado_automatico():
     g = st.session_state.game
     h = int(g['h_sel'])
-    # Forzamos int() para evitar el error MixedNumericTypes
     s = [int(st.session_state[f"s{i+1}_h{h}"]) for i in range(4)]
     pa, pb, mi = calcular_puntos_hoyo(s, h)
     
@@ -80,7 +87,6 @@ if st.session_state.menu_seleccionado == "Inicio":
     df = leer_datos()
     anio_actual = 2026
     temps = sorted(df['temporada'].unique().tolist(), reverse=True) if not df.empty else [anio_actual]
-    # Selector de temporada sin formato decimal
     sel_temp = st.selectbox("Temporada:", temps, format_func=lambda x: str(int(x)))
     
     pa_t, pb_t = 3.5, 3.5 
@@ -111,7 +117,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         v_old = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
         
         c1, c2 = st.columns(2)
-        # Forzamos todos los tipos a int()
         s1 = c1.number_input(TODOS[0], 0, 15, int(v_old[0]), step=1, key=f"s1_h{h}")
         s2 = c1.number_input(TODOS[1], 0, 15, int(v_old[1]), step=1, key=f"s2_h{h}")
         s3 = c2.number_input(TODOS[2], 0, 15, int(v_old[2]), step=1, key=f"s3_h{h}")
@@ -122,22 +127,24 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.rerun()
             
         if ya:
-            st.success(f"Hoyo {h} guardado correctamente.")
+            st.success(f"Hoyo {h} guardado.")
             df_hist = leer_datos()
             st.subheader("⭐ Ránking MVP")
-            m1, m2 = st.columns(2)
+            m1, m2, m3 = st.columns(3)
             with m1:
-                st.info("**MVP Partida (Hoy)**")
+                st.caption("En el Hoyo")
                 for i, jug in enumerate(TODOS):
-                    val = sum(l['mvp'][f'p{i+1}'] for l in g['logs'].values())
-                    st.write(f"{jug}: **{val:g}**")
+                    st.write(f"**{jug}**: {g['logs'][str(h)]['mvp'][f'p{i+1}']:g}")
             with m2:
-                st.info("**MVP Acumulado (Temp)**")
+                st.caption("En la Jornada")
                 for i, jug in enumerate(TODOS):
-                    val = df_hist[f'p{i+1}_pts'].sum() if not df_hist.empty else 0
-                    st.write(f"{jug}: **{val:g}**")
+                    st.write(f"**{jug}**: {sum(l['mvp'][f'p{i+1}'] for l in g['logs'].values()):g}")
+            with m3:
+                st.caption("Temporada")
+                for i, jug in enumerate(TODOS):
+                    st.write(f"**{jug}**: {df_hist[f'p{i+1}_pts'].sum() if not df_hist.empty else 0:g}")
 
-        if st.button("🏁 Cerrar Sesión", use_container_width=True):
+        if st.button("💾 Guardar Partida", use_container_width=True):
             del st.session_state.game
             st.rerun()
 
