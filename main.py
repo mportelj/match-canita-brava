@@ -222,123 +222,86 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     df_historico = leer_datos() 
     
     if df_historico is not None and not df_historico.empty:
-        # 1. Normalización de columnas
+        # 1. Preparación de datos
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
         
-        # 2. Selector de Jornada
         fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
-        conteo_hoyos_dict = df_historico.groupby(col_fecha).size().to_dict()
+        conteo_h = df_historico.groupby(col_fecha).size().to_dict()
         
-        if "modo_historia" not in st.session_state:
-            st.session_state.modo_historia = "Jornada"
-
         fecha_sel = st.selectbox(
             "Seleccionar Jornada:", 
             options=fechas_disp, 
-            format_func=lambda x: f"{x} ({conteo_hoyos_dict[x]} hoyos)",
+            format_func=lambda x: f"{x} ({conteo_h[x]} hoyos)",
             index=0
         )
 
-        df_final = df_historico if st.session_state.modo_historia == "Acumulado" else df_historico[df_historico[col_fecha] == fecha_sel]
+        df_jornada = df_historico[df_historico[col_fecha] == fecha_sel]
 
-        # 3. REORGANIZACIÓN DEL CÁLCULO (Aritmética de Tarjeta)
-        # Inicializamos contadores para asegurar que cada jugador sume lo suyo
+        # 2. CÁLCULO ARITMÉTICO PURO
         stats = {jug: {
-            "GOLPES_SUMA": 0, 
-            "PAR_SUMA": 0, 
-            "Scratch": 0, 
-            "H": 0,
+            "GOLPES_TOTALES": 0, "PAR_TOTAL": 0, "Scratch": 0, "H": 0,
             "ALB": 0, "EAG": 0, "BIR": 0, "PAR": 0, "BOG": 0, "DB": 0
         } for jug in TODOS}
         
-        for _, fila in df_final.iterrows():
+        for _, fila in df_jornada.iterrows():
             try:
-                hoyo_num = int(fila.get('HOYO'))
-                valor_par_hoyo = int(PAR_RIA_VIGO[hoyo_num])
+                h_num = int(fila.get('HOYO'))
+                p_hoyo = int(PAR_RIA_VIGO[h_num]) # Par del hoyo según tu diccionario
                 
                 for i, jug in enumerate(TODOS):
-                    val_golpes = fila.get(f'S{i}')
+                    v = fila.get(f'S{i}')
+                    if pd.isna(v) or str(v).strip() == "": continue
                     
-                    # Validar que haya un número de golpes válido
-                    if pd.isna(val_golpes) or str(val_golpes).strip() == "":
-                        continue
+                    g_hoyo = int(float(v))
+                    diff = g_hoyo - p_hoyo
                     
-                    golpes = int(float(val_golpes))
-                    if golpes <= 0: continue
-                    
-                    # --- CÁLCULO DEL +/- (RELATIVO AL PAR) ---
-                    # Acumulamos golpes totales y par total para ese jugador
-                    stats[jug]["GOLPES_SUMA"] += golpes
-                    stats[jug]["PAR_SUMA"] += valor_par_hoyo
+                    # Acumuladores para el +/- exacto
+                    stats[jug]["GOLPES_TOTALES"] += g_hoyo
+                    stats[jug]["PAR_TOTAL"] += p_hoyo
                     stats[jug]["H"] += 1
                     
-                    # --- PUNTUACIÓN SCRATCH Y CATEGORÍAS ---
-                    diff = golpes - valor_par_hoyo
-                    
+                    # Lógica de categorías y puntos Scratch (3, 2, 1, 0)
                     if diff <= -3: 
-                        stats[jug]["ALB"] += 1
-                        stats[jug]["Scratch"] += 4
+                        stats[jug]["ALB"] += 1; stats[jug]["Scratch"] += 4
                     elif diff == -2: 
-                        stats[jug]["EAG"] += 1
-                        stats[jug]["Scratch"] += 4
+                        stats[jug]["EAG"] += 1; stats[jug]["Scratch"] += 4
                     elif diff == -1: 
-                        stats[jug]["BIR"] += 1
-                        stats[jug]["Scratch"] += 3
+                        stats[jug]["BIR"] += 1; stats[jug]["Scratch"] += 3
                     elif diff == 0: 
-                        stats[jug]["PAR"] += 1
-                        stats[jug]["Scratch"] += 2
+                        stats[jug]["PAR"] += 1; stats[jug]["Scratch"] += 2
                     elif diff == 1: 
-                        stats[jug]["BOG"] += 1
-                        stats[jug]["Scratch"] += 1
-                    else: # Doble Bogey o peor
-                        stats[jug]["DB"] += 1
-                        stats[jug]["Scratch"] += 0
-            except:
-                continue
+                        stats[jug]["BOG"] += 1; stats[jug]["Scratch"] += 1
+                    else: # +2 o cualquier cifra superior
+                        stats[jug]["DB"] += 1; stats[jug]["Scratch"] += 0
+            except: continue
 
-        # 4. CONSTRUCCIÓN DE LA TABLA
+        # 3. GENERACIÓN DE FILAS
         tabla_data = []
         for jug in TODOS:
             d = stats[jug]
             if d["H"] == 0: continue
             
-            # El +/- es la resta directa de los acumulados
-            resultado_relativo = d["GOLPES_SUMA"] - d["PAR_SUMA"]
+            # EL CÁLCULO REAL: Golpes hechos - Par de los hoyos jugados
+            relativo = d["GOLPES_TOTALES"] - d["PAR_TOTAL"]
             
-            # Formato visual
-            color_rel = "red" if resultado_relativo > 0 else ("#3498db" if resultado_relativo < 0 else "green")
-            rel_str = f"+{resultado_relativo}" if resultado_relativo > 0 else (str(resultado_relativo) if resultado_relativo < 0 else "E")
+            c_rel = "red" if relativo > 0 else ("#3498db" if relativo < 0 else "green")
+            s_rel = f"+{relativo}" if relativo > 0 else (str(relativo) if relativo < 0 else "E")
             
-            f_pct = lambda v: f"{v}<br><small style='color:gray;'>{(v/d['H'])*100:.1f}%</small>"
+            f_p = lambda v: f"{v}<br><small style='color:gray;'>{(v/d['H'])*100:.1f}%</small>"
 
             tabla_data.append({
                 "Jugador": f"<b>{jug}</b>",
-                "+/-": f"<span style='color:{color_rel}; font-weight:bold; font-size:1.1em;'>{rel_str}</span>",
+                "+/-": f"<span style='color:{c_rel}; font-weight:bold; font-size:1.1em;'>{s_rel}</span>",
                 "Scratch": f"<b>{d['Scratch']}</b>",
-                "Albatros": f_pct(d["ALB"]), 
-                "Eagles": f_pct(d["EAG"]), 
-                "Birdies": f_pct(d["BIR"]),
-                "Pares": f_pct(d["PAR"]), 
-                "Bogey": f_pct(d["BOG"]), 
-                "D.Bogey+": f_pct(d["DB"])
+                "Albatros": f_p(d["ALB"]), "Eagles": f_p(d["EAG"]), "Birdies": f_p(d["BIR"]),
+                "Pares": f_p(d["PAR"]), "Bogey": f_p(d["BOG"]), "D.Bogey+": f_p(d["DB"])
             })
 
-        st.subheader("Análisis de Rendimiento")
-        st.markdown("<style>td, th {text-align:center !important; vertical-align:middle !important; border:1px solid #dee2e6 !important;}</style>", unsafe_allow_html=True)
+        # 4. RENDER
+        st.markdown("<style>td, th {text-align:center !important; vertical-align:middle !important; border:1px solid #eee !important;}</style>", unsafe_allow_html=True)
         import pandas as pd
         st.write(pd.DataFrame(tabla_data).to_html(escape=False, index=False), unsafe_allow_html=True)
-
-        # 5. BOTÓN DE ACUMULADO
-        st.write("")
-        if st.session_state.modo_historia == "Jornada":
-            if st.button("📊 Mostrar Acumulado Histórico"):
-                st.session_state.modo_historia = "Acumulado"
-                st.rerun()
-        else:
-            if st.button("📅 Volver a Selección por Jornada"):
-                st.session_state.modo_historia = "Jornada"
-                st.rerun()
         
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión")
