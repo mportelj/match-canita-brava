@@ -224,11 +224,14 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     if df_historico is None or df_historico.empty:
         st.info("No hay datos registrados en la Orden de Mérito.")
     else:
-        # 1. Limpieza de columnas y detección de Fecha
-        df_historico.columns = [c.strip() for c in df_historico.columns]
-        col_fecha = 'Fecha' if 'Fecha' in df_historico.columns else df_historico.columns[0]
+        # 1. NORMALIZACIÓN CRÍTICA DE COLUMNAS
+        # Convertimos todo a mayúsculas y quitamos espacios para que coincida siempre
+        df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
+        
+        # Detectar la columna de fecha (buscamos 'FECHA')
+        col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
 
-        # 2. Procesamiento de datos acumulados
+        # 2. PROCESAMIENTO
         stats = {jug: {
             "Scratch": 0, "Albatros": 0, "Eagles": 0, "Birdies": 0,
             "Pares": 0, "Bogey": 0, "D.Bogey+": 0, "Hoyos": 0
@@ -236,17 +239,27 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         
         for _, fila in df_historico.iterrows():
             try:
-                h_num = int(fila['Hoyo'])
+                # Validar que HOYO sea numérico
+                h_val = fila.get('HOYO')
+                if pd.isna(h_val): continue
+                h_num = int(h_val)
                 par_hoyo = int(PAR_RIA_VIGO[h_num])
                 
                 for i, jug in enumerate(TODOS):
-                    golpes = int(fila[f'S{i+1}'])
+                    # Intentar leer S1, S2... o s1, s2...
+                    col_golpes = f'S{i+1}'
+                    col_mvp = f'MVP{i+1}'
+                    
+                    val_golpes = fila.get(col_golpes)
+                    if pd.isna(val_golpes) or str(val_golpes).strip() == "": continue
+                    
+                    golpes = int(float(val_golpes))
                     if golpes <= 0: continue
                     
                     diff = golpes - par_hoyo
                     stats[jug]["Hoyos"] += 1
                     
-                    # Clasificación por categoría
+                    # Clasificación
                     if diff <= -3: stats[jug]["Albatros"] += 1
                     elif diff == -2: stats[jug]["Eagles"] += 1
                     elif diff == -1: stats[jug]["Birdies"] += 1
@@ -254,13 +267,14 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     elif diff == 1: stats[jug]["Bogey"] += 1
                     else: stats[jug]["D.Bogey+"] += 1
                     
-                    # Cálculo Puntos Scratch (Stableford Gross)
-                    # Par=1, Birdie=2, Eagle=3, Albatros=4. Bogey o más = 0.
-                    puntos_hoyo = max(0, 1 - diff) 
-                    stats[jug]["Scratch"] += puntos_hoyo
-            except: continue
+                    # Scratch: Par=1, Birdie=2, Eagle=3, Albatros=4
+                    stats[jug]["Scratch"] += max(0, 1 - diff)
+            except Exception as e:
+                # Descomenta la siguiente línea si quieres ver errores específicos en la consola
+                # print(f"Error procesando fila: {e}")
+                continue
 
-        # 3. Creación de la Tabla (Sin asteriscos en los títulos)
+        # 3. CONSTRUCCIÓN DE LA TABLA
         datos_tabla = []
         for jug in TODOS:
             d = stats[jug]
@@ -282,48 +296,37 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "Hoyos": d["Hoyos"]
             })
 
-        # 4. Estilo CSS para centrar y diseño de cabecera
+        # 4. ESTILO Y RENDERIZADO
         st.markdown("""
             <style>
-                table { width: 100%; border-collapse: collapse; }
-                th { 
-                    text-align: center !important; 
-                    background-color: #f0f2f6; 
-                    padding: 10px !important;
-                    font-weight: bold !important;
-                }
-                td { 
-                    text-align: center !important; 
-                    padding: 8px !important;
-                    vertical-align: middle !important; 
-                    border-bottom: 1px solid #eee;
-                }
+                th { text-align: center !important; background-color: #f0f2f6; font-weight: bold !important; }
+                td { text-align: center !important; vertical-align: middle !important; border-bottom: 1px solid #eee; }
             </style>
         """, unsafe_allow_html=True)
 
         st.subheader("Resumen Acumulado")
-        
-        # Renderizado de tabla limpia sin asteriscos
         import pandas as pd
         df_mostrar = pd.DataFrame(datos_tabla)
+        
+        if stats[TODOS[0]]["Hoyos"] == 0:
+            st.warning("⚠️ Los datos se leen pero no se encuentran registros válidos. Revisa que las columnas en Google Sheets se llamen 'Hoyo', 'S1', 'S2', 'S3' y 'S4'.")
+        
         st.write(df_mostrar.to_html(escape=False, index=False), unsafe_allow_html=True)
 
+        # 5. DETALLE JORNADA
         st.divider()
-
-        # 5. Detalle por Jornada
         st.subheader("🔍 Detalle por Jornada")
         fechas_disp = df_historico[col_fecha].unique().tolist()
         fecha_sel = st.selectbox("Seleccionar Jornada:", fechas_disp)
         
         df_jornada = df_historico[df_historico[col_fecha] == fecha_sel]
-        
         resumen_jornada = []
         for i, jug in enumerate(TODOS):
             pts_j = 0
             for _, f in df_jornada.iterrows():
                 try:
-                    h_idx = int(f['Hoyo'])
-                    diff_j = int(f[f'S{i+1}']) - int(PAR_RIA_VIGO[h_idx])
+                    h_idx = int(f['HOYO'])
+                    diff_j = int(float(f[f'S{i+1}'])) - int(PAR_RIA_VIGO[h_idx])
                     pts_j += max(0, 1 - diff_j)
                 except: continue
             resumen_jornada.append({"Jugador": jug, "Scratch Jornada": pts_j})
