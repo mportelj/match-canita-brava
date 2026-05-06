@@ -138,10 +138,10 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         h = int(seleccion.split(" ")[1])
         st.session_state.game['h_sel'] = h
         
-        ya = str(h) in g['logs']
+        ya_guardado = str(h) in g['logs']
 
         # --- 3. MARCADOR DEL HOYO ---
-        if ya:
+        if ya_guardado:
             h_pts = g['logs'][str(h)]['pts']
             h_diff_a, h_diff_b = (h_pts[0]-h_pts[1], 0) if h_pts[0]>=h_pts[1] else (0, h_pts[1]-h_pts[0])
             color_h = COLOR_A if h_diff_a > h_diff_b else COLOR_B if h_diff_b > h_diff_a else "#666"
@@ -150,26 +150,30 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                         ⛳ Resultado Hoyo {h}: {h_diff_a:g} - {h_diff_b:g} ({texto_h})</div>""", unsafe_allow_html=True)
 
         # --- 4. ENTRADA DE GOLPES ---
-        # Si el hoyo ya existe, cargamos sus valores, si no, el PAR
-        v_default = [int(x) for x in g['logs'][str(h)]['s']] if ya else [int(PAR_RIA_VIGO[h])]*4
+        # Valores que se muestran inicialmente
+        v_inicio = [int(x) for x in g['logs'][str(h)]['s']] if ya_guardado else [int(PAR_RIA_VIGO[h])]*4
         
         c1, c2 = st.columns(2)
-        s1 = c1.number_input(TODOS[0], 0, 15, v_default[0], step=1, key=f"s1_h{h}_{g['id']}")
-        s2 = c1.number_input(TODOS[1], 0, 15, v_default[1], step=1, key=f"s2_h{h}_{g['id']}")
-        s3 = c2.number_input(TODOS[2], 0, 15, v_default[2], step=1, key=f"s3_h{h}_{g['id']}")
-        s4 = c2.number_input(TODOS[3], 0, 15, v_default[3], step=1, key=f"s4_h{h}_{g['id']}")
+        s1 = c1.number_input(TODOS[0], 0, 15, v_inicio[0], step=1, key=f"s1_h{h}_{g['id']}")
+        s2 = c1.number_input(TODOS[1], 0, 15, v_inicio[1], step=1, key=f"s2_h{h}_{g['id']}")
+        s3 = c2.number_input(TODOS[2], 0, 15, v_inicio[2], step=1, key=f"s3_h{h}_{g['id']}")
+        s4 = c2.number_input(TODOS[3], 0, 15, v_inicio[3], step=1, key=f"s4_h{h}_{g['id']}")
         
-        # --- SOLUCIÓN AL BOTÓN BLOQUEADO ---
-        # El botón siempre está activo. Si el hoyo ya existe, el texto cambia a "Actualizar"
-        texto_boton = "🔄 Actualizar Hoyo" if ya else "💾 Guardar Hoyo"
+        # --- LÓGICA DE ACTIVACIÓN DEL BOTÓN ---
+        v_actuales = [s1, s2, s3, s4]
+        hubo_cambios = v_actuales != v_inicio
         
-        if st.button(texto_boton, type="primary", use_container_width=True):
+        # El botón se activa si es nuevo (no guardado) O si se ha cambiado algún valor
+        boton_desactivado = ya_guardado and not hubo_cambios
+        texto_boton = "🔄 Actualizar Hoyo" if ya_guardado else "💾 Guardar Hoyo"
+        
+        if st.button(texto_boton, type="primary", use_container_width=True, disabled=boton_desactivado):
             ejecutar_guardado_automatico()
-            st.success(f"Hoyo {h} guardado correctamente")
+            st.success(f"Hoyo {h} {'actualizado' if ya_guardado else 'guardado'} correctamente")
             st.rerun()
             
         # --- 5. CLASIFICACIÓN MVP ORDENADA ---
-        if ya:
+        if ya_guardado:
             with st.expander("⭐ Clasificaciones MVP"):
                 col_btn1, col_btn2 = st.columns(2)
                 if "mvp_view" not in st.session_state: st.session_state.mvp_view = "Hoyo"
@@ -190,6 +194,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         if st.button("🏁 Guardar Partida", use_container_width=True):
             st.session_state.game = None
             st.rerun()
+            
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Orden de Mérito")
     df = leer_datos()
