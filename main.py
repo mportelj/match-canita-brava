@@ -131,34 +131,35 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             </div>
         """, unsafe_allow_html=True)
 
-        # --- 2. SELECTOR DE HOYO Y NAVEGACIÓN CORREGIDA ---
+        # --- 2. SELECTOR DE HOYO Y NAVEGACIÓN SINCRONIZADA ---
         opciones = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
         
-        # Usamos el valor guardado en g['h_sel'] para el índice
-        # Agregamos on_change para sincronizar si el usuario usa el desplegable
-        def actualizar_hoyo_desde_select():
-            h_str = st.session_state[f"sb_h_{g['id']}"]
-            st.session_state.game['h_sel'] = int(h_str.split(" ")[1])
+        # Lógica para cambiar hoyo desde botones
+        col_prev, col_next = st.columns(2)
+        
+        if col_prev.button("← Anterior", use_container_width=True, disabled=(g['h_sel'] <= 1)):
+            st.session_state.game['h_sel'] -= 1
+            st.rerun()
+            
+        if col_next.button("Siguiente →", use_container_width=True, disabled=(g['h_sel'] >= 18)):
+            st.session_state.game['h_sel'] += 1
+            st.rerun()
 
-        seleccion = st.selectbox(
-            "**Hoyo actual:**", 
+        # Función para detectar cambio manual en el selectbox
+        def manual_change():
+            nueva_sel = st.session_state[f"sb_h_{g['id']}"]
+            st.session_state.game['h_sel'] = int(nueva_sel.split(" ")[1])
+
+        # El selector ahora usa g['h_sel'] como índice maestro
+        st.selectbox(
+            "**Ir al hoyo:**", 
             options=opciones, 
             index=g['h_sel'] - 1, 
             key=f"sb_h_{g['id']}",
-            on_change=actualizar_hoyo_desde_select
+            on_change=manual_change
         )
         
-        h = st.session_state.game['h_sel']
-        
-        # Botones de Hoyo Anterior / Siguiente con actualización directa de g['h_sel']
-        col_prev, col_next = st.columns(2)
-        if col_prev.button("← Anterior", use_container_width=True, disabled=(h <= 1)):
-            st.session_state.game['h_sel'] = h - 1
-            st.rerun()
-        if col_next.button("Siguiente →", use_container_width=True, disabled=(h >= 18)):
-            st.session_state.game['h_sel'] = h + 1
-            st.rerun()
-        
+        h = g['h_sel']
         ya_guardado = str(h) in g['logs']
 
         # --- 3. MARCADOR DEL HOYO ---
@@ -177,7 +178,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             """, unsafe_allow_html=True)
 
         # --- 4. ENTRADA DE GOLPES ---
-        # Es vital resetear los inputs al cambiar de hoyo usando una key dinámica que dependa de h
         v_inicio = [int(x) for x in g['logs'][str(h)]['s']] if ya_guardado else [int(PAR_RIA_VIGO[h])]*4
         
         c1, c2 = st.columns(2)
