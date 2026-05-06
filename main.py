@@ -219,58 +219,69 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.header("📊 Estadísticas Globales")
     
-    # 1. Cargar datos históricos
-    partidas = cargar_todas_las_partidas() # Tu función que lee la carpeta /data
+    # 1. CARGAR DATOS DESDE GOOGLE SHEETS
+    # Asumo que tienes una función llamada leer_datos() que devuelve el DataFrame de la hoja
+    df_historico = leer_datos() 
     
-    if not partidas:
-        st.info("Aún no hay partidas guardadas para generar estadísticas.")
+    if df_historico.empty:
+        st.info("Aún no hay datos en la hoja de cálculo para generar estadísticas.")
     else:
-        # 2. Procesar datos
-        stats = {jug: {"puntos_mvp": 0, "hoyos_jugados": 0, "golpes_totales": 0, "pars_o_mejor": 0} for jug in TODOS}
+        # 2. PROCESAR DATOS ACUMULADOS
+        stats = {jug: {
+            "puntos_mvp": 0.0, 
+            "hoyos_jugados": 0, 
+            "pars_o_mejor": 0,
+            "birdies": 0
+        } for jug in TODOS}
         
-        for p in partidas:
-            for h_num, h_data in p['logs'].items():
-                par_hoyo = PAR_RIA_VIGO[int(h_num)]
+        # Recorremos cada fila (cada fila es un hoyo de una partida)
+        for _, fila in df_historico.iterrows():
+            try:
+                h_num = int(fila['Hoyo'])
+                par_hoyo = int(PAR_RIA_VIGO[h_num])
+                
                 for i, jug in enumerate(TODOS):
-                    golpes = h_data['s'][i]
-                    puntos = h_data['mvp'][f'p{i+1}']
+                    # Extraer golpes y puntos MVP de las columnas de la hoja
+                    # Ajusta los nombres de columna ("S1", "MVP1", etc.) según tu hoja
+                    golpes = int(fila[f'S{i+1}'])
+                    puntos = float(fila[f'MVP{i+1}'])
                     
                     stats[jug]["puntos_mvp"] += puntos
                     stats[jug]["hoyos_jugados"] += 1
-                    stats[jug]["golpes_totales"] += golpes
+                    
                     if golpes <= par_hoyo:
                         stats[jug]["pars_o_mejor"] += 1
+                    if golpes < par_hoyo:
+                        stats[jug]["birdies"] += 1
+            except:
+                continue # Por si hay alguna fila vacía o error de formato
 
-        # 3. Mostrar Rankings en Columnas
+        # 3. VISUALIZACIÓN: RANKINGS
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("🏆 Reyes del MVP")
-            # Ordenar por puntos MVP
+            st.subheader("🏆 Ranking MVP")
             ranking_mvp = sorted(stats.items(), key=lambda x: x[1]['puntos_mvp'], reverse=True)
             for jug, data in ranking_mvp:
-                st.write(f"**{jug}**: {data['puntos_mvp']:g} pts")
+                st.markdown(f"**{jug}**: `{data['puntos_mvp']:g}` pts")
 
         with col2:
-            st.subheader("🎯 Precisión (Pars/-)")
-            # Ordenar por hoyos al par o mejor
+            st.subheader("🎯 Efectividad (Par/-)")
             ranking_prec = sorted(stats.items(), key=lambda x: x[1]['pars_o_mejor'], reverse=True)
             for jug, data in ranking_prec:
-                st.write(f"**{jug}**: {data['pars_o_mejor']} hoyos")
+                st.markdown(f"**{jug}**: `{data['pars_o_mejor']}` hoyos")
 
         st.divider()
         
-        # 4. Ficha Detallada por Jugador
-        st.subheader("👤 Perfil del Jugador")
-        jug_sel = st.selectbox("Selecciona un jugador para ver detalle:", TODOS)
-        
+        # 4. FICHA INDIVIDUAL
+        jug_sel = st.selectbox("Selecciona un jugador:", TODOS)
         d = stats[jug_sel]
         promedio_mvp = d['puntos_mvp'] / d['hoyos_jugados'] if d['hoyos_jugados'] > 0 else 0
         
         c1, c2, c3 = st.columns(3)
-        c1.metric("Puntos MVP Totales", f"{d['puntos_mvp']:g}")
-        c2.metric("Promedio MVP/Hoyo", f"{promedio_mvp:.2f}")
-        c3.metric("Hoyos al Par o menos", f"{d['pars_o_mejor']}")
+        c1.metric("Puntos MVP", f"{d['puntos_mvp']:g}")
+        c2.metric("Promedio/Hoyo", f"{promedio_mvp:.2f}")
+        c3.metric("Birdies", f"{d['birdies']}")
 
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión")
