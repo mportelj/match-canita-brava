@@ -222,38 +222,49 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     df_historico = leer_datos() 
     
     if df_historico is None or df_historico.empty:
-        st.info("No hay datos registrados en la Orden de Mérito.")
+        st.info("No hay datos registrados.")
     else:
         # 1. Normalización de columnas
         df_historico.columns = [str(c).strip().upper() for c in df_historico.columns]
         col_fecha = 'FECHA' if 'FECHA' in df_historico.columns else df_historico.columns[0]
-
-        # 2. Procesamiento de datos (Columnas S0 a S3)
-        stats = {jug: {
-            "Scratch": 0, "Albatros": 0, "Eagles": 0, "Birdies": 0,
-            "Pares": 0, "Bogey": 0, "D.Bogey+": 0, "Hoyos": 0
-        } for jug in TODOS}
         
-        for _, fila in df_historico.iterrows():
+        # 2. Control de Interfaz: Selección de Vista
+        st.subheader("Configuración de Vista")
+        col_ctrl1, col_ctrl2 = st.columns([1, 2])
+        
+        with col_ctrl1:
+            modo_vista = st.radio("Mostrar datos de:", ["Última Jornada", "Por Jornada", "Acumulado Total"], horizontal=True)
+        
+        # Obtener fechas únicas ordenadas (la más reciente primero)
+        fechas_disp = sorted(df_historico[col_fecha].unique().tolist(), reverse=True)
+        
+        fecha_a_procesar = None
+        if modo_vista == "Última Jornada":
+            fecha_a_procesar = fechas_disp[0]
+            st.info(f"Mostrando resultados de la jornada: **{fecha_a_procesar}**")
+        elif modo_vista == "Por Jornada":
+            fecha_a_procesar = st.selectbox("Selecciona la fecha de la partida:", fechas_disp)
+        
+        # 3. Filtrado de Datos
+        if modo_vista == "Acumulado Total":
+            df_final = df_historico
+        else:
+            df_final = df_historico[df_historico[col_fecha] == fecha_a_procesar]
+
+        # 4. Procesamiento de Puntos
+        stats = {jug: {"Scratch": 0, "Albatros": 0, "Eagles": 0, "Birdies": 0, "Pares": 0, "Bogey": 0, "D.Bogey+": 0, "Hoyos": 0} for jug in TODOS}
+        
+        for _, fila in df_final.iterrows():
             try:
-                h_val = fila.get('HOYO')
-                if pd.isna(h_val): continue
-                h_num = int(h_val)
+                h_num = int(fila.get('HOYO'))
                 par_hoyo = int(PAR_RIA_VIGO[h_num])
-                
                 for i, jug in enumerate(TODOS):
-                    col_golpes = f'S{i}' 
-                    val_golpes = fila.get(col_golpes)
-                    
-                    if pd.isna(val_golpes) or str(val_golpes).strip() == "": continue
-                    
-                    golpes = int(float(val_golpes))
-                    if golpes <= 0: continue
-                    
+                    val_s = fila.get(f'S{i}')
+                    if pd.isna(val_s) or str(val_s).strip() == "": continue
+                    golpes = int(float(val_s))
                     diff = golpes - par_hoyo
                     stats[jug]["Hoyos"] += 1
                     
-                    # Clasificación por categorías
                     if diff <= -3: stats[jug]["Albatros"] += 1
                     elif diff == -2: stats[jug]["Eagles"] += 1
                     elif diff == -1: stats[jug]["Birdies"] += 1
@@ -261,46 +272,41 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     elif diff == 1: stats[jug]["Bogey"] += 1
                     else: stats[jug]["D.Bogey+"] += 1
                     
-                    # CÁLCULO SCRATCH CORREGIDO: Bogey=1, Par=2, Birdie=3
-                    puntos_hoyo = max(0, 2 - diff)
-                    stats[jug]["Scratch"] += puntos_hoyo
+                    # Fórmula Scratch: Birdie=3, Par=2, Bogey=1
+                    stats[jug]["Scratch"] += max(0, 2 - diff)
             except: continue
 
-        # 3. Creación de la Tabla Acumulada
+        # 5. Construcción de Tabla
         datos_tabla = []
         for jug in TODOS:
             d = stats[jug]
-            total_h = d["Hoyos"] if d["Hoyos"] > 0 else 1
+            total = d["Hoyos"] if d["Hoyos"] > 0 else 1
+            fmt = lambda v: f"{v} <br> <small style='color:gray;'>{(v/total)*100:.1f}%</small>"
             
-            def fmt_con_pct(valor):
-                pct = (valor / total_h) * 100
-                return f"{valor} <br> <small style='color:gray;'>{pct:.1f}%</small>"
-
             datos_tabla.append({
-                "Jugador": jug,
-                "Scratch": d["Scratch"],
-                "Albatros": fmt_con_pct(d["Albatros"]),
-                "Eagles": fmt_con_pct(d["Eagles"]),
-                "Birdies": fmt_con_pct(d["Birdies"]),
-                "Pares": fmt_con_pct(d["Pares"]),
-                "Bogey": fmt_con_pct(d["Bogey"]),
-                "D.Bogey+": fmt_con_pct(d["D.Bogey+"]),
+                "Jugador": jug, 
+                "Scratch": d["Scratch"], 
+                "Albatros": fmt(d["Albatros"]),
+                "Eagles": fmt(d["Eagles"]), 
+                "Birdies": fmt(d["Birdies"]), 
+                "Pares": fmt(d["Pares"]),
+                "Bogey": fmt(d["Bogey"]), 
+                "D.Bogey+": fmt(d["D.Bogey+"]), 
                 "Hoyos": d["Hoyos"]
             })
 
-        # 4. Estilo y Renderizado
-        st.markdown("""
-            <style>
-                th { text-align: center !important; background-color: #f0f2f6; font-weight: bold !important; border: 1px solid #dee2e6; }
-                td { text-align: center !important; vertical-align: middle !important; border: 1px solid #dee2e6; }
-                table { border-collapse: collapse; width: 100%; }
-            </style>
-        """, unsafe_allow_html=True)
-
-        st.subheader("Resumen Acumulado")
+        # 6. Renderizado
+        st.markdown("<style>th, td { text-align: center !important; vertical-align: middle !important; border: 1px solid #dee2e6; font-family: sans-serif; }</style>", unsafe_allow_html=True)
         import pandas as pd
-        df_mostrar = pd.DataFrame(datos_tabla)
-        st.write(df_mostrar.to_html(escape=False, index=False), unsafe_allow_html=True)
+        df_resumen = pd.DataFrame(datos_tabla)
+        
+        st.subheader(f"Resumen {modo_vista}")
+        st.write(df_resumen.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+        # Botón rápido para volver al acumulado si estás en modo jornada
+        if modo_vista != "Acumulado Total":
+            if st.button("📊 Ver Acumulado Histórico"):
+                st.rerun() # Esto reiniciaría la vista, pero el radio manda.
         
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Gestión")
