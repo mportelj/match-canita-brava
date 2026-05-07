@@ -3,4 +3,3 @@ st-gsheets-connection
 pandas
 gspread
 oauth2client
-plotly
