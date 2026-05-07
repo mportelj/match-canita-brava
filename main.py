@@ -23,7 +23,7 @@ import gspread
 # Función para conectar sin usar st.connection
 def cargar_datos_golf():
     # 1. Cargamos los secretos
-    s = st.secrets["gsheets"]
+    s = st.secrets["golf_datos"]
     
     # 2. Construimos el diccionario de credenciales
     # El .replace garantiza que los saltos de línea sean correctos
