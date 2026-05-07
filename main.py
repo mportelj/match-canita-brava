@@ -265,14 +265,22 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas MVP")
     df = leer_datos()
     
-    if not df.empty:
-        # Procesamos datos por jugador
+    # Verificamos columnas s0, s1, s2, s3 y hoyo
+    columnas_esperadas = [f's{i}' for i in range(4)] + ['hoyo']
+    columnas_presentes = all(col in df.columns for col in columnas_esperadas)
+
+    if not df.empty and columnas_presentes:
         stats = []
         for i, jug in enumerate(TODOS):
-            d_j = df[[f's{i+1}', 'hoyo']].copy()
-            d_j.columns = ['golpes', 'hoyo']
+            col_golpes = f's{i}'  # Cambiado de s{i+1} a s{i}
             
-            # Mapeamos el par de cada hoyo para comparar
+            # Extraemos y limpiamos
+            d_j = df[[col_golpes, 'hoyo']].copy()
+            d_j.columns = ['golpes', 'hoyo']
+            d_j['golpes'] = pd.to_numeric(d_j['golpes'], errors='coerce')
+            d_j = d_j.dropna(subset=['golpes'])
+            
+            # Mapeamos el par y calculamos diferencia
             d_j['par'] = d_j['hoyo'].map(PAR_RIA_VIGO)
             d_j['dif'] = d_j['golpes'] - d_j['par']
             
@@ -282,7 +290,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             pares = len(d_j[d_j['dif'] == 0])
             bogeys = len(d_j[d_j['dif'] == 1])
             double = len(d_j[d_j['dif'] == 2])
-            triple_mas = len(d_j[d_j['dif'] >= 3]) # <--- Nueva categoría
+            triple_mas = len(d_j[d_j['dif'] >= 3])
+            
+            # Puntos MVP (ajustado también a p1...p4 o p0...p3 según tu esquema)
+            # Si tus puntos MVP también empiezan en 0, cambia a f'p{i}_pts'
+            col_pts = f'p{i+1}_pts' 
+            puntos_mvp = df[col_pts].sum() if col_pts in df.columns else 0
             
             stats.append({
                 "Jugador": jug,
@@ -292,25 +305,20 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "Bogey": bogeys,
                 "D.Bogey": double,
                 "3+ Bogey": triple_mas,
-                "Puntos MVP": df[f'p{i+1}_pts'].sum()
+                "Puntos MVP": puntos_mvp
             })
         
         df_stats = pd.DataFrame(stats)
-        
-        # Mostrar tabla principal
         st.dataframe(df_stats.set_index("Jugador"), use_container_width=True)
         
-        # Gráfico comparativo
         st.write("### Comparativa de Hoyos")
-        st.bar_chart(df_stats.set_index("Jugador")[["Eagle", "Birdie", "Par", "Bogey", "D.Bogey", "3+ Bogey"]])
+        columnas_grafico = ["Eagle", "Birdie", "Par", "Bogey", "D.Bogey", "3+ Bogey"]
+        st.bar_chart(df_stats.set_index("Jugador")[columnas_grafico])
         
-        # Rendimiento MVP Total
-        total_a = df['resultado_a'].sum()
-        total_b = df['resultado_b'].sum()
-        st.metric("Puntos Totales Equipo A", f"{total_a:g}")
-        st.metric("Puntos Totales Equipo B", f"{total_b:g}")
     else:
-        st.info("No hay datos suficientes para mostrar estadísticas.")
+        st.error("No se encuentran las columnas s0-s3 o el historial está vacío.")
+
+
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Administración")
     df = leer_datos()
