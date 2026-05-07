@@ -238,7 +238,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     hoyo_sel = st.number_input("Selecciona el hoyo:", min_value=1, max_value=18, step=1)
     par_hoyo = int(PAR_RIA_VIGO[hoyo_sel])
     
-    # Leemos datos y limpiamos columnas inmediatamente para evitar KeyError
+    # Lectura fresca y limpieza de nombres de columnas
     df_actual = leer_datos() 
     df_actual.columns = [str(c).strip().upper() for c in df_actual.columns]
     
@@ -254,12 +254,10 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     st.subheader(f"⛳ Hoyo {hoyo_sel} (Par {par_hoyo})")
     cols = st.columns(4)
     golpes_finales = []
-
-    # Mapeo de columnas de golpes según tu Excel: S0, S1, S2, S3
     columnas_golpes = ['S0', 'S1', 'S2', 'S3']
 
     for i, jug in enumerate(TODOS):
-        # Valor por defecto: lo que haya en la nube, si no, el Par
+        # Valor por defecto desde la nube o el Par
         val_default = par_hoyo
         if not datos_existentes.empty:
             col_nombre = columnas_golpes[i]
@@ -273,26 +271,24 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
 
     st.write("---")
 
-    # --- 4. BOTÓN DE GUARDADO SEGURO ---
+    # --- 4. BOTÓN DE GUARDADO SEGURO (SOLUCIÓN DTYPE) ---
     if st.button("💾 GUARDAR CAMBIOS Y SUBIR", type="primary", use_container_width=True):
         with st.spinner("Subiendo datos a Google Sheets..."):
             try:
-                # A. Calculamos puntos con tu función
+                # A. Calculamos puntos
                 puntos_reales = calcular_puntos_jornada(par_hoyo, golpes_finales)
                 
-                # B. Preparamos el diccionario con los nombres EXACTOS de tu Excel
+                # B. Diccionario con TIPOS DE DATOS FORZADOS (TEMPORADA como número)
                 datos_hoyo = {
                     'FECHA': fecha_hoy,
                     'HOYO': int(hoyo_sel),
                     'PAR': int(par_hoyo),
-                    'TEMPORADA': "2024",
-                    'PARTIDO_ID': fecha_hoy.replace("-", ""),
-                    # Golpes (S0-S3)
+                    'TEMPORADA': 2024.0,  # Forzado a float para evitar error de dtype
+                    'PARTIDO_ID': float(fecha_hoy.replace("-", "")),
                     'S0': int(golpes_finales[0]),
                     'S1': int(golpes_finales[1]),
                     'S2': int(golpes_finales[2]),
                     'S3': int(golpes_finales[3]),
-                    # Puntos (P1_PTS-P4_PTS)
                     'P1_PTS': float(puntos_reales[0]),
                     'P2_PTS': float(puntos_reales[1]),
                     'P3_PTS': float(puntos_reales[2]),
@@ -300,6 +296,8 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 }
                 
                 # C. Actualizamos el DataFrame local
+                # Aseguramos que la columna HOYO sea numérica antes de comparar
+                df_actual['HOYO'] = pd.to_numeric(df_actual['HOYO'], errors='coerce')
                 mascara = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == int(hoyo_sel))
                 
                 if mascara.any():
@@ -310,10 +308,14 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 else:
                     df_actual = pd.concat([df_actual, pd.DataFrame([datos_hoyo])], ignore_index=True)
                 
-                # D. Subida a la nube
+                # D. Limpieza final de tipos antes de subir para evitar el error de 'float64'
+                if 'TEMPORADA' in df_actual.columns:
+                    df_actual['TEMPORADA'] = pd.to_numeric(df_actual['TEMPORADA'], errors='coerce')
+
+                # E. Subida a la nube
                 conn.update(data=df_actual)
                 
-                st.success(f"✅ Hoyo {hoyo_sel} sincronizado con éxito.")
+                st.success(f"✅ Hoyo {hoyo_sel} guardado correctamente.")
                 st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
                 st.cache_data.clear()
                 st.balloons()
