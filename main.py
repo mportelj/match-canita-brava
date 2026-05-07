@@ -106,15 +106,22 @@ menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Estadísticas", "Ad
                        key="radio_menu", on_change=cambiar_menu)
 
 # --- 4. PANTALLAS ---
+# ==========================================
+# SECCIÓN: INICIO (Marcador de Temporada)
+# ==========================================
 if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
+    
+    # Definimos la temporada actual
     anio_actual = 2026
     temps = sorted(df['temporada'].unique().tolist(), reverse=True) if not df.empty else [anio_actual]
+    if anio_actual not in temps: temps.insert(0, anio_actual)
     
     sel_temp = st.selectbox("Temporada:", temps)
     
-    pa_t, pb_t = 3.5, 3.5 # Ventaja histórica inicial
+    # Lógica de puntos acumulados de la temporada
+    pa_t, pb_t = 3.5, 3.5  # Ventaja histórica inicial
     if not df.empty:
         df_t = df[df['temporada'] == int(sel_temp)]
         partidos = df_t.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
@@ -123,8 +130,28 @@ if st.session_state.menu_seleccionado == "Inicio":
             elif r['resultado_b'] > r['resultado_a']: pb_t += 1
             else: pa_t += 0.5; pb_t += 0.5
             
-   elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    # Inicialización de ID de refresco para limpiar inputs al cambiar de hoyo
+    # Diseño de tarjeta de marcador de temporada
+    st.markdown(f"""
+        <div style="border: 2px solid #ccc; border-radius: 15px; padding: 20px; text-align: center; background: #f9f9f9; margin-top: 10px; box-shadow: 2px 2px 10px rgba(0,0,0,0.1);">
+            <h3 style="margin: 0; color: #555; text-transform: uppercase; letter-spacing: 2px;">MATCH {sel_temp}</h3>
+            <div style="display: flex; justify-content: space-around; align-items: center; margin-top: 15px;">
+                <div style="flex: 1;">
+                    <h2 style="color: {COLOR_A}; margin: 0; font-size: 1.2em;">{EQUIPO_A_NOMBRES}</h2>
+                    <h1 style="font-size: 4em; margin: 0; color: #333;">{pa_t:g}</h1>
+                </div>
+                <div style="font-size: 1.5em; font-weight: bold; color: #999;">VS</div>
+                <div style="flex: 1;">
+                    <h2 style="color: {COLOR_B}; margin: 0; font-size: 1.2em;">{EQUIPO_B_NOMBRES}</h2>
+                    <h1 style="font-size: 4em; margin: 0; color: #333;">{pb_t:g}</h1>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+# ==========================================
+# SECCIÓN: JUGAR / EDITAR (Modo Match Play)
+# ==========================================
+elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if 'refresco_id' not in st.session_state: 
         st.session_state.refresco_id = 0
 
@@ -142,10 +169,9 @@ if st.session_state.menu_seleccionado == "Inicio":
     else:
         g = st.session_state.game
         df_p = leer_datos()
-        # Filtramos solo los datos de este partido específico
         df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])]
         
-        # --- 1. MARCADOR ACUMULADO (ESTILO MATCH PLAY: DIFERENCIA) ---
+        # --- 1. MARCADOR ACUMULADO (DIFERENCIA DE PUNTOS) ---
         pts_a_total = df_partido_actual['resultado_a'].sum()
         pts_b_total = df_partido_actual['resultado_b'].sum()
         
@@ -158,21 +184,18 @@ if st.session_state.menu_seleccionado == "Inicio":
                 <div style="display: flex; justify-content: space-around; align-items: center; text-align: center;">
                     <div style="flex: 1;">
                         <h4 style="color: #2e7d32; margin: 0; font-size: 0.9em; font-weight: bold;">{EQUIPO_A_NOMBRES}</h4>
-                        <h1 style="margin: 0; font-size: 4em; color: {COLOR_A if marcador_a > 0 else '#333'};">{marcador_a:g}</h1>
+                        <h1 style="margin: 0; font-size: 4.5em; color: {COLOR_A if marcador_a > 0 else '#333'};">{marcador_a:g}</h1>
                     </div>
                     <div style="background: #ccc; border-radius: 50%; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #666; font-size: 0.8em;">VS</div>
                     <div style="flex: 1;">
                         <h4 style="color: #c62828; margin: 0; font-size: 0.9em; font-weight: bold;">{EQUIPO_B_NOMBRES}</h4>
-                        <h1 style="margin: 0; font-size: 4em; color: {COLOR_B if marcador_b > 0 else '#333'};">{marcador_b:g}</h1>
+                        <h1 style="margin: 0; font-size: 4.5em; color: {COLOR_B if marcador_b > 0 else '#333'};">{marcador_b:g}</h1>
                     </div>
-                </div>
-                <div style="text-align: center; margin-top: 5px;">
-                    <p style="color: #666; font-size: 0.7em; margin: 0;">Suma real: {pts_a_total:g} vs {pts_b_total:g}</p>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
-        # --- 2. NAVEGACIÓN Y SELECTOR DE HOYO ---
+        # --- 2. NAVEGACIÓN Y SELECTOR ---
         c_nav1, c_nav2 = st.columns(2)
         if c_nav1.button("← Anterior", use_container_width=True):
             g['h_sel'] = max(1, g['h_sel'] - 1)
@@ -183,9 +206,8 @@ if st.session_state.menu_seleccionado == "Inicio":
             st.session_state.refresco_id += 1
             st.rerun()
 
-        # Selector rápido de hoyo
         lista_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
-        seleccion = st.selectbox("Seleccionar Hoyo", lista_hoyos, index=g['h_sel']-1, label_visibility="collapsed")
+        seleccion = st.selectbox("Selector", lista_hoyos, index=g['h_sel']-1, label_visibility="collapsed")
         nuevo_h_id = int(seleccion.split(" ")[1])
         
         if nuevo_h_id != g['h_sel']:
@@ -195,30 +217,22 @@ if st.session_state.menu_seleccionado == "Inicio":
 
         h = g['h_sel']
         par_h = PAR_RIA_VIGO[h]
-        
-        # Datos del hoyo actual para cargar golpes previos
         fila_hoyo = df_partido_actual[df_partido_actual['hoyo'] == h]
         ya_existe = not fila_hoyo.empty
 
-        # --- 3. CUADRO DE RESULTADO DEL HOYO ---
+        # --- 3. RESULTADO DEL HOYO ---
         if ya_existe:
             ha, hb = fila_hoyo.iloc[0]['resultado_a'], fila_hoyo.iloc[0]['resultado_b']
-            texto_gana = f"GANA {EQUIPO_A_NOMBRES}" if ha > hb else (f"GANA {EQUIPO_B_NOMBRES}" if hb > ha else "EMPATE")
             color_res = COLOR_A if ha > hb else (COLOR_B if hb > ha else "#666")
-            
             st.markdown(f"""
                 <div style="border: 1px solid #ddd; border-radius: 10px; padding: 10px; text-align: center; background: white; margin-bottom: 20px;">
-                    <p style="color: #888; font-size: 0.7em; margin: 0; font-weight: bold;">RESULTADO HOYO {h}</p>
-                    <h2 style="margin: 0; letter-spacing: 3px;">{ha:g} — {hb:g}</h2>
-                    <p style="color: {color_res}; font-weight: bold; margin: 0; font-size: 0.8em;">{texto_gana}</p>
+                    <p style="color: #888; font-size: 0.7em; margin: 0; font-weight: bold;">HOYO {h}</p>
+                    <h2 style="margin: 0; letter-spacing: 3px; color: {color_res};">{ha:g} — {hb:g}</h2>
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- 4. ENTRADA DE GOLPES (STYLING IMAGEN 2) ---
-        st.write(f"**Introducir golpes - Par {par_h}**")
+        # --- 4. ENTRADA DE GOLPES ---
         rid = st.session_state.refresco_id
-        
-        # Si ya existe, cargamos lo guardado, si no, cargamos el Par
         v_actual = [int(fila_hoyo.iloc[0][f's{i}']) if ya_existe else par_h for i in range(4)]
         
         col_j1, col_j2 = st.columns(2)
@@ -227,28 +241,24 @@ if st.session_state.menu_seleccionado == "Inicio":
         s3 = col_j2.number_input(TODOS[2], 1, 15, v_actual[2], key=f"s3_h{h}_r{rid}")
         s4 = col_j2.number_input(TODOS[3], 1, 15, v_actual[3], key=f"s4_h{h}_r{rid}")
 
-        if st.button("💾 Guardar / Actualizar Hoyo", type="primary", use_container_width=True):
+        if st.button("💾 Actualizar Hoyo", type="primary", use_container_width=True):
             ejecutar_guardado_automatico()
-            st.success(f"Hoyo {h} actualizado")
             st.rerun()
 
-        # --- 5. RANKING MVP DEL PARTIDO ---
-        with st.expander("⭐ Puntos MVP del Partido"):
+        # --- 5. MVP Y CIERRE ---
+        with st.expander("⭐ MVP Ranking"):
             if not df_partido_actual.empty:
                 for i, jug in enumerate(TODOS):
                     p_mvp = df_partido_actual[f'p{i+1}_pts'].sum()
                     st.write(f"**{jug}**: {p_mvp:.1f} pts")
-            else:
-                st.info("Introduce el primer hoyo para ver el ranking.")
 
         st.write("---")
-        # Popover para finalizar partida con seguridad
         with st.popover("🏁 Finalizar Partida", use_container_width=True):
-            st.warning("Se cerrará la edición de este partido.")
             if st.button("Confirmar Cierre", type="primary", use_container_width=True):
-                if 'game' in st.session_state: 
-                    del st.session_state.game
+                if 'game' in st.session_state: del st.session_state.game
                 st.rerun()
+
+
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas Temporada")
     df = leer_datos()
