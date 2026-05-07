@@ -360,16 +360,11 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         # Luego rellena con los contenedores de los golpes.
 
 # --- LÍNEA 351 (El error decía que esto fallaba porque el else de arriba estaba vacío) ---
-elif st.session_state.menu_seleccionado == "Estadísticas":
-    st.write("Pantalla de Estadísticas")
 
-# ==========================================
-# SECCIÓN: ESTADISTICAS
-# ==========================================
 # ==========================================
 # SECCIÓN: ESTADISTICAS (Versión Restaurada)
 # ==========================================
-elif st.session_state.menu_selected == "Estadísticas":
+elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas y Clasificación")
     
     df_raw = leer_datos()
