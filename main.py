@@ -265,78 +265,84 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 st.rerun()
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
-    st.title("📊 Estadísticas del Partido")
+    st.title("📊 Estadísticas de la Jornada")
     df_raw = leer_datos()
     
     if not df_raw.empty:
-        # --- FILTRO DE PARTIDO ACTUAL ---
-        if 'game' in st.session_state:
-            id_actual = str(st.session_state.game['id'])
-            # Filtramos solo las filas que pertenecen a esta partida
-            df_partido = df_raw[df_raw['partido_id'] == id_actual].copy()
-            st.info(f"Análisis del partido: {st.session_state.game['fecha']}")
-        else:
-            df_partido = df_raw.copy()
-            st.info("Mostrando acumulado histórico (No hay partida activa)")
+        # 1. Selector de Jornada (como en tu imagen)
+        jornadas = df_raw['fecha'].unique().tolist()
+        jornada_sel = st.selectbox("Seleccionar Jornada:", jornadas[::-1])
+        
+        # Filtramos datos de esa jornada
+        df_jornada = df_raw[df_raw['fecha'] == jornada_sel].copy()
+        hoyos_jugados = len(df_jornada['hoyo'].unique())
+        
+        st.subheader(f"Resultados Jornada: {jornada_sel}")
 
-        stats = []
-
-        # Iteramos por los 4 jugadores (s0, s1, s2, s3)
+        stats_rows = []
         for i, jug in enumerate(TODOS):
             col_s = f's{i}'
             
-            # Inicializamos contadores para este jugador
-            counts = {"Eagle": 0, "Birdie": 0, "Par": 0, "Bogey": 0, "D.Bogey": 0, "3+ Bogey": 0}
+            # Limpieza y filtrado de golpes del jugador
+            d_j = df_jornada[['hoyo', col_s]].copy()
+            d_j[col_s] = pd.to_numeric(d_j[col_s], errors='coerce')
+            d_j = d_j[d_j[col_s] > 0].dropna()
             
-            # Filtramos filas donde el jugador tenga golpes anotados (> 0)
-            puntos_jugador = df_partido[pd.to_numeric(df_partido[col_s], errors='coerce') > 0]
+            # Cálculo de Scratch y +/-
+            d_j['par_h'] = d_j['hoyo'].map(PAR_RIA_VIGO)
+            total_golpes = d_j[col_s].sum()
+            total_par_campos = d_j['par_h'].sum()
+            plus_minus = int(total_golpes - total_par_campos)
             
-            for _, fila in puntos_jugador.iterrows():
-                hoyo_num = int(fila['hoyo'])
-                golpes = int(fila[col_s])
-                par_hoyo = PAR_RIA_VIGO.get(hoyo_num, 4) # Por defecto 4 si no lo encuentra
-                
-                dif = golpes - par_hoyo
-                
-                # Clasificación estricta
-                if dif <= -2: counts["Eagle"] += 1
-                elif dif == -1: counts["Birdie"] += 1
-                elif dif == 0:  counts["Par"] += 1
-                elif dif == 1:  counts["Bogey"] += 1
-                elif dif == 2:  counts["D.Bogey"] += 1
-                elif dif >= 3:  counts["3+ Bogey"] += 1
+            # Puntos Scratch (Simulado: 36 - plus_minus o similar según tu liga)
+            # Aquí lo calculamos como la suma de puntos estables si los tienes, 
+            # o simplemente una métrica de desempeño.
+            scratch = int(sum([max(0, p + 2 - g) for g, p in zip(d_j[col_s], d_j['par_h'])]))
+
+            # Conteo de categorías
+            d_j['dif'] = d_j[col_s] - d_j['par_h']
             
-            # Puntos MVP (columna p1_pts...p4_pts)
-            col_p_pts = f'p{i+1}_pts'
-            pts_mvp = pd.to_numeric(df_partido[col_p_pts], errors='coerce').sum() if col_p_pts in df_partido.columns else 0
-            
-            stats.append({
+            e = (d_j['dif'] <= -2).sum()
+            b = (d_j['dif'] == -1).sum()
+            p = (d_j['dif'] == 0).sum()
+            bog = (d_j['dif'] == 1).sum()
+            db = (d_j['dif'] >= 2).sum() # D.Bogey+ incluye triple
+
+            # Formateo de porcentajes para la tabla
+            def fmt(valor):
+                pct = (valor / hoyos_jugados * 100) if hoyos_jugados > 0 else 0
+                return f"{valor}\n({pct:.1f}%)"
+
+            stats_rows.append({
                 "Jugador": jug,
-                "Eagle": counts["Eagle"],
-                "Birdie": counts["Birdie"],
-                "Par": counts["Par"],
-                "Bogey": counts["Bogey"],
-                "D.Bogey": counts["D.Bogey"],
-                "3+ Bogey": counts["3+ Bogey"],
-                "Puntos MVP": round(float(pts_mvp), 2)
+                "+/-": f"+{plus_minus}" if plus_minus > 0 else (str(plus_minus) if plus_minus < 0 else "E"),
+                "Scratch": scratch,
+                "Albatros": fmt(0), # No contemplado en s0-s3 usualmente
+                "Eagles": fmt(e),
+                "Birdies": fmt(b),
+                "Pares": fmt(p),
+                "Bogey": fmt(bog),
+                "D.Bogey+": fmt(db)
             })
+
+        # --- RENDERIZADO DE LA TABLA ESTILO IMAGEN ---
+        # Usamos HTML para permitir saltos de línea y colores en las celdas
+        df_display = pd.DataFrame(stats_rows)
         
-        # Crear DataFrame final
-        df_final = pd.DataFrame(stats)
-        
-        # Mostramos la tabla principal (sin gráficos)
-        st.dataframe(df_final.set_index("Jugador"), use_container_width=True)
-        
-        # Resumen de Puntos por Equipo
-        st.write("---")
-        c1, c2 = st.columns(2)
-        total_a = df_partido['resultado_a'].sum() if 'resultado_a' in df_partido.columns else 0
-        total_b = df_partido['resultado_b'].sum() if 'resultado_b' in df_partido.columns else 0
-        c1.metric(f"Total {EQUIPO_A_NOMBRES}", f"{total_a:g}")
-        c2.metric(f"Total {EQUIPO_B_NOMBRES}", f"{total_b:g}")
-        
+        # Estilo CSS para imitar la tabla de la imagen
+        st.write(
+            df_display.set_index("Jugador").to_html(escape=False).replace('\\n', '<br><span style="color:gray; font-size:0.8em;">') + "</span>", 
+            unsafe_allow_html=True
+        )
+
+        st.markdown("---")
+        if st.button("📊 Mostrar Acumulado Total"):
+            st.session_state.ver_acumulado = True # Lógica opcional para cambiar vista
+            
     else:
-        st.warning("No hay datos en la base de datos.")
+        st.warning("No hay datos registrados.")
+
+
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Administración")
     df = leer_datos()
