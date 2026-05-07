@@ -4,6 +4,13 @@ import pandas as pd
 from datetime import datetime
 import urllib.parse
 
+# Esto te mostrará en la app si Streamlit está viendo tus secretos
+if "gsheets" in st.secrets:
+    st.write("✅ Sección [gsheets] encontrada en Secrets")
+    st.write(f"Email del service account: {st.secrets['gsheets']['client_email']}")
+else:
+    st.error("❌ No se encontró la sección [gsheets] en los Secrets")
+
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
