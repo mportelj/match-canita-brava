@@ -348,13 +348,14 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         f_buscar_2 = fecha_input.strftime("%Y-%m-%d")
 
         # Filtramos la fecha buscando ambos formatos posibles
-        df_f = df_actual[
-            (df_actual['fecha'].astype(str) == f_buscar_1) | 
-            (df_actual['fecha'].astype(str) == f_buscar_2)
-        ]
+       # df_f = df_actual[
+       #     (df_actual['fecha'].astype(str) == f_buscar_1) | 
+       #     (df_actual['fecha'].astype(str) == f_buscar_2)
+       # ]
+        df_f = df_actual[df_actual['fecha'].astype(str).str.strip() == fecha_str]
         
         # Depuración: Si quieres ver si encuentra el partido, descomenta la siguiente línea:
-        # st.write(f"Partidos encontrados para esta fecha: {len(df_f)}")
+         st.write(f"Partidos encontrados para esta fecha: {len(df_f)}")
 
         if not df_f.empty:
             # Calculamos el marcador total del día
