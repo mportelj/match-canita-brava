@@ -217,33 +217,52 @@ elif st.session_state.menu_seleccionado == "Admin":
     df = leer_datos()
     
     if not df.empty:
-        # Obtenemos los IDs únicos y los recorremos
+        # Filtrar IDs válidos y eliminar nulos
         ids_unicos = [pid for pid in df['partido_id'].unique() if pid and str(pid).strip() != ""]
         
         for p_id in ids_unicos[::-1]:
+            # Datos de este partido específico
             dp = df[df['partido_id'] == p_id].sort_values('hoyo')
             
-            # --- CORRECCIÓN CRÍTICA AQUÍ ---
+            # Si el partido existe pero no tiene filas, lo saltamos para evitar errores
             if dp.empty:
-                continue # Si el partido no tiene filas, saltamos al siguiente
+                continue
                 
-            # Ahora es seguro usar iloc[0]
             fecha_p = str(dp['fecha'].iloc[0])
-            temp_p = int(dp['temporada'].iloc[0]) if 'temporada' in dp.columns else 2026
+            num_hoyos = len(dp) # Contamos cuántos hoyos hay guardados
             
-            with st.expander(f"📅 {fecha_p} (ID: {p_id})"):
-                c1, c2 = st.columns(2)
+            # Formateamos el título para que salga: DD/MM/YYYY (X hoyos)
+            titulo_expander = f"📅 {fecha_p} — ({num_hoyos} hoyos jugados) — ID: {p_id}"
+            
+            with st.expander(titulo_expander):
+                st.info(f"Resumen: {num_hoyos} hoyos registrados en este partido.")
                 
-                if c1.button("✏️ Editar", key=f"edit_{p_id}"):
-                    st.session_state.game = {'fecha': fecha_p, 'h_sel': 1, 'logs': {}, 'id': str(p_id)}
+                c1, c2, c3 = st.columns([1, 1, 2])
+                
+                # BOTÓN EDITAR
+                if c1.button("✏️ Editar", key=f"edit_{p_id}", use_container_width=True):
+                    st.session_state.game = {
+                        'fecha': fecha_p, 
+                        'h_sel': 1, 
+                        'logs': {}, 
+                        'id': str(p_id)
+                    }
                     st.session_state.menu_seleccionado = "Jugar/Editar"
                     st.rerun()
                 
-                if c2.button("🗑️ Borrar Partido", key=f"del_{p_id}", type="primary"):
-                    df_new = df[df['partido_id'] != p_id]
-                    conn.update(worksheet="historial", data=df_new)
-                    st.cache_data.clear()
-                    st.success(f"Partido {p_id} eliminado")
-                    st.rerun()
+                # BOTÓN BORRAR
+                with c2:
+                    if st.button("🗑️ Borrar", key=f"del_{p_id}", type="primary", use_container_width=True):
+                        df_new = df[df['partido_id'] != p_id]
+                        conn.update(worksheet="historial", data=df_new)
+                        st.cache_data.clear()
+                        st.success("Partido eliminado.")
+                        st.rerun()
+                
+                # BOTÓN WHATSAPP (Opcional, reutilizando tu lógica)
+                with c3:
+                    # Aquí podrías poner el link_button de WhatsApp que tenías antes
+                    st.write("Selecciona una acción")
+
     else:
-        st.info("No hay partidos registrados en el historial.")
+        st.info("No hay datos en el historial.")
