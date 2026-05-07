@@ -70,7 +70,33 @@ EQUIPO_B_NOMBRES = f"{TODOS[2]}/{TODOS[3]}"
 COLOR_A, COLOR_B = "#2e7d32", "#c62828"
 COL_NECESARIAS = ['id', 'partido_id', 'hoyo', 'fecha', 'temporada', 'resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3']
 
-
+def calcular_puntos_hoyo(s0, s1, s2, s3, par):
+    # Equipos: E1 (Manu s0, Jose s2) vs E2 (Roge s1, Lalo s3)
+    e1 = [s0, s2]
+    e2 = [s1, s3]
+    
+    pts_e1, pts_e2 = 0, 0
+    
+    # A) Punto a la Mejor Bola
+    if min(e1) < min(e2): pts_e1 += 1
+    elif min(e2) < min(e1): pts_e2 += 1
+    
+    # B) Punto a la Peor Bola
+    if max(e1) < max(e2): pts_e1 += 1
+    elif max(e2) < max(e1): pts_e2 += 1
+    
+    # C) Bonus por Birdie o mejor
+    def get_bonus(golpes, p):
+        dif = golpes - p
+        if dif <= -3: return 3 # Albatros
+        if dif == -2: return 2 # Eagle
+        if dif == -1: return 1 # Birdie
+        return 0
+    
+    pts_e1 += sum([get_bonus(g, par) for g in e1])
+    pts_e2 += sum([get_bonus(g, par) for g in e2])
+    
+    return pts_e1, pts_e2
 
 if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
@@ -180,29 +206,6 @@ def leer_datos():
         # Devolvemos estructura mínima en caso de error para que no rompa la línea 239
         return pd.DataFrame(columns=['fecha', 'hoyo', 'temporada', 's0', 's1', 's2', 's3'])
 
-def calcular_puntos_hoyo(scores, hoyo_num):
-    par = PAR_RIA_VIGO[hoyo_num]
-    v = [int(s) for s in scores]
-    # Lógica Match Play Parejas
-    ba, wa, bb, wb = min(v[0], v[1]), max(v[0], v[1]), min(v[2], v[3]), max(v[2], v[3])
-    pa = (1.0 if ba < bb else 0.0) + (1.0 if wa < wb else 0.0)
-    pb = (1.0 if bb < ba else 0.0) + (1.0 if wb < wa else 0.0)
-    
-    # Bonus Birdie/Eagle para el equipo
-    for i, s in enumerate(v):
-        p_bonus = 2.0 if s <= par - 2 else (1.0 if s == par - 1 else 0)
-        if i < 2: pa += p_bonus 
-        else: pb += p_bonus
-        
-    # Puntos MVP Individuales
-    mvp = {f"p1": 0.0, f"p2": 0.0, f"p3": 0.0, f"p4": 0.0}
-    for i in range(4):
-        for j in range(4):
-            if i != j and v[i] < v[j]: mvp[f"p{i+1}"] += 0.5
-        if v[i] <= par - 2: mvp[f"p{i+1}"] += 3.0
-        elif v[i] == par - 1: mvp[f"p{i+1}"] += 1.5
-        elif v[i] == par: mvp[f"p{i+1}"] += 0.5
-    return pa, pb, mvp
 
 def ejecutar_guardado_automatico():
     g = st.session_state.game
