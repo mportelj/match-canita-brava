@@ -1,7 +1,7 @@
 # import streamlit as st
 # from streamlit_gsheets import GSheetsConnection
 # import pandas as pd
-f# rom datetime import datetime
+# from datetime import datetime
 # import urllib.parse
 
 # Conexión global para evitar NameError
