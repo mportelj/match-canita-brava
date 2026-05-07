@@ -488,14 +488,14 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             lider_txt = f"EMPATE TEMPORADA ({texto_temporada})"
 
        # --- MENSAJE WHATSAPP ---
-    whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n"
-    whatsapp_text += f"📅 *Jornada: {f_formateada}* ({n_hoyos_info} hoyos)\n"
+        whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n"
+        whatsapp_text += f"📅 *Jornada: {f_formateada}* ({n_hoyos_info} hoyos)\n"
     
-    if not ver_acumulado:
-        whatsapp_text += f"⛳ Marcador hoy: *{res_match_dia}*\n"
+        if not ver_acumulado:
+            whatsapp_text += f"⛳ Marcador hoy: *{res_match_dia}*\n"
     
-    # Usamos la variable calculada al inicio
-    whatsapp_text += f"🏆 *TEMPORADA: {texto_marcador_global}*\n"
+        # Usamos la variable calculada al inicio
+        whatsapp_text += f"🏆 *TEMPORADA: {texto_marcador_global}*\n"
     
     # Lógica de líder para el texto resaltado
     if marcador_global_a > marcador_global_b:
