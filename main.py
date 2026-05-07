@@ -323,36 +323,49 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         
         return pts_e1, pts_e2
 
-    # --- 3. CARGA DE DATOS ACTUALIZADA ---
+   # --- 3. CARGA DE DATOS Y MARCADOR MATCH ---
     df_actual = leer_datos()
-    # Inicializamos con el par del hoyo
+    # Inicializamos con el par por defecto
     golpes_a_mostrar = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo}
     
     m_e1, m_e2 = 0, 0
     if not df_actual.empty:
-        # IMPORTANTE: Asegúrate de que este formato sea igual al de tu Excel
-        df_f = df_actual[df_actual['fecha'].astype(str).str.contains(fecha_input.strftime("%Y-%m-%d")) | 
-                         df_actual['fecha'].astype(str).str.contains(fecha_input.strftime("%d/%m/%Y"))]
-        
-        # Marcador Match
-        for _, row in df_f.iterrows():
-            p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
-            p1, p2 = calcular_puntos_hoyo(int(row['s0']), int(row['s1']), int(row['s2']), int(row['s3']), p_h)
-            m_e1 += p1
-            m_e2 += p2
+        # Convertimos la fecha del selector al formato string que suele usar Google
+        f_buscar_1 = fecha_input.strftime("%d/%m/%Y")
+        f_buscar_2 = fecha_input.strftime("%Y-%m-%d")
 
-        # Cargar golpes del hoyo actual para editar
-        busqueda = df_f[df_f['hoyo'].astype(str) == str(h_idx)]
-        if not busqueda.empty:
-            for i in range(4):
-                val = busqueda.iloc[0][f's{i}']
-                try:
-                    # Convertimos a int de forma segura
-                    v_int = int(float(val))
-                    if v_int > 0:
-                        golpes_a_mostrar[i] = v_int
-                except:
-                    golpes_a_mostrar[i] = par_hoyo
+        # Filtramos la fecha buscando ambos formatos posibles
+        df_f = df_actual[
+            (df_actual['fecha'].astype(str) == f_buscar_1) | 
+            (df_actual['fecha'].astype(str) == f_buscar_2)
+        ]
+        
+        # Depuración: Si quieres ver si encuentra el partido, descomenta la siguiente línea:
+        # st.write(f"Partidos encontrados para esta fecha: {len(df_f)}")
+
+        if not df_f.empty:
+            # Calculamos el marcador total del día
+            for _, row in df_f.iterrows():
+                p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
+                p1, p2 = calcular_puntos_hoyo(int(row['s0']), int(row['s1']), int(row['s2']), int(row['s3']), p_h)
+                m_e1 += p1
+                m_e2 += p2
+
+            # BUSQUEDA DEL HOYO ACTUAL
+            # Forzamos que ambos sean string para asegurar la comparación
+            busqueda = df_f[df_f['hoyo'].astype(str).str.strip() == str(h_idx)]
+            
+            if not busqueda.empty:
+                # Si lo encuentra, extraemos s0, s1, s2, s3
+                for i in range(4):
+                    try:
+                        valor_bbdd = busqueda.iloc[0][f's{i}']
+                        # Solo asignamos si el valor es un número válido > 0
+                        v_limpio = int(float(valor_bbdd))
+                        if v_limpio > 0:
+                            golpes_a_mostrar[i] = v_limpio
+                    except:
+                        continue
 
     # Diseño Marcador Superior
     st.markdown(f"""
