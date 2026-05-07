@@ -292,86 +292,108 @@ if st.session_state.menu_seleccionado == "Inicio":
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    # 1. INICIALIZAR ESTADO DE "PARTIDO EN MARCHA"
+    # 1. TÍTULO E INICIALIZACIÓN
+    st.title("⛳ Partida en Vivo")
+
     if 'partido_iniciado' not in st.session_state:
         st.session_state.partido_iniciado = False
+    if 'hoyo_actual' not in st.session_state:
+        st.session_state.hoyo_actual = 1
 
-    # --- PANTALLA INICIAL: SELECCIÓN Y BOTÓN ---
+    # --- PANTALLA A: SELECTOR DE FECHA (Solo si no se ha iniciado) ---
     if not st.session_state.partido_iniciado:
-        st.markdown("### 📅 Nuevo Partido")
-        
-        # Selector de fecha (por defecto la actual)
-        fecha_defecto = datetime.now().date()
-        fecha_sel = st.date_input("Selecciona la fecha de la partida:", 
-                                   value=fecha_defecto,
-                                   key="selector_fecha_inicio")
-        
-        st.session_state.fecha_partida = fecha_sel
+        with st.container(border=True):
+            st.subheader("Configurar Jornada")
+            fecha_defecto = datetime.now().date()
+            fecha_sel = st.date_input("Fecha del partido:", value=fecha_defecto)
+            
+            if st.button("🚀 COMENZAR PARTIDO", use_container_width=True, type="primary"):
+                st.session_state.fecha_partida = fecha_sel
+                st.session_state.partido_iniciado = True
+                st.rerun() # Esto recarga la página y entrará en el bloque else
 
-        # Botón para comenzar
-        if st.button("🚀 COMENZAR PARTIDO", use_container_width=True, type="primary"):
-            st.session_state.partido_iniciado = True
-            st.rerun()
-
-    # --- PANTALLA DE JUEGO: SE MUESTRA TRAS PULSAR EL BOTÓN ---
+    # --- PANTALLA B: INTERFAZ DE JUEGO (Se activa tras el botón) ---
     else:
-        # Botón pequeño para volver o cambiar de fecha si se desea
-        if st.sidebar.button("🔄 Cambiar Fecha/Partido"):
+        # Recuperamos la fecha y los datos
+        fecha_sel = st.session_state.fecha_partida
+        df = leer_datos()
+        h_idx = st.session_state.hoyo_actual
+        par_hoyo = int(PAR_RIA_VIGO.get(h_idx, 4))
+        
+        # Botón para volver atrás (en la parte superior, pequeño)
+        if st.button("⬅️ Cambiar Fecha", help="Vuelve a la selección de día"):
             st.session_state.partido_iniciado = False
             st.rerun()
 
-        df = leer_datos()
-        fecha_sel = st.session_state.fecha_partida
-        
-        # 2. SELECCIÓN DE HOYO (Combo rápido)
-        opciones_hoyos = list(range(1, 19))
-        h_idx = st.selectbox("📍 Hoyo actual:", opciones_hoyos, 
-                             index=st.session_state.get('hoyo_actual', 1) - 1,
-                             key="combo_hoyo")
+        # COMBO DE SALTO RÁPIDO
+        h_idx = st.selectbox("📍 Selecciona Hoyo:", list(range(1, 19)), 
+                             index=st.session_state.hoyo_actual - 1)
         st.session_state.hoyo_actual = h_idx
-        
-        # --- LÓGICA DE CARGA DE DATOS (Marcadores y Golpes) ---
-        m_e1, m_e2 = 0, 0
-        golpes_orig = {0: 4, 1: 4, 2: 4, 3: 4} # Valores por defecto
-        res_hoyo_a, res_hoyo_b = 0, 0
-        
+
+        # CARGA DE DATOS DE LA BASE DE DATOS
+        m_a, m_b = 0, 0
+        g_orig = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo}
+        res_h_a, res_h_b = 0, 0
+
         if df is not None and not df.empty:
             f_str = fecha_sel.strftime("%d/%m/%Y")
             f_iso = fecha_sel.strftime("%Y-%m-%d")
-            df['fecha_str'] = df['fecha'].astype(str).str.split(' ').str[0]
-            df_jornada = df[df['fecha_str'].isin([f_str, f_iso])]
+            df['f_tmp'] = df['fecha'].astype(str).str.split(' ').str[0]
+            df_j = df[df['f_tmp'].isin([f_str, f_iso])]
             
-            if not df_jornada.empty:
-                # Marcador Match acumulado
-                s_a = pd.to_numeric(df_jornada['resultado_a'], errors='coerce').sum()
-                s_b = pd.to_numeric(df_jornada['resultado_b'], errors='coerce').sum()
-                dif = s_a - s_b
-                if dif > 0: m_e1, m_e2 = int(dif), 0
-                elif dif < 0: m_e1, m_e2 = 0, int(abs(dif))
+            if not df_j.empty:
+                # Marcador Match
+                sa = pd.to_numeric(df_j['resultado_a'], errors='coerce').sum()
+                sb = pd.to_numeric(df_j['resultado_b'], errors='coerce').sum()
+                dif = sa - sb
+                m_a, m_b = (int(dif), 0) if dif > 0 else (0, int(abs(dif)))
                 
-                # Cargar golpes del hoyo
-                df_hoyo = df_jornada[df_jornada['hoyo'].astype(float).astype(int) == h_idx]
-                if not df_hoyo.empty:
-                    golpes_orig[0] = int(float(df_hoyo.iloc[0]['s0']))
-                    golpes_orig[1] = int(float(df_hoyo.iloc[0]['s1']))
-                    golpes_orig[2] = int(float(df_hoyo.iloc[0]['s2']))
-                    golpes_orig[3] = int(float(df_hoyo.iloc[0]['s3']))
-                    res_hoyo_a = int(float(df_hoyo.iloc[0]['resultado_a']))
-                    res_hoyo_b = int(float(df_hoyo.iloc[0]['resultado_b']))
+                # Datos del hoyo actual
+                df_h = df_j[df_j['hoyo'].astype(float).astype(int) == h_idx]
+                if not df_h.empty:
+                    g_orig = {0: int(float(df_h.iloc[0]['s0'])), 1: int(float(df_h.iloc[0]['s1'])),
+                              2: int(float(df_h.iloc[0]['s2'])), 3: int(float(df_h.iloc[0]['s3']))}
+                    res_h_a = int(float(df_h.iloc[0]['resultado_a']))
+                    res_h_b = int(float(df_h.iloc[0]['resultado_b']))
 
-        # 3. DISEÑO VISUAL (Marcador VS y Tarjeta de Golpes)
-        # (Aquí va el código del diseño que ya definimos antes...)
+        # --- DISEÑO VISUAL (MARCADORES Y GOLPES) ---
+        # Marcador Match Play
         st.markdown(f"""
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 15px; border-left: 8px solid #2e7d32; border-right: 8px solid #c62828; text-align: center;">
-            <div style="display: flex; justify-content: space-around; align-items: center;">
-                <div><p style="margin:0; font-weight:bold; color:#2e7d32;">MANU & JOSE</p><h1 style="margin:0;">{m_e1}</h1></div>
-                <div style="background:#333; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">VS</div>
-                <div><p style="margin:0; font-weight:bold; color:#c62828;">ROGE & LALO</p><h1 style="margin:0;">{m_e2}</h1></div>
+        <div style="background:#f8f9fa; padding:15px; border-radius:15px; border:1px solid #2e7d32; text-align:center;">
+            <div style="display:flex; justify-content:space-around; align-items:center;">
+                <div><p style="margin:0; font-size:0.7em; color:#2e7d32; font-weight:bold;">MANU & JOSE</p><h1>{m_a}</h1></div>
+                <div style="background:#eee; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">VS</div>
+                <div><p style="margin:0; font-size:0.7em; color:#c62828; font-weight:bold;">ROGE & LALO</p><h1>{m_b}</h1></div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # ... El resto de inputs de golpes y botón Actualizar ...
+        </div>""", unsafe_allow_html=True)
+
+        # Tarjeta del Hoyo
+        with st.container(border=True):
+            st.markdown(f"<h3 style='text-align:center;'>Hoyo {h_idx} (Par {par_hoyo})</h3>", unsafe_allow_html=True)
+            st.markdown(f"<div style='text-align:center; background:#e2e8f0; border-radius:10px; padding:5px;'><b>Resultado Hoyo: {res_h_a} — {res_h_b}</b></div>", unsafe_allow_html=True)
+
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("**EQ. A**")
+                g0 = st.number_input("MANU", 1, 15, value=g_orig[0], key=f"m{h_idx}")
+                g1 = st.number_input("JOSE", 1, 15, value=g_orig[1], key=f"j{h_idx}")
+            with c2:
+                st.markdown("**EQ. B**")
+                g2 = st.number_input("ROGE", 1, 15, value=g_orig[2], key=f"r{h_idx}")
+                g3 = st.number_input("LALO", 1, 15, value=g_orig[3], key=f"l{h_idx}")
+
+            # Lógica de botón Actualizar
+            cambios = (g0 != g_orig[0] or g1 != g_orig[1] or g2 != g_orig[2] or g3 != g_orig[3])
+            if cambios or (res_h_a == 0 and res_h_b == 0):
+                if st.button("💾 GUARDAR HOYO", use_container_width=True, type="primary"):
+                    pts_a, pts_b = calcular_puntos_hoyo(g0, g1, g2, g3, par_hoyo)
+                    nueva_fila = [fecha_sel.strftime("%d/%m/%Y"), h_idx, g0, g1, g2, g3, pts_a, pts_b]
+                    actualizar_o_insertar_hoyo(nueva_fila)
+                    st.success("Guardado")
+                    time.sleep(0.5)
+                    st.rerun()
+            else:
+                st.button("💾 GUARDADO", use_container_width=True, disabled=True)
 
 
 # ==========================================
