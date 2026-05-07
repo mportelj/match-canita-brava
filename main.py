@@ -26,6 +26,39 @@ if "menu_seleccionado" not in st.session_state:
 
 def cambiar_menu():
     st.session_state.menu_seleccionado = st.session_state.radio_menu
+def actualizar_o_insertar_hoyo(datos):
+    """
+    datos: [fecha, hoyo, s0, s1, s2, s3]
+    Esta función busca si el hoyo existe para esa fecha y lo actualiza;
+    si no, añade una fila nueva.
+    """
+    df = leer_datos() # Tu función que lee de Google Sheets
+    
+    fecha_nueva = str(datos[0])
+    hoyo_nuevo = str(datos[1])
+    
+    # Si hay datos, buscamos si ya existe el registro
+    indice_fila = -1
+    if not df.empty:
+        df_busqueda = df[(df['fecha'].astype(str) == fecha_nueva) & 
+                         (df['hoyo'].astype(str) == hoyo_nuevo)]
+        
+        if not df_busqueda.empty:
+            # Obtenemos el índice real del DataFrame (Streamlit/Pandas)
+            # Sumamos 2 porque: Sheets empieza en 1 y tiene cabecera
+            indice_fila = df_busqueda.index[0] + 2 
+
+    if indice_fila != -1:
+        # ACTUALIZAR: Ajustamos el rango a la fila encontrada
+        # Asumiendo que tus columnas son A (fecha), B (hoyo), C, D, E, F (scores)
+        rango = f"Hoja1!A{indice_fila}:F{indice_fila}"
+        conn.update(spreadsheet=st.secrets["gsheets"]["url"], range=rango, data=[datos])
+    else:
+        # INSERTAR: Añadimos fila nueva al final
+        conn.append(spreadsheet=st.secrets["gsheets"]["url"], range="Hoja1!A:F", data=[datos])
+    
+    # Limpiamos caché para que la siguiente lectura vea los cambios
+    st.cache_data.clear()
 
 # --- 2. FUNCIONES DE DATOS ---
 def leer_datos():
