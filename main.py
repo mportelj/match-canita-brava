@@ -386,29 +386,40 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         with col2:
             ver_acumulado = st.toggle("📂 Ver Acumulado de la Temporada", value=False)
 
-      # --- FILTRADO Y DEFINICIÓN DE TÍTULOS ---
+      # --- FILTRADO Y CÁLCULO DE MARCADORES (DÍA vs ACUMULADO) ---
+        # 1. Calculamos el acumulado de TODA la historia primero
+        puntos_a_total = pd.to_numeric(df_raw['resultado_a'], errors='coerce').sum()
+        puntos_b_total = pd.to_numeric(df_raw['resultado_b'], errors='coerce').sum()
+        dif_total = int(puntos_a_total - puntos_b_total)
+        
+        if dif_total > 0:
+            marcador_acumulado = f"🏆 MANU & JOSE ganan {dif_total} UP (Global)"
+        elif dif_total < 0:
+            marcador_acumulado = f"🏆 ROGE & LALO ganan {abs(dif_total)} UP (Global)"
+        else:
+            marcador_acumulado = "🤝 EMPATE GLOBAL (All Square)"
+
         if ver_acumulado:
             df_stats = df_raw.copy()
-            titulo_seccion = "Acumulado Temporada"  # <--- Aseguramos que se llame titulo_seccion
-            f_formateada = "Acumulado"
-            n_hoyos_info = len(df_stats['hoyo'].unique())
-            subtitulo_match = ""
+            f_formateada = "Temporada Completa"
+            titulo_seccion = "Acumulado Temporada"
+            res_match_dia = marcador_acumulado # En modo acumulado, el del día es el global
         else:
             df_stats = df_raw[df_raw['fecha'] == jornada_sel_raw].copy()
             f_formateada = opciones_combo[jornada_sel_raw]
-            n_hoyos_info = len(df_stats['hoyo'].unique())
-            titulo_seccion = f"Jornada: {f_formateada}" # <--- Aseguramos que se llame titulo_seccion
+            titulo_seccion = f"Jornada: {f_formateada}"
             
-            # Cálculo del resultado Match Play
-            puntos_a = pd.to_numeric(df_stats['resultado_a'], errors='coerce').sum()
-            puntos_b = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
-            dif = int(puntos_a - puntos_b)
-            if dif > 0:
-                subtitulo_match = f"🏆 Manu & Jose ganan {dif} UP"
-            elif dif < 0:
-                subtitulo_match = f"🏆 Roge & Lalo ganan {abs(dif)} UP"
+            # Cálculo del Match del día
+            puntos_a_dia = pd.to_numeric(df_stats['resultado_a'], errors='coerce').sum()
+            puntos_b_dia = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
+            dif_dia = int(puntos_a_dia - puntos_b_dia)
+            
+            if dif_dia > 0:
+                res_match_dia = f"Manu & Jose +{dif_dia}"
+            elif dif_dia < 0:
+                res_match_dia = f"Roge & Lalo +{abs(dif_dia)}"
             else:
-                subtitulo_match = "🤝 Empate (All Square)"
+                res_match_dia = "Empate (AS)"
 
         # --- 1. PRIMERO: CALCULAMOS TODOS LOS DATOS (Sin construir el mensaje aún) ---
         lista_resultados = []
@@ -451,12 +462,15 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         # --- 2. SEGUNDO: ORDENAMOS LA LISTA POR PUNTOS SCRATCH (De mayor a menor) ---
         lista_resultados = sorted(lista_resultados, key=lambda x: x['scratch'], reverse=True)
 
-        # --- 3. TERCERO: CONSTRUIMOS EL MENSAJE DE WHATSAPP YA ORDENADO Y CON % ---
+       # --- CONSTRUCCIÓN DEL MENSAJE DE WHATSAPP ---
+        n_hoyos_info = len(df_stats['hoyo'].unique())
+        
         whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n"
-        whatsapp_text += f"📅 *Jornada: {f_formateada}*\n"
-        whatsapp_text += f"⛳ *Hoyos Jugados: {n_hoyos_info}*\n"
+        whatsapp_text += f"📅 *Jornada: {f_formateada}* ({n_hoyos_info} hoyos)\n"
+        whatsapp_text += f"⛳ Marcador hoy: *{res_match_dia}*\n"
+        whatsapp_text += f"✨ *{marcador_acumulado.upper()}* ✨\n" # Resaltado
         whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
-
+        
         for res in lista_resultados:
             pm_txt = f"+{res['plus_minus']}" if res['plus_minus'] > 0 else (str(res['plus_minus']) if res['plus_minus'] < 0 else "E")
             h = res['hoyos']
