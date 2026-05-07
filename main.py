@@ -267,43 +267,52 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
 
     # --- 4. GUARDADO ATÓMICO (Hoyo a Hoyo) ---
     if st.button("💾 GUARDAR CAMBIOS Y SUBIR", type="primary", use_container_width=True):
-        with st.spinner("Sincronizando con Google Sheets..."):
+        with st.spinner("Sincronizando hoyo con Google Sheets..."):
             
-            # A. Calculamos los puntos (P1_PTS...P4_PTS)
-            # Esta función debe devolver la lista de puntos basada en tus reglas
+            st.cache_data.clear()
+            df_actual = leer_datos()
+            df_actual.columns = [str(c).strip().upper() for c in df_actual.columns]
+            
             puntos_reales = calcular_puntos_jornada(par_hoyo, golpes_finales)
+            fecha_hoy = datetime.now().strftime("%Y-%m-%d")
             
-            # B. Preparamos la fila para actualizar/insertar
+            # --- MAPEO EXACTO A TUS COLUMNAS ---
             nueva_fila = {
                 'FECHA': fecha_hoy,
-                'HOYO': hoyo_sel,
-                'PAR': par_hoyo
+                'HOYO': int(hoyo_sel),
+                'PAR': int(par_hoyo),
+                'TEMPORADA': "2024", # Puedes hacerlo dinámico si quieres
+                'PARTIDO_ID': fecha_hoy.replace("-", ""), # ID genérico
+                # Los puntos van de P1 a P4
+                'P1_PTS': float(puntos_reales[0]),
+                'P2_PTS': float(puntos_reales[1]),
+                'P3_PTS': float(puntos_reales[2]),
+                'P4_PTS': float(puntos_reales[3]),
+                # Los golpes (S) van de 0 a 3
+                'S0': int(golpes_finales[0]),
+                'S1': int(golpes_finales[1]),
+                'S2': int(golpes_finales[2]),
+                'S3': int(golpes_finales[3])
             }
-            for i in range(len(TODOS)):
-                nueva_fila[f'S{i}'] = golpes_finales[i]
-                nueva_fila[f'P{i+1}_PTS'] = puntos_reales[i]
-            
-            # C. Lógica de actualización en el DataFrame
-            mascara = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_sel)
+
+            # Lógica de actualización (evitar duplicados)
+            df_actual['HOYO'] = pd.to_numeric(df_actual['HOYO'], errors='coerce')
+            mascara = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == int(hoyo_sel))
             
             if mascara.any():
                 idx = df_actual.index[mascara][0]
                 for col, val in nueva_fila.items():
-                    df_actual.at[idx, col] = val
+                    if col in df_actual.columns:
+                        df_actual.at[idx, col] = val
             else:
                 df_actual = pd.concat([df_actual, pd.DataFrame([nueva_fila])], ignore_index=True)
             
-            # D. Subida final a Google Sheets
-            try:
-                # Usamos tu función de escritura (ej: conn.update o gspread)
-                actualizar_hoja_google(df_actual)
-                
-                st.success(f"✅ Hoyo {hoyo_sel} sincronizado.")
+            # Subida
+            if actualizar_hoja_google(df_actual):
+                st.success(f"✅ Hoyo {hoyo_sel} guardado correctamente.")
                 st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
-                st.cache_data.clear() # Limpiamos caché para que las Estadísticas se actualicen
+                st.cache_data.clear()
                 st.balloons()
-            except Exception as e:
-                st.error(f"Error al subir datos: {e}")
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 ESTADÍSTICAS")
