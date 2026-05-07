@@ -157,94 +157,117 @@ if st.session_state.menu_seleccionado == "Inicio":
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     st.title("⛳ Jugar / Editar Hoyo")
     
-    # 1. INICIALIZACIÓN DEL ESTADO
+    # 1. INICIALIZACIÓN
     if 'hoyo_actual' not in st.session_state:
         st.session_state.hoyo_actual = 1
     if 'hoyo_guardado' not in st.session_state:
         st.session_state.hoyo_guardado = False
 
-    # 2. SELECTOR DE FECHA
     fecha_input = st.date_input("Fecha de la partida:", datetime.now())
     fecha_str = fecha_input.strftime("%d/%m/%Y")
     
-    # 3. NAVEGACIÓN DE HOYOS
-    col_nav1, col_h, col_nav2 = st.columns([1, 2, 1])
-    
-    with col_nav1:
-        if st.button("⬅️ ANTERIOR") and st.session_state.hoyo_actual > 1:
-            st.session_state.hoyo_actual -= 1
-            st.session_state.hoyo_guardado = False  # Resetear bloqueo al mover hoyo
-            st.rerun()
-            
-    with col_h:
-        st.markdown(f"<h2 style='text-align: center; margin-bottom: 0;'>Hoyo {st.session_state.hoyo_actual}</h2>", unsafe_allow_html=True)
-    
-    with col_nav2:
-        if st.button("SIGUIENTE ➡️") and st.session_state.hoyo_actual < 18:
-            st.session_state.hoyo_actual += 1
-            st.session_state.hoyo_guardado = False  # Resetear bloqueo al mover hoyo
-            st.rerun()
-
-    # 4. PAR Y CARGA DE DATOS
     h_idx = st.session_state.hoyo_actual
     par_hoyo = PAR_RIA_VIGO.get(h_idx, 4)
-    st.markdown(f"<p style='text-align: center; color: gray;'>Par del hoyo: <b>{par_hoyo}</b></p>", unsafe_allow_html=True)
-    
-    # Intentamos precargar datos del Excel
+
+    # 2. CARGA DE DATOS PREVIOS
     df_actual = leer_datos()
-    # Por defecto, el valor inicial de los inputs será el PAR del hoyo
     golpes_a_mostrar = [par_hoyo, par_hoyo, par_hoyo, par_hoyo]
     
     if not df_actual.empty:
-        # Buscamos si ya existe este hoyo en esta fecha
         busqueda = df_actual[(df_actual['fecha'] == fecha_str) & (df_actual['hoyo'].astype(str) == str(h_idx))]
         if not busqueda.empty:
             for i in range(4):
-                val = busqueda.iloc[0][f's{i}']
-                # Si el valor en el Excel es válido y distinto de 0, lo usamos
                 try:
-                    num_val = int(float(val))
-                    if num_val > 0:
-                        golpes_a_mostrar[i] = num_val
-                except:
-                    pass
+                    val = busqueda.iloc[0][f's{i}']
+                    if int(float(val)) > 0: golpes_a_mostrar[i] = int(float(val))
+                except: pass
+
+    # 3. MARCADOR DEL MATCH (Suma de todos los hoyos guardados)
+    def calcular_match_total(df, fecha):
+        if df.empty: return 0, 0
+        df_f = df[df['fecha'] == fecha]
+        # Equipo 1: Manu (s0) y Roge (s1) | Equipo 2: Jose (s2) y Lalo (s3)
+        # Ganar un hoyo = 1 punto. Empate = 0.
+        puntos_e1, puntos_e2 = 0, 0
+        for _, row in df_f.iterrows():
+            s_e1 = int(row['s0']) + int(row['s1'])
+            s_e2 = int(row['s2']) + int(row['s3'])
+            if s_e1 < s_e2: puntos_e1 += 1
+            elif s_e2 < s_e1: puntos_e2 += 1
+        return puntos_e1, puntos_e2
+
+    m_e1, m_e2 = calcular_match_total(df_actual, fecha_str)
+
+    # Diseño del Marcador Superior
+    st.markdown(f"""
+    <div style="background-color: #f0f2f6; padding: 20px; border-radius: 10px; border: 2px solid #2e7d32; text-align: center; margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-around; align-items: center;">
+            <div>
+                <p style="margin:0; font-size: 1.2em; font-weight: bold;">MANU & ROGE</p>
+                <h1 style="margin:0; font-size: 3em;">{m_e1}</h1>
+            </div>
+            <div style="background-color: #555; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold;">VS</div>
+            <div>
+                <p style="margin:0; font-size: 1.2em; font-weight: bold;">JOSE & LALO</p>
+                <h1 style="margin:0; font-size: 3em;">{m_e2}</h1>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 4. NAVEGACIÓN
+    col_nav1, col_h, col_nav2 = st.columns([1, 2, 1])
+    with col_nav1:
+        if st.button("⬅️ ANTERIOR") and h_idx > 1:
+            st.session_state.hoyo_actual -= 1
+            st.session_state.hoyo_guardado = False
+            st.rerun()
+    with col_h:
+        st.markdown(f"<h2 style='text-align: center; margin:0;'>Hoyo {h_idx} (Par {par_hoyo})</h2>", unsafe_allow_html=True)
+    with col_nav2:
+        if st.button("SIGUIENTE ➡️") and h_idx < 18:
+            st.session_state.hoyo_actual += 1
+            st.session_state.hoyo_guardado = False
+            st.rerun()
 
     st.divider()
 
     # 5. INPUTS DE GOLPES
     cols = st.columns(2)
-    datos_finales = []
+    nuevos_golpes = []
+    nombres = ["MANU", "ROGE", "JOSE", "LALO"]
 
-    for i, jug in enumerate(TODOS):
+    for i, jug in enumerate(nombres):
         with cols[i % 2]:
-            # La clave (key) debe ser única y cambiar con el hoyo para que Streamlit refresque el valor
-            clave_input = f"input_{jug}_{h_idx}_{fecha_str}"
-            v = st.number_input(
-                f"{jug.upper()}", 
-                min_value=1, 
-                max_value=15, 
-                value=golpes_mostrar[i] if 'golpes_mostrar' in locals() else golpes_a_mostrar[i], 
-                key=clave_input
-            )
-            datos_finales.append(v)
+            v = st.number_input(jug, min_value=1, max_value=15, value=golpes_a_mostrar[i], key=f"in_{jug}_{h_idx}")
+            nuevos_golpes.append(v)
+
+    # Marcador en tiempo real del hoyo actual
+    sum_e1 = nuevos_golpes[0] + nuevos_golpes[1]
+    sum_e2 = nuevos_golpes[2] + nuevos_golpes[3]
+    res_hoyo = "Empate" if sum_e1 == sum_e2 else ("Gana Manu/Roge" if sum_e1 < sum_e2 else "Gana Jose/Lalo")
+    st.markdown(f"<p style='text-align: center; font-weight: bold;'>Marcador Hoyo: {sum_e1} vs {sum_e2} ({res_hoyo})</p>", unsafe_allow_html=True)
 
     st.divider()
 
-    # 6. LÓGICA DE GUARDADO Y BLOQUEO
+    # 6. GUARDADO (Corrección de NameError)
     if st.session_state.hoyo_guardado:
-        st.button("✅ DATOS GUARDADOS", use_container_width=True, disabled=True)
-        st.success(f"Los datos del hoyo {h_idx} ya están en la nube.")
+        st.button("✅ HOYO GUARDADO", use_container_width=True, disabled=True)
     else:
         if st.button("💾 GUARDAR HOYO", use_container_width=True, type="primary"):
-            fila_a_enviar = [fecha_str, h_idx] + datos_finales
+            fila = [fecha_str, h_idx] + nuevos_golpes
             try:
-                actualizar_o_insertar_hoyo(fila_a_enviar)
-                st.session_state.hoyo_guardado = True # Bloqueamos botón
-                st.toast(f"Hoyo {h_idx} guardado con éxito", icon="⛳")
+                # IMPORTANTE: Asegúrate de que esta función esté definida en tu código principal
+                # o impórtala correctamente.
+                actualizar_o_insertar_hoyo(fila) 
+                st.session_state.hoyo_guardado = True
+                st.success("Guardado correctamente")
                 time.sleep(1)
                 st.rerun()
+            except NameError:
+                st.error("Error: La función 'actualizar_o_insertar_hoyo' no está definida en el código.")
             except Exception as e:
-                st.error(f"Error al conectar con Google Sheets: {e}")
+                st.error(f"Error al conectar con la base de datos: {e}")
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas y Clasificación")
