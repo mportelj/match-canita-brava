@@ -292,58 +292,76 @@ if st.session_state.menu_seleccionado == "Inicio":
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    # 1. PREPARACIÓN DE LAS OPCIONES DEL COMBO (Fechas con resumen)
+    # 1. PREPARACIÓN DE OPCIONES (FECHAS CON RESUMEN)
     df = leer_datos()
-    opciones_fechas = ["Nueva Partida (Hoy)"] # Opción por defecto
-    dict_fechas = {} # Para mapear el texto del combo a la fecha real
+    opciones_fechas = ["Nueva Partida (Hoy)"]
+    dict_fechas = {}
 
     if df is not None and not df.empty:
-        # Agrupamos por fecha para sacar el resumen
-        df['fecha_dt'] = pd.to_datetime(df['fecha'], errors='coerce')
-        resumen = df.groupby('fecha').agg({
+        # Aseguramos que la columna fecha sea string para agrupar
+        df['fecha_str_tmp'] = df['fecha'].astype(str).str.split(' ').str[0]
+        resumen = df.groupby('fecha_str_tmp').agg({
             'hoyo': 'count',
             'resultado_a': 'sum',
             'resultado_b': 'sum'
         }).reset_index()
 
-        for _, row in resumen.sort_values('fecha', ascending=False).iterrows():
-            f_obj = pd.to_datetime(row['fecha'])
-            f_str = f_obj.strftime("%d/%m/%Y")
+        for _, row in resumen.sort_values('fecha_str_tmp', ascending=False).iterrows():
+            f_str = row['fecha_str_tmp']
+            # Intentar formatear fecha de YYYY-MM-DD a DD/MM/YYYY si es necesario
+            try:
+                f_obj = pd.to_datetime(f_str)
+                f_display = f_obj.strftime("%d/%m/%Y")
+            except:
+                f_display = f_str
             
-            # Calculamos el resultado del match para el texto
             dif = int(row['resultado_a'] - row['resultado_b'])
             res_txt = f"L {dif}" if dif > 0 else (f"V {abs(dif)}" if dif < 0 else "A.S.")
-            
-            # Formato: 20/05/2024 - 18 Hoyos - L 2
-            texto_opcion = f"{f_str} - {row['hoyo']} Hoyos - {res_txt}"
+            texto_opcion = f"{f_display} - {row['hoyo']} Hoyos - {res_txt}"
             
             opciones_fechas.append(texto_opcion)
-            dict_fechas[texto_opcion] = f_obj.date()
+            dict_fechas[texto_opcion] = f_str
 
-    # --- PANTALLA DE SELECCIÓN ---
+    # --- PANTALLA A: SELECCIÓN ---
+    if 'partido_iniciado' not in st.session_state:
+        st.session_state.partido_iniciado = False
+
     if not st.session_state.partido_iniciado:
         st.markdown("### 📅 Selección de Jornada")
+        seleccion = st.selectbox("Partidas guardadas:", options=opciones_fechas)
         
-        seleccion = st.selectbox("Selecciona una partida existente o crea una nueva:", 
-                                 options=opciones_fechas,
-                                 key="combo_jornada_inicial")
-        
-        # Si elige "Nueva", mostramos el date_input, si no, usamos la del dict
         if seleccion == "Nueva Partida (Hoy)":
-            fecha_final = st.date_input("Confirmar fecha para nueva partida:", value=datetime.now().date())
+            fecha_final = st.date_input("Fecha:", value=datetime.now().date())
         else:
-            fecha_final = dict_fechas[seleccion]
-            st.info(f"Has seleccionado la jornada del {fecha_final.strftime('%d/%m/%Y')}")
+            fecha_final = dict_fechas[seleccion] # Es un string
 
         if st.button("🚀 COMENZAR PARTIDO", use_container_width=True, type="primary"):
             st.session_state.fecha_partida = fecha_final
             st.session_state.partido_iniciado = True
             st.rerun()
 
-    # --- PANTALLA DE JUEGO (Se activa tras pulsar el botón) ---
+    # --- PANTALLA B: INTERFAZ DE JUEGO (Aquí estaba el fallo de indentación) ---
     else:
-        # (Aquí va todo el bloque de código de marcadores y golpes que ya teníamos)
-        # El sistema ya usará st.session_state.fecha_partida para filtrar
+        # RECUERDA: Todo este bloque debe estar indentado dentro del 'else'
+        # Si dejas esto vacío o sin indentar, dará el error que mencionas.
+        
+        # 1. Recuperar info
+        f_partida = st.session_state.fecha_partida
+        h_idx = st.session_state.get('hoyo_actual', 1)
+        
+        # Selector de hoyo (Salto rápido)
+        h_idx = st.selectbox("📍 Hoyo:", list(range(1, 19)), index=h_idx-1)
+        st.session_state.hoyo_actual = h_idx
+        
+        # (Aquí pegas el código del marcador VS y los inputs de golpes que ya tenías)
+        st.write(f"Partida del día: {f_partida} - Hoyo {h_idx}")
+        
+        # Si quieres probar si el error desaparece, con este st.write ya basta.
+        # Luego rellena con los contenedores de los golpes.
+
+# --- LÍNEA 351 (El error decía que esto fallaba porque el else de arriba estaba vacío) ---
+elif st.session_state.menu_seleccionado == "Estadísticas":
+    st.write("Pantalla de Estadísticas")
 
 # ==========================================
 # SECCIÓN: ESTADISTICAS
