@@ -292,119 +292,112 @@ if st.session_state.menu_seleccionado == "Inicio":
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    st.title("⛳ Jugar / Editar Hoyo")
-    
-    # --- 1. ESTADO DE SESIÓN ---
+    # 1. ESTADO DE SESIÓN Y CARGA DE DATOS
     if 'hoyo_actual' not in st.session_state:
         st.session_state.hoyo_actual = 1
-    if 'fecha_partida' not in st.session_state:
-        st.session_state.fecha_partida = datetime.now()
-
-    # --- 2. SELECTOR DE FECHA ---
-    fecha_input = st.date_input("Fecha:", value=st.session_state.fecha_partida, format="DD/MM/YYYY")
-    st.session_state.fecha_partida = fecha_input
-    fecha_str = fecha_input.strftime("%d/%m/%Y")
     
+    df = leer_datos()
     h_idx = st.session_state.hoyo_actual
     par_hoyo = PAR_RIA_VIGO.get(h_idx, 4)
-
-    # --- 3. LÓGICA DE CARGA Y CÁLCULO DE MARCADOR (Diferencia Neta) ---
-    df_actual = leer_datos()
-    m_e1, m_e2 = 0, 0 
-    # s0: Manu, s1: Jose, s2: Roge, s3: Lalo
-    golpes_a_mostrar = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo}
     
-    if not df_actual.empty:
-        # Filtro de fecha flexible
-        f_iso = fecha_input.strftime("%Y-%m-%d")
-        f_eur = fecha_input.strftime("%d/%m/%Y")
-        df_f = df_actual[(df_actual['fecha'].astype(str).str.contains(f_eur)) | 
-                         (df_actual['fecha'].astype(str).str.contains(f_iso))]
-        
-        if not df_f.empty:
-            puntos_totales_a = 0
-            puntos_totales_b = 0
-            
-            for _, row in df_f.iterrows():
-                try:
-                    p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
-                    # Lógica de equipos: A(s0, s1) vs B(s2, s3)
-                    pa, pb = calcular_puntos_hoyo(int(row['s0']), int(row['s1']), 
-                                                 int(row['s2']), int(row['s3']), p_h)
-                    puntos_totales_a += pa
-                    puntos_totales_b += pb
-                except: continue
-            
-            # --- CÁLCULO DE DIFERENCIA (Tu lógica de Match) ---
-            diferencia = puntos_totales_a - puntos_totales_b
-            if diferencia > 0:
-                m_e1, m_e2 = diferencia, 0
-            elif diferencia < 0:
-                m_e1, m_e2 = 0, abs(diferencia)
-            else:
-                m_e1, m_e2 = 0, 0
+    # Marcadores acumulados (Diferencia Neta)
+    m_e1, m_e2 = 0, 0
+    golpes = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo} # s0, s1, s2, s3
+    res_hoyo_a, res_hoyo_b = 0, 0
 
-            # Cargar golpes del hoyo actual si ya existen
-            busqueda = df_f[df_f['hoyo'].astype(str).str.strip() == str(h_idx)]
-            if not busqueda.empty:
-                for i in range(4):
-                    try: golpes_a_mostrar[i] = int(float(busqueda.iloc[0][f's{i}']))
-                    except: continue
+    # Filtrar datos de la jornada actual
+    fecha_hoy = datetime.now().strftime("%d/%m/%Y")
+    if not df.empty:
+        df_jornada = df[df['fecha'].astype(str).str.contains(fecha_hoy)]
+        if not df_jornada.empty:
+            # Sumamos columnas resultado_a y resultado_b ya grabadas
+            suma_a = df_jornada['resultado_a'].astype(float).sum()
+            suma_b = df_jornada['resultado_b'].astype(float).sum()
+            dif = suma_a - suma_b
+            m_e1, m_e2 = (int(dif), 0) if dif > 0 else (0, int(abs(dif)))
 
-    # --- 4. MARCADOR VISUAL ---
+            # Cargar golpes del hoyo actual
+            h_data = df_jornada[df_jornada['hoyo'].astype(int) == h_idx]
+            if not h_data.empty:
+                golpes[0] = int(h_data.iloc[0]['s0'])
+                golpes[1] = int(h_data.iloc[0]['s1'])
+                golpes[2] = int(h_data.iloc[0]['s2'])
+                golpes[3] = int(h_data.iloc[0]['s3'])
+                res_hoyo_a = int(h_data.iloc[0]['resultado_a'])
+                res_hoyo_b = int(h_data.iloc[0]['resultado_b'])
+
+    # --- DISEÑO DE LA INTERFAZ ---
+
+    # A. MARCADOR PRINCIPAL (ESTILO TARJETA)
     st.markdown(f"""
-    <div style="background-color: #f0f2f6; padding: 20px; border-radius: 15px; border: 2px solid #2e7d32; text-align: center;">
+    <div style="background-color: #e8f4ea; padding: 20px; border-radius: 20px; border: 1px solid #2e7d32; text-align: center; margin-bottom: 20px;">
         <div style="display: flex; justify-content: space-around; align-items: center;">
-            <div style="flex: 1;">
-                <p style="margin: 0; font-size: 0.9em; color: #555;">MANU & JOSE</p>
-                <h1 style="margin: 0; font-size: 3.5em; color: #2e7d32;">{m_e1}</h1>
+            <div>
+                <p style="color: #2e7d32; font-weight: bold; margin-bottom: 5px;">MANU & JOSE</p>
+                <h1 style="font-size: 50px; margin: 0; color: #1b5e20;">{m_e1}</h1>
             </div>
-            <div style="background-color: #333; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold;">VS</div>
-            <div style="flex: 1;">
-                <p style="margin: 0; font-size: 0.9em; color: #555;">ROGE & LALO</p>
-                <h1 style="margin: 0; font-size: 3.5em; color: #1976d2;">{m_e2}</h1>
+            <div style="background-color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 1px solid #ccc;">VS</div>
+            <div>
+                <p style="color: #c62828; font-weight: bold; margin-bottom: 5px;">ROGE & LALO</p>
+                <h1 style="font-size: 50px; margin: 0; color: #b71c1c;">{m_e2}</h1>
             </div>
         </div>
-        <p style="margin-top: 10px; font-size: 0.8em; color: #888;">Marcador basado en diferencia de puntos acumulados</p>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- 5. ENTRADA DE GOLPES ---
-    st.write("")
-    col_nav1, col_h, col_nav2 = st.columns([1, 2, 1])
-    with col_nav1:
-        if st.button("⬅️") and h_idx > 1:
+    # B. NAVEGACIÓN DE HOYOS
+    col_prev, col_next = st.columns(2)
+    with col_prev:
+        if st.button("← Anterior", use_container_width=True, disabled=(h_idx == 1)):
             st.session_state.hoyo_actual -= 1
             st.rerun()
-    with col_h:
-        st.markdown(f"<h3 style='text-align:center;'>Hoyo {h_idx} (Par {par_hoyo})</h3>", unsafe_allow_html=True)
-    with col_nav2:
-        if st.button("➡️") and h_idx < 18:
+    with col_next:
+        if st.button("Siguiente →", use_container_width=True, disabled=(h_idx == 18)):
             st.session_state.hoyo_actual += 1
             st.rerun()
 
-    c1, c2 = st.columns(2)
-    with c1:
-        st.info("MANU & JOSE")
-        g0 = st.number_input("MANU (s0)", 1, 15, value=golpes_a_mostrar[0], key=f"s0_{h_idx}")
-        g1 = st.number_input("JOSE (s1)", 1, 15, value=golpes_a_mostrar[1], key=f"s1_{h_idx}")
-    with c2:
-        st.warning("ROGE & LALO")
-        g2 = st.number_input("ROGE (s2)", 1, 15, value=golpes_a_mostrar[2], key=f"s2_{h_idx}")
-        g3 = st.number_input("LALO (s3)", 1, 15, value=golpes_a_mostrar[3], key=f"s3_{h_idx}")
+    # C. SELECTOR DE HOYO Y INFO
+    with st.expander(f"Hoyo {h_idx} (Par {par_hoyo})", expanded=True):
+        # Resultado del hoyo actual
+        txt_ganador = "EMPATADOS"
+        color_ganador = "#555"
+        if res_hoyo_a > res_hoyo_b:
+            txt_ganador = "GANA MANU & JOSE"
+            color_ganador = "#2e7d32"
+        elif res_hoyo_b > res_hoyo_a:
+            txt_ganador = "GANA ROGE & LALO"
+            color_ganador = "#c62828"
 
-    # --- 6. GUARDADO ---
-    if st.button("💾 GUARDAR HOYO", use_container_width=True, type="primary"):
-        # Fila: fecha, hoyo, s0, s1, s2, s3
-        fila = [fecha_str, h_idx, g0, g1, g2, g3]
-        try:
-            actualizar_o_insertar_hoyo(fila)
-            st.success(f"Hoyo {h_idx} guardado correctamente")
-            time.sleep(0.5)
+        st.markdown(f"""
+        <div style="text-align: center; padding: 10px; border: 1px solid #eee; border-radius: 10px; margin-bottom: 20px;">
+            <p style="font-size: 0.8em; color: #888; margin: 0;">RESULTADO DEL HOYO {h_idx}</p>
+            <h2 style="margin: 10px 0;">{res_hoyo_a} — {res_hoyo_b}</h2>
+            <p style="color: {color_ganador}; font-weight: bold; font-size: 0.9em;">{txt_ganador}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # INPUTS DE GOLPES (2 COLUMNAS)
+        c1, c2 = st.columns(2)
+        with c1:
+            g0 = st.number_input("MANU", 1, 15, value=golpes[0], key="man")
+            g1 = st.number_input("JOSE", 1, 15, value=golpes[1], key="jos")
+        with c2:
+            g2 = st.number_input("ROGE", 1, 15, value=golpes[2], key="rog")
+            g3 = st.number_input("LALO", 1, 15, value=golpes[3], key="lal")
+
+        if st.button("🔄 Actualizar Hoyo", use_container_width=True, type="secondary"):
+            # Calculamos puntos antes de guardar
+            pts_a, pts_b = calcular_puntos_hoyo(g0, g1, g2, g3, par_hoyo)
+            # Fila: fecha, hoyo, s0, s1, s2, s3, resultado_a, resultado_b
+            nueva_fila = [fecha_hoy, h_idx, g0, g1, g2, g3, pts_a, pts_b]
+            actualizar_o_insertar_hoyo(nueva_fila)
+            st.success(f"Hoyo {h_idx} actualizado")
+            time.sleep(1)
             st.rerun()
-        except Exception as e:
-            st.error(f"Error al guardar: {e}")
 
+    # D. CLASIFICACIONES MVP (ACORDEÓN)
+    with st.expander("⭐ Clasificaciones MVP"):
+        st.write("Próximamente...")
 # ==========================================
 # SECCIÓN: ESTADISTICAS
 # ==========================================
