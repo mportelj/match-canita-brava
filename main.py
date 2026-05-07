@@ -219,117 +219,111 @@ if st.session_state.menu_seleccionado == "Inicio":
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     st.title("🏌️ JUGAR / EDITAR PARTIDO")
 
-    # --- 1. SINCRONIZACIÓN ---
-    if "ultima_sincro" not in st.session_state:
-        st.session_state.ultima_sincro = "No sincronizado"
-    
+    # 1. Inicializar el ID de refresco si no existe
+    if "refresco_id" not in st.session_state:
+        st.session_state.refresco_id = 0
+
+    # 2. Gestión de Sincronización
     col_info, col_btn = st.columns([3, 1])
-    col_info.info(f"☁️ **Sincro:** {st.session_state.ultima_sincro}")
+    col_info.info(f"☁️ **Sincro:** {st.session_state.get('ultima_sincro', 'No sincronizado')}")
     
     if col_btn.button("🔄 REFRESCAR HOYO", use_container_width=True):
         st.cache_data.clear()
-        # Generamos un ID de refresco para forzar a los widgets a reiniciarse
-        st.session_state.refresco_id = datetime.now().timestamp()
+        st.session_state.refresco_id += 1 # Cambiamos el ID para forzar reconstrucción
         st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
         st.rerun()
 
     st.write("---")
 
-    # --- 2. SELECCIÓN DE HOYO ---
+    # 3. Selección de Hoyo (Con Key persistente)
     hoyo_sel = st.number_input(
         "Selecciona el hoyo:", 
-        min_value=1, 
-        max_value=18, 
-        step=1, 
-        key="hoyo_actual" 
+        min_value=1, max_value=18, step=1, 
+        key="hoyo_selector_persistente"
     )
     
     par_hoyo = int(PAR_RIA_VIGO[hoyo_sel])
-    
-    # --- 3. LECTURA DE DATOS FORZADA ---
-    # Limpiamos caché antes de leer para asegurar que no hay fantasmas
-    df_actual = leer_datos() 
+
+    # 4. LECTURA DE DATOS (Forzada tras el selector)
+    df_actual = leer_datos()
     df_actual.columns = [str(c).strip().upper() for c in df_actual.columns]
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
     
-    # Aseguramos tipos para la búsqueda
+    # Aseguramos que la comparativa sea limpia
     df_actual['HOYO'] = pd.to_numeric(df_actual['HOYO'], errors='coerce')
     df_actual['FECHA'] = df_actual['FECHA'].astype(str)
     
-    # Buscamos la fila específica
-    datos_hoyo_actual = df_actual[(df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_sel)]
+    # FILTRADO CRÍTICO: Aquí es donde extraemos solo lo del hoyo actual
+    datos_hoyo = df_actual[(df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoy_sel)]
 
-    # --- 4. INTERFAZ DE GOLPES (Con clave de refresco forzado) ---
+    # 5. CONTENEDOR DINÁMICO DE GOLPES
+    # Usamos el 'refresco_id' y el 'hoyo_sel' en la clave para que, si cualquiera 
+    # de los dos cambia, los inputs se BORREN y se vuelvan a crear con datos nuevos.
     st.subheader(f"⛳ Hoyo {hoyo_sel} (Par {par_hoyo})")
-    cols = st.columns(4)
-    golpes_finales = []
-    columnas_golpes = ['S0', 'S1', 'S2', 'S3']
     
-    # Creamos un sufijo para las keys que cambie si refrescamos o cambiamos hoyo
-    refresco_sufijo = st.session_state.get('refresco_id', '0')
+    columnas_ui = st.columns(4)
+    golpes_finales = []
+    campos_s = ['S0', 'S1', 'S2', 'S3']
 
     for i, jug in enumerate(TODOS):
-        # Determinamos el valor que debe mostrar el cuadro
-        val_mostrar = par_hoyo
+        # Valor por defecto inicial
+        valor_a_cargar = par_hoyo
         
-        if not datos_hoyo_actual.empty:
-            col_s = columnas_golpes[i]
-            if col_s in datos_hoyo_actual.columns:
-                val_celda = datos_hoyo_actual.iloc[0][col_s]
-                if pd.notna(val_celda):
-                    val_mostrar = int(float(val_celda))
+        # Si encontramos datos en la fila filtrada, los asignamos
+        if not datos_hoyo.empty:
+            col_target = campos_s[i]
+            if col_target in datos_hoyo.columns:
+                val_nube = datos_hoyo.iloc[0][col_target]
+                if pd.notna(val_nube):
+                    valor_a_cargar = int(float(val_nube))
         
-        # EL TRUCO FINAL: Al incluir el sufijo en la key, si refrescas, 
-        # Streamlit cree que es un widget NUEVO y carga el 'value' actual.
-        g = cols[i].number_input(
+        # KEY DINÁMICA: Si cambia el ID de refresco o el Hoyo, el widget se reinicia
+        clave_input = f"input_h{hoyo_sel}_j{i}_rid{st.session_state.refresco_id}"
+        
+        g = columnas_ui[i].number_input(
             f"{jug}", 
-            min_value=1, 
-            max_value=15, 
-            value=val_mostrar, 
-            key=f"input_h{hoyo_sel}_j{i}_{refresco_sufijo}" 
+            min_value=1, max_value=15, 
+            value=valor_a_cargar, 
+            key=clave_input
         )
         golpes_finales.append(g)
 
     st.write("---")
 
-    # --- 5. GUARDADO ---
+    # 6. Botón de Guardado
     if st.button("💾 GUARDAR CAMBIOS Y SUBIR", type="primary", use_container_width=True):
         with st.spinner("Guardando..."):
             try:
-                puntos_reales = calcular_puntos_jornada(par_hoyo, golpes_finales)
-                
-                datos_fila = {
-                    'FECHA': fecha_hoy,
-                    'HOYO': int(hoyo_sel),
-                    'PAR': int(par_hoyo),
-                    'TEMPORADA': 2024.0,
-                    'PARTIDO_ID': float(fecha_hoy.replace("-", "")),
+                puntos = calcular_puntos_jornada(par_hoyo, golpes_finales)
+                nueva_fila = {
+                    'FECHA': fecha_hoy, 'HOYO': int(hoyo_sel), 'PAR': int(par_hoyo),
+                    'TEMPORADA': 2024.0, 'PARTIDO_ID': float(fecha_hoy.replace("-", "")),
                     'S0': int(golpes_finales[0]), 'S1': int(golpes_finales[1]),
                     'S2': int(golpes_finales[2]), 'S3': int(golpes_finales[3]),
-                    'P1_PTS': float(puntos_reales[0]), 'P2_PTS': float(puntos_reales[1]),
-                    'P3_PTS': float(puntos_reales[2]), 'P4_PTS': float(puntos_reales[3])
+                    'P1_PTS': float(puntos[0]), 'P2_PTS': float(puntos[1]),
+                    'P3_PTS': float(puntos[2]), 'P4_PTS': float(puntos[3])
                 }
                 
-                # Actualizar DataFrame
-                mascara = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_sel)
-                if mascara.any():
-                    idx = df_actual.index[mascara][0]
-                    for col, val in datos_fila.items():
-                        if col in df_actual.columns:
-                            df_actual.at[idx, col] = val
+                # Actualizar el DataFrame general
+                mask = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoy_sel)
+                if mask.any():
+                    idx = df_actual.index[mask][0]
+                    for c, v in nueva_fila.items():
+                        if c in df_actual.columns: df_actual.at[idx, c] = v
                 else:
-                    df_actual = pd.concat([df_actual, pd.DataFrame([datos_fila])], ignore_index=True)
+                    df_actual = pd.concat([df_actual, pd.DataFrame([nueva_fila])], ignore_index=True)
                 
                 conn.update(data=df_actual)
-                st.cache_data.clear() 
-                st.success(f"✅ Hoyo {hoyo_sel} guardado en la nube.")
+                st.cache_data.clear()
                 st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
-                # Actualizamos el ID de refresco para que la vista se actualice con lo guardado
-                st.session_state.refresco_id = datetime.now().timestamp()
+                st.success(f"✅ Hoyo {hoyo_sel} guardado.")
+                st.balloons()
+                # Forzamos refresco de UI para mostrar lo guardado
+                st.session_state.refresco_id += 1
+                st.rerun()
                 
             except Exception as e:
                 st.error(f"Error: {e}")
-
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 ESTADÍSTICAS")
     
