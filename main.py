@@ -273,43 +273,47 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         fechas = sorted(df_raw['fecha'].unique().tolist(), reverse=True)
         jornada_sel = st.selectbox("Seleccionar Jornada:", fechas)
         
-        # Filtrado y preparación de datos
         df_j = df_raw[df_raw['fecha'] == jornada_sel].copy()
         df_j['hoyo'] = pd.to_numeric(df_j['hoyo'], errors='coerce')
         hoyos_jugados = len(df_j['hoyo'].unique())
         
         stats_rows = []
+        whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n📅 _Jornada: {jornada_sel}_\n⛳ *Hoyos Jugados: {hoyos_jugados}*\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
 
         for i, jug in enumerate(TODOS):
             col_s = f's{i}'
-            
-            # Datos del jugador en la jornada
             d_p = df_j[['hoyo', col_s]].copy()
             d_p[col_s] = pd.to_numeric(d_p[col_s], errors='coerce')
             d_p = d_p[d_p[col_s] > 0].dropna()
-            
             d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
             d_p['dif'] = d_p[col_s] - d_p['par_h']
             
-            # Cálculo +/- y Scratch
             plus_minus = int(d_p[col_s].sum() - d_p['par_h'].sum())
-            
             def pts_scratch(d):
                 if d <= -2: return 4
                 if d == -1: return 3
                 if d == 0:  return 2
                 if d == 1:  return 1
                 return 0
-            
             scratch_total = int(sum(d_p['dif'].apply(pts_scratch)))
 
-            # Conteo de categorías
             e = int((d_p['dif'] <= -2).sum())
             b = int((d_p['dif'] == -1).sum())
             p = int((d_p['dif'] == 0).sum())
             bog = int((d_p['dif'] == 1).sum())
-            db = int((d_p['dif'] >= 2).sum())
+            db = int((d_p['dif'] == 2).sum())
+            tb = int((d_p['dif'] >= 3).sum())
 
+            # Construcción del mensaje para WhatsApp
+            res_str = f"+{plus_minus}" if plus_minus > 0 else (str(plus_minus) if plus_minus < 0 else "E")
+            whatsapp_text += f"👤 *{jug.upper()}*\n"
+            whatsapp_text += f"🏆 Resultado: *{res_str}* ({scratch_total} pts)\n"
+            whatsapp_text += f"🦅 Egl: {e} ({ (e/hoyos_jugados*100):.1f}%) | 🐤 Bir: {b} ({ (b/hoyos_jugados*100):.1f}%)\n"
+            whatsapp_text += f"🅿️ Par: {p} ({ (p/hoyos_jugados*100):.1f}%) | ⚠️ Bog: {bog} ({ (bog/hoyos_jugados*100):.1f}%)\n"
+            whatsapp_text += f"💀 D.Bog: {db} ({ (db/hoyos_jugados*100):.1f}%) | 💣 +T.Bog: {tb} ({ (tb/hoyos_jugados*100):.1f}%)\n"
+            whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+
+            # Fila para la tabla de Streamlit
             def fmt_html(val):
                 pct = (val / hoyos_jugados * 100) if hoyos_jugados > 0 else 0
                 return f"<b>{val}</b><br><span style='color:gray; font-size:0.8em;'>{pct:.1f}%</span>"
@@ -317,31 +321,27 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             stats_rows.append({
                 "Jugador": jug,
                 "+/-": f"<b style='color:red;'>+{plus_minus}</b>" if plus_minus > 0 else (f"<b>{plus_minus}</b>" if plus_minus < 0 else "<b>E</b>"),
-                "Scratch": scratch_total,  # Guardamos como int para ordenar
-                "Albatros": fmt_html(0),
+                "Scratch": scratch_total,
                 "Eagles": fmt_html(e),
                 "Birdies": fmt_html(b),
                 "Pares": fmt_html(p),
                 "Bogey": fmt_html(bog),
-                "D.Bogey+": fmt_html(db)
+                "D.Bogey+": fmt_html(db + tb)
             })
 
-        # Crear DataFrame y ordenar por Scratch descendente
+        # Mostrar tabla ordenada
         df_final = pd.DataFrame(stats_rows).sort_values(by="Scratch", ascending=False)
-        
-        # Convertir Scratch a negrita HTML después de ordenar
         df_final['Scratch'] = df_final['Scratch'].apply(lambda x: f"<b>{x}</b>")
-
-        # Renderizado de Tabla con CSS
-        st.markdown("""
-            <style>
-                table { width: 100%; border-collapse: collapse; text-align: center; }
-                th { background-color: #f8f9fa; padding: 10px; border-bottom: 2px solid #ddd; }
-                td { padding: 12px; border-bottom: 1px solid #eee; line-height: 1.3; }
-            </style>
-        """, unsafe_allow_html=True)
         
         st.write(df_final.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+        # --- BOTÓN WHATSAPP ---
+        st.write("")
+        import urllib.parse
+        encoded_text = urllib.parse.quote(whatsapp_text)
+        whatsapp_url = f"https://wa.me/?text={encoded_text}"
+        
+        st.link_button("📲 Compartir en WhatsApp", whatsapp_url, use_container_width=True)
 
     else:
         st.info("No hay datos registrados aún.")
