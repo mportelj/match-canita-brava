@@ -1,18 +1,68 @@
-import streamlit as st
-from streamlit_gsheets import GSheetsConnection
-import pandas as pd
-from datetime import datetime
-import urllib.parse
+# import streamlit as st
+# from streamlit_gsheets import GSheetsConnection
+# import pandas as pd
+f# rom datetime import datetime
+# import urllib.parse
 
 # Conexión global para evitar NameError
-conn = st.connection("golf_datos", type=GSheetsConnection)
+# conn = st.connection("golf_datos", type=GSheetsConnection)
 
 # Esto te mostrará en la app si Streamlit está viendo tus secretos
-if "golf_datos" in st.secrets:
-    st.write("✅ Sección [golf_datos] encontrada en Secrets")
-    st.write(f"Email del service account: {st.secrets['golf_datos']['client_email']}")
-else:
-    st.error("❌ No se encontró la sección [golf_datos] en los Secrets")
+# if "golf_datos" in st.secrets:
+#    st.write("✅ Sección [golf_datos] encontrada en Secrets")
+#    st.write(f"Email del service account: {st.secrets['golf_datos']['client_email']}")
+# else:
+#    st.error("❌ No se encontró la sección [golf_datos] en los Secrets")
+
+#=================================
+import streamlit as st
+import pandas as pd
+from google.oauth2.service_account import Credentials
+import gspread
+
+# Función para conectar sin usar st.connection
+def cargar_datos_golf():
+    # 1. Cargamos los secretos
+    s = st.secrets["gsheets"]
+    
+    # 2. Construimos el diccionario de credenciales
+    # El .replace garantiza que los saltos de línea sean correctos
+    credentials_dict = {
+        "type": s["type"],
+        "project_id": s["project_id"],
+        "private_key_id": s["private_key_id"],
+        "private_key": s["private_key"].replace("\\n", "\n"),
+        "client_email": s["client_email"],
+        "client_id": s["client_id"],
+        "auth_uri": s["auth_uri"],
+        "token_uri": s["token_uri"],
+        "auth_provider_x509_cert_url": s["auth_provider_x509_cert_url"],
+        "client_x509_cert_url": s["client_x509_cert_url"]
+    }
+    
+    # 3. Autorizamos
+    scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
+    client = gspread.authorize(creds)
+    
+    # 4. Abrimos y leemos
+    sh = client.open_by_url(s["url"])
+    worksheet = sh.worksheet("historial")
+    return pd.DataFrame(worksheet.get_all_records())
+
+# Lógica de la app
+st.title("⛳ CAÑITA BRAVA")
+
+try:
+    df = cargar_datos_golf()
+    st.success("¡Datos cargados!")
+    st.dataframe(df)
+except Exception as e:
+    st.error(f"Error de conexión: {e}")
+
+#=================================
+
+
 
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
