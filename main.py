@@ -526,9 +526,14 @@ elif st.session_state.menu_seleccionado == "Admin":
     df = leer_datos()
 
     if df is None or df.empty:
-        st.warning("No hay datos registrados en la base de datos.")
+        st.warning("No hay datos registrados.")
     else:
-        # 1. NORMALIZACIÓN DE FECHAS (dd/mm/aaaa)
+        # 1. LIMPIEZA DE DATOS (Vital para que la suma no falle)
+        # Convertimos las columnas de golpes a números, si hay error ponemos 0
+        for col in ['s0', 's1', 's2', 's3', 'hoyo']:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+
+        # Normalización de fechas
         df['fecha_str'] = df['fecha'].astype(str).apply(lambda x: x.split(' ')[0].strip())
         def formatear_fecha(f):
             try: return pd.to_datetime(f).strftime('%d/%m/%Y')
@@ -537,68 +542,67 @@ elif st.session_state.menu_seleccionado == "Admin":
         
         partidos = df.groupby('fecha_bonita')
         fechas_ordenadas = sorted(partidos.groups.keys(), 
-                                key=lambda x: pd.to_datetime(x, format='%d/%m/%Y'), 
+                                key=lambda x: pd.to_datetime(x, format='%d/%m/%Y', errors='coerce'), 
                                 reverse=True)
 
         for f_disp in fechas_ordenadas:
             datos_jornada = partidos.get_group(f_disp)
             num_hoyos = len(datos_jornada['hoyo'].unique())
             
-            # --- CÁLCULO NETO DE LA JORNADA (Lógica 10 - 0) ---
-            total_puntos_a = 0 # MANU (s0) & JOSE (s1)
-            total_puntos_b = 0 # ROGE (s2) & LALO (s3)
+            # --- CÁLCULO NETO DE LA JORNADA ---
+            res_a_total = 0  # Manu & Jose
+            res_b_total = 0  # Roge & Lalo
             
             for _, row in datos_jornada.iterrows():
                 try:
-                    p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
-                    # Llamamos a la función con el NUEVO ORDEN de s0, s1, s2, s3
-                    # Asegúrate de que tu función calcular_puntos_hoyo use:
-                    # Equipo A: s0 y s1 | Equipo B: s2 y s3
+                    # Obtenemos el par del hoyo
+                    h_num = int(row['hoyo'])
+                    p_h = int(PAR_RIA_VIGO.get(h_num, 4))
+                    
+                    # EJECUTAMOS LA LÓGICA DE TU FUNCIÓN
+                    # s0:MANU, s1:JOSE vs s2:ROGE, s3:LALO
                     pts_a, pts_b = calcular_puntos_hoyo(
-                        int(row['s0']), int(row['s1']), 
-                        int(row['s2']), int(row['s3']), p_h
+                        row['s0'], row['s1'], row['s2'], row['s3'], p_h
                     )
-                    total_puntos_a += pts_a
-                    total_puntos_b += pts_b
-                except:
+                    res_a_total += pts_a
+                    res_b_total += pts_b
+                except Exception as e:
                     continue
 
-            # Diferencia neta para el marcador Match Play
-            diferencia = total_puntos_a - total_puntos_b
+            # APLICAMOS TU REGLA: DIFERENCIA Y UNO A CERO
+            dif_neta = res_a_total - res_b_total
             
-            if diferencia > 0:
-                status_txt = f"MANU & JOSE: {diferencia} vs ROGE & LALO: 0"
-            elif diferencia < 0:
-                status_txt = f"MANU & JOSE: 0 vs ROGE & LALO: {abs(diferencia)}"
+            if dif_neta > 0:
+                m_a, m_b = dif_neta, 0
+                match_status = f"MANU & JOSE: {m_a} vs ROGE & LALO: 0"
+            elif dif_neta < 0:
+                m_a, m_b = 0, abs(dif_neta)
+                match_status = f"MANU & JOSE: 0 vs ROGE & LALO: {m_b}"
             else:
-                status_txt = "EMPATE (All Square)"
+                m_a, m_b = 0, 0
+                match_status = "EMPATE: 0 vs 0"
 
-            # --- RENDERIZADO DEL PANEL ---
-            titulo_expander = f"📅 {f_disp} — {num_hoyos} Hoyos — [ {status_txt} ]"
-            
-            with st.expander(titulo_expander):
-                st.markdown(f"### {status_txt}")
+            # --- DISEÑO DEL DESPLEGABLE ---
+            with st.expander(f"📅 {f_disp} — {num_hoyos} Hoyos — [ {match_status} ]"):
+                st.markdown(f"**Resultado Neto:** `{match_status}`")
                 
-                # Tabla de golpes con los nombres corregidos según s0, s1, s2, s3
-                tabla = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values('hoyo')
-                tabla.columns = ['Hoyo', 'MANU (s0)', 'JOSE (s1)', 'ROGE (s2)', 'LALO (s3)']
-                st.dataframe(tabla, hide_index=True, use_container_width=True)
+                # Tabla limpia
+                df_view = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values('hoyo')
+                df_view.columns = ['Hoyo', 'MANU', 'JOSE', 'ROGE', 'LALO']
+                st.dataframe(df_view, hide_index=True, use_container_width=True)
 
-                # --- BOTONES DE ACCIÓN ---
-                col_edit, col_del = st.columns(2)
-                
-                with col_edit:
-                    if st.button(f"✏️ Editar Jornada", key=f"ed_{f_disp}"):
+                # BOTONES CON CONFIRMACIÓN
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button(f"✏️ Editar", key=f"ed_{f_disp}"):
                         st.session_state.fecha_partida = pd.to_datetime(f_disp, dayfirst=True)
                         st.session_state.menu_seleccionado = "Jugar/Editar"
                         st.rerun()
-                
-                with col_del:
-                    check_borrar = st.checkbox("Confirmar eliminación", key=f"check_{f_disp}")
-                    if st.button(f"🗑️ Borrar Datos", key=f"btn_del_{f_disp}", 
-                                 disabled=not check_borrar, type="primary"):
-                        # Aquí debes incluir tu lógica de borrado de filas
-                        st.warning("Función de borrado no ejecutada (conecta tu lógica de GSheets)")
+                with c2:
+                    conf = st.checkbox("Confirmar borrado", key=f"ch_{f_disp}")
+                    if st.button(f"🗑️ Borrar", key=f"del_{f_disp}", disabled=not conf, type="primary"):
+                        # Aquí añadirías la llamada a tu función de borrar en el Sheets/CSV
+                        st.error("Función de borrado pendiente de conectar con la BD.")
 
-    if st.button("🔄 Refrescar"):
+    if st.button("🔄 Refrescar Pantalla"):
         st.rerun()
