@@ -552,71 +552,68 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
 elif st.session_state.menu_seleccionado == "Administración":
     st.title("⚙️ Administración de Partidas")
-    st.info("Desde aquí puedes ver un resumen de las jornadas y eliminar datos si es necesario.")
-
+    
     df = leer_datos()
 
-    if df.empty:
-        st.warning("No hay datos registrados en la base de datos.")
+    if df is None or df.empty:
+        st.warning("No hay datos registrados o no se pudo conectar con la base de datos.")
     else:
-        # 1. PREPARACIÓN DE DATOS
-        # Aseguramos que la columna fecha sea tratada correctamente
-        df['fecha_dt'] = pd.to_datetime(df['fecha'], dayfirst=True, errors='coerce')
+        # --- PASO 1: LIMPIEZA AGRESIVA DE FECHAS ---
+        # Convertimos la columna 'fecha' a string y quitamos horas si existen (el .split)
+        df['fecha_limpia'] = df['fecha'].astype(str).apply(lambda x: x.split(' ')[0].strip())
         
-        # Agrupamos por fecha (usando la fecha original como string para no perder el formato)
-        # pero ordenamos por la fecha real (dt)
-        partidos = df.sort_values(by='fecha_dt', ascending=False).groupby('fecha', sort=False)
-
-        st.subheader(f"Total jornadas encontradas: {len(partidos)}")
-
-        # 2. RENDERIZADO DE PARTIDOS
-        for fecha_str, datos_jornada in partidos:
-            # Limpiamos la fecha para que siempre salga dd/mm/aaaa
-            # Si viene como "2026-05-05 00:00:00", nos quedamos con los primeros 10 caracteres
-            fecha_limpia = str(fecha_str).split(" ")[0]
+        # Intentamos normalizar todas las fechas al mismo formato para agrupar
+        def normalizar_fecha(f):
             try:
-                # Intentamos darle formato dd/mm/aaaa
-                fecha_formateada = pd.to_datetime(fecha_limpia).strftime("%d/%m/%Y")
+                # Probamos a convertir cualquier cosa a fecha
+                return pd.to_datetime(f, dayfirst=True).strftime('%d/%m/%Y')
             except:
-                fecha_formateada = fecha_limpia
+                return f # Si falla, dejamos lo que había
 
-            # Contamos cuántos hoyos únicos se han jugado ese día
-            num_hoyos = len(datos_jornada['hoyo'].unique())
-            
-            # Calculamos puntos totales de la jornada para el título
-            puntos_e1 = 0
-            puntos_e2 = 0
-            for _, row in datos_jornada.iterrows():
-                try:
-                    p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
-                    p1, p2 = calcular_puntos_hoyo(int(row['s0']), int(row['s1']), int(row['s2']), int(row['s3']), p_h)
-                    puntos_e1 += p1
-                    puntos_e2 += p2
-                except:
-                    continue
+        df['fecha_display'] = df['fecha_limpia'].apply(normalizar_fecha)
 
-            # Creamos el desplegable (Expander)
-            with st.expander(f"📅 {fecha_formateada} — ({num_hoyos} hoyos jugados) — Resultado: {puntos_e1} vs {puntos_e2}"):
-                col1, col2 = st.columns([3, 1])
+        # --- PASO 2: AGRUPAR PARTIDOS ---
+        # Agrupamos por la fecha ya normalizada
+        partidos = df.groupby('fecha_display')
+
+        if len(partidos) == 0:
+            st.error("Se leyeron los datos pero no se pudieron agrupar por fecha.")
+        else:
+            st.subheader(f"Jornadas registradas: {len(partidos)}")
+
+            # Ordenamos las fechas de más reciente a más antigua
+            fechas_ordenadas = sorted(partidos.groups.keys(), 
+                                    key=lambda x: pd.to_datetime(x, format='%d/%m/%Y'), 
+                                    reverse=True)
+
+            for f_disp in fechas_ordenadas:
+                datos_jornada = partidos.get_group(f_disp)
                 
-                with col1:
-                    st.write("**Detalle de hoyos grabados:**")
-                    # Mostramos una tabla resumida de la jornada
-                    resumen_view = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values(by='hoyo')
-                    resumen_view.columns = ['Hoyo', 'Manu', 'Roge', 'Jose', 'Lalo']
-                    st.dataframe(resumen_view, hide_index=True, use_container_width=True)
+                # Conteo de hoyos
+                num_hoyos = len(datos_jornada['hoyo'].unique())
+                
+                # Cálculo de puntos acumulados para el título
+                p_e1, p_e2 = 0, 0
+                for _, row in datos_jornada.iterrows():
+                    try:
+                        p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
+                        res = calcular_puntos_hoyo(int(row['s0']), int(row['s1']), 
+                                                 int(row['s2']), int(row['s3']), p_h)
+                        p_e1 += res[0]
+                        p_e2 += res[1]
+                    except:
+                        continue
 
-                with col2:
-                    st.write("**Acciones:**")
-                    # Botón para borrar la jornada completa
-                    if st.button(f"🗑️ Borrar Jornada", key=f"del_{fecha_str}"):
-                        # Aquí llamarías a una función para borrar filas por fecha
-                        # eliminar_partido_por_fecha(fecha_str)
-                        st.error("Función de borrado no conectada por seguridad")
-                        
-                # Si quieres ver quién ganó cada hoyo en el administrador
-                st.caption("Puntos calculados según sistema Match Play + Bonus Birdie.")
+                # --- PASO 3: MOSTRAR EXPANDER ---
+                with st.expander(f"📅 {f_disp} — ({num_hoyos} hoyos) — Marcador: {p_e1} vs {p_e2}"):
+                    # Tabla de detalles
+                    view = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values('hoyo')
+                    view.columns = ['Hoyo', 'Manu', 'Roge', 'Jose', 'Lalo']
+                    st.dataframe(view, hide_index=True, use_container_width=True)
+                    
+                    # Botón de borrado (opcional)
+                    if st.button(f"Eliminar jornada {f_disp}", key=f"btn_{f_disp}"):
+                        st.warning("Para borrar necesitas una función específica que elimine filas en el Excel.")
 
-    # Botón para refrescar datos
-    if st.button("🔄 Actualizar Datos"):
+    if st.button("🔄 Refrescar"):
         st.rerun()
