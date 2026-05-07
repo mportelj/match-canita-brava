@@ -292,43 +292,50 @@ if st.session_state.menu_seleccionado == "Inicio":
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    # 1. ESTADO DE SESIÓN Y CARGA DE DATOS
+    # 1. ESTADO DE SESIÓN
     if 'hoyo_actual' not in st.session_state:
         st.session_state.hoyo_actual = 1
+    if 'fecha_partida' not in st.session_state:
+        st.session_state.fecha_partida = datetime.now()
     
     df = leer_datos()
     h_idx = st.session_state.hoyo_actual
     par_hoyo = PAR_RIA_VIGO.get(h_idx, 4)
     
-    # Variables de control
+    # Valores por defecto
     m_e1, m_e2 = 0, 0
     golpes = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo} 
     res_hoyo_a, res_hoyo_b = 0, 0
-    hoyo_ya_grabado = False  # <--- Control para el botón
+    hoyo_ya_grabado = False
 
-    # Filtrar datos de la jornada actual (usando fecha de hoy o la seleccionada)
-    fecha_hoy = datetime.now().strftime("%d/%m/%Y")
-    
-    if not df.empty:
-        # Normalizamos fechas para la comparación
-        df['fecha_dt'] = pd.to_datetime(df['fecha'], dayfirst=True, errors='coerce').dt.strftime('%d/%m/%Y')
-        df_jornada = df[df['fecha_dt'] == fecha_hoy]
+    # --- LÓGICA DE CARGA DE DATOS REALES ---
+    if df is not None and not df.empty:
+        # Convertimos la fecha de la sesión a string para comparar
+        fecha_busqueda = st.session_state.fecha_partida.strftime("%d/%m/%Y")
+        
+        # Limpieza de base de datos para asegurar comparación
+        df['fecha_tmp'] = pd.to_datetime(df['fecha'], dayfirst=True, errors='coerce').dt.strftime('%d/%m/%Y')
+        
+        # Filtramos por la fecha seleccionada
+        df_jornada = df[df['fecha_tmp'] == fecha_busqueda]
         
         if not df_jornada.empty:
-            # Marcador Match Play (Diferencia Neta)
+            # 1. Calculamos Marcador Match (Suma de resultados ya grabados)
             suma_a = pd.to_numeric(df_jornada['resultado_a'], errors='coerce').sum()
             suma_b = pd.to_numeric(df_jornada['resultado_b'], errors='coerce').sum()
             dif = suma_a - suma_b
             m_e1, m_e2 = (int(dif), 0) if dif > 0 else (0, int(abs(dif)))
 
-            # Buscar si el hoyo actual ya existe
+            # 2. Buscamos el hoyo actual en esta jornada
             h_data = df_jornada[df_jornada['hoyo'].astype(int) == h_idx]
             if not h_data.empty:
-                hoyo_ya_grabado = True  # <--- SE ACTIVA EL BLOQUEO
+                hoyo_ya_grabado = True
+                # CARGAMOS LOS GOLPES REALES DE LA HOJA
                 golpes[0] = int(h_data.iloc[0]['s0'])
                 golpes[1] = int(h_data.iloc[0]['s1'])
                 golpes[2] = int(h_data.iloc[0]['s2'])
                 golpes[3] = int(h_data.iloc[0]['s3'])
+                # CARGAMOS LOS RESULTADOS REALES DEL HOYO
                 res_hoyo_a = int(h_data.iloc[0]['resultado_a'])
                 res_hoyo_b = int(h_data.iloc[0]['resultado_b'])
 
@@ -364,38 +371,31 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     with st.container(border=True):
         st.subheader(f"Hoyo {h_idx} (Par {par_hoyo})")
         
+        # Indicador de resultado del hoyo actual
+        st.markdown(f"<div style='text-align:center; font-size:1.2em; font-weight:bold;'>Resultado Hoyo: {res_hoyo_a} — {res_hoyo_b}</div>", unsafe_allow_html=True)
+        
         if hoyo_ya_grabado:
-            st.warning(f"⚠️ Los datos del hoyo {h_idx} ya están grabados.")
-            # Mostramos el resultado del hoyo que ya está en la base de datos
-            st.write(f"Resultado grabado: **{res_hoyo_a} - {res_hoyo_b}**")
+            st.warning(f"✅ Hoyo {h_idx} ya registrado.")
         
         c1, c2 = st.columns(2)
         with c1:
             st.markdown("**Equipo A**")
-            g0 = st.number_input("MANU", 1, 15, value=golpes[0], key="man", disabled=hoyo_ya_grabado)
-            g1 = st.number_input("JOSE", 1, 15, value=golpes[1], key="jos", disabled=hoyo_ya_grabado)
+            g0 = st.number_input("MANU (s0)", 1, 15, value=golpes[0], key="man", disabled=hoyo_ya_grabado)
+            g1 = st.number_input("JOSE (s1)", 1, 15, value=golpes[1], key="jos", disabled=hoyo_ya_grabado)
         with c2:
             st.markdown("**Equipo B**")
-            g2 = st.number_input("ROGE", 1, 15, value=golpes[2], key="rog", disabled=hoyo_ya_grabado)
-            g3 = st.number_input("LALO", 1, 15, value=golpes[3], key="lal", disabled=hoyo_ya_grabado)
+            g2 = st.number_input("ROGE (s2)", 1, 15, value=golpes[2], key="rog", disabled=hoyo_ya_grabado)
+            g3 = st.number_input("LALO (s3)", 1, 15, value=golpes[3], key="lal", disabled=hoyo_ya_grabado)
 
-        # --- BOTÓN ACTUALIZAR (CON LÓGICA DE BLOQUEO) ---
-        if st.button("🔄 ACTUALIZAR HOYO", 
-                     use_container_width=True, 
-                     type="primary", 
-                     disabled=hoyo_ya_grabado): # <--- AQUÍ SE DESHABILITA
-            
+        # Botón deshabilitado si ya existe
+        if st.button("🔄 ACTUALIZAR HOYO", use_container_width=True, type="primary", disabled=hoyo_ya_grabado):
             pts_a, pts_b = calcular_puntos_hoyo(g0, g1, g2, g3, par_hoyo)
-            nueva_fila = [fecha_hoy, h_idx, g0, g1, g2, g3, pts_a, pts_b]
+            fecha_str = st.session_state.fecha_partida.strftime("%d/%m/%Y")
+            nueva_fila = [fecha_str, h_idx, g0, g1, g2, g3, pts_a, pts_b]
             actualizar_o_insertar_hoyo(nueva_fila)
-            st.success("Hoyo guardado con éxito.")
+            st.success("Guardado correctamente")
             time.sleep(1)
             st.rerun()
-
-    # Mensaje de ayuda si quieren editar
-    if hoyo_ya_grabado:
-        st.caption("ℹ️ Para modificar este hoyo, ve a la pestaña **Admin** y pulsa el botón Editar.")
-
 
 
 # ==========================================
