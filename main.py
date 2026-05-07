@@ -268,59 +268,59 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas MVP")
     df = leer_datos()
     
-    # Validamos que existan s0, s1, s2, s3 (tus campos reales)
-    columnas_golpes = [f's{i}' for i in range(4)]
+    # Lista de columnas de golpes según tu base de datos (s0 a s3)
+    cols_golpes = [f's{i}' for i in range(4)]
     
-    if not df.empty and all(c in df.columns for c in columnas_golpes):
+    if not df.empty and all(c in df.columns for c in cols_golpes):
         stats = []
         for i, jug in enumerate(TODOS):
-            # 1. Extraemos golpes del jugador i (columna s0, s1, s2 o s3)
-            col_s = f's{i}'
-            col_p_pts = f'p{i+1}_pts' # Ajusta a p{i}_pts si tus puntos también empiezan en 0
+            col_actual = f's{i}'
             
-            # 2. Limpieza profunda de datos
-            temp_df = df[[col_s, 'hoyo', col_p_pts]].copy()
-            temp_df[col_s] = pd.to_numeric(temp_df[col_s], errors='coerce')
-            temp_df = temp_df.dropna(subset=[col_s])
+            # 1. Creamos un DF temporal solo con los datos de este jugador
+            # Eliminamos filas donde los golpes no sean números o estén vacíos
+            d_j = df[['hoyo', col_actual]].copy()
+            d_j[col_actual] = pd.to_numeric(d_j[col_actual], errors='coerce')
+            d_j = d_j.dropna(subset=[col_actual])
             
-            # 3. Cálculo de diferencia vs PAR (Usando el nuevo Par 4 en el 18)
-            temp_df['par_hoyo'] = temp_df['hoyo'].map(PAR_RIA_VIGO)
-            temp_df['dif'] = temp_df[col_s] - temp_df['par_hoyo']
+            # 2. Calculamos la diferencia contra el Par (Asegurando que el Par 18 sea 4)
+            d_j['par_h'] = d_j['hoyo'].map(PAR_RIA_VIGO)
+            d_j['dif'] = d_j[col_actual] - d_j['par_h']
             
-            # 4. Conteos precisos
-            e_count = len(temp_df[temp_df['dif'] <= -2])
-            b_count = len(temp_df[temp_df['dif'] == -1])
-            p_count = len(temp_df[temp_df['dif'] == 0])
-            bg_count = len(temp_df[temp_df['dif'] == 1])
-            db_count = len(temp_df[temp_df['dif'] == 2])
-            tr_count = len(temp_df[temp_df['dif'] >= 3])
+            # 3. Conteos con filtros exactos
+            # Usamos .shape[0] para contar filas de forma precisa
+            eagles = d_j[d_j['dif'] <= -2].shape[0]
+            birdies = d_j[d_j['dif'] == -1].shape[0]
+            pares = d_j[d_j['dif'] == 0].shape[0]
+            bogeys = d_j[d_j['dif'] == 1].shape[0]
+            dobles = d_j[d_j['dif'] == 2].shape[0]
+            triples_mas = d_j[d_j['dif'] >= 3].shape[0]
+            
+            # Puntos MVP
+            col_p_pts = f'p{i+1}_pts'
+            pts_mvp = df[col_p_pts].sum() if col_p_pts in df.columns else 0
             
             stats.append({
                 "Jugador": jug,
-                "Eagle": e_count,
-                "Birdie": b_count,
-                "Par": p_count,
-                "Bogey": bg_count,
-                "D.Bogey": db_count,
-                "3+ Bogey": tr_count,
-                "Puntos MVP": temp_df[col_p_pts].sum()
+                "Eagle": eagles,
+                "Birdie": birdies,
+                "Par": pares,
+                "Bogey": bogeys,
+                "D.Bogey": dobles,
+                "3+ Bogey": triples_mas,
+                "Puntos MVP": pts_mvp
             })
         
         df_stats = pd.DataFrame(stats)
         
-        # --- VISUALIZACIÓN ---
+        # Mostrar tabla
         st.dataframe(df_stats.set_index("Jugador"), use_container_width=True)
         
-        st.write("### Comparativa por hoyos")
+        # Gráfico comparativo
+        st.write("### Comparativa de Hoyos")
         st.bar_chart(df_stats.set_index("Jugador")[["Eagle", "Birdie", "Par", "Bogey", "D.Bogey", "3+ Bogey"]])
         
-        # Resumen de equipos
-        c1, c2 = st.columns(2)
-        c1.metric(f"Total {EQUIPO_A_NOMBRES}", f"{df['resultado_a'].sum():g}")
-        c2.metric(f"Total {EQUIPO_B_NOMBRES}", f"{df['resultado_b'].sum():g}")
-        
     else:
-        st.warning("⚠️ No hay datos o las columnas s0-s3 no existen en el Excel.")
+        st.warning("No hay datos suficientes o las columnas s0-s3 no coinciden.")
 
 
 elif st.session_state.menu_seleccionado == "Admin":
