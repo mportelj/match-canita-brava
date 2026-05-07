@@ -231,18 +231,33 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- 4. ENTRADA DE GOLPES ---
+       # --- 4. ENTRADA DE GOLPES (CON VALIDACIÓN DE CAMBIOS) ---
+        st.write(f"**Introducir golpes - Par {par_h}**")
         rid = st.session_state.refresco_id
-        v_actual = [int(fila_hoyo.iloc[0][f's{i}']) if ya_existe else par_h for i in range(4)]
+        
+        # 1. Determinamos los valores de referencia (los que ya están en la nube o el Par)
+        v_referencia = [int(fila_hoyo.iloc[0][f's{i}']) if ya_existe else par_h for i in range(4)]
         
         col_j1, col_j2 = st.columns(2)
-        s1 = col_j1.number_input(TODOS[0], 1, 15, v_actual[0], key=f"s1_h{h}_r{rid}")
-        s2 = col_j1.number_input(TODOS[1], 1, 15, v_actual[1], key=f"s2_h{h}_r{rid}")
-        s3 = col_j2.number_input(TODOS[2], 1, 15, v_actual[2], key=f"s3_h{h}_r{rid}")
-        s4 = col_j2.number_input(TODOS[3], 1, 15, v_actual[3], key=f"s4_h{h}_r{rid}")
+        s1 = col_j1.number_input(TODOS[0], 1, 15, v_referencia[0], key=f"s1_h{h}_r{rid}")
+        s2 = col_j1.number_input(TODOS[1], 1, 15, v_referencia[1], key=f"s2_h{h}_r{rid}")
+        s3 = col_j2.number_input(TODOS[2], 1, 15, v_referencia[2], key=f"s3_h{h}_r{rid}")
+        s4 = col_j2.number_input(TODOS[3], 1, 15, v_referencia[3], key=f"s4_h{h}_r{rid}")
 
-        if st.button("💾 Actualizar Hoyo", type="primary", use_container_width=True):
+        # 2. Creamos una lista con los valores que el usuario tiene ahora mismo en pantalla
+        v_pantalla = [s1, s2, s3, s4]
+
+        # 3. Lógica del botón: se deshabilita si los valores de pantalla son IGUALES a los de referencia
+        hay_cambios = v_pantalla != v_referencia
+        
+        if st.button(
+            "💾 Guardar / Actualizar Hoyo", 
+            type="primary", 
+            use_container_width=True, 
+            disabled=not hay_cambios  # Se desactiva si NO hay cambios
+        ):
             ejecutar_guardado_automatico()
+            st.success(f"Hoyo {h} actualizado correctamente")
             st.rerun()
 
         # --- 5. MVP Y CIERRE ---
