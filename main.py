@@ -216,38 +216,33 @@ if st.session_state.menu_seleccionado == "Inicio":
         <div><h2 style="color:{COLOR_B};">{EQUIPO_B_NOMBRES}</h2><h1>{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
 
-            
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     st.title("🏌️ JUGAR / EDITAR PARTIDO")
 
-    # --- 1. INICIALIZAR ESTADO DEL HOYO ---
-    # Esto asegura que si no existe la variable, se cree una vez al principio
-    if "hoyo_actual_persistente" not in st.session_state:
-        st.session_state.hoyo_actual_persistente = 1
-
-    # --- 2. GESTIÓN DE SINCRONIZACIÓN ---
+    # --- 1. GESTIÓN DE SINCRONIZACIÓN ---
     if "ultima_sincro" not in st.session_state:
         st.session_state.ultima_sincro = "No sincronizado"
     
     col_info, col_btn = st.columns([3, 1])
     col_info.info(f"☁️ **Sincro:** {st.session_state.ultima_sincro}")
     
-    if col_btn.button("🔄 REFRESCAR NUBE", use_container_width=True):
+    if col_btn.button("🔄 REFRESCAR HOYO", use_container_width=True):
         st.cache_data.clear()
         st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
-        # Al hacer rerun, el widget leerá su valor de 'hoyo_actual_persistente'
+        # Al hacer rerun, Streamlit mantendrá el valor del widget gracias a la 'key'
         st.rerun()
 
     st.write("---")
 
-    # --- 3. SELECCIÓN DE HOYO CON MEMORIA ---
-    # La clave 'key' es la que mantiene el valor aunque la app se refresque
+    # --- 2. SELECCIÓN DE HOYO (EL CAMBIO CLAVE ESTÁ AQUÍ) ---
+    # Al añadir 'key="hoyo_actual"', Streamlit guarda el valor en session_state 
+    # y no lo borra aunque limpies la caché de datos.
     hoyo_sel = st.number_input(
         "Selecciona el hoyo:", 
         min_value=1, 
         max_value=18, 
         step=1, 
-        key="hoyo_actual_persistente" 
+        key="hoyo_actual" 
     )
     
     par_hoyo = int(PAR_RIA_VIGO[hoyo_sel])
@@ -257,13 +252,13 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     df_actual.columns = [str(c).strip().upper() for c in df_actual.columns]
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
     
-    # Filtrado de datos existentes para el hoyo seleccionado
+    # Buscamos datos existentes
     datos_existentes = pd.DataFrame()
     if 'FECHA' in df_actual.columns and 'HOYO' in df_actual.columns:
         df_actual['HOYO'] = pd.to_numeric(df_actual['HOYO'], errors='coerce')
         datos_existentes = df_actual[(df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_sel)]
 
-    # --- 4. ENTRADA DE GOLPES ---
+    # --- 3. ENTRADA DE GOLPES ---
     st.subheader(f"⛳ Hoyo {hoyo_sel} (Par {par_hoyo})")
     cols = st.columns(4)
     golpes_finales = []
@@ -281,13 +276,11 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                     except:
                         val_default = par_hoyo
             
-        # IMPORTANTE: El key de cada input de golpes debe ser distinto por hoyo
+        # IMPORTANTE: El key de los golpes debe incluir el hoyo para que cambien al moverte
         g = cols[i].number_input(f"{jug}", min_value=1, max_value=15, value=val_default, key=f"input_h{hoyo_sel}_j{i}")
         golpes_finales.append(g)
 
-    st.write("---")
-
-    # --- 5. GUARDADO ---
+    # --- 4. BOTÓN DE GUARDADO ---
     if st.button("💾 GUARDAR CAMBIOS Y SUBIR", type="primary", use_container_width=True):
         with st.spinner("Guardando..."):
             try:
@@ -318,7 +311,6 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 st.cache_data.clear() 
                 st.success(f"✅ Hoyo {hoyo_sel} guardado.")
                 st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
-                
             except Exception as e:
                 st.error(f"Error: {e}")
 
