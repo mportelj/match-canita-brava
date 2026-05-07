@@ -26,38 +26,41 @@ if "menu_seleccionado" not in st.session_state:
 
 def cambiar_menu():
     st.session_state.menu_seleccionado = st.session_state.radio_menu
+
 def actualizar_o_insertar_hoyo(datos):
     """
     datos: [fecha, hoyo, s0, s1, s2, s3]
-    Esta función busca si el hoyo existe para esa fecha y lo actualiza;
-    si no, añade una fila nueva.
     """
-    df = leer_datos() # Tu función que lee de Google Sheets
+    # 1. Leemos los datos actuales
+    df = leer_datos()
     
     fecha_nueva = str(datos[0])
-    hoyo_nuevo = str(datos[1])
+    hoyo_nuevo = int(datos[1])
     
-    # Si hay datos, buscamos si ya existe el registro
-    indice_fila = -1
-    if not df.empty:
-        df_busqueda = df[(df['fecha'].astype(str) == fecha_nueva) & 
-                         (df['hoyo'].astype(str) == hoyo_nuevo)]
-        
-        if not df_busqueda.empty:
-            # Obtenemos el índice real del DataFrame (Streamlit/Pandas)
-            # Sumamos 2 porque: Sheets empieza en 1 y tiene cabecera
-            indice_fila = df_busqueda.index[0] + 2 
+    # Creamos un nuevo DataFrame con la fila que queremos guardar
+    nueva_fila = pd.DataFrame([datos], columns=['fecha', 'hoyo', 's0', 's1', 's2', 's3'])
 
-    if indice_fila != -1:
-        # ACTUALIZAR: Ajustamos el rango a la fila encontrada
-        # Asumiendo que tus columnas son A (fecha), B (hoyo), C, D, E, F (scores)
-        rango = f"Hoja1!A{indice_fila}:F{indice_fila}"
-        conn.update(spreadsheet=st.secrets["gsheets"]["url"], range=rango, data=[datos])
+    if not df.empty:
+        # 2. Buscamos si ya existe el hoyo para esa fecha
+        # Aseguramos tipos para comparar bien
+        df['hoyo'] = pd.to_numeric(df['hoyo'], errors='coerce')
+        mask = (df['fecha'].astype(str) == fecha_nueva) & (df['hoyo'] == hoyo_nuevo)
+        
+        if mask.any():
+            # EDITAR: Si existe, actualizamos esa fila
+            df.loc[mask, ['s0', 's1', 's2', 's3']] = datos[2:]
+        else:
+            # AÑADIR: Si no existe, concatenamos la nueva fila
+            df = pd.concat([df, nueva_fila], ignore_index=True)
     else:
-        # INSERTAR: Añadimos fila nueva al final
-        conn.append(spreadsheet=st.secrets["gsheets"]["url"], range="Hoja1!A:F", data=[datos])
+        # Si el Excel está vacío, el nuevo DF es simplemente la nueva fila
+        df = nueva_fila
+
+    # 3. Subimos todo el DataFrame actualizado a Google Sheets
+    # Usamos clear=True para que no duplique datos si el rango cambia
+    conn.update(spreadsheet=st.secrets["gsheets"]["url"], data=df)
     
-    # Limpiamos caché para que la siguiente lectura vea los cambios
+    # Limpiamos caché para que la app lea los datos nuevos inmediatamente
     st.cache_data.clear()
 
 # --- 2. FUNCIONES DE DATOS ---
