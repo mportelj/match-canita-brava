@@ -267,7 +267,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
 
     # --- 4. GUARDADO ATÓMICO (Hoyo a Hoyo) ---
     if st.button("💾 GUARDAR CAMBIOS Y SUBIR", type="primary", use_container_width=True):
-        with st.spinner("Sincronizando hoyo con Google Sheets..."):
+        with st.spinner("Sincronizando con Google Sheets..."):
             
             st.cache_data.clear()
             df_actual = leer_datos()
@@ -276,43 +276,50 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             puntos_reales = calcular_puntos_jornada(par_hoyo, golpes_finales)
             fecha_hoy = datetime.now().strftime("%Y-%m-%d")
             
-            # --- MAPEO EXACTO A TUS COLUMNAS ---
-            nueva_fila = {
+            # --- ASIGNACIÓN MANUAL (Para asegurar que no falla ningún campo) ---
+            datos_hoyo = {
                 'FECHA': fecha_hoy,
                 'HOYO': int(hoyo_sel),
                 'PAR': int(par_hoyo),
-                'TEMPORADA': "2024", # Puedes hacerlo dinámico si quieres
-                'PARTIDO_ID': fecha_hoy.replace("-", ""), # ID genérico
-                # Los puntos van de P1 a P4
-                'P1_PTS': float(puntos_reales[0]),
-                'P2_PTS': float(puntos_reales[1]),
-                'P3_PTS': float(puntos_reales[2]),
-                'P4_PTS': float(puntos_reales[3]),
-                # Los golpes (S) van de 0 a 3
+                'TEMPORADA': "2024",
+                'PARTIDO_ID': fecha_hoy.replace("-", ""),
+                # Golpes de cada jugador (S0 a S3)
                 'S0': int(golpes_finales[0]),
                 'S1': int(golpes_finales[1]),
                 'S2': int(golpes_finales[2]),
-                'S3': int(golpes_finales[3])
+                'S3': int(golpes_finales[3]),
+                # Puntos de cada jugador (P1_PTS a P4_PTS)
+                'P1_PTS': float(puntos_reales[0]),
+                'P2_PTS': float(puntos_reales[1]),
+                'P3_PTS': float(puntos_reales[2]),
+                'P4_PTS': float(puntos_reales[3])
             }
 
-            # Lógica de actualización (evitar duplicados)
+            # 3. Lógica de Actualización
+            # Aseguramos que la columna HOYO en el DataFrame sea numérica para comparar bien
             df_actual['HOYO'] = pd.to_numeric(df_actual['HOYO'], errors='coerce')
+            
             mascara = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == int(hoyo_sel))
             
             if mascara.any():
                 idx = df_actual.index[mascara][0]
-                for col, val in nueva_fila.items():
+                for col, val in datos_hoyo.items():
                     if col in df_actual.columns:
                         df_actual.at[idx, col] = val
             else:
-                df_actual = pd.concat([df_actual, pd.DataFrame([nueva_fila])], ignore_index=True)
+                df_nueva_fila = pd.DataFrame([datos_hoyo])
+                df_actual = pd.concat([df_actual, df_nueva_fila], ignore_index=True)
             
-            # Subida
-            if actualizar_hoja_google(df_actual):
-                st.success(f"✅ Hoyo {hoyo_sel} guardado correctamente.")
+            # 4. SUBIDA DEFINITIVA
+            try:
+                # Importante: enviamos el DataFrame limpio
+                conn.update(data=df_actual)
+                st.success(f"✅ Hoyo {hoyo_sel} guardado. ¡Comprueba S0, S1, S2 y S3!")
                 st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
                 st.cache_data.clear()
                 st.balloons()
+            except Exception as e:
+                st.error(f"Error al subir a la nube: {e}")
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 ESTADÍSTICAS")
