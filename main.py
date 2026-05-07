@@ -269,96 +269,79 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     df_raw = leer_datos()
     
     if not df_raw.empty:
-        # 1. Selector de Jornada con contador de hoyos (Igual a la imagen)
-        jornadas_list = []
-        for fecha in df_raw['fecha'].unique():
-            n_hoyos = len(df_raw[df_raw['fecha'] == fecha]['hoyo'].unique())
-            jornadas_list.append(f"{fecha} ({n_hoyos} hoyos)")
+        # 1. Selector de Jornada
+        fechas_disponibles = sorted(df_raw['fecha'].unique().tolist(), reverse=True)
+        jornada_sel = st.selectbox("Seleccionar Jornada:", fechas_disponibles)
         
-        jornada_full = st.selectbox("Seleccionar Jornada:", jornadas_list[::-1])
-        jornada_fecha = jornada_full.split(" (")[0]
+        # Filtro estricto por fecha
+        df_j = df_raw[df_raw['fecha'] == jornada_sel].copy()
+        df_j['hoyo'] = pd.to_numeric(df_j['hoyo'], errors='coerce')
+        hoyos_jugados = len(df_j['hoyo'].unique())
         
-        # Filtramos estrictamente por la fecha elegida
-        df_j = df_raw[df_raw['fecha'] == jornada_fecha].copy()
-        hoyos_totales = len(df_j['hoyo'].unique())
-        
-        st.subheader(f"Resultados Jornada: {jornada_fecha}")
-
         stats_rows = []
+        detalles_audit = {} # Para la tabla de verificación inferior
+
         for i, jug in enumerate(TODOS):
-            col_s = f's{i}' # Columnas s0, s1, s2, s3
+            col_s = f's{i}'
+            df_j[col_s] = pd.to_numeric(df_j[col_s], errors='coerce')
             
-            # Limpieza: solo hoyos con golpes registrados > 0
-            d_player = df_j[['hoyo', col_s]].copy()
-            d_player[col_s] = pd.to_numeric(d_player[col_s], errors='coerce')
-            d_player = d_player[d_player[col_s] > 0].dropna()
+            # Filtramos solo los hoyos donde este jugador tiene golpes registrados
+            d_p = df_j[df_j[col_s] > 0].copy()
+            d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
+            d_p['dif'] = d_p[col_s] - d_p['par_h']
             
-            # Mapeo de Par (Hoyo 18 = 4)
-            d_player['par_h'] = d_player['hoyo'].map(PAR_RIA_VIGO)
-            d_player['dif'] = d_player[col_s] - d_player['par_h']
-            
-            # --- CÁLCULOS PRINCIPALES ---
-            # +/- (Suma de golpes vs Suma de pares)
-            plus_minus = int(d_player[col_s].sum() - d_player['par_h'].sum())
-            
-            # Scratch (Stableford Bruto)
-            # Regla: Birdie=3, Par=2, Bogey=1, Doble+=0
-            def calc_scratch(row):
-                d = row['dif']
-                if d <= -2: return 4  # Eagle
-                if d == -1: return 3  # Birdie
-                if d == 0:  return 2  # Par
-                if d == 1:  return 1  # Bogey
-                return 0              # D.Bogey o peor
-            
-            scratch_total = int(d_player.apply(calc_scratch, axis=1).sum())
+            # Guardamos para auditoría si hay Birds/Eagles
+            detalles_audit[jug] = d_p[d_p['dif'] < 0][['hoyo', col_s, 'par_h', 'dif']]
 
-            # --- CONTEO CATEGORÍAS ---
-            alb = 0 # No suele darse, pero para la tabla
-            eag = (d_player['dif'] <= -2).sum()
-            bir = (d_player['dif'] == -1).sum()
-            par = (d_player['dif'] == 0).sum()
-            bog = (d_player['dif'] == 1).sum()
-            dbg = (d_player['dif'] >= 2).sum()
+            # Cálculos Estilo Imagen
+            plus_minus = int(d_p[col_s].sum() - d_p['par_h'].sum())
+            
+            # Scratch (Stableford Bruto): Par=2, Birdie=3, Eagle=4, Bogey=1, D.Bogey+=0
+            def pts_scratch(d):
+                if d <= -2: return 4
+                if d == -1: return 3
+                if d == 0:  return 2
+                if d == 1:  return 1
+                return 0
+            scratch_total = sum(d_p['dif'].apply(pts_scratch))
 
-            # Función para formatear como en la imagen: Número y debajo %
-            def cell_fmt(val):
-                pct = (val / hoyos_totales * 100) if hoyos_totales > 0 else 0
+            # Conteos
+            e = (d_p['dif'] <= -2).sum()
+            b = (d_p['dif'] == -1).sum()
+            p = (d_p['dif'] == 0).sum()
+            bog = (d_p['dif'] == 1).sum()
+            db = (d_p['dif'] >= 2).sum()
+
+            def fmt_pct(val):
+                pct = (val / hoyos_jugados * 100) if hoyos_jugados > 0 else 0
                 return f"**{val}**<br><span style='color:gray; font-size:0.8em;'>{pct:.1f}%</span>"
 
             stats_rows.append({
                 "Jugador": jug,
-                "+/-": f"<span style='color:red; font-weight:bold;'>+{plus_minus}</span>" if plus_minus > 0 else (f"**{plus_minus}**" if plus_minus < 0 else "**E**"),
-                "Scratch": f"**{scratch_total}**",
-                "Albatros": cell_fmt(alb),
-                "Eagles": cell_fmt(eag),
-                "Birdies": cell_fmt(bir),
-                "Pares": cell_fmt(par),
-                "Bogey": cell_fmt(bog),
-                "D.Bogey+": cell_fmt(dbg)
+                "+/-": f"<span style='color:red;'>+{plus_minus}</span>" if plus_minus > 0 else (f"**{plus_minus}**" if plus_minus < 0 else "**E**"),
+                "Scratch": f"**{int(scratch_total)}**",
+                "Albatros": fmt_pct(0),
+                "Eagles": fmt_pct(e),
+                "Birdies": fmt_pct(b),
+                "Pares": fmt_pct(p),
+                "Bogey": fmt_pct(bog),
+                "D.Bogey+": fmt_pct(db)
             })
 
-        # --- RENDERIZADO TABLA HTML ---
+        # --- MOSTRAR TABLA PRINCIPAL ---
         df_final = pd.DataFrame(stats_rows)
-        
-        # Inyectamos CSS para que se parezca a la tabla de la imagen
-        st.markdown("""
-            <style>
-                table { width: 100%; border-collapse: collapse; text-align: center; }
-                th { background-color: #f8f9fa; color: #333; padding: 10px; border-bottom: 2px solid #dee2e6; }
-                td { padding: 12px; border-bottom: 1px solid #eee; vertical-align: middle; }
-                tr:hover { background-color: #f1f1f1; }
-            </style>
-        """, unsafe_allow_html=True)
-        
         st.write(df_final.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        st.write("")
-        if st.button("📊 Mostrar Acumulado Total", use_container_width=True):
-            st.info("Función para ver el resumen de toda la temporada.")
-            
+        # --- SECCIÓN DE AUDITORÍA (PARA VERIFICAR LOS 2 BIRDIES DE MANU) ---
+        with st.expander("🔍 Verificar aciertos por hoyo"):
+            for jug, data in detalles_audit.items():
+                if not data.empty:
+                    st.write(f"**Aciertos de {jug}:**")
+                    st.dataframe(data, hide_index=True)
+                else:
+                    st.write(f"{jug} no tiene Birdies/Eagles en esta jornada.")
     else:
-        st.warning("No hay datos cargados en el sistema.")
+        st.info("No hay datos todavía.")
 
 
 elif st.session_state.menu_seleccionado == "Admin":
