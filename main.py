@@ -248,9 +248,11 @@ if st.session_state.menu_seleccionado == "Inicio":
     
     # Lógica de puntos acumulados de la temporada
     pa_t, pb_t = 3.5, 3.5  # Ventaja histórica inicial
+    # CAMBIO AQUÍ: Convertimos sel_temp a string para que coincida con el DF
     if not df.empty:
-        df_t = df[df['temporada'] == int(sel_temp)]
+        df_t = df[df['temporada'].astype(str) == str(sel_temp)] # Forzamos string en ambos lados
         partidos = df_t.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
+       
         for _, r in partidos.iterrows():
             if r['resultado_a'] > r['resultado_b']: pa_t += 1
             elif r['resultado_b'] > r['resultado_a']: pb_t += 1
