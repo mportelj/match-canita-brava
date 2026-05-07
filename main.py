@@ -370,10 +370,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas y Clasificación")
     df_raw = leer_datos()
     
-    if not df_raw.empty:
+    if df_raw is not None and not df_raw.empty:
         # --- SELECTORES ---
         col1, col2 = st.columns(2)
         with col1:
+            # Aseguramos que las fechas se vean bien en el selector
+            df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], errors='coerce')
             fechas = sorted(df_raw['fecha'].unique().tolist(), reverse=True)
             jornada_sel = st.selectbox("Seleccionar Jornada:", fechas)
         with col2:
@@ -390,8 +392,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         df_stats['hoyo'] = pd.to_numeric(df_stats['hoyo'], errors='coerce')
         
         lista_resultados = []
+        # TODOS debe estar definido al inicio de tu main.py
         for i, jug in enumerate(TODOS):
             col_s = f's{i}'
+            if col_s not in df_stats.columns: continue
+            
             df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce')
             
             # Solo hoyos con golpes > 0
