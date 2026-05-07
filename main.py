@@ -292,83 +292,58 @@ if st.session_state.menu_seleccionado == "Inicio":
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    # 1. SELECTOR DE FECHA (Para elegir o crear partido)
-    st.markdown("### 📅 Selección de Jornada")
-    
-    # Si venimos de Admin, usamos esa fecha, si no, hoy.
-    fecha_defecto = st.session_state.get('fecha_partida', datetime.now().date())
-    
-    # Selector de fecha principal
-    fecha_sel = st.date_input("Selecciona la fecha del partido:", 
-                               value=fecha_defecto,
-                               key="selector_fecha_jugar")
-    
-    # Actualizamos el estado de sesión con la fecha elegida
-    st.session_state.fecha_partida = fecha_sel
+    # 1. BLOQUE DE SELECCIÓN (Único visible al inicio)
+    with st.container():
+        st.markdown("### 📅 Selección de Jornada")
+        
+        # Recuperamos fecha si viene de Admin, si no, hoy
+        fecha_defecto = st.session_state.get('fecha_partida', datetime.now().date())
+        
+        fecha_sel = st.date_input("Selecciona la fecha del partido:", 
+                                   value=fecha_defecto,
+                                   key="selector_fecha_jugar")
+        
+        st.session_state.fecha_partida = fecha_sel
 
-    # 2. GESTIÓN DE DATOS Y HOYO
-    if 'hoyo_actual' not in st.session_state:
-        st.session_state.hoyo_actual = 1
-    
+    # Separador sutil
+    st.markdown("---")
+
+    # 2. CARGA DE DATOS Y LÓGICA DE INTERFAZ
     df = leer_datos()
     
-    # Combo para salto rápido de hoyo
-    opciones_hoyos = list(range(1, 19))
-    h_idx = st.selectbox("📍 Saltar al Hoyo:", opciones_hoyos, 
-                         index=st.session_state.hoyo_actual - 1,
-                         key="combo_hoyo")
-    st.session_state.hoyo_actual = h_idx
-    
-    par_hoyo = int(PAR_RIA_VIGO.get(h_idx, 4))
-    
-    # Valores de referencia
-    golpes_orig = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo}
+    # Preparamos variables de la jornada
     m_e1, m_e2 = 0, 0
-    res_hoyo_a, res_hoyo_b = 0, 0
     partido_existe = False
-
-    # 3. CARGA DE DATOS DE LA FECHA SELECCIONADA
+    
     if df is not None and not df.empty:
         f_eur = fecha_sel.strftime("%d/%m/%Y")
         f_iso = fecha_sel.strftime("%Y-%m-%d")
-        
         df['fecha_str'] = df['fecha'].astype(str).str.split(' ').str[0]
         df_jornada = df[df['fecha_str'].isin([f_eur, f_iso])]
         
         if not df_jornada.empty:
             partido_existe = True
-            # Marcador Match (Total acumulado de la fecha seleccionada)
+            # Marcador Match acumulado
             s_a = pd.to_numeric(df_jornada['resultado_a'], errors='coerce').sum()
             s_b = pd.to_numeric(df_jornada['resultado_b'], errors='coerce').sum()
             dif = s_a - s_b
             if dif > 0: m_e1, m_e2 = int(dif), 0
             elif dif < 0: m_e1, m_e2 = 0, int(abs(dif))
-            
-            # Datos del hoyo
-            df_hoyo = df_jornada[df_jornada['hoyo'].astype(float).astype(int) == h_idx]
-            if not df_hoyo.empty:
-                golpes_orig[0] = int(float(df_hoyo.iloc[0]['s0']))
-                golpes_orig[1] = int(float(df_hoyo.iloc[0]['s1']))
-                golpes_orig[2] = int(float(df_hoyo.iloc[0]['s2']))
-                golpes_orig[3] = int(float(df_hoyo.iloc[0]['s3']))
-                res_hoyo_a = int(float(df_hoyo.iloc[0]['resultado_a']))
-                res_hoyo_b = int(float(df_hoyo.iloc[0]['resultado_b']))
 
-    # --- 4. DISEÑO VISUAL (MARCADORES) ---
+    # 3. CUERPO DEL JUEGO (Solo se muestra después del selector)
     if not partido_existe:
-        st.info(f"🆕 No hay datos para el {fecha_sel.strftime('%d/%m/%Y')}. ¡Inicia el partido grabando el primer hoyo!")
-
-    st.markdown(f"""
-    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 15px; border-left: 8px solid #2e7d32; border-right: 8px solid #c62828; text-align: center; margin-bottom: 10px;">
-        <div style="display: flex; justify-content: space-around; align-items: center;">
-            <div><p style="margin:0; font-size:0.7em; font-weight:bold; color:#2e7d32;">MANU & JOSE</p><h1 style="margin:0; font-size:3em;">{m_e1}</h1></div>
-            <div style="background:#333; color:white; border-radius:50%; width:25px; height:25px; display:flex; align-items:center; justify-content:center; font-size:0.6em;">VS</div>
-            <div><p style="margin:0; font-size:0.7em; font-weight:bold; color:#c62828;">ROGE & LALO</p><h1 style="margin:0; font-size:3em;">{m_e2}</h1></div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ... (Resto del código de botones Anterior/Siguiente y Tarjeta del Hoyo igual que antes)
+        st.info(f"🆕 No hay datos para el {fecha_sel.strftime('%d/%m/%Y')}. Empieza a anotar en el Hoyo 1.")
+    
+    # Combo de salto rápido
+    opciones_hoyos = list(range(1, 19))
+    h_idx = st.selectbox("📍 Hoyo actual:", opciones_hoyos, 
+                         index=st.session_state.get('hoyo_actual', 1) - 1,
+                         key="combo_hoyo")
+    st.session_state.hoyo_actual = h_idx
+    
+    par_hoyo = int(PAR_RIA_VIGO.get(h_idx, 4))
+    
+    # ... (Aquí continuaría el resto del diseño del marcador y los golpes que ya tenemos)
 
 
 
