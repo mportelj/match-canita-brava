@@ -410,15 +410,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             else:
                 subtitulo_match = "🤝 Empate (All Square)"
 
-        # --- CONSTRUCCIÓN DEL MENSAJE DE WHATSAPP ---
-        whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n"
-        whatsapp_text += f"📅 *Jornada: {f_formateada}*\n"
-        whatsapp_text += f"⛳ *Hoyos Jugados: {n_hoyos_info}*\n"
-        whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
-
+        # --- 1. PRIMERO: CALCULAMOS TODOS LOS DATOS (Sin construir el mensaje aún) ---
         lista_resultados = []
         
-        # Procesamos a cada jugador
         for i, jug in enumerate(TODOS):
             col_s = f's{i}'
             if col_s not in df_stats.columns: continue
@@ -440,36 +434,56 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             scratch_total = int(d_p['dif'].apply(calc_scratch).sum())
             n_h = len(d_p)
             pm = (n_h * 2) - scratch_total
-            pm_txt = f"+{pm}" if pm > 0 else (str(pm) if pm < 0 else "E")
 
-            e = int((d_p['dif'] <= -2).sum())
-            b = int((d_p['dif'] == -1).sum())
-            p = int((d_p['dif'] == 0).sum())
-            bog = int((d_p['dif'] == 1).sum())
-            db = int((d_p['dif'] == 2).sum())
-            tb = int((d_p['dif'] >= 3).sum())
-
-            # Añadir al texto de WhatsApp
-            whatsapp_text += f"👤 *{jug.upper()}*\n"
-            whatsapp_text += f"🏆 Resultado: *{pm_txt}* ({scratch_total} pts)\n"
-            whatsapp_text += f"🦅 Egl: {e} | 🐤 Bir: {b} | 🅿️ Par: {p}\n"
-            whatsapp_text += f"⚠️ Bog: {bog} | 💀 D.Bog: {db} | 💣 +T.Bog: {tb}\n"
-            whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
-            
             lista_resultados.append({
-                "Jugador": jug, "plus_minus": pm, "scratch": scratch_total,
-                "e": e, "b": b, "p": p, "bog": bog, "db": db, "tb": tb, "hoyos": n_h
+                "Jugador": jug, 
+                "plus_minus": pm, 
+                "scratch": scratch_total,
+                "e": int((d_p['dif'] <= -2).sum()), 
+                "b": int((d_p['dif'] == -1).sum()), 
+                "p": int((d_p['dif'] == 0).sum()), 
+                "bog": int((d_p['dif'] == 1).sum()), 
+                "db": int((d_p['dif'] == 2).sum()), 
+                "tb": int((d_p['dif'] >= 3).sum()), 
+                "hoyos": n_h
             })
 
-        # --- RENDERIZADO EN LA APP ---
-        # Ahora titulo_seccion SÍ existe
+        # --- 2. SEGUNDO: ORDENAMOS LA LISTA POR PUNTOS SCRATCH (De mayor a menor) ---
+        lista_resultados = sorted(lista_resultados, key=lambda x: x['scratch'], reverse=True)
+
+        # --- 3. TERCERO: CONSTRUIMOS EL MENSAJE DE WHATSAPP YA ORDENADO Y CON % ---
+        whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n"
+        whatsapp_text += f"📅 *Jornada: {f_formateada}*\n"
+        whatsapp_text += f"⛳ *Hoyos Jugados: {n_hoyos_info}*\n"
+        whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+
+        for res in lista_resultados:
+            pm_txt = f"+{res['plus_minus']}" if res['plus_minus'] > 0 else (str(res['plus_minus']) if res['plus_minus'] < 0 else "E")
+            h = res['hoyos']
+            
+            # Función interna para formatear el dato con su % para WhatsApp
+            def w_fmt(valor):
+                pct = (valor / h * 100) if h > 0 else 0
+                return f"{valor} ({pct:.0f}%)"
+
+            whatsapp_text += f"👤 *{res['Jugador'].upper()}*\n"
+            whatsapp_text += f"🏆 Resultado: *{pm_txt}* ({res['scratch']} pts)\n"
+            whatsapp_text += f"🦅 Egl: {w_fmt(res['e'])}\n"
+            whatsapp_text += f"🐤 Bir: {w_fmt(res['b'])}\n"
+            whatsapp_text += f"🅿️ Par: {w_fmt(res['p'])}\n"
+            whatsapp_text += f"⚠️ Bog: {w_fmt(res['bog'])}\n"
+            whatsapp_text += f"💀 D.Bog: {w_fmt(res['db'])}\n"
+            whatsapp_text += f"💣 +T.Bog: {w_fmt(res['tb'])}\n"
+            whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+
+
+        # --- 4. RENDERIZADO EN LA APP ---
         st.subheader(f"📈 {titulo_seccion} ({n_hoyos_info} hoyos)")
         
         if not ver_acumulado and subtitulo_match:
             st.markdown(f"**{subtitulo_match}**")
 
         if lista_resultados:
-            lista_resultados = sorted(lista_resultados, key=lambda x: x['scratch'], reverse=True)
             stats_rows = []
             for res in lista_resultados:
                 def fmt(v, total_h):
