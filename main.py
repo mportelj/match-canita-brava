@@ -262,20 +262,55 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 st.rerun()
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
-    st.title("📊 Estadísticas Temporada")
+    st.title("📊 Estadísticas MVP")
     df = leer_datos()
+    
     if not df.empty:
-        # Lógica de MVPs y Medias corregida para nombres en minúsculas
-        res = []
+        # Procesamos datos por jugador
+        stats = []
         for i, jug in enumerate(TODOS):
-            col_s = f's{i}'
-            t = df[df[col_s] > 0].copy()
-            t['dif'] = t[col_s] - t['hoyo'].map(PAR_RIA_VIGO)
-            tot = len(t)
-            def fmt(c): return f"{len(t[c])} ({len(t[c])/tot:.0%})" if tot>0 else "0"
-            res.append({"Jugador": jug, "Eag": fmt(t['dif']<=-2), "Bir": fmt(t['dif']==-1), "Par": fmt(t['dif']==0), "Bog": fmt(t['dif']==1), "Dbg": fmt(t['dif']==2)})
-        st.dataframe(pd.DataFrame(res).set_index("Jugador"), use_container_width=True)
-
+            d_j = df[[f's{i+1}', 'hoyo']].copy()
+            d_j.columns = ['golpes', 'hoyo']
+            
+            # Mapeamos el par de cada hoyo para comparar
+            d_j['par'] = d_j['hoyo'].map(PAR_RIA_VIGO)
+            d_j['dif'] = d_j['golpes'] - d_j['par']
+            
+            # Conteos
+            eagles = len(d_j[d_j['dif'] <= -2])
+            birdies = len(d_j[d_j['dif'] == -1])
+            pares = len(d_j[d_j['dif'] == 0])
+            bogeys = len(d_j[d_j['dif'] == 1])
+            double = len(d_j[d_j['dif'] == 2])
+            triple_mas = len(d_j[d_j['dif'] >= 3]) # <--- Nueva categoría
+            
+            stats.append({
+                "Jugador": jug,
+                "Eagle": eagles,
+                "Birdie": birdies,
+                "Par": pares,
+                "Bogey": bogeys,
+                "D.Bogey": double,
+                "3+ Bogey": triple_mas,
+                "Puntos MVP": df[f'p{i+1}_pts'].sum()
+            })
+        
+        df_stats = pd.DataFrame(stats)
+        
+        # Mostrar tabla principal
+        st.dataframe(df_stats.set_index("Jugador"), use_container_width=True)
+        
+        # Gráfico comparativo
+        st.write("### Comparativa de Hoyos")
+        st.bar_chart(df_stats.set_index("Jugador")[["Eagle", "Birdie", "Par", "Bogey", "D.Bogey", "3+ Bogey"]])
+        
+        # Rendimiento MVP Total
+        total_a = df['resultado_a'].sum()
+        total_b = df['resultado_b'].sum()
+        st.metric("Puntos Totales Equipo A", f"{total_a:g}")
+        st.metric("Puntos Totales Equipo B", f"{total_b:g}")
+    else:
+        st.info("No hay datos suficientes para mostrar estadísticas.")
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Administración")
     df = leer_datos()
