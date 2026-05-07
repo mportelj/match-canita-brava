@@ -217,29 +217,25 @@ elif st.session_state.menu_seleccionado == "Admin":
     df = leer_datos()
     
     if not df.empty:
-        # Filtrar IDs válidos y eliminar nulos
+        # Filtrar IDs válidos
         ids_unicos = [pid for pid in df['partido_id'].unique() if pid and str(pid).strip() != ""]
         
         for p_id in ids_unicos[::-1]:
-            # Datos de este partido específico
             dp = df[df['partido_id'] == p_id].sort_values('hoyo')
             
-            # Si el partido existe pero no tiene filas, lo saltamos para evitar errores
             if dp.empty:
                 continue
                 
             fecha_p = str(dp['fecha'].iloc[0])
-            num_hoyos = len(dp) # Contamos cuántos hoyos hay guardados
+            num_hoyos = len(dp)
             
-            # Formateamos el título para que salga: DD/MM/YYYY (X hoyos)
-            titulo_expander = f"📅 {fecha_p} — ({num_hoyos} hoyos jugados) — ID: {p_id}"
+            # Título limpio
+            titulo_expander = f"📅 {fecha_p} — ({num_hoyos} hoyos jugados)"
             
             with st.expander(titulo_expander):
-                st.info(f"Resumen: {num_hoyos} hoyos registrados en este partido.")
-                
                 c1, c2, c3 = st.columns([1, 1, 2])
                 
-                # BOTÓN EDITAR
+                # --- BOTÓN EDITAR ---
                 if c1.button("✏️ Editar", key=f"edit_{p_id}", use_container_width=True):
                     st.session_state.game = {
                         'fecha': fecha_p, 
@@ -250,19 +246,21 @@ elif st.session_state.menu_seleccionado == "Admin":
                     st.session_state.menu_seleccionado = "Jugar/Editar"
                     st.rerun()
                 
-                # BOTÓN BORRAR
+                # --- BOTÓN BORRAR CON CONFIRMACIÓN ---
                 with c2:
-                    if st.button("🗑️ Borrar", key=f"del_{p_id}", type="primary", use_container_width=True):
-                        df_new = df[df['partido_id'] != p_id]
-                        conn.update(worksheet="historial", data=df_new)
-                        st.cache_data.clear()
-                        st.success("Partido eliminado.")
-                        st.rerun()
+                    # El popover actúa como el primer paso de seguridad
+                    with st.popover("🗑️ Borrar", use_container_width=True):
+                        st.warning("¿Estás seguro?")
+                        if st.button("Sí, eliminar", key=f"conf_del_{p_id}", type="primary", use_container_width=True):
+                            # Lógica de borrado
+                            df_new = df[df['partido_id'] != p_id]
+                            conn.update(worksheet="historial", data=df_new)
+                            st.cache_data.clear()
+                            st.success("Partido eliminado.")
+                            st.rerun()
                 
-                # BOTÓN WHATSAPP (Opcional, reutilizando tu lógica)
                 with c3:
-                    # Aquí podrías poner el link_button de WhatsApp que tenías antes
-                    st.write("Selecciona una acción")
+                    st.write("") 
 
     else:
         st.info("No hay datos en el historial.")
