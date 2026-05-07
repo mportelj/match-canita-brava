@@ -372,44 +372,37 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     if df_raw is not None and not df_raw.empty:
         # --- PREPARACIÓN DE FECHAS ---
         df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], errors='coerce')
-        df_raw['fecha_display'] = df_raw['fecha_dt'].dt.strftime('%d/%m/%Y')
         fechas_unicas = df_raw.sort_values('fecha_dt', ascending=False)['fecha'].unique().tolist()
         opciones_combo = {f: pd.to_datetime(f).strftime('%d/%m/%Y') for f in fechas_unicas}
 
         col1, col2 = st.columns(2)
         with col1:
-            jornada_sel_raw = st.selectbox(
-                "Seleccionar Jornada:", 
-                options=fechas_unicas,
-                format_func=lambda x: opciones_combo[x]
-            )
+            jornada_sel_raw = st.selectbox("Seleccionar Jornada:", options=fechas_unicas, format_func=lambda x: opciones_combo[x])
         with col2:
             ver_acumulado = st.toggle("📂 Ver Acumulado de la Temporada", value=False)
 
-      # --- FILTRADO Y CÁLCULO DE MARCADORES (DÍA vs ACUMULADO) ---
-        # 1. Calculamos el acumulado de TODA la historia primero
+        # --- CÁLCULO DE MARCADORES (DÍA Y GLOBAL) ---
         puntos_a_total = pd.to_numeric(df_raw['resultado_a'], errors='coerce').sum()
         puntos_b_total = pd.to_numeric(df_raw['resultado_b'], errors='coerce').sum()
         dif_total = int(puntos_a_total - puntos_b_total)
         
         if dif_total > 0:
-            marcador_acumulado = f"🏆 MANU & JOSE ganan {dif_total} UP (Global)"
+            marcador_global = f"🏆 MANU & JOSE ganan {dif_total} UP (Global)"
         elif dif_total < 0:
-            marcador_acumulado = f"🏆 ROGE & LALO ganan {abs(dif_total)} UP (Global)"
+            marcador_global = f"🏆 ROGE & LALO ganan {abs(dif_total)} UP (Global)"
         else:
-            marcador_acumulado = "🤝 EMPATE GLOBAL (All Square)"
+            marcador_global = "🤝 EMPATE GLOBAL (All Square)"
 
         if ver_acumulado:
             df_stats = df_raw.copy()
             f_formateada = "Temporada Completa"
             titulo_seccion = "Acumulado Temporada"
-            res_match_dia = marcador_acumulado # En modo acumulado, el del día es el global
+            res_match_dia = "" # No mostramos marcador de día en acumulado
         else:
             df_stats = df_raw[df_raw['fecha'] == jornada_sel_raw].copy()
             f_formateada = opciones_combo[jornada_sel_raw]
             titulo_seccion = f"Jornada: {f_formateada}"
             
-            # Cálculo del Match del día
             puntos_a_dia = pd.to_numeric(df_stats['resultado_a'], errors='coerce').sum()
             puntos_b_dia = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
             dif_dia = int(puntos_a_dia - puntos_b_dia)
@@ -421,13 +414,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             else:
                 res_match_dia = "Empate (AS)"
 
-        # --- 1. PRIMERO: CALCULAMOS TODOS LOS DATOS (Sin construir el mensaje aún) ---
+        # --- CÁLCULOS ESTADÍSTICOS ---
+        n_hoyos_info = len(df_stats['hoyo'].unique())
         lista_resultados = []
         
         for i, jug in enumerate(TODOS):
             col_s = f's{i}'
             if col_s not in df_stats.columns: continue
-            
             df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
             d_p = df_stats[df_stats[col_s] > 0][['hoyo', col_s]].copy()
             if d_p.empty: continue
@@ -447,55 +440,41 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             pm = (n_h * 2) - scratch_total
 
             lista_resultados.append({
-                "Jugador": jug, 
-                "plus_minus": pm, 
-                "scratch": scratch_total,
-                "e": int((d_p['dif'] <= -2).sum()), 
-                "b": int((d_p['dif'] == -1).sum()), 
-                "p": int((d_p['dif'] == 0).sum()), 
-                "bog": int((d_p['dif'] == 1).sum()), 
-                "db": int((d_p['dif'] == 2).sum()), 
-                "tb": int((d_p['dif'] >= 3).sum()), 
-                "hoyos": n_h
+                "Jugador": jug, "plus_minus": pm, "scratch": scratch_total,
+                "e": int((d_p['dif'] <= -2).sum()), "b": int((d_p['dif'] == -1).sum()), 
+                "p": int((d_p['dif'] == 0).sum()), "bog": int((d_p['dif'] == 1).sum()), 
+                "db": int((d_p['dif'] == 2).sum()), "tb": int((d_p['dif'] >= 3).sum()), "hoyos": n_h
             })
 
-        # --- 2. SEGUNDO: ORDENAMOS LA LISTA POR PUNTOS SCRATCH (De mayor a menor) ---
+        # ORDENAR POR SCRATCH
         lista_resultados = sorted(lista_resultados, key=lambda x: x['scratch'], reverse=True)
 
-       # --- CONSTRUCCIÓN DEL MENSAJE DE WHATSAPP ---
-        n_hoyos_info = len(df_stats['hoyo'].unique())
-        
+        # --- CONSTRUCCIÓN MENSAJE WHATSAPP ---
         whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n"
         whatsapp_text += f"📅 *Jornada: {f_formateada}* ({n_hoyos_info} hoyos)\n"
-        whatsapp_text += f"⛳ Marcador hoy: *{res_match_dia}*\n"
-        whatsapp_text += f"✨ *{marcador_acumulado.upper()}* ✨\n" # Resaltado
+        if not ver_acumulado:
+            whatsapp_text += f"⛳ Marcador hoy: *{res_match_dia}*\n"
+        whatsapp_text += f"✨ *{marcador_global.upper()}* ✨\n"
         whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
-        
+
         for res in lista_resultados:
             pm_txt = f"+{res['plus_minus']}" if res['plus_minus'] > 0 else (str(res['plus_minus']) if res['plus_minus'] < 0 else "E")
             h = res['hoyos']
-            
-            # Función interna para formatear el dato con su % para WhatsApp
-            def w_fmt(valor):
-                pct = (valor / h * 100) if h > 0 else 0
-                return f"{valor} ({pct:.0f}%)"
+            def w_fmt(v):
+                pct = (v / h * 100) if h > 0 else 0
+                return f"{v} ({pct:.0f}%)"
 
             whatsapp_text += f"👤 *{res['Jugador'].upper()}*\n"
             whatsapp_text += f"🏆 Resultado: *{pm_txt}* ({res['scratch']} pts)\n"
-            whatsapp_text += f"🦅 Egl: {w_fmt(res['e'])}\n"
-            whatsapp_text += f"🐤 Bir: {w_fmt(res['b'])}\n"
-            whatsapp_text += f"🅿️ Par: {w_fmt(res['p'])}\n"
-            whatsapp_text += f"⚠️ Bog: {w_fmt(res['bog'])}\n"
-            whatsapp_text += f"💀 D.Bog: {w_fmt(res['db'])}\n"
-            whatsapp_text += f"💣 +T.Bog: {w_fmt(res['tb'])}\n"
+            whatsapp_text += f"🦅 Egl: {w_fmt(res['e'])}\n🐤 Bir: {w_fmt(res['b'])}\n🅿️ Par: {w_fmt(res['p'])}\n"
+            whatsapp_text += f"⚠️ Bog: {w_fmt(res['bog'])}\n💀 D.Bog: {w_fmt(res['db'])}\n💣 +T.Bog: {w_fmt(res['tb'])}\n"
             whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
 
-
-        # --- 4. RENDERIZADO EN LA APP ---
+        # --- MOSTRAR EN APP ---
         st.subheader(f"📈 {titulo_seccion} ({n_hoyos_info} hoyos)")
-        
-        if not ver_acumulado and subtitulo_match:
-            st.markdown(f"**{subtitulo_match}**")
+        if not ver_acumulado and res_match_dia:
+            st.markdown(f"**Resultado Match: {res_match_dia}**")
+        st.markdown(f"*{marcador_global}*")
 
         if lista_resultados:
             stats_rows = []
@@ -503,7 +482,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 def fmt(v, total_h):
                     pct = (v / total_h * 100) if total_h > 0 else 0
                     return f"<b>{v}</b><br><span style='color:gray; font-size:0.8em;'>{pct:.1f}%</span>"
-
                 stats_rows.append({
                     "Jugador": res['Jugador'],
                     "+/-": f"<b style='color:red;'>+{res['plus_minus']}</b>" if res['plus_minus'] > 0 else (f"<b>{res['plus_minus']}</b>" if res['plus_minus'] < 0 else "<b>E</b>"),
@@ -512,13 +490,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     "Par": fmt(res['p'], res['hoyos']), "Bogey": fmt(res['bog'], res['hoyos']), 
                     "D.Bogey": fmt(res['db'], res['hoyos']), "3+ Bogey": fmt(res['tb'], res['hoyos'])
                 })
-
             st.markdown("<style>table {width:100%; text-align:center;} th {background:#f8f9fa;} td {padding:8px; border-bottom:1px solid #eee;}</style>", unsafe_allow_html=True)
             st.write(pd.DataFrame(stats_rows).to_html(escape=False, index=False), unsafe_allow_html=True)
 
             import urllib.parse
             st.write("")
-            st.link_button("📲 Enviar por WhatsApp", f"https://wa.me/?text={urllib.parse.quote(whatsapp_text)}", use_container_width=True)
+            st.link_button("📲 Enviar Clasificación por WhatsApp", f"https://wa.me/?text={urllib.parse.quote(whatsapp_text)}", use_container_width=True)
     else:
         st.info("No hay datos cargados.")
 # ==========================================
