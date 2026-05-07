@@ -292,11 +292,20 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         st.session_state.hoyo_actual = 1
 
     # Selector de fecha con formato corregido dd/mm/aaaa
-    fecha_input = st.date_input(
-        "Fecha de la partida:", 
-        value=datetime.now(),
-        format="DD/MM/YYYY"  # Esto corrige la visualización
-    )
+    # 1. Inicializar la fecha en el estado si no existe
+if 'fecha_partida' not in st.session_state:
+    st.session_state.fecha_partida = datetime.now()
+
+# 2. Selector de fecha vinculado al estado
+fecha_input = st.date_input(
+    "Fecha de la partida:", 
+    value=st.session_state.fecha_partida,
+    format="DD/MM/YYYY"
+)
+
+# 3. Actualizar el estado y crear el string de búsqueda
+st.session_state.fecha_partida = fecha_input
+fecha_str = fecha_input.strftime("%d/%m/%Y")
     
     if 'hoyo_guardado' not in st.session_state:
         st.session_state.hoyo_guardado = False
