@@ -154,7 +154,7 @@ if st.session_state.menu_seleccionado == "Inicio":
 # ==========================================
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
 # ==========================================
-elif st.session_state.menu_seleccionado == "Jugar Hoyo":
+elif st.session_state.menu_seleccionado == "Jugar/Editar":
     st.title("⛳ Jugar / Editar Hoyo")
     
     # 1. SELECTOR DE FECHA (Para permitir edición de cualquier día)
