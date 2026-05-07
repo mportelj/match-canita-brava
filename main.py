@@ -215,18 +215,35 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Administración")
     df = leer_datos()
+    
     if not df.empty:
-        for p_id in df['partido_id'].unique()[::-1]:
+        # Obtenemos los IDs únicos y los recorremos
+        ids_unicos = [pid for pid in df['partido_id'].unique() if pid and str(pid).strip() != ""]
+        
+        for p_id in ids_unicos[::-1]:
             dp = df[df['partido_id'] == p_id].sort_values('hoyo')
-            fecha_p = dp['fecha'].iloc[0]
+            
+            # --- CORRECCIÓN CRÍTICA AQUÍ ---
+            if dp.empty:
+                continue # Si el partido no tiene filas, saltamos al siguiente
+                
+            # Ahora es seguro usar iloc[0]
+            fecha_p = str(dp['fecha'].iloc[0])
+            temp_p = int(dp['temporada'].iloc[0]) if 'temporada' in dp.columns else 2026
+            
             with st.expander(f"📅 {fecha_p} (ID: {p_id})"):
                 c1, c2 = st.columns(2)
+                
                 if c1.button("✏️ Editar", key=f"edit_{p_id}"):
                     st.session_state.game = {'fecha': fecha_p, 'h_sel': 1, 'logs': {}, 'id': str(p_id)}
                     st.session_state.menu_seleccionado = "Jugar/Editar"
                     st.rerun()
-                if c2.button("🗑️ Borrar", key=f"del_{p_id}", type="primary"):
+                
+                if c2.button("🗑️ Borrar Partido", key=f"del_{p_id}", type="primary"):
                     df_new = df[df['partido_id'] != p_id]
                     conn.update(worksheet="historial", data=df_new)
                     st.cache_data.clear()
+                    st.success(f"Partido {p_id} eliminado")
                     st.rerun()
+    else:
+        st.info("No hay partidos registrados en el historial.")
