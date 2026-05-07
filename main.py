@@ -556,7 +556,7 @@ elif st.session_state.menu_seleccionado == "Admin":
     df = leer_datos()
 
     if df is None or df.empty:
-        st.warning("No hay datos registrados.")
+        st.warning("No hay datos registrados en la base de datos.")
     else:
         # 1. NORMALIZACIÓN DE FECHAS
         df['fecha_str'] = df['fecha'].astype(str).apply(lambda x: x.split(' ')[0].strip())
@@ -574,65 +574,63 @@ elif st.session_state.menu_seleccionado == "Admin":
             datos_jornada = partidos.get_group(f_disp)
             num_hoyos = len(datos_jornada['hoyo'].unique())
             
-            # --- CÁLCULO SEGÚN TU LÓGICA (SUMA DE RESULTADOS Y RESTA) ---
-            total_res_a = 0
-            total_res_b = 0
+            # --- CÁLCULO NETO DE LA JORNADA (Lógica 10 - 0) ---
+            total_puntos_a = 0 # Manu & Jose
+            total_puntos_b = 0 # Roge & Lalo
             
             for _, row in datos_jornada.iterrows():
                 try:
                     p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
-                    # Obtenemos los puntos de ese hoyo específico
-                    pts_h_a, pts_h_b = calcular_puntos_hoyo(
+                    pts_a, pts_b = calcular_puntos_hoyo(
                         int(row['s0']), int(row['s1']), 
                         int(row['s2']), int(row['s3']), p_h
                     )
-                    total_res_a += pts_h_a
-                    total_res_b += pts_h_b
+                    total_puntos_a += pts_a
+                    total_puntos_b += pts_b
                 except:
                     continue
 
-            # Cálculo de la diferencia neta
-            diferencia = total_res_a - total_res_b
+            # Cálculo de la diferencia neta según tu regla
+            diferencia = total_puntos_a - total_puntos_b
             
             if diferencia > 0:
-                # Gana Equipo A: Manu & Jose tiene la diferencia, Roge & Lalo 0
                 match_a, match_b = diferencia, 0
-                txt_resultado = f"MANU & JOSE UP {diferencia}"
+                status_txt = f"MANU & JOSE: {match_a} vs ROGE & LALO: 0"
             elif diferencia < 0:
-                # Gana Equipo B: Manu & Jose 0, Roge & Lalo tienen el valor absoluto
                 match_a, match_b = 0, abs(diferencia)
-                txt_resultado = f"ROGE & LALO UP {abs(diferencia)}"
+                status_txt = f"MANU & JOSE: 0 vs ROGE & LALO: {match_b}"
             else:
-                # Empate
                 match_a, match_b = 0, 0
-                txt_resultado = "ALL SQUARE (Empate)"
+                status_txt = "EMPATE (All Square)"
 
-            # --- RENDERIZADO ---
-            # Título del expander con el formato solicitado
-            titulo = f"📅 {f_disp} — {num_hoyos} Hoyos — [ {match_a} - {match_b} ]"
+            # --- RENDERIZADO DEL PANEL ---
+            titulo_expander = f"📅 {f_disp} — {num_hoyos} Hoyos — [ {status_txt} ]"
             
-            with st.expander(titulo):
-                st.subheader(txt_resultado)
-                st.write(f"**MANU & JOSE:** {match_a}  |  **ROGE & LALO:** {match_b}")
+            with st.expander(titulo_expander):
+                st.info(f"**Resultado Final:** {status_txt}")
                 
-                # Tabla de datos detallada
+                # Tabla de golpes detallada
                 tabla = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values('hoyo')
                 tabla.columns = ['Hoyo', 'MANU', 'ROGE', 'JOSE', 'LALO']
                 st.dataframe(tabla, hide_index=True, use_container_width=True)
 
-                # --- BOTONES DE ACCIÓN ---
-                c1, c2 = st.columns(2)
-                with c1:
-                    if st.button(f"✏️ Editar", key=f"ed_{f_disp}"):
+                # --- BOTONES DE ACCIÓN (EDITAR Y BORRAR CON CONFIRMACIÓN) ---
+                col_edit, col_del = st.columns(2)
+                
+                with col_edit:
+                    if st.button(f"✏️ Editar Jornada", key=f"ed_{f_disp}"):
+                        # Cargamos la fecha en el estado y redirigimos
                         st.session_state.fecha_partida = pd.to_datetime(f_disp, dayfirst=True)
                         st.session_state.menu_seleccionado = "Jugar/Editar"
                         st.rerun()
                 
-                with c2:
-                    confirmar = st.checkbox("Confirmar borrar", key=f"ch_{f_disp}")
-                    if st.button(f"🗑️ Borrar", key=f"del_{f_disp}", disabled=not confirmar, type="primary"):
-                        # Aquí iría la lógica de borrar filas en el CSV/GSheets
-                        st.warning("Borrado no implementado en la base de datos")
+                with col_del:
+                    # Sistema de confirmación para borrar
+                    check_borrar = st.checkbox("Confirmar eliminación", key=f"check_{f_disp}")
+                    if st.button(f"🗑️ Borrar Datos", key=f"btn_del_{f_disp}", 
+                                 disabled=not check_borrar, type="primary"):
+                        # Aquí debes llamar a tu función de borrar filas por fecha
+                        st.warning("Implementa aquí la función para borrar en el Excel")
 
     if st.button("🔄 Refrescar"):
         st.rerun()
