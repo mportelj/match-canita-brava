@@ -300,22 +300,24 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     fecha_str = fecha_input.strftime("%d/%m/%Y")
     
    # Diseño Marcador Superior CORREGIDO
-   # Diseño Marcador Superior (Usando .format para evitar errores de llaves)
-    html_marcador = """
+  # Diseño Marcador Superior - Versión Blindada
+    # Usamos {{ }} para el CSS y { } para las variables de Python
+    st.markdown(f"""
     <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border: 2px solid #2e7d32; text-align: center;">
         <div style="display: flex; justify-content: space-around; align-items: center;">
-            <div>
-                <p style="margin:0; font-weight:bold;">MANU & JOSE</p>
-                <h1 style="margin:0;">{val_e1}</h1>
+            <div style="flex: 1;">
+                <p style="margin: 0; font-weight: bold; color: #333;">MANU & JOSE</p>
+                <h1 style="margin: 0; font-size: 3em; color: #2e7d32;">{m_e1}</h1>
             </div>
-            <div style="background-color: #555; color: white; padding: 2px 10px; border-radius: 20px;">VS</div>
-            <div>
-                <p style="margin:0; font-weight:bold;">ROGE & LALO</p>
-                <h1 style="margin:0;">{val_e2}</h1>
+            <div style="background-color: #555; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold;">VS</div>
+            <div style="flex: 1;">
+                <p style="margin: 0; font-weight: bold; color: #333;">ROGE & LALO</p>
+                <h1 style="margin: 0; font-size: 3em; color: #1976d2;">{m_e2}</h1>
             </div>
         </div>
     </div>
-    """
+    """, unsafe_allow_html=True)
+    
     # Aquí inyectamos las variables m_e1 y m_e2 de forma segura
     st.markdown(html_marcador.format(val_e1=m_e1, val_e2=m_e2), unsafe_allow_html=True)
 
