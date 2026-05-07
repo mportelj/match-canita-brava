@@ -5,14 +5,14 @@ from datetime import datetime
 import urllib.parse
 
 # Conexión global para evitar NameError
-conn = st.connection("gsheets", type=GSheetsConnection)
+conn = st.connection("golf_datos", type=GSheetsConnection)
 
 # Esto te mostrará en la app si Streamlit está viendo tus secretos
-if "gsheets" in st.secrets:
-    st.write("✅ Sección [gsheets] encontrada en Secrets")
-    st.write(f"Email del service account: {st.secrets['gsheets']['client_email']}")
+if "golf_datos" in st.secrets:
+    st.write("✅ Sección [golf_datos] encontrada en Secrets")
+    st.write(f"Email del service account: {st.secrets['golf_datos']['client_email']}")
 else:
-    st.error("❌ No se encontró la sección [gsheets] en los Secrets")
+    st.error("❌ No se encontró la sección [golf_datos] en los Secrets")
 
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
