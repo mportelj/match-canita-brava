@@ -292,50 +292,86 @@ if st.session_state.menu_seleccionado == "Inicio":
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    # 1. TÍTULO Y SELECTOR DE FECHA (Lo único visible inicialmente)
-    st.markdown("### 📅 Selección de Jornada")
-    
-    fecha_defecto = st.session_state.get('fecha_partida', datetime.now().date())
-    
-    # Creamos el combo de fecha
-    fecha_sel = st.date_input("Selecciona la fecha del partido:", 
-                               value=fecha_defecto,
-                               key="selector_fecha_jugar")
-    
-    # Guardamos la fecha en la sesión
-    st.session_state.fecha_partida = fecha_sel
+    # 1. INICIALIZAR ESTADO DE "PARTIDO EN MARCHA"
+    if 'partido_iniciado' not in st.session_state:
+        st.session_state.partido_iniciado = False
 
-    # --- LÓGICA DE CARGA ---
-    df = leer_datos()
-    partido_encontrado = False
-    
-    if df is not None and not df.empty:
-        f_eur = fecha_sel.strftime("%d/%m/%Y")
-        f_iso = fecha_sel.strftime("%Y-%m-%d")
-        df['fecha_str'] = df['fecha'].astype(str).str.split(' ').str[0]
-        # Verificamos si hay algún dato para esa fecha
-        if not df[df['fecha_str'].isin([f_eur, f_iso])].empty:
-            partido_encontrado = True
-
-    # 2. SEPARADOR VISUAL (Opcional, para dar aire)
-    st.markdown("---")
-
-    # 3. MOSTRAR EL RESTO DE LA PANTALLA
-    # Si quieres que se vea TODO después de elegir la fecha:
-    if fecha_sel:
-        # Aquí insertamos el aviso de estado
-        if not partido_encontrado:
-            st.info(f"🆕 No hay datos para el {fecha_sel.strftime('%d/%m/%Y')}. Empieza a anotar en el Hoyo 1.")
+    # --- PANTALLA INICIAL: SELECCIÓN Y BOTÓN ---
+    if not st.session_state.partido_iniciado:
+        st.markdown("### 📅 Nuevo Partido")
         
-        # Combo de Hoyos (Salto rápido)
+        # Selector de fecha (por defecto la actual)
+        fecha_defecto = datetime.now().date()
+        fecha_sel = st.date_input("Selecciona la fecha de la partida:", 
+                                   value=fecha_defecto,
+                                   key="selector_fecha_inicio")
+        
+        st.session_state.fecha_partida = fecha_sel
+
+        # Botón para comenzar
+        if st.button("🚀 COMENZAR PARTIDO", use_container_width=True, type="primary"):
+            st.session_state.partido_iniciado = True
+            st.rerun()
+
+    # --- PANTALLA DE JUEGO: SE MUESTRA TRAS PULSAR EL BOTÓN ---
+    else:
+        # Botón pequeño para volver o cambiar de fecha si se desea
+        if st.sidebar.button("🔄 Cambiar Fecha/Partido"):
+            st.session_state.partido_iniciado = False
+            st.rerun()
+
+        df = leer_datos()
+        fecha_sel = st.session_state.fecha_partida
+        
+        # 2. SELECCIÓN DE HOYO (Combo rápido)
         opciones_hoyos = list(range(1, 19))
-        h_idx = st.selectbox("📍 Saltar al Hoyo:", opciones_hoyos, 
+        h_idx = st.selectbox("📍 Hoyo actual:", opciones_hoyos, 
                              index=st.session_state.get('hoyo_actual', 1) - 1,
                              key="combo_hoyo")
         st.session_state.hoyo_actual = h_idx
         
-        # --- AQUÍ VA EL MARCADOR VS Y LOS INPUTS DE GOLPES ---
-        # (El código del diseño que configuramos antes)
+        # --- LÓGICA DE CARGA DE DATOS (Marcadores y Golpes) ---
+        m_e1, m_e2 = 0, 0
+        golpes_orig = {0: 4, 1: 4, 2: 4, 3: 4} # Valores por defecto
+        res_hoyo_a, res_hoyo_b = 0, 0
+        
+        if df is not None and not df.empty:
+            f_str = fecha_sel.strftime("%d/%m/%Y")
+            f_iso = fecha_sel.strftime("%Y-%m-%d")
+            df['fecha_str'] = df['fecha'].astype(str).str.split(' ').str[0]
+            df_jornada = df[df['fecha_str'].isin([f_str, f_iso])]
+            
+            if not df_jornada.empty:
+                # Marcador Match acumulado
+                s_a = pd.to_numeric(df_jornada['resultado_a'], errors='coerce').sum()
+                s_b = pd.to_numeric(df_jornada['resultado_b'], errors='coerce').sum()
+                dif = s_a - s_b
+                if dif > 0: m_e1, m_e2 = int(dif), 0
+                elif dif < 0: m_e1, m_e2 = 0, int(abs(dif))
+                
+                # Cargar golpes del hoyo
+                df_hoyo = df_jornada[df_jornada['hoyo'].astype(float).astype(int) == h_idx]
+                if not df_hoyo.empty:
+                    golpes_orig[0] = int(float(df_hoyo.iloc[0]['s0']))
+                    golpes_orig[1] = int(float(df_hoyo.iloc[0]['s1']))
+                    golpes_orig[2] = int(float(df_hoyo.iloc[0]['s2']))
+                    golpes_orig[3] = int(float(df_hoyo.iloc[0]['s3']))
+                    res_hoyo_a = int(float(df_hoyo.iloc[0]['resultado_a']))
+                    res_hoyo_b = int(float(df_hoyo.iloc[0]['resultado_b']))
+
+        # 3. DISEÑO VISUAL (Marcador VS y Tarjeta de Golpes)
+        # (Aquí va el código del diseño que ya definimos antes...)
+        st.markdown(f"""
+        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 15px; border-left: 8px solid #2e7d32; border-right: 8px solid #c62828; text-align: center;">
+            <div style="display: flex; justify-content: space-around; align-items: center;">
+                <div><p style="margin:0; font-weight:bold; color:#2e7d32;">MANU & JOSE</p><h1 style="margin:0;">{m_e1}</h1></div>
+                <div style="background:#333; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">VS</div>
+                <div><p style="margin:0; font-weight:bold; color:#c62828;">ROGE & LALO</p><h1 style="margin:0;">{m_e2}</h1></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # ... El resto de inputs de golpes y botón Actualizar ...
 
 
 # ==========================================
