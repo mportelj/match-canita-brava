@@ -265,7 +265,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 st.rerun()
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
-    st.title("📊 Estadísticas de la Jornada")
+    st.title("📊 Clasificación de la Jornada")
     df_raw = leer_datos()
     
     if not df_raw.empty:
@@ -273,6 +273,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         fechas = sorted(df_raw['fecha'].unique().tolist(), reverse=True)
         jornada_sel = st.selectbox("Seleccionar Jornada:", fechas)
         
+        # Filtrado y preparación de datos
         df_j = df_raw[df_raw['fecha'] == jornada_sel].copy()
         df_j['hoyo'] = pd.to_numeric(df_j['hoyo'], errors='coerce')
         hoyos_jugados = len(df_j['hoyo'].unique())
@@ -282,7 +283,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         for i, jug in enumerate(TODOS):
             col_s = f's{i}'
             
-            # Limpieza y mapeo con los NUEVOS PARES
+            # Datos del jugador en la jornada
             d_p = df_j[['hoyo', col_s]].copy()
             d_p[col_s] = pd.to_numeric(d_p[col_s], errors='coerce')
             d_p = d_p[d_p[col_s] > 0].dropna()
@@ -290,19 +291,19 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
             d_p['dif'] = d_p[col_s] - d_p['par_h']
             
-            # Métricas principales
+            # Cálculo +/- y Scratch
             plus_minus = int(d_p[col_s].sum() - d_p['par_h'].sum())
             
-            # Scratch (Stableford Bruto)
             def pts_scratch(d):
                 if d <= -2: return 4
                 if d == -1: return 3
                 if d == 0:  return 2
                 if d == 1:  return 1
                 return 0
+            
             scratch_total = int(sum(d_p['dif'].apply(pts_scratch)))
 
-            # Conteos exactos
+            # Conteo de categorías
             e = int((d_p['dif'] <= -2).sum())
             b = int((d_p['dif'] == -1).sum())
             p = int((d_p['dif'] == 0).sum())
@@ -316,7 +317,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             stats_rows.append({
                 "Jugador": jug,
                 "+/-": f"<b style='color:red;'>+{plus_minus}</b>" if plus_minus > 0 else (f"<b>{plus_minus}</b>" if plus_minus < 0 else "<b>E</b>"),
-                "Scratch": f"<b>{scratch_total}</b>",
+                "Scratch": scratch_total,  # Guardamos como int para ordenar
                 "Albatros": fmt_html(0),
                 "Eagles": fmt_html(e),
                 "Birdies": fmt_html(b),
@@ -325,25 +326,25 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "D.Bogey+": fmt_html(db)
             })
 
-        # Renderizado de Tabla
-        df_final = pd.DataFrame(stats_rows)
+        # Crear DataFrame y ordenar por Scratch descendente
+        df_final = pd.DataFrame(stats_rows).sort_values(by="Scratch", ascending=False)
+        
+        # Convertir Scratch a negrita HTML después de ordenar
+        df_final['Scratch'] = df_final['Scratch'].apply(lambda x: f"<b>{x}</b>")
+
+        # Renderizado de Tabla con CSS
         st.markdown("""
             <style>
                 table { width: 100%; border-collapse: collapse; text-align: center; }
-                th { background-color: #f8f9fa; padding: 10px; border-bottom: 2px solid #ddd; font-size: 0.9em; }
+                th { background-color: #f8f9fa; padding: 10px; border-bottom: 2px solid #ddd; }
                 td { padding: 12px; border-bottom: 1px solid #eee; line-height: 1.3; }
             </style>
         """, unsafe_allow_html=True)
         
         st.write(df_final.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # Verificador rápido para estar seguros
-        with st.expander("🔍 Auditoría de Pares (Hoyo 6 y 8)"):
-            st.write("Configuración cargada:")
-            st.write(f"Hoyo 6: Par {PAR_RIA_VIGO[6]} | Hoyo 8: Par {PAR_RIA_VIGO[8]}")
-            st.write("Si Manu hizo un 4 en el 6 y un 3 en el 8, ahora aparecerán sus 2 birdies.")
     else:
-        st.info("Sin datos.")
+        st.info("No hay datos registrados aún.")
 
 
 elif st.session_state.menu_seleccionado == "Admin":
