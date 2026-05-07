@@ -285,8 +285,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     
     # IMPORTANTE: Forzamos el formato de texto para buscar y guardar
     # Usamos este string para buscar en la BBDD y para INSERTAR/ACTUALIZAR
-    fecha_str = fecha_input.strftime("%d/%m/%Y")
-    
+     
     
     # 1. INICIALIZACIÓN
     if 'hoyo_actual' not in st.session_state:
