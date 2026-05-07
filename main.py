@@ -123,36 +123,35 @@ if st.session_state.menu_seleccionado == "Inicio":
             elif r['resultado_b'] > r['resultado_a']: pb_t += 1
             else: pa_t += 0.5; pb_t += 0.5
             
-    st.markdown(f"""
-        <div style="border:2px solid #ccc;border-radius:15px;padding:20px;text-align:center;background:#f9f9f9;margin-top:10px;">
-            <h3 style="margin:0;">MATCH {sel_temp}</h3>
-            <div style="display:flex;justify-content:space-around; align-items:center; margin-top:15px;">
-                <div><h2 style="color:{COLOR_A}; margin:0; font-size:1.2em;">{EQUIPO_A_NOMBRES}</h2><h1 style="font-size:3.5em; margin:0;">{pa_t:g}</h1></div>
-                <div style="font-size:1.5em; font-weight:bold; color:#777;">VS</div>
-                <div><h2 style="color:{COLOR_B}; margin:0; font-size:1.2em;">{EQUIPO_B_NOMBRES}</h2><h1 style="font-size:3.5em; margin:0;">{pb_t:g}</h1></div>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+   elif st.session_state.menu_seleccionado == "Jugar/Editar":
+    # Inicialización de ID de refresco para limpiar inputs al cambiar de hoyo
+    if 'refresco_id' not in st.session_state: 
+        st.session_state.refresco_id = 0
 
-# --- 1. MARCADOR ACUMULADO (ESTILO MATCH PLAY: DIFERENCIA) ---
+    if 'game' not in st.session_state:
+        st.subheader("🏁 Iniciar Nueva Partida")
+        f = st.date_input("Fecha de la partida:", datetime.now(), format="DD/MM/YYYY")
+        if st.button("🚀 Iniciar Partida", use_container_width=True):
+            st.session_state.game = {
+                'fecha': f.strftime("%d/%m/%Y"), 
+                'h_sel': 1, 
+                'logs': {}, 
+                'id': datetime.now().strftime("%Y%m%d%H%M%S")
+            }
+            st.rerun()
+    else:
+        g = st.session_state.game
+        df_p = leer_datos()
+        # Filtramos solo los datos de este partido específico
+        df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])]
+        
+        # --- 1. MARCADOR ACUMULADO (ESTILO MATCH PLAY: DIFERENCIA) ---
         pts_a_total = df_partido_actual['resultado_a'].sum()
         pts_b_total = df_partido_actual['resultado_b'].sum()
         
-        # Calculamos la diferencia
         diferencia = pts_a_total - pts_b_total
-        
-        if diferencia > 0:
-            # Gana el Equipo A
-            marcador_a = diferencia
-            marcador_b = 0
-        elif diferencia < 0:
-            # Gana el Equipo B
-            marcador_a = 0
-            marcador_b = abs(diferencia)
-        else:
-            # Empate técnico
-            marcador_a = 0
-            marcador_b = 0
+        marcador_a = diferencia if diferencia > 0 else 0
+        marcador_b = abs(diferencia) if diferencia < 0 else 0
 
         st.markdown(f"""
             <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 20px;">
@@ -173,6 +172,83 @@ if st.session_state.menu_seleccionado == "Inicio":
             </div>
         """, unsafe_allow_html=True)
 
+        # --- 2. NAVEGACIÓN Y SELECTOR DE HOYO ---
+        c_nav1, c_nav2 = st.columns(2)
+        if c_nav1.button("← Anterior", use_container_width=True):
+            g['h_sel'] = max(1, g['h_sel'] - 1)
+            st.session_state.refresco_id += 1
+            st.rerun()
+        if c_nav2.button("Siguiente →", use_container_width=True):
+            g['h_sel'] = min(18, g['h_sel'] + 1)
+            st.session_state.refresco_id += 1
+            st.rerun()
+
+        # Selector rápido de hoyo
+        lista_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
+        seleccion = st.selectbox("Seleccionar Hoyo", lista_hoyos, index=g['h_sel']-1, label_visibility="collapsed")
+        nuevo_h_id = int(seleccion.split(" ")[1])
+        
+        if nuevo_h_id != g['h_sel']:
+            g['h_sel'] = nuevo_h_id
+            st.session_state.refresco_id += 1
+            st.rerun()
+
+        h = g['h_sel']
+        par_h = PAR_RIA_VIGO[h]
+        
+        # Datos del hoyo actual para cargar golpes previos
+        fila_hoyo = df_partido_actual[df_partido_actual['hoyo'] == h]
+        ya_existe = not fila_hoyo.empty
+
+        # --- 3. CUADRO DE RESULTADO DEL HOYO ---
+        if ya_existe:
+            ha, hb = fila_hoyo.iloc[0]['resultado_a'], fila_hoyo.iloc[0]['resultado_b']
+            texto_gana = f"GANA {EQUIPO_A_NOMBRES}" if ha > hb else (f"GANA {EQUIPO_B_NOMBRES}" if hb > ha else "EMPATE")
+            color_res = COLOR_A if ha > hb else (COLOR_B if hb > ha else "#666")
+            
+            st.markdown(f"""
+                <div style="border: 1px solid #ddd; border-radius: 10px; padding: 10px; text-align: center; background: white; margin-bottom: 20px;">
+                    <p style="color: #888; font-size: 0.7em; margin: 0; font-weight: bold;">RESULTADO HOYO {h}</p>
+                    <h2 style="margin: 0; letter-spacing: 3px;">{ha:g} — {hb:g}</h2>
+                    <p style="color: {color_res}; font-weight: bold; margin: 0; font-size: 0.8em;">{texto_gana}</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # --- 4. ENTRADA DE GOLPES (STYLING IMAGEN 2) ---
+        st.write(f"**Introducir golpes - Par {par_h}**")
+        rid = st.session_state.refresco_id
+        
+        # Si ya existe, cargamos lo guardado, si no, cargamos el Par
+        v_actual = [int(fila_hoyo.iloc[0][f's{i}']) if ya_existe else par_h for i in range(4)]
+        
+        col_j1, col_j2 = st.columns(2)
+        s1 = col_j1.number_input(TODOS[0], 1, 15, v_actual[0], key=f"s1_h{h}_r{rid}")
+        s2 = col_j1.number_input(TODOS[1], 1, 15, v_actual[1], key=f"s2_h{h}_r{rid}")
+        s3 = col_j2.number_input(TODOS[2], 1, 15, v_actual[2], key=f"s3_h{h}_r{rid}")
+        s4 = col_j2.number_input(TODOS[3], 1, 15, v_actual[3], key=f"s4_h{h}_r{rid}")
+
+        if st.button("💾 Guardar / Actualizar Hoyo", type="primary", use_container_width=True):
+            ejecutar_guardado_automatico()
+            st.success(f"Hoyo {h} actualizado")
+            st.rerun()
+
+        # --- 5. RANKING MVP DEL PARTIDO ---
+        with st.expander("⭐ Puntos MVP del Partido"):
+            if not df_partido_actual.empty:
+                for i, jug in enumerate(TODOS):
+                    p_mvp = df_partido_actual[f'p{i+1}_pts'].sum()
+                    st.write(f"**{jug}**: {p_mvp:.1f} pts")
+            else:
+                st.info("Introduce el primer hoyo para ver el ranking.")
+
+        st.write("---")
+        # Popover para finalizar partida con seguridad
+        with st.popover("🏁 Finalizar Partida", use_container_width=True):
+            st.warning("Se cerrará la edición de este partido.")
+            if st.button("Confirmar Cierre", type="primary", use_container_width=True):
+                if 'game' in st.session_state: 
+                    del st.session_state.game
+                st.rerun()
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas Temporada")
     df = leer_datos()
