@@ -265,68 +265,78 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 st.rerun()
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
-    st.title("📊 Estadísticas MVP")
+    st.title("📊 Estadísticas del Partido")
     df_raw = leer_datos()
     
     if not df_raw.empty:
-        # --- FILTRO CRÍTICO ---
-        # Si hay una partida activa en la sesión, filtramos solo por ese ID
-        # Si no hay partida activa, mostramos el acumulado total
+        # --- FILTRO DE PARTIDO ACTUAL ---
         if 'game' in st.session_state:
             id_actual = str(st.session_state.game['id'])
-            df_stats_source = df_raw[df_raw['partido_id'] == id_actual].copy()
-            st.info(f"Mostrando estadísticas del partido actual ({st.session_state.game['fecha']})")
+            # Filtramos solo las filas que pertenecen a esta partida
+            df_partido = df_raw[df_raw['partido_id'] == id_actual].copy()
+            st.info(f"Análisis del partido: {st.session_state.game['fecha']}")
         else:
-            df_stats_source = df_raw.copy()
-            st.info("Mostrando estadísticas acumuladas de todos los partidos.")
+            df_partido = df_raw.copy()
+            st.info("Mostrando acumulado histórico (No hay partida activa)")
 
-        cols_golpes = [f's{i}' for i in range(4)]
         stats = []
 
+        # Iteramos por los 4 jugadores (s0, s1, s2, s3)
         for i, jug in enumerate(TODOS):
             col_s = f's{i}'
             
-            # 1. Limpieza de datos por jugador
-            # Solo tomamos filas donde los golpes sean mayores que 0
-            d_j = df_stats_source[['hoyo', col_s]].copy()
-            d_j[col_s] = pd.to_numeric(d_j[col_s], errors='coerce')
-            d_j = d_j[d_j[col_s] > 0].dropna()
+            # Inicializamos contadores para este jugador
+            counts = {"Eagle": 0, "Birdie": 0, "Par": 0, "Bogey": 0, "D.Bogey": 0, "3+ Bogey": 0}
             
-            # 2. Mapeo de PAR (Asegurando Par 4 en el 18 y el resto)
-            d_j['par_ref'] = d_j['hoyo'].map(PAR_RIA_VIGO)
-            d_j['dif'] = d_j[col_s] - d_j['par_ref']
+            # Filtramos filas donde el jugador tenga golpes anotados (> 0)
+            puntos_jugador = df_partido[pd.to_numeric(df_partido[col_s], errors='coerce') > 0]
             
-            # 3. Conteo estricto (sumamos booleanos)
-            n_eagles  = int((d_j['dif'] <= -2).sum())
-            n_birdies = int((d_j['dif'] == -1).sum())
-            n_pares   = int((d_j['dif'] == 0).sum())
-            n_bogeys  = int((d_j['dif'] == 1).sum())
-            n_dobles  = int((d_j['dif'] == 2).sum())
-            n_trip    = int((d_j['dif'] >= 3).sum())
+            for _, fila in puntos_jugador.iterrows():
+                hoyo_num = int(fila['hoyo'])
+                golpes = int(fila[col_s])
+                par_hoyo = PAR_RIA_VIGO.get(hoyo_num, 4) # Por defecto 4 si no lo encuentra
+                
+                dif = golpes - par_hoyo
+                
+                # Clasificación estricta
+                if dif <= -2: counts["Eagle"] += 1
+                elif dif == -1: counts["Birdie"] += 1
+                elif dif == 0:  counts["Par"] += 1
+                elif dif == 1:  counts["Bogey"] += 1
+                elif dif == 2:  counts["D.Bogey"] += 1
+                elif dif >= 3:  counts["3+ Bogey"] += 1
             
-            # Puntos MVP del jugador i (columna p1_pts...p4_pts)
+            # Puntos MVP (columna p1_pts...p4_pts)
             col_p_pts = f'p{i+1}_pts'
-            pts_mvp = pd.to_numeric(df_stats_source[col_p_pts], errors='coerce').sum() if col_p_pts in df_stats_source.columns else 0
+            pts_mvp = pd.to_numeric(df_partido[col_p_pts], errors='coerce').sum() if col_p_pts in df_partido.columns else 0
             
             stats.append({
                 "Jugador": jug,
-                "Eagle": n_eagles,
-                "Birdie": n_birdies,
-                "Par": n_pares,
-                "Bogey": n_bogeys,
-                "D.Bogey": n_dobles,
-                "3+ Bogey": n_trip,
-                "Puntos MVP": pts_mvp
+                "Eagle": counts["Eagle"],
+                "Birdie": counts["Birdie"],
+                "Par": counts["Par"],
+                "Bogey": counts["Bogey"],
+                "D.Bogey": counts["D.Bogey"],
+                "3+ Bogey": counts["3+ Bogey"],
+                "Puntos MVP": round(float(pts_mvp), 2)
             })
         
+        # Crear DataFrame final
         df_final = pd.DataFrame(stats)
+        
+        # Mostramos la tabla principal (sin gráficos)
         st.dataframe(df_final.set_index("Jugador"), use_container_width=True)
         
-        # Gráfico
-        st.bar_chart(df_final.set_index("Jugador")[["Eagle", "Birdie", "Par", "Bogey", "D.Bogey", "3+ Bogey"]])
+        # Resumen de Puntos por Equipo
+        st.write("---")
+        c1, c2 = st.columns(2)
+        total_a = df_partido['resultado_a'].sum() if 'resultado_a' in df_partido.columns else 0
+        total_b = df_partido['resultado_b'].sum() if 'resultado_b' in df_partido.columns else 0
+        c1.metric(f"Total {EQUIPO_A_NOMBRES}", f"{total_a:g}")
+        c2.metric(f"Total {EQUIPO_B_NOMBRES}", f"{total_b:g}")
+        
     else:
-        st.warning("No hay datos disponibles.")
-
+        st.warning("No hay datos en la base de datos.")
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Administración")
     df = leer_datos()
