@@ -273,9 +273,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         fechas = sorted(df_raw['fecha'].unique().tolist(), reverse=True)
         jornada_sel = st.selectbox("Seleccionar Jornada:", fechas)
         
+        # Filtro de jornada y hoyos válidos
         df_j = df_raw[df_raw['fecha'] == jornada_sel].copy()
         df_j['hoyo'] = pd.to_numeric(df_j['hoyo'], errors='coerce')
-        hoyos_jugados = len(df_j['hoyo'].unique())
+        df_j = df_j[df_j['hoyo'].isin(PAR_RIA_VIGO.keys())]
+        hoyos_jugados_jornada = len(df_j['hoyo'].unique())
         
         lista_resultados = []
         for i, jug in enumerate(TODOS):
@@ -283,80 +285,84 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             d_p = df_j[['hoyo', col_s]].copy()
             d_p[col_s] = pd.to_numeric(d_p[col_s], errors='coerce')
             
-            # Filtro: Solo hoyos donde el jugador tiene golpes > 0
+            # Filtro estricto de golpes
             d_p = d_p[d_p[col_s] > 0].dropna()
+            
+            if d_p.empty:
+                continue
+
             d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
             d_p['dif'] = d_p[col_s] - d_p['par_h']
             
-            # Resultado +/- (Golpes totales - Par total de los hoyos jugados)
-            plus_minus = int(d_p[col_s].sum() - d_p['par_h'].sum())
+            # Cálculo exacto de +/- y Scratch
+            plus_minus = int(d_p['dif'].sum())
             
-            # Puntos Scratch (Stableford)
-            def pts_scratch(d):
-                if d <= -2: return 4
-                if d == -1: return 3
-                if d == 0:  return 2
-                if d == 1:  return 1
-                return 0
-            scratch_total = int(d_p['dif'].apply(pts_scratch).sum())
+            def calcular_puntos(dif):
+                if dif <= -2: return 4 # Eagle
+                if dif == -1: return 3 # Birdie
+                if dif == 0:  return 2 # Par
+                if dif == 1:  return 1 # Bogey
+                return 0             # Doble Bogey o peor
+            
+            scratch_total = int(d_p['dif'].apply(calcular_puntos).sum())
+
+            # Conteo de categorías
+            e = int((d_p['dif'] <= -2).sum())
+            b = int((d_p['dif'] == -1).sum())
+            p = int((d_p['dif'] == 0).sum())
+            bog = int((d_p['dif'] == 1).sum())
+            db = int((d_p['dif'] == 2).sum())
+            tb = int((d_p['dif'] >= 3).sum())
 
             lista_resultados.append({
-                "Jugador": jug,
-                "plus_minus": plus_minus,
-                "scratch": scratch_total,
-                "e": int((d_p['dif'] <= -2).sum()),
-                "b": int((d_p['dif'] == -1).sum()),
-                "p": int((d_p['dif'] == 0).sum()),
-                "bog": int((d_p['dif'] == 1).sum()),
-                "db": int((d_p['dif'] == 2).sum()),
-                "tb": int((d_p['dif'] >= 3).sum())
+                "Jugador": jug, "plus_minus": plus_minus, "scratch": scratch_total,
+                "e": e, "b": b, "p": p, "bog": bog, "db": db, "tb": tb
             })
 
-        # Ordenar por puntos Scratch (Clasificación)
+        # Ordenar por Scratch (Puntos)
         lista_resultados = sorted(lista_resultados, key=lambda x: x['scratch'], reverse=True)
 
         stats_rows = []
-        whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n📅 _Jornada: {jornada_sel}_\n⛳ *Hoyos Jugados: {hoyos_jugados}*\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+        whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n📅 _Jornada: {jornada_sel}_\n⛳ *Hoyos Jugados: {hoyos_jugados_jornada}*\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
 
         for res in lista_resultados:
-            # Texto WhatsApp
+            # WhatsApp format
             pm_txt = f"+{res['plus_minus']}" if res['plus_minus'] > 0 else (str(res['plus_minus']) if res['plus_minus'] < 0 else "E")
             whatsapp_text += f"👤 *{res['Jugador'].upper()}*\n"
             whatsapp_text += f"🏆 Resultado: *{pm_txt}* ({res['scratch']} pts)\n"
-            whatsapp_text += f"🦅 Egl: {res['e']} ({ (res['e']/hoyos_jugados*100):.1f}%) | 🐤 Bir: {res['b']} ({ (res['b']/hoyos_jugados*100):.1f}%)\n"
-            whatsapp_text += f"🅿️ Par: {res['p']} ({ (res['p']/hoyos_jugados*100):.1f}%) | ⚠️ Bog: {res['bog']} ({ (res['bog']/hoyos_jugados*100):.1f}%)\n"
-            whatsapp_text += f"💀 D.Bog: {res['db']} ({ (res['db']/hoyos_jugados*100):.1f}%) | 💣 +T.Bog: {res['tb']} ({ (res['tb']/hoyos_jugados*100):.1f}%)\n"
+            whatsapp_text += f"🦅 Egl: {res['e']} ({ (res['e']/hoyos_jugados_jornada*100):.1f}%) | 🐤 Bir: {res['b']} ({ (res['b']/hoyos_jugados_jornada*100):.1f}%)\n"
+            whatsapp_text += f"🅿️ Par: {res['p']} ({ (res['p']/hoyos_jugados_jornada*100):.1f}%) | ⚠️ Bog: {res['bog']} ({ (res['bog']/hoyos_jugados_jornada*100):.1f}%)\n"
+            whatsapp_text += f"💀 D.Bog: {res['db']} ({ (res['db']/hoyos_jugados_jornada*100):.1f}%) | 💣 +T.Bog: {res['tb']} ({ (res['tb']/hoyos_jugados_jornada*100):.1f}%)\n"
             whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
 
-            # Formato Tabla Streamlit (Todas las columnas)
+            # Table format (Sin asteriscos)
             def fmt(v):
-                p = (v / hoyos_jugados * 100) if hoyos_jugados > 0 else 0
-                return f"<b>{v}</b><br><span style='color:gray; font-size:0.8em;'>{p:.1f}%</span>"
+                pct = (v / hoyos_jugados_jornada * 100) if hoyos_jugados_jornada > 0 else 0
+                return f"<b>{v}</b><br><span style='color:gray; font-size:0.8em;'>{pct:.1f}%</span>"
 
             stats_rows.append({
                 "Jugador": res['Jugador'],
                 "+/-": f"<b style='color:red;'>+{res['plus_minus']}</b>" if res['plus_minus'] > 0 else (f"<b>{res['plus_minus']}</b>" if res['plus_minus'] < 0 else "<b>E</b>"),
                 "Scratch": f"<b>{res['scratch']}</b>",
-                "Eagles": fmt(res['e']),
-                "Birdies": fmt(res['b']),
-                "Pares": fmt(res['p']),
+                "Eagle": fmt(res['e']),
+                "Birdie": fmt(res['b']),
+                "Par": fmt(res['p']),
                 "Bogey": fmt(res['bog']),
                 "D.Bogey": fmt(res['db']),
                 "3+ Bogey": fmt(res['tb'])
             })
 
-        # Renderizado de Tabla
-        st.markdown("<style>table {width:100%; text-align:center;} th {background:#f8f9fa; font-size:0.85em;} td {padding:8px; border-bottom:1px solid #eee;}</style>", unsafe_allow_html=True)
+        # Mostrar tabla CSS
+        st.markdown("<style>table {width:100%; text-align:center;} th {background:#f8f9fa; padding:10px;} td {padding:8px; border-bottom:1px solid #eee;}</style>", unsafe_allow_html=True)
         st.write(pd.DataFrame(stats_rows).to_html(escape=False, index=False), unsafe_allow_html=True)
 
         # Botón WhatsApp
         import urllib.parse
-        encoded_text = urllib.parse.quote(whatsapp_text)
         st.write("")
-        st.link_button("📲 Enviar Clasificación por WhatsApp", f"https://wa.me/?text={encoded_text}", use_container_width=True)
+        st.link_button("📲 Enviar Clasificación por WhatsApp", f"https://wa.me/?text={urllib.parse.quote(whatsapp_text)}", use_container_width=True)
 
     else:
-        st.info("No hay datos.")
+        st.info("No hay datos cargados.")
 
 
 elif st.session_state.menu_seleccionado == "Admin":
