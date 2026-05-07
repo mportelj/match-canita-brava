@@ -299,10 +299,17 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         st.session_state.fecha_partida = datetime.now().date()
     
     df = leer_datos()
-    h_idx = int(st.session_state.hoyo_actual)
+    
+    # --- NUEVO: COMBO PARA SALTO RÁPIDO ---
+    opciones_hoyos = list(range(1, 19))
+    h_idx = st.selectbox("📍 Saltar al Hoyo:", opciones_hoyos, 
+                         index=st.session_state.hoyo_actual - 1,
+                         key="combo_hoyo")
+    st.session_state.hoyo_actual = h_idx # Sincronizamos el estado
+    
     par_hoyo = int(PAR_RIA_VIGO.get(h_idx, 4))
     
-    # Valores por defecto (Valores "Originales")
+    # Valores de referencia
     golpes_orig = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo}
     m_e1, m_e2 = 0, 0
     res_hoyo_a, res_hoyo_b = 0, 0
@@ -310,20 +317,20 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     # 2. CARGA DE DATOS
     if df is not None and not df.empty:
         f_obj = st.session_state.fecha_partida
-        f_iso = f_obj.strftime("%Y-%m-%d")
         f_eur = f_obj.strftime("%d/%m/%Y")
+        f_iso = f_obj.strftime("%Y-%m-%d")
         df['fecha_str'] = df['fecha'].astype(str).str.split(' ').str[0]
-        df_jornada = df[df['fecha_str'].isin([f_iso, f_eur])]
+        df_jornada = df[df['fecha_str'].isin([f_eur, f_iso])]
         
         if not df_jornada.empty:
-            # Marcador Match
+            # Marcador Match (Total acumulado)
             s_a = pd.to_numeric(df_jornada['resultado_a'], errors='coerce').sum()
             s_b = pd.to_numeric(df_jornada['resultado_b'], errors='coerce').sum()
             dif = s_a - s_b
             if dif > 0: m_e1, m_e2 = int(dif), 0
             elif dif < 0: m_e1, m_e2 = 0, int(abs(dif))
             
-            # Cargar golpes grabados
+            # Datos del hoyo seleccionado
             df_hoyo = df_jornada[df_jornada['hoyo'].astype(float).astype(int) == h_idx]
             if not df_hoyo.empty:
                 golpes_orig[0] = int(float(df_hoyo.iloc[0]['s0']))
@@ -333,17 +340,20 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 res_hoyo_a = int(float(df_hoyo.iloc[0]['resultado_a']))
                 res_hoyo_b = int(float(df_hoyo.iloc[0]['resultado_b']))
 
-    # --- 3. DISEÑO DE INTERFAZ ---
-    # (Marcador y Navegación igual que antes...)
-    st.markdown(f"""<div style="background-color:#f8f9fa; padding:20px; border-radius:15px; border-left:10px solid #2e7d32; border-right:10px solid #c62828; text-align:center;">
-        <div style="display:flex; justify-content:space-around; align-items:center;">
-            <div><p style="margin:0; font-weight:bold; color:#2e7d32;">MANU & JOSE</p><h1 style="margin:0;">{m_e1}</h1></div>
-            <div style="background:#333; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">VS</div>
-            <div><p style="margin:0; font-weight:bold; color:#c62828;">ROGE & LALO</p><h1 style="margin:0;">{m_e2}</h1></div>
-        </div>
-    </div>""", unsafe_allow_html=True)
+    # --- 3. DISEÑO VISUAL ---
     
-    st.write("")
+    # MARCADOR MATCH (SUPERIOR)
+    st.markdown(f"""
+    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 15px; border-left: 8px solid #2e7d32; border-right: 8px solid #c62828; text-align: center; margin-bottom: 10px;">
+        <div style="display: flex; justify-content: space-around; align-items: center;">
+            <div><p style="margin:0; font-size:0.7em; font-weight:bold; color:#2e7d32;">MANU & JOSE</p><h1 style="margin:0; font-size:3em;">{m_e1}</h1></div>
+            <div style="background:#333; color:white; border-radius:50%; width:25px; height:25px; display:flex; align-items:center; justify-content:center; font-size:0.6em;">VS</div>
+            <div><p style="margin:0; font-size:0.7em; font-weight:bold; color:#c62828;">ROGE & LALO</p><h1 style="margin:0; font-size:3em;">{m_e2}</h1></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # NAVEGACIÓN PASO A PASO
     c_nav1, c_nav2 = st.columns(2)
     with c_nav1:
         if st.button("⬅️ Anterior", use_container_width=True, disabled=(h_idx==1)):
@@ -354,49 +364,51 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.session_state.hoyo_actual += 1
             st.rerun()
 
-    # CONTENEDOR DEL HOYO
+    # TARJETA DEL HOYO ACTUAL
     with st.container(border=True):
-        st.markdown(f"<h3 style='text-align:center;'>Hoyo {h_idx} (Par {par_hoyo})</h3>", unsafe_allow_html=True)
+        st.markdown(f"<h3 style='text-align:center; margin-bottom:0;'>Hoyo {h_idx}</h3>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align:center; color:#666; font-size:0.9em;'>Par {par_hoyo}</p>", unsafe_allow_html=True)
         
-        # Inputs de golpes (Siempre activos)
+        # --- MARCADOR DEL HOYO (EL QUE FALTABA) ---
+        st.markdown(f"""
+            <div style="text-align: center; background: #e2e8f0; padding: 10px; border-radius: 10px; margin: 10px 0;">
+                <span style="font-size: 0.7em; color: #475569; font-weight: bold; letter-spacing: 1px;">MARCADOR HOYO</span>
+                <h2 style="margin: 0; color: #1e293b;">{res_hoyo_a} — {res_hoyo_b}</h2>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # ENTRADA DE GOLPES
         col_a, col_b = st.columns(2)
         with col_a:
-            st.markdown("**EQUIPO A**")
+            st.markdown("<p style='text-align:center; font-weight:bold; color:#2e7d32; font-size:0.8em;'>EQUIPO A</p>", unsafe_allow_html=True)
             g0 = st.number_input("MANU", 1, 15, value=golpes_orig[0], key=f"m_{h_idx}")
             g1 = st.number_input("JOSE", 1, 15, value=golpes_orig[1], key=f"j_{h_idx}")
         with col_b:
-            st.markdown("**EQUIPO B**")
+            st.markdown("<p style='text-align:center; font-weight:bold; color:#c62828; font-size:0.8em;'>EQUIPO B</p>", unsafe_allow_html=True)
             g2 = st.number_input("ROGE", 1, 15, value=golpes_orig[2], key=f"r_{h_idx}")
             g3 = st.number_input("LALO", 1, 15, value=golpes_orig[3], key=f"l_{h_idx}")
 
-        # --- LÓGICA DEL BOTÓN INTELIGENTE ---
-        # Comparamos si los valores actuales son distintos a los grabados
+        # LÓGICA DE BOTÓN ACTUALIZAR
         hay_cambios = (g0 != golpes_orig[0] or g1 != golpes_orig[1] or 
                        g2 != golpes_orig[2] or g3 != golpes_orig[3])
         
-        # El botón solo está habilitado si hay cambios o si el hoyo es nuevo (no grabado)
-        btn_deshabilitado = not hay_cambios and res_hoyo_a == 0 and res_hoyo_b == 0 and not hay_cambios
+        # El botón aparece si hay cambios O si el hoyo está vacío (0-0)
+        es_hoyo_nuevo = (res_hoyo_a == 0 and res_hoyo_b == 0)
         
-        # Si ya hay un resultado pero no hay cambios, lo bloqueamos. 
-        # Si el hoyo está vacío (0-0), permitimos guardar.
-        if (res_hoyo_a != 0 or res_hoyo_b != 0) and not hay_cambios:
-            mostrar_btn = False
-        else:
-            mostrar_btn = True
-
-        st.write("")
-        if mostrar_btn:
-            if st.button("💾 ACTUALIZAR HOYO", use_container_width=True, type="primary"):
+        if hay_cambios or es_hoyo_nuevo:
+            if st.button("💾 GUARDAR HOYO", use_container_width=True, type="primary"):
                 pts_a, pts_b = calcular_puntos_hoyo(g0, g1, g2, g3, par_hoyo)
                 f_str = st.session_state.fecha_partida.strftime("%d/%m/%Y")
                 nueva_fila = [f_str, h_idx, g0, g1, g2, g3, pts_a, pts_b]
                 actualizar_o_insertar_hoyo(nueva_fila)
-                st.success("Hoyo actualizado")
+                st.success("Hoyo guardado")
                 time.sleep(0.5)
                 st.rerun()
         else:
-            st.button("💾 ACTUALIZAR HOYO", use_container_width=True, disabled=True)
-            st.caption("✅ Los golpes coinciden con lo grabado. Cambia un valor para actualizar.")
+            st.button("💾 GUARDADO", use_container_width=True, disabled=True)
+
+
+
 # ==========================================
 # SECCIÓN: ESTADISTICAS
 # ==========================================
