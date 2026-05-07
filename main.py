@@ -285,6 +285,8 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                     del st.session_state.game
                 st.cache_data.clear()
                 st.rerun()
+
+
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas Temporada")
     df = leer_datos()
