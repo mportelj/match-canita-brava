@@ -1,20 +1,4 @@
-# import streamlit as st
-# from streamlit_gsheets import GSheetsConnection
-# import pandas as pd
-# from datetime import datetime
-# import urllib.parse
 
-# Conexión global para evitar NameError
-# conn = st.connection("golf_datos", type=GSheetsConnection)
-
-# Esto te mostrará en la app si Streamlit está viendo tus secretos
-# if "golf_datos" in st.secrets:
-#    st.write("✅ Sección [golf_datos] encontrada en Secrets")
-#    st.write(f"Email del service account: {st.secrets['golf_datos']['client_email']}")
-# else:
-#    st.error("❌ No se encontró la sección [golf_datos] en los Secrets")
-
-#=================================
 import streamlit as st
 import pandas as pd
 from google.oauth2.service_account import Credentials
@@ -51,14 +35,14 @@ def cargar_datos_golf():
     return pd.DataFrame(worksheet.get_all_records())
 
 # Lógica de la app
-st.title("⛳ CAÑITA BRAVA")
+#st.title("⛳ CAÑITA BRAVA")
 
-try:
-    df = cargar_datos_golf()
-    st.success("¡Datos cargados!")
-    st.dataframe(df)
-except Exception as e:
-    st.error(f"Error de conexión: {e}")
+#try:
+#    df = cargar_datos_golf()
+#   st.success("¡Datos cargados!")
+#    st.dataframe(df)
+#except Exception as e:
+#    st.error(f"Error de conexión: {e}")
 
 #=================================
 
@@ -127,23 +111,42 @@ def actualizar_o_insertar_hoyo(datos):
 
 def leer_datos():
     """
-    Lee la base de datos desde Google Sheets.
+    Lee la base de datos desde Google Sheets usando gspread.
     Asegura que las columnas se llamen siempre: fecha, hoyo, s0, s1, s2, s3
     """
     try:
-        # 1. Leemos la hoja (ajusta "Hoja1" si tu pestaña tiene otro nombre)
-        # Usamos st.secrets["golf_datos"]["url"] para no escribir la URL en el código
-        df = conn.read(spreadsheet=st.secrets["golf_datos"]["url"], worksheet="historial")
+        # 1. Configuración de credenciales (usando lo que ya nos funcionó)
+        s = st.secrets["golf_datos"] # o "golf_datos", como lo tengas en Secrets
+        credentials_dict = {
+            "type": s["type"],
+            "project_id": s["project_id"],
+            "private_key_id": s["private_key_id"],
+            "private_key": s["private_key"].replace("\\n", "\n"),
+            "client_email": s["client_email"],
+            "client_id": s["client_id"],
+            "auth_uri": s["auth_uri"],
+            "token_uri": s["token_uri"],
+            "auth_provider_x509_cert_url": s["auth_provider_x509_cert_url"],
+            "client_x509_cert_url": s["client_x509_cert_url"]
+        }
         
-        if df is None or df.empty:
-            # Si el Excel está vacío, devolvemos un DataFrame con la estructura correcta
+        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
+        client = gspread.authorize(creds)
+        
+        # 2. Abrir la hoja y leer datos
+        sh = client.open_by_url(s["url"])
+        worksheet = sh.worksheet("historial")
+        data = worksheet.get_all_records()
+        df = pd.DataFrame(data)
+        
+        if df.empty:
             return pd.DataFrame(columns=['fecha', 'hoyo', 's0', 's1', 's2', 's3'])
         
-        # 2. Limpieza crítica: quitamos espacios en los nombres de las columnas
+        # 3. Tu lógica de limpieza original
         df.columns = [str(c).strip().lower() for c in df.columns]
         
-        # 3. Forzamos nombres estándar para evitar el KeyError 's0'
-        # Esto mapea las columnas por posición en caso de que cambies los nombres en el Excel
+        # Mapeo por posición para asegurar nombres
         mapeo_columnas = {
             df.columns[0]: 'fecha',
             df.columns[1]: 'hoyo',
@@ -154,14 +157,13 @@ def leer_datos():
         }
         df = df.rename(columns=mapeo_columnas)
         
-        # 4. Aseguramos que el hoyo sea número para los filtros
+        # 4. Asegurar que el hoyo sea número
         df['hoyo'] = pd.to_numeric(df['hoyo'], errors='coerce')
         
         return df
 
     except Exception as e:
-        # Si hay un error (ej. no hay internet), devolvemos un DF vacío para que la app no explote
-        st.error(f"Error al conectar con Google Sheets: {e}")
+        st.error(f"Error detallado al leer datos: {e}")
         return pd.DataFrame(columns=['fecha', 'hoyo', 's0', 's1', 's2', 's3'])
 
 def calcular_puntos_hoyo(scores, hoyo_num):
