@@ -370,38 +370,66 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     df_raw = leer_datos()
     
     if df_raw is not None and not df_raw.empty:
-        # --- LIMPIEZA PREVIA ---
-        # Aseguramos que las fechas no tengan espacios invisibles
-        df_raw['fecha'] = df_raw['fecha'].astype(str).str.strip()
+        # --- PREPARACIÓN DE FECHAS PARA EL COMBO ---
+        # Convertimos a datetime para ordenar y formatear
+        df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], errors='coerce')
+        # Creamos una columna con el formato dd/mm/yyyy para mostrar en el selectbox
+        df_raw['fecha_display'] = df_raw['fecha_dt'].dt.strftime('%d/%m/%Y')
         
-        # --- SELECTORES ---
+        # Lista de fechas únicas (usamos la fecha original para filtrar luego)
+        fechas_unicas = df_raw.sort_values('fecha_dt', ascending=False)['fecha'].unique().tolist()
+        
+        # Diccionario para que el combo muestre dd/mm/aaaa pero reconozca el valor original
+        opciones_combo = {f: pd.to_datetime(f).strftime('%d/%m/%Y') for f in fechas_unicas}
+
         col1, col2 = st.columns(2)
         with col1:
-            fechas = sorted(df_raw['fecha'].unique().tolist(), reverse=True)
-            jornada_sel = st.selectbox("Seleccionar Jornada:", fechas)
+            jornada_sel_raw = st.selectbox(
+                "Seleccionar Jornada:", 
+                options=fechas_unicas,
+                format_func=lambda x: opciones_combo[x]
+            )
         with col2:
             ver_acumulado = st.toggle("📂 Ver Acumulado de la Temporada", value=False)
 
-        # --- FILTRADO DE DATOS ---
+        # --- FILTRADO Y CÁLCULO DEL MATCH ---
         if ver_acumulado:
             df_stats = df_raw.copy()
             titulo_seccion = "Acumulado Total Temporada"
+            subtitulo_match = "" 
         else:
-            # Filtramos exactamente por la fecha seleccionada
-            df_stats = df_raw[df_raw['fecha'] == jornada_sel].copy()
-            titulo_seccion = f"Jornada: {jornada_sel}"
+            df_stats = df_raw[df_raw['fecha'] == jornada_sel_raw].copy()
+            f_formateada = opciones_combo[jornada_sel_raw]
+            
+            # Cálculo del resultado Match Play de ese día
+            puntos_a = pd.to_numeric(df_stats['resultado_a'], errors='coerce').sum()
+            puntos_b = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
+            
+            dif = int(puntos_a - puntos_b)
+            if dif > 0:
+                res_match = f"🏆 Manu & Jose ganan {dif} UP"
+            elif dif < 0:
+                res_match = f"🏆 Roge & Lalo ganan {abs(dif)} UP"
+            else:
+                res_match = "🤝 Empate (All Square)"
+            
+            titulo_seccion = f"Jornada: {f_formateada}"
+            subtitulo_match = res_match
 
+        # --- RENDER DEL TÍTULO CON RESULTADO ---
+        st.subheader(f"📈 {titulo_seccion}")
+        if subtitulo_match:
+            st.markdown(f"**{subtitulo_match}**")
+
+        # --- RESTO DE TU LÓGICA DE CÁLCULOS (Stableford, Birdies, etc.) ---
         df_stats['hoyo'] = pd.to_numeric(df_stats['hoyo'], errors='coerce')
-        
         lista_resultados = []
-        # IMPORTANTE: TODOS debe ser ["Manu", "Jose", "Roge", "Lalo"]
+        
         for i, jug in enumerate(TODOS):
             col_s = f's{i}'
             if col_s not in df_stats.columns: continue
             
             df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
-            
-            # Solo hoyos con golpes > 0
             d_p = df_stats[df_stats[col_s] > 0][['hoyo', col_s]].copy()
             if d_p.empty: continue
 
