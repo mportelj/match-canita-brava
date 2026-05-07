@@ -323,24 +323,36 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         
         return pts_e1, pts_e2
 
-    # 3. CARGA DE DATOS Y MARCADOR MATCH
+    # --- 3. CARGA DE DATOS ACTUALIZADA ---
     df_actual = leer_datos()
-    golpes_a_mostrar = [par_hoyo, par_hoyo, par_hoyo, par_hoyo]
+    # Inicializamos con el par del hoyo
+    golpes_a_mostrar = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo}
     
     m_e1, m_e2 = 0, 0
     if not df_actual.empty:
-        df_f = df_actual[df_actual['fecha'] == fecha_str]
+        # IMPORTANTE: Asegúrate de que este formato sea igual al de tu Excel
+        df_f = df_actual[df_actual['fecha'].astype(str).str.contains(fecha_input.strftime("%Y-%m-%d")) | 
+                         df_actual['fecha'].astype(str).str.contains(fecha_input.strftime("%d/%m/%Y"))]
+        
+        # Marcador Match
         for _, row in df_f.iterrows():
             p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
             p1, p2 = calcular_puntos_hoyo(int(row['s0']), int(row['s1']), int(row['s2']), int(row['s3']), p_h)
             m_e1 += p1
             m_e2 += p2
 
+        # Cargar golpes del hoyo actual para editar
         busqueda = df_f[df_f['hoyo'].astype(str) == str(h_idx)]
         if not busqueda.empty:
             for i in range(4):
                 val = busqueda.iloc[0][f's{i}']
-                if int(float(val)) > 0: golpes_a_mostrar[i] = int(float(val))
+                try:
+                    # Convertimos a int de forma segura
+                    v_int = int(float(val))
+                    if v_int > 0:
+                        golpes_a_mostrar[i] = v_int
+                except:
+                    golpes_a_mostrar[i] = par_hoyo
 
     # Diseño Marcador Superior
     st.markdown(f"""
@@ -370,17 +382,27 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
 
     st.divider()
 
-    # 5. INPUTS Y MARCADOR HOYO EN TIEMPO REAL
+    # --- 5. INPUTS CORREGIDOS ---
     cols = st.columns(2)
-    nombres = ["MANU", "JOSE", "ROGE", "LALO"]
-    indices = [0, 2, 1, 3] # Manu(s0), Jose(s2) vs Roge(s1), Lalo(s3)
+    # Definimos claramente quién es quién
+    config_jugadores = [
+        {"nombre": "MANU", "idx": 0},
+        {"nombre": "ROGE", "idx": 1},
+        {"nombre": "JOSE", "idx": 2},
+        {"nombre": "LALO", "idx": 3}
+    ]
+    
     in_golpes = {}
-
-    for i, nombre in enumerate(nombres):
-        idx = indices[i]
+    for i, jug in enumerate(config_jugadores):
         with cols[i % 2]:
-            v = st.number_input(nombre, 1, 15, golpes_a_mostrar[idx], key=f"g_{nombre}_{h_idx}")
-            in_golpes[idx] = v
+            # Usamos el diccionario golpes_a_mostrar con el índice correcto
+            v = st.number_input(
+                jug["nombre"], 
+                1, 15, 
+                value=golpes_a_mostrar[jug["idx"]], 
+                key=f"g_{jug['nombre']}_{h_idx}"
+            )
+            in_golpes[jug["idx"]] = v
 
     # Cálculo tiempo real del hoyo
     ph_e1, ph_e2 = calcular_puntos_hoyo(in_golpes[0], in_golpes[1], in_golpes[2], in_golpes[3], par_hoyo)
