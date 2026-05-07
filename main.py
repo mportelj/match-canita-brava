@@ -282,102 +282,22 @@ if st.session_state.menu_seleccionado == "Inicio":
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     st.title("⛳ Jugar / Editar Hoyo")
     
-    
-    # IMPORTANTE: Forzamos el formato de texto para buscar y guardar
-    # Usamos este string para buscar en la BBDD y para INSERTAR/ACTUALIZAR
-     
-    
-    # 1. INICIALIZACIÓN
+    # --- 1. INICIALIZACIÓN (Limpia los espacios aquí) ---
     if 'hoyo_actual' not in st.session_state:
         st.session_state.hoyo_actual = 1
-
-    # Selector de fecha con formato corregido dd/mm/aaaa
-    # 1. Inicializar la fecha en el estado si no existe
-if 'fecha_partida' not in st.session_state:
-    st.session_state.fecha_partida = datetime.now()
-
-# 2. Selector de fecha vinculado al estado
-fecha_input = st.date_input(
-    "Fecha de la partida:", 
-    value=st.session_state.fecha_partida,
-    format="DD/MM/YYYY"
-)
-
-# 3. Actualizar el estado y crear el string de búsqueda
-st.session_state.fecha_partida = fecha_input
-fecha_str = fecha_input.strftime("%d/%m/%Y")
-    
     if 'hoyo_guardado' not in st.session_state:
         st.session_state.hoyo_guardado = False
+    if 'fecha_partida' not in st.session_state:
+        st.session_state.fecha_partida = datetime.now()
 
-    #fecha_input = st.date_input("Fecha de la partida:", datetime.now())
+    # --- 2. SELECTOR DE FECHA ---
+    fecha_input = st.date_input(
+        "Fecha de la partida:", 
+        value=st.session_state.fecha_partida,
+        format="DD/MM/YYYY"
+    )
+    st.session_state.fecha_partida = fecha_input
     fecha_str = fecha_input.strftime("%d/%m/%Y")
-    
-    h_idx = st.session_state.hoyo_actual
-    par_hoyo = PAR_RIA_VIGO.get(h_idx, 4)
-
-    # 2. FUNCIÓN DE LÓGICA: MEJOR, PEOR Y BONUS
-    def calcular_puntos_hoyo(s0, s1, s2, s3, par):
-        # Equipos: E1 (Manu s0, Jose s2) vs E2 (Roge s1, Lalo s3)
-        e1 = [s0, s2]
-        e2 = [s1, s3]
-        
-        pts_e1, pts_e2 = 0, 0
-        
-        # A) Punto a la Mejor Bola
-        if min(e1) < min(e2): pts_e1 += 1
-        elif min(e2) < min(e1): pts_e2 += 1
-        
-        # B) Punto a la Peor Bola
-        if max(e1) < max(e2): pts_e1 += 1
-        elif max(e2) < max(e1): pts_e2 += 1
-        
-        # C) Bonus por Birdie o mejor
-        def get_bonus(golpes, p):
-            dif = golpes - p
-            if dif <= -3: return 3 # Albatros
-            if dif == -2: return 2 # Eagle
-            if dif == -1: return 1 # Birdie
-            return 0
-        
-        pts_e1 += sum([get_bonus(g, par) for g in e1])
-        pts_e2 += sum([get_bonus(g, par) for g in e2])
-        
-        return pts_e1, pts_e2
-
-   # --- 3. CARGA DE DATOS Y MARCADOR MATCH ---
-    df_actual = leer_datos()
-    golpes_a_mostrar = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo}
-    
-    m_e1, m_e2 = 0, 0
-    if not df_actual.empty:
-        f_buscar_1 = fecha_input.strftime("%d/%m/%Y")
-        f_buscar_2 = fecha_input.strftime("%Y-%m-%d")
-
-        df_f = df_actual[
-            (df_actual['fecha'].astype(str) == f_buscar_1) | 
-            (df_actual['fecha'].astype(str) == f_buscar_2)
-        ]
-        
-        if not df_f.empty:
-            for _, row in df_f.iterrows():
-                p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
-                p1, p2 = calcular_puntos_hoyo(int(row['s0']), int(row['s1']), int(row['s2']), int(row['s3']), p_h)
-                m_e1 += p1
-                m_e2 += p2
-
-            # Búsqueda del hoyo actual con limpieza de espacios
-            busqueda = df_f[df_f['hoyo'].astype(str).str.strip() == str(h_idx)]
-            
-            if not busqueda.empty:
-                for i in range(4):
-                    try:
-                        valor_bbdd = busqueda.iloc[0][f's{i}']
-                        v_limpio = int(float(valor_bbdd))
-                        if v_limpio > 0:
-                            golpes_a_mostrar[i] = v_limpio
-                    except:
-                        continue
     # Diseño Marcador Superior
     st.markdown(f"""
     <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border: 2px solid #2e7d32; text-align: center;">
