@@ -74,80 +74,141 @@ with st.sidebar:
     st.info(f"Sincro: {st.session_state.ultima_sincro}")
 
 # ==========================================
-# 5. SECCIÓN: JUGAR / EDITAR (EL MOTOR)
+# SECCIÓN: JUGAR / EDITAR (MOTOR PRINCIPAL)
 # ==========================================
-if menu == "Jugar/Editar":
+elif menu == "Jugar/Editar":
     st.header("🏌️ Entrada de Golpes")
     
+    # 1. Gestión de Refresco y Sincronización
     col_ref1, col_ref2 = st.columns([3, 1])
-    if col_ref2.button("🔄 REFRESCAR NUBE", use_container_width=True):
+    col_ref1.info(f"☁️ **Última Sincro:** {st.session_state.ultima_sincro}")
+    
+    if col_ref2.button("🔄 REFRESCAR HOYO", use_container_width=True):
         st.cache_data.clear()
+        # Incrementamos el ID para forzar a los widgets de golpes a reiniciarse
         st.session_state.refresco_id += 1
+        st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
         st.rerun()
 
-    # Selección de Hoyo con persistencia
-    st.number_input("Hoyo actual:", min_value=1, max_value=18, step=1, key="hoyo_selector_persistente")
+    st.write("---")
+
+    # 2. Selección de Hoyo con Persistencia en Session State
+    # Usamos una key fija para que Streamlit "recuerde" el hoyo al refrescar
+    st.number_input(
+        "Selecciona el Hoyo:", 
+        min_value=1, 
+        max_value=18, 
+        step=1, 
+        key="hoyo_selector_persistente"
+    )
+    
+    # Definimos la variable única para evitar NameError
     hoyo_id = int(st.session_state.hoyo_selector_persistente)
     par_hoyo = int(PAR_RIA_VIGO[hoyo_id])
 
-    # Carga de datos fresca
+    # 3. Carga de Datos y Filtrado por Fecha y Hoyo
     df_actual = leer_datos()
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
     
-    # Filtrado seguro
+    datos_hoyo_especifico = pd.DataFrame()
+    
     if not df_actual.empty:
+        # Aseguramos que los tipos coincidan para el filtro
         df_actual['HOYO'] = pd.to_numeric(df_actual['HOYO'], errors='coerce')
         df_actual['FECHA'] = df_actual['FECHA'].astype(str)
-        datos_hoyo = df_actual[(df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoy_id)]
-    else:
-        datos_hoyo = pd.DataFrame()
+        
+        # Filtramos la fila exacta del día de hoy y el hoyo seleccionado
+        datos_hoyo_especifico = df_actual[
+            (df_actual['FECHA'] == fecha_hoy) & 
+            (df_actual['HOYO'] == hoyo_id)
+        ]
 
+    # 4. Interfaz Visual de los 4 Jugadores
     st.subheader(f"⛳ Hoyo {hoyo_id} | Par {par_hoyo}")
     
-    # Formulario de Jugadores
     cols_jug = st.columns(4)
     golpes_finales = []
-    campos_s = ['S0', 'S1', 'S2', 'S3']
+    campos_s = ['S0', 'S1', 'S2', 'S3'] # Nombres de columnas en tu Excel
 
-    for i, jug in enumerate(TODOS):
-        v_def = par_hoyo
-        if not datos_hoyo.empty:
-            col_s = campos_s[i]
-            if col_s in datos_hoyo.columns:
-                val_n = datos_hoyo.iloc[0][col_s]
-                if pd.notna(val_n): v_def = int(float(val_n))
+    for i, jug en enumerate(TODOS):
+        # Por defecto cargamos el Par del hoyo
+        valor_defecto = par_hoyo
         
-        # Key dinámica para evitar el error de visualizar el hoyo 1 siempre
-        clave = f"in_h{hoyo_id}_j{i}_rid{st.session_state.refresco_id}"
-        g = cols_jug[i].number_input(f"{jug}", 1, 15, v_def, key=clave)
+        # Si existen datos previos en la nube para este hoyo, los extraemos
+        if not datos_hoyo_especifico.empty:
+            col_s = campos_s[i]
+            if col_s in datos_hoyo_especifico.columns:
+                val_celda = datos_hoyo_especifico.iloc[0][col_s]
+                if pd.notna(val_celda):
+                    try:
+                        valor_defecto = int(float(val_celda))
+                    except:
+                        valor_defecto = par_hoyo
+        
+        # TRUCO: La key incluye 'refresco_id' y 'hoyo_id' para forzar a la UI
+        # a mostrar los golpes correctos y no quedarse "atascada" en el hoyo 1.
+        clave_input = f"input_h{hoyo_id}_j{i}_rid{st.session_state.refresco_id}"
+        
+        g = cols_jug[i].number_input(
+            f"{jug}", 
+            min_value=1, 
+            max_value=15, 
+            value=valor_defecto, 
+            key=clave_input
+        )
         golpes_finales.append(g)
 
-    if st.button("💾 GUARDAR HOYO EN LA NUBE", type="primary", use_container_width=True):
-        with st.spinner("Subiendo datos..."):
-            puntos = calcular_puntos_jornada(par_hoyo, golpes_finales)
-            nueva_data = {
-                'FECHA': fecha_hoy, 'HOYO': hoyo_id, 'PAR': par_hoyo,
-                'TEMPORADA': 2024.0, 'PARTIDO_ID': float(fecha_hoy.replace("-", "")),
-                'S0': int(golpes_finales[0]), 'S1': int(golpes_finales[1]),
-                'S2': int(golpes_finales[2]), 'S3': int(golpes_finales[3]),
-                'P1_PTS': float(puntos[0]), 'P2_PTS': float(puntos[1]),
-                'P3_PTS': float(puntos[2]), 'P4_PTS': float(puntos[3])
-            }
-            
-            # Lógica de actualización
-            mask = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_id)
-            if mask.any():
-                idx = df_actual.index[mask][0]
-                for c, v in nueva_data.items(): df_actual.at[idx, c] = v
-            else:
-                df_actual = pd.concat([df_actual, pd.DataFrame([nueva_data])], ignore_index=True)
-            
-            conn.update(data=df_actual)
-            st.cache_data.clear()
-            st.session_state.refresco_id += 1
-            st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
-            st.success(f"Hoyo {hoyo_id} guardado correctamente.")
-            st.rerun()
+    st.write("---")
+
+    # 5. Botón de Guardado y Sincronización con Google Sheets
+    if st.button("💾 GUARDAR HOYO Y SUBIR", type="primary", use_container_width=True):
+        with st.spinner("Sincronizando con Google Sheets..."):
+            try:
+                # Calculamos el reparto de puntos
+                puntos_calculados = calcular_puntos_jornada(par_hoyo, golpes_finales)
+                
+                # Preparamos la estructura de datos (Mayúsculas obligatorias)
+                nueva_fila = {
+                    'FECHA': fecha_hoy,
+                    'HOYO': int(hoyo_id),
+                    'PAR': int(par_hoyo),
+                    'TEMPORADA': 2024.0,
+                    'PARTIDO_ID': float(fecha_hoy.replace("-", "")),
+                    'S0': int(golpes_finales[0]),
+                    'S1': int(golpes_finales[1]),
+                    'S2': int(golpes_finales[2]),
+                    'S3': int(golpes_finales[3]),
+                    'P1_PTS': float(puntos_calculados[0]),
+                    'P2_PTS': float(puntos_calculados[1]),
+                    'P3_PTS': float(puntos_calculados[2]),
+                    'P4_PTS': float(puntos_calculados[3])
+                }
+                
+                # Buscamos si el hoyo ya existía en el DataFrame para sobreescribirlo
+                mascara = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_id)
+                
+                if mascara.any():
+                    idx = df_actual.index[mascara][0]
+                    for col, val in nueva_fila.items():
+                        if col in df_actual.columns:
+                            df_actual.at[idx, col] = val
+                else:
+                    # Si es un hoyo nuevo en el partido, lo añadimos al final
+                    df_actual = pd.concat([df_actual, pd.DataFrame([nueva_fila])], ignore_index=True)
+                
+                # Enviamos el DataFrame completo de vuelta a la nube
+                conn.update(data=df_actual)
+                
+                # Feedback y limpieza
+                st.cache_data.clear()
+                st.session_state.refresco_id += 1 # Limpiamos la UI para el siguiente paso
+                st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
+                st.success(f"✅ ¡Éxito! Datos del hoyo {hoyo_id} guardados.")
+                st.balloons()
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"Hubo un error al guardar: {e}")
 
 # ==========================================
 # 6. SECCIÓN: ESTADÍSTICAS (CORREGIDA)
