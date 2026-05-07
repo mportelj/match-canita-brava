@@ -381,27 +381,29 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         with col2:
             ver_acumulado = st.toggle("📂 Ver Acumulado de la Temporada", value=False)
 
-        # --- CÁLCULO DE MARCADORES (DÍA Y GLOBAL) ---
-        puntos_a_total = pd.to_numeric(df_raw['resultado_a'], errors='coerce').sum()
-        puntos_b_total = pd.to_numeric(df_raw['resultado_b'], errors='coerce').sum()
-        dif_total = int(puntos_a_total - puntos_b_total)
+       # --- CÁLCULO DE MARCADORES (INICIO VS GLOBAL) ---
+        # Sumamos todos los puntos de la historia (igual que en Inicio)
+        total_puntos_a = pd.to_numeric(df_raw['resultado_a'], errors='coerce').sum()
+        total_puntos_b = pd.to_numeric(df_raw['resultado_b'], errors='coerce').sum()
         
-        if dif_total > 0:
-            marcador_global = f"🏆 MANU & JOSE ganan {dif_total} UP (Global)"
-        elif dif_total < 0:
-            marcador_global = f"🏆 ROGE & LALO ganan {abs(dif_total)} UP (Global)"
+        diferencia_global = int(total_puntos_a - total_puntos_b)
+        
+        # Formateamos el marcador global igual que en la pantalla de inicio
+        if diferencia_global > 0:
+            marcador_global_texto = f"MANU & JOSE ganan {diferencia_global} UP"
+        elif diferencia_global < 0:
+            marcador_global_texto = f"ROGE & LALO ganan {abs(diferencia_global)} UP"
         else:
-            marcador_global = "🤝 EMPATE GLOBAL (All Square)"
+            marcador_global_texto = "ALL SQUARE (Empate)"
 
+        # --- FILTRADO DE JORNADA ---
         if ver_acumulado:
             df_stats = df_raw.copy()
             f_formateada = "Temporada Completa"
-            titulo_seccion = "Acumulado Temporada"
-            res_match_dia = "" # No mostramos marcador de día en acumulado
+            res_match_dia = ""
         else:
             df_stats = df_raw[df_raw['fecha'] == jornada_sel_raw].copy()
             f_formateada = opciones_combo[jornada_sel_raw]
-            titulo_seccion = f"Jornada: {f_formateada}"
             
             puntos_a_dia = pd.to_numeric(df_stats['resultado_a'], errors='coerce').sum()
             puntos_b_dia = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
@@ -413,6 +415,19 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 res_match_dia = f"Roge & Lalo +{abs(dif_dia)}"
             else:
                 res_match_dia = "Empate (AS)"
+
+        # --- CONSTRUCCIÓN DEL MENSAJE DE WHATSAPP ---
+        n_hoyos_info = len(df_stats['hoyo'].unique())
+        
+        whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n"
+        whatsapp_text += f"📅 *Jornada: {f_formateada}* ({n_hoyos_info} hoyos)\n"
+        
+        if not ver_acumulado:
+            whatsapp_text += f"⛳ Marcador hoy: *{res_match_dia}*\n"
+        
+        # Marcador Global resaltado (idéntico al de Inicio)
+        whatsapp_text += f"✨ *GLOBAL: {marcador_global_texto.upper()}* ✨\n"
+        whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
 
         # --- CÁLCULOS ESTADÍSTICOS ---
         n_hoyos_info = len(df_stats['hoyo'].unique())
@@ -449,13 +464,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         # ORDENAR POR SCRATCH
         lista_resultados = sorted(lista_resultados, key=lambda x: x['scratch'], reverse=True)
 
-        # --- CONSTRUCCIÓN MENSAJE WHATSAPP ---
-        whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n"
-        whatsapp_text += f"📅 *Jornada: {f_formateada}* ({n_hoyos_info} hoyos)\n"
-        if not ver_acumulado:
-            whatsapp_text += f"⛳ Marcador hoy: *{res_match_dia}*\n"
-        whatsapp_text += f"✨ *{marcador_global.upper()}* ✨\n"
-        whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+    
 
         for res in lista_resultados:
             pm_txt = f"+{res['plus_minus']}" if res['plus_minus'] > 0 else (str(res['plus_minus']) if res['plus_minus'] < 0 else "E")
