@@ -292,58 +292,72 @@ if st.session_state.menu_seleccionado == "Inicio":
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    # 1. BLOQUE DE SELECCIÓN (Único visible al inicio)
-    with st.container():
-        st.markdown("### 📅 Selección de Jornada")
-        
-        # Recuperamos fecha si viene de Admin, si no, hoy
-        fecha_defecto = st.session_state.get('fecha_partida', datetime.now().date())
-        
-        fecha_sel = st.date_input("Selecciona la fecha del partido:", 
-                                   value=fecha_defecto,
-                                   key="selector_fecha_jugar")
-        
-        st.session_state.fecha_partida = fecha_sel
+    # 1. ÚNICO ELEMENTO VISIBLE AL INICIO
+    st.markdown("### 📅 Selección de Jornada")
+    
+    fecha_defecto = st.session_state.get('fecha_partida', datetime.now().date())
+    
+    # El selector de fecha actúa como filtro principal
+    fecha_sel = st.date_input("Selecciona la fecha del partido:", 
+                               value=fecha_defecto,
+                               key="selector_fecha_jugar")
+    
+    # Guardamos en el estado de sesión
+    st.session_state.fecha_partida = fecha_sel
 
-    # Separador sutil
+    # --- ESPACIADOR ---
     st.markdown("---")
 
-    # 2. CARGA DE DATOS Y LÓGICA DE INTERFAZ
+    # 2. CARGA DE DATOS (Solo se procesa internamente)
     df = leer_datos()
-    
-    # Preparamos variables de la jornada
     m_e1, m_e2 = 0, 0
     partido_existe = False
     
     if df is not None and not df.empty:
-        f_eur = fecha_sel.strftime("%d/%m/%Y")
+        f_str = fecha_sel.strftime("%d/%m/%Y")
         f_iso = fecha_sel.strftime("%Y-%m-%d")
         df['fecha_str'] = df['fecha'].astype(str).str.split(' ').str[0]
-        df_jornada = df[df['fecha_str'].isin([f_eur, f_iso])]
+        df_jornada = df[df['fecha_str'].isin([f_str, f_iso])]
         
         if not df_jornada.empty:
             partido_existe = True
-            # Marcador Match acumulado
+            # Cálculo de Marcador Match acumulado
             s_a = pd.to_numeric(df_jornada['resultado_a'], errors='coerce').sum()
             s_b = pd.to_numeric(df_jornada['resultado_b'], errors='coerce').sum()
             dif = s_a - s_b
             if dif > 0: m_e1, m_e2 = int(dif), 0
             elif dif < 0: m_e1, m_e2 = 0, int(abs(dif))
 
-    # 3. CUERPO DEL JUEGO (Solo se muestra después del selector)
+    # 3. INTERFAZ DINÁMICA (Aparece debajo del selector)
+    # Mostramos el aviso de "Nuevo Partido" si no hay datos
     if not partido_existe:
         st.info(f"🆕 No hay datos para el {fecha_sel.strftime('%d/%m/%Y')}. Empieza a anotar en el Hoyo 1.")
-    
-    # Combo de salto rápido
+
+    # Combo de Hoyos y Navegación
     opciones_hoyos = list(range(1, 19))
-    h_idx = st.selectbox("📍 Hoyo actual:", opciones_hoyos, 
+    h_idx = st.selectbox("📍 Saltar al Hoyo:", opciones_hoyos, 
                          index=st.session_state.get('hoyo_actual', 1) - 1,
                          key="combo_hoyo")
     st.session_state.hoyo_actual = h_idx
     
-    par_hoyo = int(PAR_RIA_VIGO.get(h_idx, 4))
-    
-    # ... (Aquí continuaría el resto del diseño del marcador y los golpes que ya tenemos)
+    # Marcador Match Play (Diseño de la imagen)
+    st.markdown(f"""
+    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #2e7d32; text-align: center;">
+        <div style="display: flex; justify-content: space-around; align-items: center;">
+            <div>
+                <p style="margin: 0; font-size: 0.8em; color: #2e7d32; font-weight: bold;">MANU & JOSE</p>
+                <h1 style="margin: 0; font-size: 3em; color: #2e7d32;">{m_e1}</h1>
+            </div>
+            <div style="background: #eee; color: #333; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold;">VS</div>
+            <div>
+                <p style="margin: 0; font-size: 0.8em; color: #c62828; font-weight: bold;">ROGE & LALO</p>
+                <h1 style="margin: 0; font-size: 3em; color: #c62828;">{m_e2}</h1>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # El resto del formulario (Hoyo, Golpes y Botón Actualizar) sigue debajo...
 
 
 
