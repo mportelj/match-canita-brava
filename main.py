@@ -243,6 +243,23 @@ menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Estadísticas", "Ad
                        index=["Inicio", "Jugar/Editar", "Estadísticas", "Admin"].index(st.session_state.menu_seleccionado),
                        key="radio_menu", on_change=cambiar_menu)
 
+
+df_raw = leer_datos()
+
+if df_raw is not None and not df_raw.empty:
+    # --- CÁLCULO DEL MARCADOR DE LA TEMPORADA (4.5 vs 3.5) ---
+    # Agrupamos por fecha y sumamos los resultados de cada pareja en cada jornada
+    jornadas_totales = df_raw.groupby('fecha')[['resultado_a', 'resultado_b']].sum()
+    
+    # Calculamos los puntos: 1 por ganar jornada, 0.5 por empate
+    marcador_global_a = (jornadas_totales['resultado_a'] > jornadas_totales['resultado_b']).sum() + \
+                        (jornadas_totales['resultado_a'] == jornadas_totales['resultado_b']).sum() * 0.5
+    marcador_global_b = (jornadas_totales['resultado_b'] > jornadas_totales['resultado_a']).sum() + \
+                        (jornadas_totales['resultado_a'] == jornadas_totales['resultado_b']).sum() * 0.5
+    
+    # Guardamos en variables que usaremos en cualquier pestaña
+    texto_marcador_global = f"{marcador_global_a} vs {marcador_global_b}"
+
 # --- 4. PANTALLAS ---
 # ==========================================
 # SECCIÓN: INICIO (Marcador de Temporada)
@@ -287,9 +304,7 @@ if st.session_state.menu_seleccionado == "Inicio":
             </div>
         </div>
     """, unsafe_allow_html=True)
-    st.session_state.global_a = resultado_a
-    st.session_state.global_b = resultado_b
-
+   
 
 # ==========================================
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
@@ -472,15 +487,26 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         else:
             lider_txt = f"EMPATE TEMPORADA ({texto_temporada})"
 
-        # --- MENSAJE WHATSAPP ---
-        whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n"
-        whatsapp_text += f"📅 *Jornada: {f_formateada}* ({n_hoyos_info} hoyos)\n"
-        if not ver_acumulado:
-            whatsapp_text += f"⛳ Marcador hoy: *{res_match_dia}*\n"
-        # Aquí usamos las variables que trajimos de Inicio
-        whatsapp_text += f"🏆 *TEMPORADA: {texto_temporada}*\n"
-        whatsapp_text += f"✨ *{lider_txt.upper()}* ✨\n"
-        whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+       # --- MENSAJE WHATSAPP ---
+    whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n"
+    whatsapp_text += f"📅 *Jornada: {f_formateada}* ({n_hoyos_info} hoyos)\n"
+    
+    if not ver_acumulado:
+        whatsapp_text += f"⛳ Marcador hoy: *{res_match_dia}*\n"
+    
+    # Usamos la variable calculada al inicio
+    whatsapp_text += f"🏆 *TEMPORADA: {texto_marcador_global}*\n"
+    
+    # Lógica de líder para el texto resaltado
+    if marcador_global_a > marcador_global_b:
+        lider_txt = f"MANU & JOSE lideran ({texto_marcador_global})"
+    elif marcador_global_b > marcador_global_a:
+        lider_txt = f"ROGE & LALO lideran ({texto_marcador_global})"
+    else:
+        lider_txt = f"EMPATE TEMPORADA ({texto_marcador_global})"
+        
+    whatsapp_text += f"✨ *{lider_txt.upper()}* ✨\n"
+    whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
       
         for res in lista_resultados:
             pm_txt = f"+{res['plus_minus']}" if res['plus_minus'] > 0 else (str(res['plus_minus']) if res['plus_minus'] < 0 else "E")
