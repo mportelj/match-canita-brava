@@ -268,7 +268,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas MVP")
     df = leer_datos()
     
-    # Lista de columnas de golpes según tu base de datos (s0 a s3)
+    # Aseguramos nombres de columnas correctos (s0 a s3)
     cols_golpes = [f's{i}' for i in range(4)]
     
     if not df.empty and all(c in df.columns for c in cols_golpes):
@@ -276,28 +276,29 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         for i, jug in enumerate(TODOS):
             col_actual = f's{i}'
             
-            # 1. Creamos un DF temporal solo con los datos de este jugador
-            # Eliminamos filas donde los golpes no sean números o estén vacíos
+            # 1. Filtramos: Solo filas con este hoyo anotado y golpes > 0
+            # Esto elimina filas vacías que Pandas a veces lee como 0 o NaN
             d_j = df[['hoyo', col_actual]].copy()
             d_j[col_actual] = pd.to_numeric(d_j[col_actual], errors='coerce')
-            d_j = d_j.dropna(subset=[col_actual])
             
-            # 2. Calculamos la diferencia contra el Par (Asegurando que el Par 18 sea 4)
+            # FILTRO CRÍTICO: Eliminar ceros y vacíos (un 0 en un par 3 contaría como Birdie)
+            d_j = d_j[d_j[col_actual] > 0].dropna()
+            
+            # 2. Calculamos diferencia (Hoyo 18 = Par 4 según corregimos)
             d_j['par_h'] = d_j['hoyo'].map(PAR_RIA_VIGO)
             d_j['dif'] = d_j[col_actual] - d_j['par_h']
             
-            # 3. Conteos con filtros exactos
-            # Usamos .shape[0] para contar filas de forma precisa
-            eagles = d_j[d_j['dif'] <= -2].shape[0]
-            birdies = d_j[d_j['dif'] == -1].shape[0]
-            pares = d_j[d_j['dif'] == 0].shape[0]
-            bogeys = d_j[d_j['dif'] == 1].shape[0]
-            dobles = d_j[d_j['dif'] == 2].shape[0]
-            triples_mas = d_j[d_j['dif'] >= 3].shape[0]
+            # 3. Conteos estrictos
+            eagles = int((d_j['dif'] <= -2).sum())
+            birdies = int((d_j['dif'] == -1).sum())
+            pares = int((d_j['dif'] == 0).sum())
+            bogeys = int((d_j['dif'] == 1).sum())
+            dobles = int((d_j['dif'] == 2).sum())
+            triples_mas = int((d_j['dif'] >= 3).sum())
             
-            # Puntos MVP
+            # Puntos MVP (ajustado a tus columnas p1_pts...p4_pts)
             col_p_pts = f'p{i+1}_pts'
-            pts_mvp = df[col_p_pts].sum() if col_p_pts in df.columns else 0
+            pts_mvp = pd.to_numeric(df[col_p_pts], errors='coerce').sum() if col_p_pts in df.columns else 0
             
             stats.append({
                 "Jugador": jug,
@@ -311,16 +312,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             })
         
         df_stats = pd.DataFrame(stats)
-        
-        # Mostrar tabla
         st.dataframe(df_stats.set_index("Jugador"), use_container_width=True)
         
-        # Gráfico comparativo
         st.write("### Comparativa de Hoyos")
         st.bar_chart(df_stats.set_index("Jugador")[["Eagle", "Birdie", "Par", "Bogey", "D.Bogey", "3+ Bogey"]])
         
     else:
-        st.warning("No hay datos suficientes o las columnas s0-s3 no coinciden.")
+        st.warning("⚠️ No hay datos o las columnas s0-s3 no coinciden con el Excel.")
 
 
 elif st.session_state.menu_seleccionado == "Admin":
