@@ -227,10 +227,11 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     col_info, col_btn = st.columns([3, 1])
     col_info.info(f"☁️ **Sincronización:** {st.session_state.ultima_sincro}")
     
+    # EL CAMBIO AQUÍ: Limpieza total de caché al pulsar el botón
     if col_btn.button("🔄 REFRESCAR NUBE", use_container_width=True):
-        st.cache_data.clear()
-        st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
-        st.rerun()
+        st.cache_data.clear()  # Borra TODA la memoria temporal de la app
+        if 'conn' in globals() or 'conn' in locals():
+            st.rerun() # Recarga la app desde cero leyendo de nuevo la hoja
 
     st.write("---")
 
@@ -238,16 +239,19 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     hoyo_sel = st.number_input("Selecciona el hoyo:", min_value=1, max_value=18, step=1)
     par_hoyo = int(PAR_RIA_VIGO[hoyo_sel])
     
-    # Lectura fresca y limpieza de nombres de columnas
+    # IMPORTANTE: Forzamos la lectura sin caché aquí también
     df_actual = leer_datos() 
     df_actual.columns = [str(c).strip().upper() for c in df_actual.columns]
     
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
     
-    # Buscamos si ya existen datos para este hoyo hoy
+    # Buscamos datos existentes con limpieza de tipos
     datos_existentes = pd.DataFrame()
     if 'FECHA' in df_actual.columns and 'HOYO' in df_actual.columns:
+        # Convertimos columnas a tipos comparables para evitar errores de "1" vs "1.0"
         df_actual['HOYO'] = pd.to_numeric(df_actual['HOYO'], errors='coerce')
+        df_actual['FECHA'] = df_actual['FECHA'].astype(str)
+        
         datos_existentes = df_actual[(df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_sel)]
 
     # --- 3. INTERFAZ DE ENTRADA DE GOLPES ---
@@ -257,33 +261,35 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     columnas_golpes = ['S0', 'S1', 'S2', 'S3']
 
     for i, jug in enumerate(TODOS):
-        # Valor por defecto desde la nube o el Par
+        # Lógica de carga: Si hay datos en la nube para ese hoyo y jugador, los usamos
         val_default = par_hoyo
         if not datos_existentes.empty:
             col_nombre = columnas_golpes[i]
             if col_nombre in datos_existentes.columns:
                 val_nube = datos_existentes.iloc[0][col_nombre]
+                # Si el valor no es nulo y es un número válido
                 if pd.notna(val_nube):
-                    val_default = int(val_nube)
+                    try:
+                        val_default = int(float(val_nube))
+                    except:
+                        val_default = par_hoyo
             
         g = cols[i].number_input(f"{jug}", min_value=1, max_value=15, value=val_default, key=f"edit_h{hoyo_sel}_j{i}")
         golpes_finales.append(g)
 
     st.write("---")
 
-    # --- 4. BOTÓN DE GUARDADO SEGURO (SOLUCIÓN DTYPE) ---
+    # --- 4. BOTÓN DE GUARDADO ---
     if st.button("💾 GUARDAR CAMBIOS Y SUBIR", type="primary", use_container_width=True):
-        with st.spinner("Subiendo datos a Google Sheets..."):
+        with st.spinner("Subiendo datos reales..."):
             try:
-                # A. Calculamos puntos
                 puntos_reales = calcular_puntos_jornada(par_hoyo, golpes_finales)
                 
-                # B. Diccionario con TIPOS DE DATOS FORZADOS (TEMPORADA como número)
                 datos_hoyo = {
                     'FECHA': fecha_hoy,
                     'HOYO': int(hoyo_sel),
                     'PAR': int(par_hoyo),
-                    'TEMPORADA': 2024.0,  # Forzado a float para evitar error de dtype
+                    'TEMPORADA': 2024.0,
                     'PARTIDO_ID': float(fecha_hoy.replace("-", "")),
                     'S0': int(golpes_finales[0]),
                     'S1': int(golpes_finales[1]),
@@ -295,11 +301,8 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                     'P4_PTS': float(puntos_reales[3])
                 }
                 
-                # C. Actualizamos el DataFrame local
-                # Aseguramos que la columna HOYO sea numérica antes de comparar
-                df_actual['HOYO'] = pd.to_numeric(df_actual['HOYO'], errors='coerce')
+                # Actualizamos la fila si existe o añadimos si no
                 mascara = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == int(hoyo_sel))
-                
                 if mascara.any():
                     idx = df_actual.index[mascara][0]
                     for col, val in datos_hoyo.items():
@@ -308,16 +311,12 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 else:
                     df_actual = pd.concat([df_actual, pd.DataFrame([datos_hoyo])], ignore_index=True)
                 
-                # D. Limpieza final de tipos antes de subir para evitar el error de 'float64'
-                if 'TEMPORADA' in df_actual.columns:
-                    df_actual['TEMPORADA'] = pd.to_numeric(df_actual['TEMPORADA'], errors='coerce')
-
-                # E. Subida a la nube
+                # Subida y limpieza de caché para que el siguiente "Refrescar" vea esto
                 conn.update(data=df_actual)
+                st.cache_data.clear() 
                 
                 st.success(f"✅ Hoyo {hoyo_sel} guardado correctamente.")
                 st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
-                st.cache_data.clear()
                 st.balloons()
                 
             except Exception as e:
