@@ -292,73 +292,50 @@ if st.session_state.menu_seleccionado == "Inicio":
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    # 1. ÚNICO ELEMENTO VISIBLE AL INICIO
+    # 1. TÍTULO Y SELECTOR DE FECHA (Lo único visible inicialmente)
     st.markdown("### 📅 Selección de Jornada")
     
     fecha_defecto = st.session_state.get('fecha_partida', datetime.now().date())
     
-    # El selector de fecha actúa como filtro principal
+    # Creamos el combo de fecha
     fecha_sel = st.date_input("Selecciona la fecha del partido:", 
                                value=fecha_defecto,
                                key="selector_fecha_jugar")
     
-    # Guardamos en el estado de sesión
+    # Guardamos la fecha en la sesión
     st.session_state.fecha_partida = fecha_sel
 
-    # --- ESPACIADOR ---
-    st.markdown("---")
-
-    # 2. CARGA DE DATOS (Solo se procesa internamente)
+    # --- LÓGICA DE CARGA ---
     df = leer_datos()
-    m_e1, m_e2 = 0, 0
-    partido_existe = False
+    partido_encontrado = False
     
     if df is not None and not df.empty:
-        f_str = fecha_sel.strftime("%d/%m/%Y")
+        f_eur = fecha_sel.strftime("%d/%m/%Y")
         f_iso = fecha_sel.strftime("%Y-%m-%d")
         df['fecha_str'] = df['fecha'].astype(str).str.split(' ').str[0]
-        df_jornada = df[df['fecha_str'].isin([f_str, f_iso])]
+        # Verificamos si hay algún dato para esa fecha
+        if not df[df['fecha_str'].isin([f_eur, f_iso])].empty:
+            partido_encontrado = True
+
+    # 2. SEPARADOR VISUAL (Opcional, para dar aire)
+    st.markdown("---")
+
+    # 3. MOSTRAR EL RESTO DE LA PANTALLA
+    # Si quieres que se vea TODO después de elegir la fecha:
+    if fecha_sel:
+        # Aquí insertamos el aviso de estado
+        if not partido_encontrado:
+            st.info(f"🆕 No hay datos para el {fecha_sel.strftime('%d/%m/%Y')}. Empieza a anotar en el Hoyo 1.")
         
-        if not df_jornada.empty:
-            partido_existe = True
-            # Cálculo de Marcador Match acumulado
-            s_a = pd.to_numeric(df_jornada['resultado_a'], errors='coerce').sum()
-            s_b = pd.to_numeric(df_jornada['resultado_b'], errors='coerce').sum()
-            dif = s_a - s_b
-            if dif > 0: m_e1, m_e2 = int(dif), 0
-            elif dif < 0: m_e1, m_e2 = 0, int(abs(dif))
-
-    # 3. INTERFAZ DINÁMICA (Aparece debajo del selector)
-    # Mostramos el aviso de "Nuevo Partido" si no hay datos
-    if not partido_existe:
-        st.info(f"🆕 No hay datos para el {fecha_sel.strftime('%d/%m/%Y')}. Empieza a anotar en el Hoyo 1.")
-
-    # Combo de Hoyos y Navegación
-    opciones_hoyos = list(range(1, 19))
-    h_idx = st.selectbox("📍 Saltar al Hoyo:", opciones_hoyos, 
-                         index=st.session_state.get('hoyo_actual', 1) - 1,
-                         key="combo_hoyo")
-    st.session_state.hoyo_actual = h_idx
-    
-    # Marcador Match Play (Diseño de la imagen)
-    st.markdown(f"""
-    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #2e7d32; text-align: center;">
-        <div style="display: flex; justify-content: space-around; align-items: center;">
-            <div>
-                <p style="margin: 0; font-size: 0.8em; color: #2e7d32; font-weight: bold;">MANU & JOSE</p>
-                <h1 style="margin: 0; font-size: 3em; color: #2e7d32;">{m_e1}</h1>
-            </div>
-            <div style="background: #eee; color: #333; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold;">VS</div>
-            <div>
-                <p style="margin: 0; font-size: 0.8em; color: #c62828; font-weight: bold;">ROGE & LALO</p>
-                <h1 style="margin: 0; font-size: 3em; color: #c62828;">{m_e2}</h1>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # El resto del formulario (Hoyo, Golpes y Botón Actualizar) sigue debajo...
-
+        # Combo de Hoyos (Salto rápido)
+        opciones_hoyos = list(range(1, 19))
+        h_idx = st.selectbox("📍 Saltar al Hoyo:", opciones_hoyos, 
+                             index=st.session_state.get('hoyo_actual', 1) - 1,
+                             key="combo_hoyo")
+        st.session_state.hoyo_actual = h_idx
+        
+        # --- AQUÍ VA EL MARCADOR VS Y LOS INPUTS DE GOLPES ---
+        # (El código del diseño que configuramos antes)
 
 
 # ==========================================
