@@ -545,55 +545,78 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
     else:
         st.info("No hay datos cargados.")
-elif st.session_state.menu_seleccionado == "Admin":
-    st.title("⚙️ Administración")
-    df = leer_datos()
-    
-    if not df.empty:
-        # Filtrar IDs válidos
-        ids_unicos = [pid for pid in df['partido_id'].unique() if pid and str(pid).strip() != ""]
-        
-        for p_id in ids_unicos[::-1]:
-            dp = df[df['partido_id'] == p_id].sort_values('hoyo')
-            
-            if dp.empty:
-                continue
-                
-            fecha_p = str(dp['fecha'].iloc[0])
-            num_hoyos = len(dp)
-            
-            # Título limpio
-            titulo_expander = f"📅 {fecha_p} — ({num_hoyos} hoyos jugados)"
-            
-            with st.expander(titulo_expander):
-                c1, c2, c3 = st.columns([1, 1, 2])
-                
-                # --- BOTÓN EDITAR ---
-                if c1.button("✏️ Editar", key=f"edit_{p_id}", use_container_width=True):
-                    st.session_state.game = {
-                        'fecha': fecha_p, 
-                        'h_sel': 1, 
-                        'logs': {}, 
-                        'id': str(p_id)
-                    }
-                    st.session_state.menu_seleccionado = "Jugar/Editar"
-                    st.rerun()
-                
-                # --- BOTÓN BORRAR CON CONFIRMACIÓN ---
-                with c2:
-                    # El popover actúa como el primer paso de seguridad
-                    with st.popover("🗑️ Borrar", use_container_width=True):
-                        st.warning("¿Estás seguro?")
-                        if st.button("Sí, eliminar", key=f"conf_del_{p_id}", type="primary", use_container_width=True):
-                            # Lógica de borrado
-                            df_new = df[df['partido_id'] != p_id]
-                            conn.update(worksheet="historial", data=df_new)
-                            st.cache_data.clear()
-                            st.success("Partido eliminado.")
-                            st.rerun()
-                
-                with c3:
-                    st.write("") 
 
+# ==========================================
+# SECCIÓN: ADMIN
+# ==========================================
+
+elif st.session_state.menu_seleccionado == "Administración":
+    st.title("⚙️ Administración de Partidas")
+    st.info("Desde aquí puedes ver un resumen de las jornadas y eliminar datos si es necesario.")
+
+    df = leer_datos()
+
+    if df.empty:
+        st.warning("No hay datos registrados en la base de datos.")
     else:
-        st.info("No hay datos en el historial.")
+        # 1. PREPARACIÓN DE DATOS
+        # Aseguramos que la columna fecha sea tratada correctamente
+        df['fecha_dt'] = pd.to_datetime(df['fecha'], dayfirst=True, errors='coerce')
+        
+        # Agrupamos por fecha (usando la fecha original como string para no perder el formato)
+        # pero ordenamos por la fecha real (dt)
+        partidos = df.sort_values(by='fecha_dt', ascending=False).groupby('fecha', sort=False)
+
+        st.subheader(f"Total jornadas encontradas: {len(partidos)}")
+
+        # 2. RENDERIZADO DE PARTIDOS
+        for fecha_str, datos_jornada in partidos:
+            # Limpiamos la fecha para que siempre salga dd/mm/aaaa
+            # Si viene como "2026-05-05 00:00:00", nos quedamos con los primeros 10 caracteres
+            fecha_limpia = str(fecha_str).split(" ")[0]
+            try:
+                # Intentamos darle formato dd/mm/aaaa
+                fecha_formateada = pd.to_datetime(fecha_limpia).strftime("%d/%m/%Y")
+            except:
+                fecha_formateada = fecha_limpia
+
+            # Contamos cuántos hoyos únicos se han jugado ese día
+            num_hoyos = len(datos_jornada['hoyo'].unique())
+            
+            # Calculamos puntos totales de la jornada para el título
+            puntos_e1 = 0
+            puntos_e2 = 0
+            for _, row in datos_jornada.iterrows():
+                try:
+                    p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
+                    p1, p2 = calcular_puntos_hoyo(int(row['s0']), int(row['s1']), int(row['s2']), int(row['s3']), p_h)
+                    puntos_e1 += p1
+                    puntos_e2 += p2
+                except:
+                    continue
+
+            # Creamos el desplegable (Expander)
+            with st.expander(f"📅 {fecha_formateada} — ({num_hoyos} hoyos jugados) — Resultado: {puntos_e1} vs {puntos_e2}"):
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    st.write("**Detalle de hoyos grabados:**")
+                    # Mostramos una tabla resumida de la jornada
+                    resumen_view = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values(by='hoyo')
+                    resumen_view.columns = ['Hoyo', 'Manu', 'Roge', 'Jose', 'Lalo']
+                    st.dataframe(resumen_view, hide_index=True, use_container_width=True)
+
+                with col2:
+                    st.write("**Acciones:**")
+                    # Botón para borrar la jornada completa
+                    if st.button(f"🗑️ Borrar Jornada", key=f"del_{fecha_str}"):
+                        # Aquí llamarías a una función para borrar filas por fecha
+                        # eliminar_partido_por_fecha(fecha_str)
+                        st.error("Función de borrado no conectada por seguridad")
+                        
+                # Si quieres ver quién ganó cada hoyo en el administrador
+                st.caption("Puntos calculados según sistema Match Play + Bonus Birdie.")
+
+    # Botón para refrescar datos
+    if st.button("🔄 Actualizar Datos"):
+        st.rerun()
