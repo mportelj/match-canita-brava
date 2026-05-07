@@ -266,59 +266,66 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas MVP")
-    df = leer_datos()
+    df_raw = leer_datos()
     
-    # Aseguramos nombres de columnas correctos (s0 a s3)
+    # Definimos columnas de golpes s0 a s3
     cols_golpes = [f's{i}' for i in range(4)]
     
-    if not df.empty and all(c in df.columns for c in cols_golpes):
+    if not df_raw.empty and all(c in df_raw.columns for c in cols_golpes):
+        # 1. Limpieza inicial del DataFrame global
+        df_clean = df_raw.copy()
+        df_clean['hoyo'] = pd.to_numeric(df_clean['hoyo'], errors='coerce')
+        
         stats = []
         for i, jug in enumerate(TODOS):
-            col_actual = f's{i}'
+            col_s = f's{i}'
             
-            # 1. Filtramos: Solo filas con este hoyo anotado y golpes > 0
-            # Esto elimina filas vacías que Pandas a veces lee como 0 o NaN
-            d_j = df[['hoyo', col_actual]].copy()
-            d_j[col_actual] = pd.to_numeric(d_j[col_actual], errors='coerce')
+            # 2. Filtrado quirúrgico por jugador
+            # Solo filas donde el hoyo sea 1-18 y los golpes sean > 0
+            d_j = df_clean[df_clean['hoyo'].between(1, 18)].copy()
+            d_j[col_s] = pd.to_numeric(d_j[col_s], errors='coerce')
+            d_j = d_j[d_j[col_s] > 0].dropna(subset=[col_s])
             
-            # FILTRO CRÍTICO: Eliminar ceros y vacíos (un 0 en un par 3 contaría como Birdie)
-            d_j = d_j[d_j[col_actual] > 0].dropna()
+            # 3. Cálculo de diferencia vs PAR (Asegurando Par 4 en el 18)
+            d_j['par_ref'] = d_j['hoyo'].map(PAR_RIA_VIGO)
+            d_j['dif'] = d_j[col_s] - d_j['par_ref']
             
-            # 2. Calculamos diferencia (Hoyo 18 = Par 4 según corregimos)
-            d_j['par_h'] = d_j['hoyo'].map(PAR_RIA_VIGO)
-            d_j['dif'] = d_j[col_actual] - d_j['par_h']
-            
-            # 3. Conteos estrictos
-            eagles = int((d_j['dif'] <= -2).sum())
-            birdies = int((d_j['dif'] == -1).sum())
-            pares = int((d_j['dif'] == 0).sum())
-            bogeys = int((d_j['dif'] == 1).sum())
-            dobles = int((d_j['dif'] == 2).sum())
-            triples_mas = int((d_j['dif'] >= 3).sum())
+            # 4. Conteos exactos usando comparaciones booleanas
+            # Esto evita errores de redondeo o de tipo de dato
+            n_eagles      = int((d_j['dif'] <= -2).sum())
+            n_birdies     = int((d_j['dif'] == -1).sum())
+            n_pares       = int((d_j['dif'] == 0).sum())
+            n_bogeys      = int((d_j['dif'] == 1).sum())
+            n_dobles      = int((d_j['dif'] == 2).sum())
+            n_triples_mas = int((d_j['dif'] >= 3).sum())
             
             # Puntos MVP (ajustado a tus columnas p1_pts...p4_pts)
             col_p_pts = f'p{i+1}_pts'
-            pts_mvp = pd.to_numeric(df[col_p_pts], errors='coerce').sum() if col_p_pts in df.columns else 0
+            pts_mvp = pd.to_numeric(df_raw[col_p_pts], errors='coerce').sum() if col_p_pts in df_raw.columns else 0
             
             stats.append({
                 "Jugador": jug,
-                "Eagle": eagles,
-                "Birdie": birdies,
-                "Par": pares,
-                "Bogey": bogeys,
-                "D.Bogey": dobles,
-                "3+ Bogey": triples_mas,
+                "Eagle": n_eagles,
+                "Birdie": n_birdies,
+                "Par": n_pares,
+                "Bogey": n_bogeys,
+                "D.Bogey": n_dobles,
+                "3+ Bogey": n_triples_mas,
                 "Puntos MVP": pts_mvp
             })
         
         df_stats = pd.DataFrame(stats)
+        
+        # Tabla de resultados
         st.dataframe(df_stats.set_index("Jugador"), use_container_width=True)
         
-        st.write("### Comparativa de Hoyos")
-        st.bar_chart(df_stats.set_index("Jugador")[["Eagle", "Birdie", "Par", "Bogey", "D.Bogey", "3+ Bogey"]])
+        # Gráfico comparativo
+        st.write("### Comparativa de Rendimiento")
+        cols_grafico = ["Eagle", "Birdie", "Par", "Bogey", "D.Bogey", "3+ Bogey"]
+        st.bar_chart(df_stats.set_index("Jugador")[cols_grafico])
         
     else:
-        st.warning("⚠️ No hay datos o las columnas s0-s3 no coinciden con el Excel.")
+        st.warning("⚠️ No hay datos o faltan columnas s0-s3 en el Excel.")
 
 
 elif st.session_state.menu_seleccionado == "Admin":
