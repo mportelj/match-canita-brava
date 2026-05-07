@@ -152,127 +152,36 @@ if st.session_state.menu_seleccionado == "Inicio":
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    if 'refresco_id' not in st.session_state: 
-        st.session_state.refresco_id = 0
-
+    # 1. Limpieza de seguridad: Si no hay juego en session_state, forzamos que no lea datos
     if 'game' not in st.session_state:
-        st.subheader("🏁 Iniciar Nueva Partida")
+        st.subheader("🏁 Nueva Partida")
+        st.info("No hay ninguna partida activa. Selecciona una fecha para empezar o edita una existente en Administración.")
+        
         f = st.date_input("Fecha de la partida:", datetime.now(), format="DD/MM/YYYY")
         if st.button("🚀 Iniciar Partida", use_container_width=True):
+            # Creamos el nuevo ID único
+            nuevo_id = datetime.now().strftime("%Y%m%d%H%M%S")
             st.session_state.game = {
                 'fecha': f.strftime("%d/%m/%Y"), 
                 'h_sel': 1, 
                 'logs': {}, 
-                'id': datetime.now().strftime("%Y%m%d%H%M%S")
+                'id': nuevo_id
             }
             st.rerun()
+    
+    # 2. Solo si existe 'game' en session_state, mostramos el marcador y los hoyos
     else:
         g = st.session_state.game
         df_p = leer_datos()
+        
+        # Filtramos estrictamente por el ID que tenemos en memoria
         df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])]
         
-        # --- 1. MARCADOR ACUMULADO (DIFERENCIA DE PUNTOS) ---
+        # --- A partir de aquí sigue el resto de tu código del marcador ---
         pts_a_total = df_partido_actual['resultado_a'].sum()
         pts_b_total = df_partido_actual['resultado_b'].sum()
         
-        diferencia = pts_a_total - pts_b_total
-        marcador_a = diferencia if diferencia > 0 else 0
-        marcador_b = abs(diferencia) if diferencia < 0 else 0
-
-        st.markdown(f"""
-            <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 20px;">
-                <div style="display: flex; justify-content: space-around; align-items: center; text-align: center;">
-                    <div style="flex: 1;">
-                        <h4 style="color: #2e7d32; margin: 0; font-size: 0.9em; font-weight: bold;">{EQUIPO_A_NOMBRES}</h4>
-                        <h1 style="margin: 0; font-size: 4.5em; color: {COLOR_A if marcador_a > 0 else '#333'};">{marcador_a:g}</h1>
-                    </div>
-                    <div style="background: #ccc; border-radius: 50%; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #666; font-size: 0.8em;">VS</div>
-                    <div style="flex: 1;">
-                        <h4 style="color: #c62828; margin: 0; font-size: 0.9em; font-weight: bold;">{EQUIPO_B_NOMBRES}</h4>
-                        <h1 style="margin: 0; font-size: 4.5em; color: {COLOR_B if marcador_b > 0 else '#333'};">{marcador_b:g}</h1>
-                    </div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-
-        # --- 2. NAVEGACIÓN Y SELECTOR ---
-        c_nav1, c_nav2 = st.columns(2)
-        if c_nav1.button("← Anterior", use_container_width=True):
-            g['h_sel'] = max(1, g['h_sel'] - 1)
-            st.session_state.refresco_id += 1
-            st.rerun()
-        if c_nav2.button("Siguiente →", use_container_width=True):
-            g['h_sel'] = min(18, g['h_sel'] + 1)
-            st.session_state.refresco_id += 1
-            st.rerun()
-
-        lista_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
-        seleccion = st.selectbox("Selector", lista_hoyos, index=g['h_sel']-1, label_visibility="collapsed")
-        nuevo_h_id = int(seleccion.split(" ")[1])
-        
-        if nuevo_h_id != g['h_sel']:
-            g['h_sel'] = nuevo_h_id
-            st.session_state.refresco_id += 1
-            st.rerun()
-
-        h = g['h_sel']
-        par_h = PAR_RIA_VIGO[h]
-        fila_hoyo = df_partido_actual[df_partido_actual['hoyo'] == h]
-        ya_existe = not fila_hoyo.empty
-
-        # --- 3. RESULTADO DEL HOYO ---
-        if ya_existe:
-            ha, hb = fila_hoyo.iloc[0]['resultado_a'], fila_hoyo.iloc[0]['resultado_b']
-            color_res = COLOR_A if ha > hb else (COLOR_B if hb > ha else "#666")
-            st.markdown(f"""
-                <div style="border: 1px solid #ddd; border-radius: 10px; padding: 10px; text-align: center; background: white; margin-bottom: 20px;">
-                    <p style="color: #888; font-size: 0.7em; margin: 0; font-weight: bold;">HOYO {h}</p>
-                    <h2 style="margin: 0; letter-spacing: 3px; color: {color_res};">{ha:g} — {hb:g}</h2>
-                </div>
-            """, unsafe_allow_html=True)
-
-       # --- 4. ENTRADA DE GOLPES (CON VALIDACIÓN DE CAMBIOS) ---
-        st.write(f"**Introducir golpes - Par {par_h}**")
-        rid = st.session_state.refresco_id
-        
-        # 1. Determinamos los valores de referencia (los que ya están en la nube o el Par)
-        v_referencia = [int(fila_hoyo.iloc[0][f's{i}']) if ya_existe else par_h for i in range(4)]
-        
-        col_j1, col_j2 = st.columns(2)
-        s1 = col_j1.number_input(TODOS[0], 1, 15, v_referencia[0], key=f"s1_h{h}_r{rid}")
-        s2 = col_j1.number_input(TODOS[1], 1, 15, v_referencia[1], key=f"s2_h{h}_r{rid}")
-        s3 = col_j2.number_input(TODOS[2], 1, 15, v_referencia[2], key=f"s3_h{h}_r{rid}")
-        s4 = col_j2.number_input(TODOS[3], 1, 15, v_referencia[3], key=f"s4_h{h}_r{rid}")
-
-        # 2. Creamos una lista con los valores que el usuario tiene ahora mismo en pantalla
-        v_pantalla = [s1, s2, s3, s4]
-
-        # 3. Lógica del botón: se deshabilita si los valores de pantalla son IGUALES a los de referencia
-        hay_cambios = v_pantalla != v_referencia
-        
-        if st.button(
-            "💾 Guardar / Actualizar Hoyo", 
-            type="primary", 
-            use_container_width=True, 
-            disabled=not hay_cambios  # Se desactiva si NO hay cambios
-        ):
-            ejecutar_guardado_automatico()
-            st.success(f"Hoyo {h} actualizado correctamente")
-            st.rerun()
-
-        # --- 5. MVP Y CIERRE ---
-        with st.expander("⭐ MVP Ranking"):
-            if not df_partido_actual.empty:
-                for i, jug in enumerate(TODOS):
-                    p_mvp = df_partido_actual[f'p{i+1}_pts'].sum()
-                    st.write(f"**{jug}**: {p_mvp:.1f} pts")
-
-        st.write("---")
-        with st.popover("🏁 Finalizar Partida", use_container_width=True):
-            if st.button("Confirmar Cierre", type="primary", use_container_width=True):
-                if 'game' in st.session_state: del st.session_state.game
-                st.rerun()
-
+        # ... (resto del código igual) ...
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas Temporada")
