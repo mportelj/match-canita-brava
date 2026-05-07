@@ -157,97 +157,94 @@ if st.session_state.menu_seleccionado == "Inicio":
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     st.title("⛳ Jugar / Editar Hoyo")
     
-    # 1. SELECTOR DE FECHA (Para permitir edición de cualquier día)
-    col_f1, col_f2 = st.columns([2, 1])
-    with col_f1:
-        # Por defecto la fecha de hoy, pero permite elegir otra para editar
-        fecha_input = st.date_input("Fecha de la partida:", datetime.now())
-        fecha_str = fecha_input.strftime("%d/%m/%Y")
-    
-    # 2. GESTIÓN DE NAVEGACIÓN DE HOYOS
+    # 1. INICIALIZACIÓN DEL ESTADO
     if 'hoyo_actual' not in st.session_state:
         st.session_state.hoyo_actual = 1
-    
-    h = st.session_state.hoyo_actual
-    par_hoyo = PAR_RIA_VIGO.get(h, 4)
+    if 'hoyo_guardado' not in st.session_state:
+        st.session_state.hoyo_guardado = False
 
+    # 2. SELECTOR DE FECHA
+    fecha_input = st.date_input("Fecha de la partida:", datetime.now())
+    fecha_str = fecha_input.strftime("%d/%m/%Y")
+    
+    # 3. NAVEGACIÓN DE HOYOS
     col_nav1, col_h, col_nav2 = st.columns([1, 2, 1])
+    
     with col_nav1:
-        if st.button("⬅️", help="Hoyo anterior") and h > 1:
+        if st.button("⬅️ ANTERIOR") and st.session_state.hoyo_actual > 1:
             st.session_state.hoyo_actual -= 1
+            st.session_state.hoyo_guardado = False  # Resetear bloqueo al mover hoyo
             st.rerun()
+            
     with col_h:
-        h = st.number_input(f"Hoyo", min_value=1, max_value=18, value=h, key="hoyo_selector_main")
-        st.session_state.hoyo_actual = h
+        st.markdown(f"<h2 style='text-align: center; margin-bottom: 0;'>Hoyo {st.session_state.hoyo_actual}</h2>", unsafe_allow_html=True)
+    
     with col_nav2:
-        if st.button("➡️", help="Siguiente hoyo") and h < 18:
+        if st.button("SIGUIENTE ➡️") and st.session_state.hoyo_actual < 18:
             st.session_state.hoyo_actual += 1
+            st.session_state.hoyo_guardado = False  # Resetear bloqueo al mover hoyo
             st.rerun()
 
-    st.markdown(f"### Hoyo {h} <span style='color:gray;'>(Par {par_hoyo})</span>", unsafe_allow_html=True)
+    # 4. PAR Y CARGA DE DATOS
+    h_idx = st.session_state.hoyo_actual
+    par_hoyo = PAR_RIA_VIGO.get(h_idx, 4)
+    st.markdown(f"<p style='text-align: center; color: gray;'>Par del hoyo: <b>{par_hoyo}</b></p>", unsafe_allow_html=True)
     
-    # 3. CARGA DE DATOS EXISTENTES (Modo Editar)
-    # Leemos los datos actuales para ver si este hoyo ya tiene golpes grabados
+    # Intentamos precargar datos del Excel
     df_actual = leer_datos()
-    golpes_existentes = [0, 0, 0, 0] # Por defecto ceros
+    # Por defecto, el valor inicial de los inputs será el PAR del hoyo
+    golpes_a_mostrar = [par_hoyo, par_hoyo, par_hoyo, par_hoyo]
     
     if not df_actual.empty:
-        # Buscamos si existe la fila para esta fecha y hoyo
-        busqueda = df_actual[(df_actual['fecha'] == fecha_str) & (df_actual['hoyo'].astype(str) == str(h))]
+        # Buscamos si ya existe este hoyo en esta fecha
+        busqueda = df_actual[(df_actual['fecha'] == fecha_str) & (df_actual['hoyo'].astype(str) == str(h_idx))]
         if not busqueda.empty:
             for i in range(4):
                 val = busqueda.iloc[0][f's{i}']
+                # Si el valor en el Excel es válido y distinto de 0, lo usamos
                 try:
-                    golpes_existentes[i] = int(float(val)) if val and val != "" else 0
+                    num_val = int(float(val))
+                    if num_val > 0:
+                        golpes_a_mostrar[i] = num_val
                 except:
-                    golpes_existentes[i] = 0
+                    pass
 
     st.divider()
 
-    # 4. INPUTS DE GOLPES (Evitamos KeyError usando el valor cargado o 0)
+    # 5. INPUTS DE GOLPES
     cols = st.columns(2)
-    nuevos_golpes = []
+    datos_finales = []
 
     for i, jug in enumerate(TODOS):
         with cols[i % 2]:
-            # Clave única para el widget
-            clave_widget = f"input_{jug}_{h}_{fecha_str}"
-            
-            # El valor inicial es lo que ya hay en la base de datos
-            valor_input = st.number_input(
-                f"{jug.upper()}",
-                min_value=0,
-                max_value=15,
-                value=golpes_existentes[i],
-                key=clave_widget
+            # La clave (key) debe ser única y cambiar con el hoyo para que Streamlit refresque el valor
+            clave_input = f"input_{jug}_{h_idx}_{fecha_str}"
+            v = st.number_input(
+                f"{jug.upper()}", 
+                min_value=1, 
+                max_value=15, 
+                value=golpes_mostrar[i] if 'golpes_mostrar' in locals() else golpes_a_mostrar[i], 
+                key=clave_input
             )
-            nuevos_golpes.append(valor_input)
+            datos_finales.append(v)
 
     st.divider()
 
-    # 5. BOTÓN DE GUARDAR / ACTUALIZAR
-    if st.button("💾 Guardar / Actualizar Hoyo", use_container_width=True, type="primary"):
-        # Preparar línea para Google Sheets: [fecha, hoyo, s0, s1, s2, s3]
-        fila_datos = [fecha_str, h] + nuevos_golpes
-        
-        try:
-            # Esta función debe buscar la fila (fecha+hoyo) y sobrescribirla o crearla
-            actualizar_o_insertar_hoyo(fila_datos)
-            st.success(f"✅ Datos del Hoyo {h} ({fecha_str}) guardados correctamente.")
-            
-            # Si es una partida en vivo (fecha de hoy), avanzamos al siguiente hoyo
-            if h < 18 and fecha_input == datetime.now().date():
+    # 6. LÓGICA DE GUARDADO Y BLOQUEO
+    if st.session_state.hoyo_guardado:
+        st.button("✅ DATOS GUARDADOS", use_container_width=True, disabled=True)
+        st.success(f"Los datos del hoyo {h_idx} ya están en la nube.")
+    else:
+        if st.button("💾 GUARDAR HOYO", use_container_width=True, type="primary"):
+            fila_a_enviar = [fecha_str, h_idx] + datos_finales
+            try:
+                actualizar_o_insertar_hoyo(fila_a_enviar)
+                st.session_state.hoyo_guardado = True # Bloqueamos botón
+                st.toast(f"Hoyo {h_idx} guardado con éxito", icon="⛳")
                 time.sleep(1)
-                st.session_state.hoyo_actual += 1
                 st.rerun()
-        except Exception as e:
-            st.error(f"❌ Error al guardar en la nube: {e}")
-
-    # 6. RESUMEN DE PARES (Referencia rápida)
-    with st.expander("📖 Consultar Pares del Campo"):
-        st.write("Hoyo: 1 2 3 4 5 6 7 8 9 | 10 11 12 13 14 15 16 17 18")
-        pares_lista = [PAR_RIA_VIGO[i] for i in range(1, 19)]
-        st.write(f"Par: {' '.join(map(str, pares_lista))}")
+            except Exception as e:
+                st.error(f"Error al conectar con Google Sheets: {e}")
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas y Clasificación")
