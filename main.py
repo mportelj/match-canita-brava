@@ -287,6 +287,9 @@ if st.session_state.menu_seleccionado == "Inicio":
             </div>
         </div>
     """, unsafe_allow_html=True)
+    st.session_state.global_a = marcador_a
+    st.session_state.global_b = marcador_b
+
 
 # ==========================================
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
@@ -455,15 +458,30 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         # ORDENAR POR SCRATCH
         lista_resultados = sorted(lista_resultados, key=lambda x: x['scratch'], reverse=True)
 
-        # --- CONSTRUCCIÓN MENSAJE WHATSAPP ---
+       # Recuperamos los valores de Inicio (o ponemos 0 si no existen)
+        g_a = st.session_state.get('global_a', 0.0)
+        g_b = st.session_state.get('global_b', 0.0)
+    
+        texto_temporada = f"{g_a} vs {g_b}"
+    
+        # Lógica de líder basada en las variables recuperadas
+        if g_a > g_b:
+            lider_txt = f"MANU & JOSE lideran ({texto_temporada})"
+        elif g_b > g_a:
+            lider_txt = f"ROGE & LALO lideran ({texto_temporada})"
+        else:
+            lider_txt = f"EMPATE TEMPORADA ({texto_temporada})"
+
+        # --- MENSAJE WHATSAPP ---
         whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n"
         whatsapp_text += f"📅 *Jornada: {f_formateada}* ({n_hoyos_info} hoyos)\n"
         if not ver_acumulado:
             whatsapp_text += f"⛳ Marcador hoy: *{res_match_dia}*\n"
-        whatsapp_text += f"📊 *{texto_marcador_global}*\n"
-        whatsapp_text += f"✨ *{status_global}* ✨\n"
+        # Aquí usamos las variables que trajimos de Inicio
+        whatsapp_text += f"🏆 *TEMPORADA: {texto_temporada}*\n"
+        whatsapp_text += f"✨ *{lider_txt.upper()}* ✨\n"
         whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
-
+      
         for res in lista_resultados:
             pm_txt = f"+{res['plus_minus']}" if res['plus_minus'] > 0 else (str(res['plus_minus']) if res['plus_minus'] < 0 else "E")
             h = res['hoyos']
