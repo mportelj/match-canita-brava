@@ -269,78 +269,96 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     df_raw = leer_datos()
     
     if not df_raw.empty:
-        # 1. Selector de Jornada (como en tu imagen)
-        jornadas = df_raw['fecha'].unique().tolist()
-        jornada_sel = st.selectbox("Seleccionar Jornada:", jornadas[::-1])
+        # 1. Selector de Jornada con contador de hoyos (Igual a la imagen)
+        jornadas_list = []
+        for fecha in df_raw['fecha'].unique():
+            n_hoyos = len(df_raw[df_raw['fecha'] == fecha]['hoyo'].unique())
+            jornadas_list.append(f"{fecha} ({n_hoyos} hoyos)")
         
-        # Filtramos datos de esa jornada
-        df_jornada = df_raw[df_raw['fecha'] == jornada_sel].copy()
-        hoyos_jugados = len(df_jornada['hoyo'].unique())
+        jornada_full = st.selectbox("Seleccionar Jornada:", jornadas_list[::-1])
+        jornada_fecha = jornada_full.split(" (")[0]
         
-        st.subheader(f"Resultados Jornada: {jornada_sel}")
+        # Filtramos estrictamente por la fecha elegida
+        df_j = df_raw[df_raw['fecha'] == jornada_fecha].copy()
+        hoyos_totales = len(df_j['hoyo'].unique())
+        
+        st.subheader(f"Resultados Jornada: {jornada_fecha}")
 
         stats_rows = []
         for i, jug in enumerate(TODOS):
-            col_s = f's{i}'
+            col_s = f's{i}' # Columnas s0, s1, s2, s3
             
-            # Limpieza y filtrado de golpes del jugador
-            d_j = df_jornada[['hoyo', col_s]].copy()
-            d_j[col_s] = pd.to_numeric(d_j[col_s], errors='coerce')
-            d_j = d_j[d_j[col_s] > 0].dropna()
+            # Limpieza: solo hoyos con golpes registrados > 0
+            d_player = df_j[['hoyo', col_s]].copy()
+            d_player[col_s] = pd.to_numeric(d_player[col_s], errors='coerce')
+            d_player = d_player[d_player[col_s] > 0].dropna()
             
-            # Cálculo de Scratch y +/-
-            d_j['par_h'] = d_j['hoyo'].map(PAR_RIA_VIGO)
-            total_golpes = d_j[col_s].sum()
-            total_par_campos = d_j['par_h'].sum()
-            plus_minus = int(total_golpes - total_par_campos)
+            # Mapeo de Par (Hoyo 18 = 4)
+            d_player['par_h'] = d_player['hoyo'].map(PAR_RIA_VIGO)
+            d_player['dif'] = d_player[col_s] - d_player['par_h']
             
-            # Puntos Scratch (Simulado: 36 - plus_minus o similar según tu liga)
-            # Aquí lo calculamos como la suma de puntos estables si los tienes, 
-            # o simplemente una métrica de desempeño.
-            scratch = int(sum([max(0, p + 2 - g) for g, p in zip(d_j[col_s], d_j['par_h'])]))
+            # --- CÁLCULOS PRINCIPALES ---
+            # +/- (Suma de golpes vs Suma de pares)
+            plus_minus = int(d_player[col_s].sum() - d_player['par_h'].sum())
+            
+            # Scratch (Stableford Bruto)
+            # Regla: Birdie=3, Par=2, Bogey=1, Doble+=0
+            def calc_scratch(row):
+                d = row['dif']
+                if d <= -2: return 4  # Eagle
+                if d == -1: return 3  # Birdie
+                if d == 0:  return 2  # Par
+                if d == 1:  return 1  # Bogey
+                return 0              # D.Bogey o peor
+            
+            scratch_total = int(d_player.apply(calc_scratch, axis=1).sum())
 
-            # Conteo de categorías
-            d_j['dif'] = d_j[col_s] - d_j['par_h']
-            
-            e = (d_j['dif'] <= -2).sum()
-            b = (d_j['dif'] == -1).sum()
-            p = (d_j['dif'] == 0).sum()
-            bog = (d_j['dif'] == 1).sum()
-            db = (d_j['dif'] >= 2).sum() # D.Bogey+ incluye triple
+            # --- CONTEO CATEGORÍAS ---
+            alb = 0 # No suele darse, pero para la tabla
+            eag = (d_player['dif'] <= -2).sum()
+            bir = (d_player['dif'] == -1).sum()
+            par = (d_player['dif'] == 0).sum()
+            bog = (d_player['dif'] == 1).sum()
+            dbg = (d_player['dif'] >= 2).sum()
 
-            # Formateo de porcentajes para la tabla
-            def fmt(valor):
-                pct = (valor / hoyos_jugados * 100) if hoyos_jugados > 0 else 0
-                return f"{valor}\n({pct:.1f}%)"
+            # Función para formatear como en la imagen: Número y debajo %
+            def cell_fmt(val):
+                pct = (val / hoyos_totales * 100) if hoyos_totales > 0 else 0
+                return f"**{val}**<br><span style='color:gray; font-size:0.8em;'>{pct:.1f}%</span>"
 
             stats_rows.append({
                 "Jugador": jug,
-                "+/-": f"+{plus_minus}" if plus_minus > 0 else (str(plus_minus) if plus_minus < 0 else "E"),
-                "Scratch": scratch,
-                "Albatros": fmt(0), # No contemplado en s0-s3 usualmente
-                "Eagles": fmt(e),
-                "Birdies": fmt(b),
-                "Pares": fmt(p),
-                "Bogey": fmt(bog),
-                "D.Bogey+": fmt(db)
+                "+/-": f"<span style='color:red; font-weight:bold;'>+{plus_minus}</span>" if plus_minus > 0 else (f"**{plus_minus}**" if plus_minus < 0 else "**E**"),
+                "Scratch": f"**{scratch_total}**",
+                "Albatros": cell_fmt(alb),
+                "Eagles": cell_fmt(eag),
+                "Birdies": cell_fmt(bir),
+                "Pares": cell_fmt(par),
+                "Bogey": cell_fmt(bog),
+                "D.Bogey+": cell_fmt(dbg)
             })
 
-        # --- RENDERIZADO DE LA TABLA ESTILO IMAGEN ---
-        # Usamos HTML para permitir saltos de línea y colores en las celdas
-        df_display = pd.DataFrame(stats_rows)
+        # --- RENDERIZADO TABLA HTML ---
+        df_final = pd.DataFrame(stats_rows)
         
-        # Estilo CSS para imitar la tabla de la imagen
-        st.write(
-            df_display.set_index("Jugador").to_html(escape=False).replace('\\n', '<br><span style="color:gray; font-size:0.8em;">') + "</span>", 
-            unsafe_allow_html=True
-        )
+        # Inyectamos CSS para que se parezca a la tabla de la imagen
+        st.markdown("""
+            <style>
+                table { width: 100%; border-collapse: collapse; text-align: center; }
+                th { background-color: #f8f9fa; color: #333; padding: 10px; border-bottom: 2px solid #dee2e6; }
+                td { padding: 12px; border-bottom: 1px solid #eee; vertical-align: middle; }
+                tr:hover { background-color: #f1f1f1; }
+            </style>
+        """, unsafe_allow_html=True)
+        
+        st.write(df_final.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        st.markdown("---")
-        if st.button("📊 Mostrar Acumulado Total"):
-            st.session_state.ver_acumulado = True # Lógica opcional para cambiar vista
+        st.write("")
+        if st.button("📊 Mostrar Acumulado Total", use_container_width=True):
+            st.info("Función para ver el resumen de toda la temporada.")
             
     else:
-        st.warning("No hay datos registrados.")
+        st.warning("No hay datos cargados en el sistema.")
 
 
 elif st.session_state.menu_seleccionado == "Admin":
