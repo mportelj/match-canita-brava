@@ -550,7 +550,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 # SECCIÓN: ADMIN
 # ==========================================
 
-elif st.session_state.menu_seleccionado == "Administración":
+elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Administración de Partidas")
     
     df = leer_datos()
