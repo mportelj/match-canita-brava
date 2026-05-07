@@ -300,25 +300,31 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     h_idx = st.session_state.hoyo_actual
     par_hoyo = PAR_RIA_VIGO.get(h_idx, 4)
     
-    # Marcadores acumulados (Diferencia Neta)
+    # Variables de control
     m_e1, m_e2 = 0, 0
-    golpes = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo} # s0, s1, s2, s3
+    golpes = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo} 
     res_hoyo_a, res_hoyo_b = 0, 0
+    hoyo_ya_grabado = False  # <--- Control para el botón
 
-    # Filtrar datos de la jornada actual
+    # Filtrar datos de la jornada actual (usando fecha de hoy o la seleccionada)
     fecha_hoy = datetime.now().strftime("%d/%m/%Y")
+    
     if not df.empty:
-        df_jornada = df[df['fecha'].astype(str).str.contains(fecha_hoy)]
+        # Normalizamos fechas para la comparación
+        df['fecha_dt'] = pd.to_datetime(df['fecha'], dayfirst=True, errors='coerce').dt.strftime('%d/%m/%Y')
+        df_jornada = df[df['fecha_dt'] == fecha_hoy]
+        
         if not df_jornada.empty:
-            # Sumamos columnas resultado_a y resultado_b ya grabadas
-            suma_a = df_jornada['resultado_a'].astype(float).sum()
-            suma_b = df_jornada['resultado_b'].astype(float).sum()
+            # Marcador Match Play (Diferencia Neta)
+            suma_a = pd.to_numeric(df_jornada['resultado_a'], errors='coerce').sum()
+            suma_b = pd.to_numeric(df_jornada['resultado_b'], errors='coerce').sum()
             dif = suma_a - suma_b
             m_e1, m_e2 = (int(dif), 0) if dif > 0 else (0, int(abs(dif)))
 
-            # Cargar golpes del hoyo actual
+            # Buscar si el hoyo actual ya existe
             h_data = df_jornada[df_jornada['hoyo'].astype(int) == h_idx]
             if not h_data.empty:
+                hoyo_ya_grabado = True  # <--- SE ACTIVA EL BLOQUEO
                 golpes[0] = int(h_data.iloc[0]['s0'])
                 golpes[1] = int(h_data.iloc[0]['s1'])
                 golpes[2] = int(h_data.iloc[0]['s2'])
@@ -326,26 +332,24 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 res_hoyo_a = int(h_data.iloc[0]['resultado_a'])
                 res_hoyo_b = int(h_data.iloc[0]['resultado_b'])
 
-    # --- DISEÑO DE LA INTERFAZ ---
-
-    # A. MARCADOR PRINCIPAL (ESTILO TARJETA)
+    # --- DISEÑO DEL MARCADOR SUPERIOR ---
     st.markdown(f"""
-    <div style="background-color: #e8f4ea; padding: 20px; border-radius: 20px; border: 1px solid #2e7d32; text-align: center; margin-bottom: 20px;">
+    <div style="background-color: #f8fcf9; padding: 20px; border-radius: 20px; border: 1px solid #2e7d32; text-align: center; margin-bottom: 20px;">
         <div style="display: flex; justify-content: space-around; align-items: center;">
             <div>
-                <p style="color: #2e7d32; font-weight: bold; margin-bottom: 5px;">MANU & JOSE</p>
+                <p style="color: #2e7d32; font-size: 0.8em; font-weight: bold; margin-bottom: 5px;">MANU & JOSE</p>
                 <h1 style="font-size: 50px; margin: 0; color: #1b5e20;">{m_e1}</h1>
             </div>
-            <div style="background-color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 1px solid #ccc;">VS</div>
+            <div style="background-color: #333; color: white; border-radius: 50%; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; font-size: 0.7em; font-weight: bold;">VS</div>
             <div>
-                <p style="color: #c62828; font-weight: bold; margin-bottom: 5px;">ROGE & LALO</p>
+                <p style="color: #c62828; font-size: 0.8em; font-weight: bold; margin-bottom: 5px;">ROGE & LALO</p>
                 <h1 style="font-size: 50px; margin: 0; color: #b71c1c;">{m_e2}</h1>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # B. NAVEGACIÓN DE HOYOS
+    # --- NAVEGACIÓN ---
     col_prev, col_next = st.columns(2)
     with col_prev:
         if st.button("← Anterior", use_container_width=True, disabled=(h_idx == 1)):
@@ -356,48 +360,44 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.session_state.hoyo_actual += 1
             st.rerun()
 
-    # C. SELECTOR DE HOYO Y INFO
-    with st.expander(f"Hoyo {h_idx} (Par {par_hoyo})", expanded=True):
-        # Resultado del hoyo actual
-        txt_ganador = "EMPATADOS"
-        color_ganador = "#555"
-        if res_hoyo_a > res_hoyo_b:
-            txt_ganador = "GANA MANU & JOSE"
-            color_ganador = "#2e7d32"
-        elif res_hoyo_b > res_hoyo_a:
-            txt_ganador = "GANA ROGE & LALO"
-            color_ganador = "#c62828"
-
-        st.markdown(f"""
-        <div style="text-align: center; padding: 10px; border: 1px solid #eee; border-radius: 10px; margin-bottom: 20px;">
-            <p style="font-size: 0.8em; color: #888; margin: 0;">RESULTADO DEL HOYO {h_idx}</p>
-            <h2 style="margin: 10px 0;">{res_hoyo_a} — {res_hoyo_b}</h2>
-            <p style="color: {color_ganador}; font-weight: bold; font-size: 0.9em;">{txt_ganador}</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # INPUTS DE GOLPES (2 COLUMNAS)
+    # --- TARJETA DEL HOYO ---
+    with st.container(border=True):
+        st.subheader(f"Hoyo {h_idx} (Par {par_hoyo})")
+        
+        if hoyo_ya_grabado:
+            st.warning(f"⚠️ Los datos del hoyo {h_idx} ya están grabados.")
+            # Mostramos el resultado del hoyo que ya está en la base de datos
+            st.write(f"Resultado grabado: **{res_hoyo_a} - {res_hoyo_b}**")
+        
         c1, c2 = st.columns(2)
         with c1:
-            g0 = st.number_input("MANU", 1, 15, value=golpes[0], key="man")
-            g1 = st.number_input("JOSE", 1, 15, value=golpes[1], key="jos")
+            st.markdown("**Equipo A**")
+            g0 = st.number_input("MANU", 1, 15, value=golpes[0], key="man", disabled=hoyo_ya_grabado)
+            g1 = st.number_input("JOSE", 1, 15, value=golpes[1], key="jos", disabled=hoyo_ya_grabado)
         with c2:
-            g2 = st.number_input("ROGE", 1, 15, value=golpes[2], key="rog")
-            g3 = st.number_input("LALO", 1, 15, value=golpes[3], key="lal")
+            st.markdown("**Equipo B**")
+            g2 = st.number_input("ROGE", 1, 15, value=golpes[2], key="rog", disabled=hoyo_ya_grabado)
+            g3 = st.number_input("LALO", 1, 15, value=golpes[3], key="lal", disabled=hoyo_ya_grabado)
 
-        if st.button("🔄 Actualizar Hoyo", use_container_width=True, type="secondary"):
-            # Calculamos puntos antes de guardar
+        # --- BOTÓN ACTUALIZAR (CON LÓGICA DE BLOQUEO) ---
+        if st.button("🔄 ACTUALIZAR HOYO", 
+                     use_container_width=True, 
+                     type="primary", 
+                     disabled=hoyo_ya_grabado): # <--- AQUÍ SE DESHABILITA
+            
             pts_a, pts_b = calcular_puntos_hoyo(g0, g1, g2, g3, par_hoyo)
-            # Fila: fecha, hoyo, s0, s1, s2, s3, resultado_a, resultado_b
             nueva_fila = [fecha_hoy, h_idx, g0, g1, g2, g3, pts_a, pts_b]
             actualizar_o_insertar_hoyo(nueva_fila)
-            st.success(f"Hoyo {h_idx} actualizado")
+            st.success("Hoyo guardado con éxito.")
             time.sleep(1)
             st.rerun()
 
-    # D. CLASIFICACIONES MVP (ACORDEÓN)
-    with st.expander("⭐ Clasificaciones MVP"):
-        st.write("Próximamente...")
+    # Mensaje de ayuda si quieren editar
+    if hoyo_ya_grabado:
+        st.caption("ℹ️ Para modificar este hoyo, ve a la pestaña **Admin** y pulsa el botón Editar.")
+
+
+
 # ==========================================
 # SECCIÓN: ESTADISTICAS
 # ==========================================
