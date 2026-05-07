@@ -526,91 +526,71 @@ elif st.session_state.menu_seleccionado == "Admin":
     df = leer_datos()
 
     if df is None or df.empty:
-        st.warning("No hay datos registrados en la base de datos.")
+        st.warning("No hay datos registrados.")
     else:
-        # --- 1. LIMPIEZA Y NORMALIZACIÓN DE DATOS ---
-        # Aseguramos que los golpes sean numéricos para no fallar en el cálculo
-        for col in ['s0', 's1', 's2', 's3', 'hoyo']:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+        # 1. LIMPIEZA DE DATOS
+        # Aseguramos que las columnas de resultados sean números
+        # Ajusta 'resultado_a' y 'resultado_b' al nombre exacto de tus columnas en Sheets
+        columnas_puntos = ['resultado_a', 'resultado_b'] 
+        for col in columnas_puntos + ['s0', 's1', 's2', 's3', 'hoyo']:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-        # Normalizamos la fecha para agrupar (quitamos horas si existen)
-        df['fecha_limpia'] = df['fecha'].astype(str).apply(lambda x: x.split(' ')[0].strip())
+        # Normalización de fecha
+        df['fecha_str'] = df['fecha'].astype(str).apply(lambda x: x.split(' ')[0].strip())
+        def formatear_fecha(f):
+            try: return pd.to_datetime(f).strftime('%d/%m/%Y')
+            except: return f
+        df['fecha_bonita'] = df['fecha_str'].apply(formatear_fecha)
         
-        def normalizar_a_europeo(f):
-            try:
-                return pd.to_datetime(f, dayfirst=True).strftime('%d/%m/%Y')
-            except:
-                return f
-        
-        df['fecha_bonita'] = df['fecha_limpia'].apply(normalizar_a_europeo)
-        
-        # Agrupamos por jornada
         partidos = df.groupby('fecha_bonita')
-        
-        # Ordenamos fechas para que la más reciente salga arriba
         fechas_ordenadas = sorted(partidos.groups.keys(), 
-                                key=lambda x: pd.to_datetime(x, format='%d/%m/%Y', errors='coerce'), 
+                                key=lambda x: pd.to_datetime(x, format='%d/%m/%Y'), 
                                 reverse=True)
 
-        st.info(f"Se han encontrado {len(fechas_ordenadas)} jornadas registradas.")
-
-        # --- 2. RENDERIZADO POR JORNADA ---
+        # 2. PROCESAR CADA JORNADA
         for f_disp in fechas_ordenadas:
             datos_jornada = partidos.get_group(f_disp)
             num_hoyos = len(datos_jornada['hoyo'].unique())
             
-            # CÁLCULO DEL RESULTADO NETO DEL MATCH
-            total_pts_a = 0  # MANU & JOSE
-            total_pts_b = 0  # ROGE & LALO
+            # --- EL CÁLCULO CLAVE ---
+            # Sumamos directamente lo que hay en las columnas de resultado
+            suma_a = datos_jornada['resultado_a'].sum()
+            suma_b = datos_jornada['resultado_b'].sum()
             
-            for _, row in datos_jornada.iterrows():
-                try:
-                    p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
-                    # Equipo A: s0 (Manu), s1 (Jose) | Equipo B: s2 (Roge), s3 (Lalo)
-                    pa, pb = calcular_puntos_hoyo(row['s0'], row['s1'], row['s2'], row['s3'], p_h)
-                    total_pts_a += pa
-                    total_pts_b += pb
-                except:
-                    continue
-
-            # Aplicamos tu lógica de diferencia neta (uno siempre debe ser 0)
-            diferencia = total_pts_a - total_pts_b
+            # Calculamos la diferencia neta
+            diferencia = suma_a - suma_b
+            
             if diferencia > 0:
-                res_match = f"MANU & JOSE: {diferencia} vs ROGE & LALO: 0"
+                match_a, match_b = int(diferencia), 0
+                res_txt = f"MANU & JOSE: {match_a} vs ROGE & LALO: 0"
             elif diferencia < 0:
-                res_match = f"MANU & JOSE: 0 vs ROGE & LALO: {abs(diferencia)}"
+                match_a, match_b = 0, int(abs(diferencia))
+                res_txt = f"MANU & JOSE: 0 vs ROGE & LALO: {match_b}"
             else:
-                res_match = "EMPATE (0 - 0)"
+                match_a, match_b = 0, 0
+                res_txt = "EMPATE (0 - 0)"
 
-            # --- 3. DISEÑO DEL EXPANDER ---
-            with st.expander(f"📅 {f_disp} — {num_hoyos} Hoyos — [ {res_match} ]"):
-                st.markdown(f"**Resultado de la jornada:** `{res_match}`")
+            # --- RENDERIZADO ---
+            with st.expander(f"📅 {f_disp} — {num_hoyos} Hoyos — [ {res_txt} ]"):
+                st.info(f"**Resultado Final del Match:** {res_txt}")
                 
-                # Tabla con el mapeo correcto de jugadores
-                # s0:MANU, s1:JOSE, s2:ROGE, s3:LALO
-                tabla_vista = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values('hoyo')
-                tabla_vista.columns = ['Hoyo', 'MANU (s0)', 'JOSE (s1)', 'ROGE (s2)', 'LALO (s3)']
-                
-                st.dataframe(tabla_vista, hide_index=True, use_container_width=True)
+                # Tabla con orden s0, s1, s2, s3
+                tabla = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values('hoyo')
+                tabla.columns = ['Hoyo', 'MANU (s0)', 'JOSE (s1)', 'ROGE (s2)', 'LALO (s3)']
+                st.dataframe(tabla, hide_index=True, use_container_width=True)
 
-                # --- 4. BOTONES DE ACCIÓN ---
-                col_ed, col_del = st.columns(2)
-                
-                with col_ed:
-                    if st.button(f"✏️ Editar Jornada", key=f"ed_{f_disp}"):
-                        # Cargamos la fecha en el estado de sesión y redirigimos
+                # BOTONES
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button(f"✏️ Editar", key=f"ed_{f_disp}"):
                         st.session_state.fecha_partida = pd.to_datetime(f_disp, dayfirst=True)
                         st.session_state.menu_seleccionado = "Jugar/Editar"
                         st.rerun()
+                with c2:
+                    confirmar = st.checkbox("Confirmar borrar", key=f"ch_{f_disp}")
+                    if st.button(f"🗑️ Borrar", key=f"del_{f_disp}", disabled=not confirmar, type="primary"):
+                        st.error("Función de borrado no conectada")
 
-                with col_del:
-                    confirmar = st.checkbox("Confirmar borrado", key=f"conf_{f_disp}")
-                    if st.button(f"🗑️ Borrar Datos", key=f"del_{f_disp}", 
-                                 disabled=not confirmar, type="primary"):
-                        # Aquí debes llamar a tu función para borrar filas por fecha en tu base de datos
-                        # Ejemplo: eliminar_jornada(f_disp)
-                        st.error("Función de borrado físico no conectada.")
-                        st.info("Para borrar, elimina las filas en el archivo Excel directamente.")
-
-    if st.button("🔄 Refrescar Lista"):
+    if st.button("🔄 Refrescar"):
         st.rerun()
