@@ -4,6 +4,9 @@ import pandas as pd
 from datetime import datetime
 import urllib.parse
 
+# Conexión global para evitar NameError
+conn = st.connection("gsheets", type=GSheetsConnection)
+
 # Esto te mostrará en la app si Streamlit está viendo tus secretos
 if "gsheets" in st.secrets:
     st.write("✅ Sección [gsheets] encontrada en Secrets")
@@ -25,8 +28,7 @@ EQUIPO_B_NOMBRES = f"{TODOS[2]}/{TODOS[3]}"
 COLOR_A, COLOR_B = "#2e7d32", "#c62828"
 COL_NECESARIAS = ['id', 'partido_id', 'hoyo', 'fecha', 'temporada', 'resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3']
 
-# Conexión global para evitar NameError
-conn = st.connection("gsheets", type=GSheetsConnection)
+
 
 if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
