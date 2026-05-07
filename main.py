@@ -556,50 +556,69 @@ elif st.session_state.menu_seleccionado == "Admin":
     df = leer_datos()
 
     if df is None or df.empty:
-        st.warning("No hay datos registrados.")
+        st.warning("No hay datos registrados en la base de datos.")
     else:
-        # 1. Limpieza de fechas
+        # 1. LIMPIEZA DE FECHAS (Formato dd/mm/aaaa)
         df['fecha_str'] = df['fecha'].astype(str).apply(lambda x: x.split(' ')[0].strip())
         
         def formatear_fecha(f):
-            try: return pd.to_datetime(f).strftime('%d/%m/%Y')
-            except: return f
+            try:
+                return pd.to_datetime(f).strftime('%d/%m/%Y')
+            except:
+                return f
 
         df['fecha_bonita'] = df['fecha_str'].apply(formatear_fecha)
         partidos = df.groupby('fecha_bonita')
 
+        # Ordenar: la jornada más reciente primero
         fechas_ordenadas = sorted(partidos.groups.keys(), 
                                 key=lambda x: pd.to_datetime(x, format='%d/%m/%Y'), 
                                 reverse=True)
 
+        # 2. RENDERIZADO POR JORNADA
         for f_disp in fechas_ordenadas:
             datos_jornada = partidos.get_group(f_disp)
             num_hoyos = len(datos_jornada['hoyo'].unique())
             
-            # --- CORRECCIÓN DEL MARCADOR ---
-            # Inicializamos los puntos de la jornada
-            p_e1_total, p_e2_total = 0, 0
+            # --- CÁLCULO DEL MARCADOR REAL (resultado_a y resultado_b) ---
+            resultado_a = 0  # MANU & JOSE
+            resultado_b = 0  # ROGE & LALO
             
             for _, row in datos_jornada.iterrows():
                 try:
-                    # Obtenemos el par del hoyo para el cálculo
-                    h_num = int(row['hoyo'])
-                    p_h = int(PAR_RIA_VIGO.get(h_num, 4))
-                    
-                    # Usamos tu función lógica de puntos
-                    res = calcular_puntos_hoyo(
+                    p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
+                    # Llamamos a tu función lógica
+                    pts_a, pts_b = calcular_puntos_hoyo(
                         int(row['s0']), int(row['s1']), 
                         int(row['s2']), int(row['s3']), p_h
                     )
-                    p_e1_total += res[0]
-                    p_e2_total += res[1]
+                    resultado_a += pts_a
+                    resultado_b += pts_b
                 except:
                     continue
+
+            # 3. MOSTRAR EXPANDER CON NOMBRES DETALLADOS
+            # Usamos un título claro que identifique a los equipos y el resultado neto
+            titulo_expander = (
+                f"📅 {f_disp} — {num_hoyos} hoyos — "
+                f"M&J: {resultado_a}  vs  R&L: {resultado_b}"
+            )
             
-            # --- RENDERIZADO ---
-            # Aquí es donde se muestra el marcador. 
-            # Si quieres que salga "10 vs 0", asegúrate de que p_e1_total sea 10 y p_e2_total sea 0
-            with st.expander(f"📅 {f_disp} — ({num_hoyos} hoyos) — Marcador: {p_e1_total} vs {p_e2_total}"):
+            with st.expander(titulo_expander):
+                st.markdown(f"""
+                **Resumen de la Jornada:**
+                * **Equipo A (MANU & JOSE):** {resultado_a} puntos.
+                * **Equipo B (ROGE & LALO):** {resultado_b} puntos.
+                """)
+                
+                # Tabla de golpes por hoyo
                 tabla_resumen = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values('hoyo')
-                tabla_resumen.columns = ['Hoyo', 'Manu', 'Roge', 'Jose', 'Lalo']
+                tabla_resumen.columns = ['Hoyo', 'MANU', 'ROGE', 'JOSE', 'LALO']
+                
                 st.dataframe(tabla_resumen, hide_index=True, use_container_width=True)
+                
+                if st.button(f"Eliminar jornada {f_disp}", key=f"del_{f_disp}"):
+                    st.error("Función de borrado protegida. Contacta con soporte.")
+
+    if st.button("🔄 Actualizar"):
+        st.rerun()
