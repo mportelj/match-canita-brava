@@ -268,58 +268,59 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas MVP")
     df = leer_datos()
     
-    # Verificamos columnas s0, s1, s2, s3 y hoyo
-    columnas_esperadas = [f's{i}' for i in range(4)] + ['hoyo']
-    columnas_presentes = all(col in df.columns for col in columnas_esperadas)
-
-    if not df.empty and columnas_presentes:
+    # Validamos que existan s0, s1, s2, s3 (tus campos reales)
+    columnas_golpes = [f's{i}' for i in range(4)]
+    
+    if not df.empty and all(c in df.columns for c in columnas_golpes):
         stats = []
         for i, jug in enumerate(TODOS):
-            col_golpes = f's{i}'  # Cambiado de s{i+1} a s{i}
+            # 1. Extraemos golpes del jugador i (columna s0, s1, s2 o s3)
+            col_s = f's{i}'
+            col_p_pts = f'p{i+1}_pts' # Ajusta a p{i}_pts si tus puntos también empiezan en 0
             
-            # Extraemos y limpiamos
-            d_j = df[[col_golpes, 'hoyo']].copy()
-            d_j.columns = ['golpes', 'hoyo']
-            d_j['golpes'] = pd.to_numeric(d_j['golpes'], errors='coerce')
-            d_j = d_j.dropna(subset=['golpes'])
+            # 2. Limpieza profunda de datos
+            temp_df = df[[col_s, 'hoyo', col_p_pts]].copy()
+            temp_df[col_s] = pd.to_numeric(temp_df[col_s], errors='coerce')
+            temp_df = temp_df.dropna(subset=[col_s])
             
-            # Mapeamos el par y calculamos diferencia
-            d_j['par'] = d_j['hoyo'].map(PAR_RIA_VIGO)
-            d_j['dif'] = d_j['golpes'] - d_j['par']
+            # 3. Cálculo de diferencia vs PAR (Usando el nuevo Par 4 en el 18)
+            temp_df['par_hoyo'] = temp_df['hoyo'].map(PAR_RIA_VIGO)
+            temp_df['dif'] = temp_df[col_s] - temp_df['par_hoyo']
             
-            # Conteos
-            eagles = len(d_j[d_j['dif'] <= -2])
-            birdies = len(d_j[d_j['dif'] == -1])
-            pares = len(d_j[d_j['dif'] == 0])
-            bogeys = len(d_j[d_j['dif'] == 1])
-            double = len(d_j[d_j['dif'] == 2])
-            triple_mas = len(d_j[d_j['dif'] >= 3])
-            
-            # Puntos MVP (ajustado también a p1...p4 o p0...p3 según tu esquema)
-            # Si tus puntos MVP también empiezan en 0, cambia a f'p{i}_pts'
-            col_pts = f'p{i+1}_pts' 
-            puntos_mvp = df[col_pts].sum() if col_pts in df.columns else 0
+            # 4. Conteos precisos
+            e_count = len(temp_df[temp_df['dif'] <= -2])
+            b_count = len(temp_df[temp_df['dif'] == -1])
+            p_count = len(temp_df[temp_df['dif'] == 0])
+            bg_count = len(temp_df[temp_df['dif'] == 1])
+            db_count = len(temp_df[temp_df['dif'] == 2])
+            tr_count = len(temp_df[temp_df['dif'] >= 3])
             
             stats.append({
                 "Jugador": jug,
-                "Eagle": eagles,
-                "Birdie": birdies,
-                "Par": pares,
-                "Bogey": bogeys,
-                "D.Bogey": double,
-                "3+ Bogey": triple_mas,
-                "Puntos MVP": puntos_mvp
+                "Eagle": e_count,
+                "Birdie": b_count,
+                "Par": p_count,
+                "Bogey": bg_count,
+                "D.Bogey": db_count,
+                "3+ Bogey": tr_count,
+                "Puntos MVP": temp_df[col_p_pts].sum()
             })
         
         df_stats = pd.DataFrame(stats)
+        
+        # --- VISUALIZACIÓN ---
         st.dataframe(df_stats.set_index("Jugador"), use_container_width=True)
         
-        st.write("### Comparativa de Hoyos")
-        columnas_grafico = ["Eagle", "Birdie", "Par", "Bogey", "D.Bogey", "3+ Bogey"]
-        st.bar_chart(df_stats.set_index("Jugador")[columnas_grafico])
+        st.write("### Comparativa por hoyos")
+        st.bar_chart(df_stats.set_index("Jugador")[["Eagle", "Birdie", "Par", "Bogey", "D.Bogey", "3+ Bogey"]])
+        
+        # Resumen de equipos
+        c1, c2 = st.columns(2)
+        c1.metric(f"Total {EQUIPO_A_NOMBRES}", f"{df['resultado_a'].sum():g}")
+        c2.metric(f"Total {EQUIPO_B_NOMBRES}", f"{df['resultado_b'].sum():g}")
         
     else:
-        st.error("No se encuentran las columnas s0-s3 o el historial está vacío.")
+        st.warning("⚠️ No hay datos o las columnas s0-s3 no existen en el Excel.")
 
 
 elif st.session_state.menu_seleccionado == "Admin":
