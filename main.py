@@ -294,50 +294,57 @@ if st.session_state.menu_seleccionado == "Inicio":
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     st.title("⛳ Jugar / Editar Hoyo")
     
-    # --- 1. INICIALIZACIÓN ---
+    # --- 1. ESTADO DE SESIÓN ---
     if 'hoyo_actual' not in st.session_state:
         st.session_state.hoyo_actual = 1
     if 'fecha_partida' not in st.session_state:
         st.session_state.fecha_partida = datetime.now()
 
     # --- 2. SELECTOR DE FECHA ---
-    fecha_input = st.date_input("Fecha de la partida:", value=st.session_state.fecha_partida, format="DD/MM/YYYY")
+    fecha_input = st.date_input("Fecha:", value=st.session_state.fecha_partida, format="DD/MM/YYYY")
     st.session_state.fecha_partida = fecha_input
     fecha_str = fecha_input.strftime("%d/%m/%Y")
     
     h_idx = st.session_state.hoyo_actual
     par_hoyo = PAR_RIA_VIGO.get(h_idx, 4)
 
-    # --- 3. CARGA DE DATOS Y MARCADOR ---
+    # --- 3. LÓGICA DE CARGA Y CÁLCULO DE MARCADOR (Diferencia Neta) ---
     df_actual = leer_datos()
     m_e1, m_e2 = 0, 0 
-    # Valores por defecto (Par del hoyo)
+    # s0: Manu, s1: Jose, s2: Roge, s3: Lalo
     golpes_a_mostrar = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo}
     
     if not df_actual.empty:
-        # Buscamos por fecha (normalizando formatos)
+        # Filtro de fecha flexible
         f_iso = fecha_input.strftime("%Y-%m-%d")
         f_eur = fecha_input.strftime("%d/%m/%Y")
-        df_f = df_actual[(df_actual['fecha'].astype(str).str.contains(f_eur)) | (df_actual['fecha'].astype(str).str.contains(f_iso))]
+        df_f = df_actual[(df_actual['fecha'].astype(str).str.contains(f_eur)) | 
+                         (df_actual['fecha'].astype(str).str.contains(f_iso))]
         
         if not df_f.empty:
-            # Calcular acumulado del día (Match Play Neto)
             puntos_totales_a = 0
             puntos_totales_b = 0
+            
             for _, row in df_f.iterrows():
                 try:
                     p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
-                    # Equipo A: s0, s1 | Equipo B: s2, s3
-                    pa, pb = calcular_puntos_hoyo(int(row['s0']), int(row['s1']), int(row['s2']), int(row['s3']), p_h)
+                    # Lógica de equipos: A(s0, s1) vs B(s2, s3)
+                    pa, pb = calcular_puntos_hoyo(int(row['s0']), int(row['s1']), 
+                                                 int(row['s2']), int(row['s3']), p_h)
                     puntos_totales_a += pa
                     puntos_totales_b += pb
                 except: continue
             
-            # Aplicamos tu lógica: Resta y solo uno tiene valor, el otro 0
-            dif = puntos_totales_a - puntos_totales_b
-            m_e1, m_e2 = (dif, 0) if dif > 0 else (0, abs(dif))
+            # --- CÁLCULO DE DIFERENCIA (Tu lógica de Match) ---
+            diferencia = puntos_totales_a - puntos_totales_b
+            if diferencia > 0:
+                m_e1, m_e2 = diferencia, 0
+            elif diferencia < 0:
+                m_e1, m_e2 = 0, abs(diferencia)
+            else:
+                m_e1, m_e2 = 0, 0
 
-            # Cargar golpes si el hoyo ya existe
+            # Cargar golpes del hoyo actual si ya existen
             busqueda = df_f[df_f['hoyo'].astype(str).str.strip() == str(h_idx)]
             if not busqueda.empty:
                 for i in range(4):
@@ -346,16 +353,23 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
 
     # --- 4. MARCADOR VISUAL ---
     st.markdown(f"""
-    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border: 2px solid #2e7d32; text-align: center;">
+    <div style="background-color: #f0f2f6; padding: 20px; border-radius: 15px; border: 2px solid #2e7d32; text-align: center;">
         <div style="display: flex; justify-content: space-around; align-items: center;">
-            <div><p style="margin:0; font-weight:bold;">MANU & JOSE</p><h1 style="margin:0; color:#2e7d32;">{m_e1}</h1></div>
-            <div style="background-color:#555; color:white; padding:5px 15px; border-radius:20px;">VS</div>
-            <div><p style="margin:0; font-weight:bold;">ROGE & LALO</p><h1 style="margin:0; color:#1976d2;">{m_e2}</h1></div>
+            <div style="flex: 1;">
+                <p style="margin: 0; font-size: 0.9em; color: #555;">MANU & JOSE</p>
+                <h1 style="margin: 0; font-size: 3.5em; color: #2e7d32;">{m_e1}</h1>
+            </div>
+            <div style="background-color: #333; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold;">VS</div>
+            <div style="flex: 1;">
+                <p style="margin: 0; font-size: 0.9em; color: #555;">ROGE & LALO</p>
+                <h1 style="margin: 0; font-size: 3.5em; color: #1976d2;">{m_e2}</h1>
+            </div>
         </div>
+        <p style="margin-top: 10px; font-size: 0.8em; color: #888;">Marcador basado en diferencia de puntos acumulados</p>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- 5. NAVEGACIÓN Y FORMULARIO ---
+    # --- 5. ENTRADA DE GOLPES ---
     st.write("")
     col_nav1, col_h, col_nav2 = st.columns([1, 2, 1])
     with col_nav1:
@@ -369,23 +383,27 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.session_state.hoyo_actual += 1
             st.rerun()
 
-    # INPUTS CON ASIGNACIÓN CORRECTA: s0:Manu, s1:Jose, s2:Roge, s3:Lalo
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown("**Equipo MANU & JOSE**")
+        st.info("MANU & JOSE")
         g0 = st.number_input("MANU (s0)", 1, 15, value=golpes_a_mostrar[0], key=f"s0_{h_idx}")
         g1 = st.number_input("JOSE (s1)", 1, 15, value=golpes_a_mostrar[1], key=f"s1_{h_idx}")
     with c2:
-        st.markdown("**Equipo ROGE & LALO**")
+        st.warning("ROGE & LALO")
         g2 = st.number_input("ROGE (s2)", 1, 15, value=golpes_a_mostrar[2], key=f"s2_{h_idx}")
         g3 = st.number_input("LALO (s3)", 1, 15, value=golpes_a_mostrar[3], key=f"s3_{h_idx}")
 
+    # --- 6. GUARDADO ---
     if st.button("💾 GUARDAR HOYO", use_container_width=True, type="primary"):
+        # Fila: fecha, hoyo, s0, s1, s2, s3
         fila = [fecha_str, h_idx, g0, g1, g2, g3]
-        actualizar_o_insertar_hoyo(fila)
-        st.success(f"Hoyo {h_idx} guardado")
-        time.sleep(0.5)
-        st.rerun()
+        try:
+            actualizar_o_insertar_hoyo(fila)
+            st.success(f"Hoyo {h_idx} guardado correctamente")
+            time.sleep(0.5)
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error al guardar: {e}")
 
 # ==========================================
 # SECCIÓN: ESTADISTICAS
