@@ -413,8 +413,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             else:
                 res_match = "🤝 Empate (All Square)"
             
-            #titulo_seccion = f"Jornada: {f_formateada}"
-            #subtitulo_match = res_match
+            titulo_seccion = f"Jornada: {f_formateada}"
+            subtitulo_match = res_match
 
         # --- RENDER DEL TÍTULO CON RESULTADO ---
         st.subheader(f"📈 {titulo_seccion}")
