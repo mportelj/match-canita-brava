@@ -64,25 +64,45 @@ def actualizar_o_insertar_hoyo(datos):
     st.cache_data.clear()
 
 # --- 2. FUNCIONES DE DATOS ---
+@st.cache_data(ttl=0)  # ttl=0 asegura que si hay cambios, los intente leer frescos
 def leer_datos():
+    """
+    Lee la base de datos desde Google Sheets.
+    Asegura que las columnas se llamen siempre: fecha, hoyo, s0, s1, s2, s3
+    """
     try:
-        # Forzamos ttl=0 para leer siempre lo último de la nube
-        df = conn.read(worksheet="historial", ttl=0) 
-        if df is None or df.empty: 
-            return pd.DataFrame(columns=COL_NECESARIAS)
+        # 1. Leemos la hoja (ajusta "Hoja1" si tu pestaña tiene otro nombre)
+        # Usamos st.secrets["gsheets"]["url"] para no escribir la URL en el código
+        df = conn.read(spreadsheet=st.secrets["gsheets"]["url"], worksheet="Hoja1")
         
-        # Normalización de columnas a minúsculas para evitar KeyError
-        df.columns = [c.lower().strip() for c in df.columns]
+        if df is None or df.empty:
+            # Si el Excel está vacío, devolvemos un DataFrame con la estructura correcta
+            return pd.DataFrame(columns=['fecha', 'hoyo', 's0', 's1', 's2', 's3'])
         
-        # Asegurar tipos de datos para filtros de Pandas
-        df['partido_id'] = df['partido_id'].astype(str)
-        df['hoyo'] = pd.to_numeric(df['hoyo'], errors='coerce').fillna(0).astype(int)
-        df['temporada'] = pd.to_numeric(df['temporada'], errors='coerce').fillna(0).astype(int)
-        df['fecha'] = df['fecha'].astype(str)
+        # 2. Limpieza crítica: quitamos espacios en los nombres de las columnas
+        df.columns = [str(c).strip().lower() for c in df.columns]
         
-        return df.drop_duplicates(subset=['partido_id', 'hoyo'], keep='last')
-    except:
-        return pd.DataFrame(columns=COL_NECESARIAS)
+        # 3. Forzamos nombres estándar para evitar el KeyError 's0'
+        # Esto mapea las columnas por posición en caso de que cambies los nombres en el Excel
+        mapeo_columnas = {
+            df.columns[0]: 'fecha',
+            df.columns[1]: 'hoyo',
+            df.columns[2]: 's0',
+            df.columns[3]: 's1',
+            df.columns[4]: 's2',
+            df.columns[5]: 's3'
+        }
+        df = df.rename(columns=mapeo_columnas)
+        
+        # 4. Aseguramos que el hoyo sea número para los filtros
+        df['hoyo'] = pd.to_numeric(df['hoyo'], errors='coerce')
+        
+        return df
+
+    except Exception as e:
+        # Si hay un error (ej. no hay internet), devolvemos un DF vacío para que la app no explote
+        st.error(f"Error al conectar con Google Sheets: {e}")
+        return pd.DataFrame(columns=['fecha', 'hoyo', 's0', 's1', 's2', 's3'])
 
 def calcular_puntos_hoyo(scores, hoyo_num):
     par = PAR_RIA_VIGO[hoyo_num]
