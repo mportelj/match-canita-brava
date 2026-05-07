@@ -478,12 +478,32 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             st.markdown("<style>table {width:100%; text-align:center;} th {background:#f8f9fa;} td {padding:8px; border-bottom:1px solid #eee;}</style>", unsafe_allow_html=True)
             st.write(pd.DataFrame(stats_rows).to_html(escape=False, index=False), unsafe_allow_html=True)
 
-            # Botón WhatsApp
-            import urllib.parse
-            st.write("")
-            btn_label = "📲 Enviar ACUMULADO por WhatsApp" if ver_acumulado else "📲 Enviar JORNADA por WhatsApp"
-            # (Aquí se usaría el whatsapp_text generado previamente si se desea mantener el mensaje detallado)
-            st.link_button(btn_label, f"https://wa.me/?text={urllib.parse.quote('Resultados ' + titulo_cabecera)}", use_container_width=True)
+             # --- MENSAJE WHATSAPP ---
+            whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n"
+            whatsapp_text += f"📅 *{titulo_cabecera}*\n"
+            whatsapp_text += f"⛳ *Hoyos Jugados: {n_hoyos_info}*\n"
+            whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+
+        stats_rows = []
+        for res in lista_resultados:
+            pm_txt = f"+{res['plus_minus']}" if res['plus_minus'] > 0 else (str(res['plus_minus']) if res['plus_minus'] < 0 else "E")
+            whatsapp_text += f"👤 *{res['Jugador'].upper()}*\n"
+            whatsapp_text += f"🏆 Res: *{pm_txt}* ({res['scratch']} pts)\n"
+            whatsapp_text += f"🦅 Egl: {res['e']} | 🐤 Bir: {res['b']} | 🅿️ Par: {res['p']}\n"
+            whatsapp_text += f"⚠️ Bog: {res['bog']} | 💀 D.Bog: {res['db']} | 💣 +T.Bog: {res['tb']}\n"
+            whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+
+          
+
+        # --- RENDERIZADO ---
+        st.subheader(f"📈 {titulo_seccion}")
+        st.markdown("<style>table {width:100%; text-align:center;} th {background:#f8f9fa;} td {padding:8px; border-bottom:1px solid #eee;}</style>", unsafe_allow_html=True)
+        st.write(pd.DataFrame(stats_rows).to_html(escape=False, index=False), unsafe_allow_html=True)
+
+        import urllib.parse
+        st.write("")
+        btn_label = "📲 Enviar ACUMULADO por WhatsApp" if ver_acumulado else "📲 Enviar JORNADA por WhatsApp"
+        st.link_button(btn_label, f"https://wa.me/?text={urllib.parse.quote(whatsapp_text)}", use_container_width=True)
     else:
         st.info("No hay datos cargados.")
 # ==========================================
