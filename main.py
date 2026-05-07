@@ -282,6 +282,12 @@ if st.session_state.menu_seleccionado == "Inicio":
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     st.title("⛳ Jugar / Editar Hoyo")
     
+    
+    # IMPORTANTE: Forzamos el formato de texto para buscar y guardar
+    # Usamos este string para buscar en la BBDD y para INSERTAR/ACTUALIZAR
+    fecha_str = fecha_input.strftime("%d/%m/%Y")
+    
+    
     # 1. INICIALIZACIÓN
     if 'hoyo_actual' not in st.session_state:
         st.session_state.hoyo_actual = 1
@@ -293,17 +299,10 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         format="DD/MM/YYYY"  # Esto corrige la visualización
     )
     
-    # IMPORTANTE: Forzamos el formato de texto para buscar y guardar
-    # Usamos este string para buscar en la BBDD y para INSERTAR/ACTUALIZAR
-    fecha_str = fecha_input.strftime("%d/%m/%Y")
-    
-    # 1. INICIALIZACIÓN
-    if 'hoyo_actual' not in st.session_state:
-        st.session_state.hoyo_actual = 1
     if 'hoyo_guardado' not in st.session_state:
         st.session_state.hoyo_guardado = False
 
-    fecha_input = st.date_input("Fecha de la partida:", datetime.now())
+    #fecha_input = st.date_input("Fecha de la partida:", datetime.now())
     fecha_str = fecha_input.strftime("%d/%m/%Y")
     
     h_idx = st.session_state.hoyo_actual
