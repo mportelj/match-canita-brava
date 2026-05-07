@@ -219,7 +219,7 @@ if st.session_state.menu_seleccionado == "Inicio":
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     st.title("🏌️ JUGAR / EDITAR PARTIDO")
 
-    # --- 1. GESTIÓN DE SINCRONIZACIÓN ---
+    # --- 1. SINCRONIZACIÓN ---
     if "ultima_sincro" not in st.session_state:
         st.session_state.ultima_sincro = "No sincronizado"
     
@@ -229,14 +229,12 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if col_btn.button("🔄 REFRESCAR HOYO", use_container_width=True):
         st.cache_data.clear()
         st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
-        # Al hacer rerun, Streamlit mantendrá el valor del widget gracias a la 'key'
         st.rerun()
 
     st.write("---")
 
-    # --- 2. SELECCIÓN DE HOYO (EL CAMBIO CLAVE ESTÁ AQUÍ) ---
-    # Al añadir 'key="hoyo_actual"', Streamlit guarda el valor en session_state 
-    # y no lo borra aunque limpies la caché de datos.
+    # --- 2. SELECCIÓN DE HOYO CON MEMORIA ---
+    # Usamos la key para que el valor persista al refrescar
     hoyo_sel = st.number_input(
         "Selecciona el hoyo:", 
         min_value=1, 
@@ -247,46 +245,52 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     
     par_hoyo = int(PAR_RIA_VIGO[hoyo_sel])
     
-    # Lectura de datos fresca
+    # --- 3. CARGA DE DATOS (Forzamos lectura limpia tras el refresco) ---
     df_actual = leer_datos() 
     df_actual.columns = [str(c).strip().upper() for c in df_actual.columns]
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
     
-    # Buscamos datos existentes
-    datos_existentes = pd.DataFrame()
-    if 'FECHA' in df_actual.columns and 'HOYO' in df_actual.columns:
-        df_actual['HOYO'] = pd.to_numeric(df_actual['HOYO'], errors='coerce')
-        datos_existentes = df_actual[(df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_sel)]
+    # Filtramos específicamente por el hoyo que marca el selector AHORA
+    df_actual['HOYO'] = pd.to_numeric(df_actual['HOYO'], errors='coerce')
+    datos_hoyo_actual = df_actual[(df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_sel)]
 
-    # --- 3. ENTRADA DE GOLPES ---
+    # --- 4. INTERFAZ DE GOLPES ---
     st.subheader(f"⛳ Hoyo {hoyo_sel} (Par {par_hoyo})")
     cols = st.columns(4)
     golpes_finales = []
     columnas_golpes = ['S0', 'S1', 'S2', 'S3']
 
     for i, jug in enumerate(TODOS):
+        # Buscamos el valor real en los datos filtrados
         val_default = par_hoyo
-        if not datos_existentes.empty:
-            col_nombre = columnas_golpes[i]
-            if col_nombre in datos_existentes.columns:
-                val_nube = datos_existentes.iloc[0][col_nombre]
+        
+        if not datos_hoyo_actual.empty:
+            col_s = columnas_golpes[i]
+            if col_s in datos_hoyo_actual.columns:
+                val_nube = datos_hoyo_actual.iloc[0][col_s]
+                # Si hay dato numérico, lo usamos
                 if pd.notna(val_nube):
-                    try:
-                        val_default = int(float(val_nube))
-                    except:
-                        val_default = par_hoyo
-            
-        # IMPORTANTE: El key de los golpes debe incluir el hoyo para que cambien al moverte
-        g = cols[i].number_input(f"{jug}", min_value=1, max_value=15, value=val_default, key=f"input_h{hoyo_sel}_j{i}")
+                    val_default = int(float(val_nube))
+        
+        # El widget se dibuja con el valor recuperado de 'datos_hoyo_actual'
+        g = cols[i].number_input(
+            f"{jug}", 
+            min_value=1, 
+            max_value=15, 
+            value=val_default, 
+            key=f"input_h{hoyo_sel}_j{i}" # Clave única por hoyo para forzar cambio visual
+        )
         golpes_finales.append(g)
 
-    # --- 4. BOTÓN DE GUARDADO ---
+    st.write("---")
+
+    # --- 5. GUARDADO ---
     if st.button("💾 GUARDAR CAMBIOS Y SUBIR", type="primary", use_container_width=True):
-        with st.spinner("Guardando..."):
+        with st.spinner("Guardando en la nube..."):
             try:
                 puntos_reales = calcular_puntos_jornada(par_hoyo, golpes_finales)
                 
-                datos_hoyo = {
+                datos_fila = {
                     'FECHA': fecha_hoy,
                     'HOYO': int(hoyo_sel),
                     'PAR': int(par_hoyo),
@@ -298,14 +302,15 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                     'P3_PTS': float(puntos_reales[2]), 'P4_PTS': float(puntos_reales[3])
                 }
                 
-                mascara = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == int(hoyo_sel))
+                # Actualizar o Añadir
+                mascara = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_sel)
                 if mascara.any():
                     idx = df_actual.index[mascara][0]
-                    for col, val in datos_hoyo.items():
+                    for col, val in datos_fila.items():
                         if col in df_actual.columns:
                             df_actual.at[idx, col] = val
                 else:
-                    df_actual = pd.concat([df_actual, pd.DataFrame([datos_hoyo])], ignore_index=True)
+                    df_actual = pd.concat([df_actual, pd.DataFrame([datos_fila])], ignore_index=True)
                 
                 conn.update(data=df_actual)
                 st.cache_data.clear() 
