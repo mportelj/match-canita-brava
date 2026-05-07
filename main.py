@@ -17,6 +17,38 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- 1. FUNCIÓN PARA CALCULAR LOS PUNTOS ---
+def calcular_puntos_jornada(par, lista_golpes):
+    pts_finales = [0.0, 0.0, 0.0, 0.0]
+    # Puntos por enfrentamiento (Oponentes)
+    for i in range(len(lista_golpes)):
+        for j in range(len(lista_golpes)):
+            if i != j:
+                if lista_golpes[i] < lista_golpes[j]:
+                    pts_finales[i] += 1.0
+                elif lista_golpes[i] == lista_golpes[j]:
+                    pts_finales[i] += 0.5
+    # Bonus de calidad
+    for i, g in enumerate(lista_golpes):
+        diff = g - par
+        if diff <= -2: pts_finales[i] += 1.0  # Eagle
+        elif diff == -1: pts_finales[i] += 0.5 # Birdie
+    return pts_finales
+
+# --- 2. FUNCIÓN PARA SUBIR A GOOGLE SHEETS ---
+def actualizar_hoja_google(df):
+    # Nota: Aquí usamos la conexión que ya tienes configurada
+    # Si usas st.connection("gsheets"), el comando suele ser:
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        conn.update(data=df)
+        return True
+    except:
+        # Si usas gspread (la librería clásica), sería así:
+        # hoja_pool.update([df.columns.values.tolist()] + df.values.tolist())
+        st.error("Revisa la configuración de tu conexión a Google Sheets")
+        return False
+
 # Datos de campo y jugadores
 PAR_RIA_VIGO = {i: p for i, p in zip(range(1, 19), [4,5,3,4,4,5,3,4,4,4,3,4,3,5,4,5,4,4])}
 TODOS = ["MANU", "JOSE", "ROGE", "LALO"] 
