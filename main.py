@@ -73,7 +73,7 @@ def leer_datos():
     try:
         # 1. Leemos la hoja (ajusta "Hoja1" si tu pestaña tiene otro nombre)
         # Usamos st.secrets["gsheets"]["url"] para no escribir la URL en el código
-        df = conn.read(spreadsheet=st.secrets["gsheets"]["url"], worksheet="Hoja1")
+        df = conn.read(spreadsheet=st.secrets["gsheets"]["url"], worksheet="Historial")
         
         if df is None or df.empty:
             # Si el Excel está vacío, devolvemos un DataFrame con la estructura correcta
