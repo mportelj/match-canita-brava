@@ -485,8 +485,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             lider_txt = f"ROGE & LALO lideran ({texto_temporada})"
         else:
             lider_txt = f"EMPATE TEMPORADA ({texto_temporada})"
-
-       n_hoyos_info = len(df_stats['hoyo'].unique())
+        n_hoyos_info = len(df_stats['hoyo'].unique())
 
         # --- CONSTRUCCIÓN MENSAJE WHATSAPP ---
         whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n"
