@@ -287,8 +287,8 @@ if st.session_state.menu_seleccionado == "Inicio":
             </div>
         </div>
     """, unsafe_allow_html=True)
-    st.session_state.global_a = marcador_a
-    st.session_state.global_b = marcador_b
+    st.session_state.global_a = resultado_a
+    st.session_state.global_b = resultado_b
 
 
 # ==========================================
