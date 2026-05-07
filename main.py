@@ -23,35 +23,29 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 
 
-# --- 1. FUNCIÓN PARA CALCULAR LOS PUNTOS ---
 def calcular_puntos_jornada(par, lista_golpes):
     pts_finales = [0.0, 0.0, 0.0, 0.0]
-    # Puntos por enfrentamiento entre los 4 jugadores
     for i in range(len(lista_golpes)):
         for j in range(len(lista_golpes)):
             if i != j:
-                if lista_golpes[i] < lista_golpes[j]:
-                    pts_finales[i] += 1.0
-                elif lista_golpes[i] == lista_golpes[j]:
-                    pts_finales[i] += 0.5
-    # Bonus por calidad (Birdie/Eagle)
+                if lista_golpes[i] < lista_golpes[j]: pts_finales[i] += 1.0
+                elif lista_golpes[i] == lista_golpes[j]: pts_finales[i] += 0.5
+    # Bonus calidad
     for i, g in enumerate(lista_golpes):
         diff = g - par
-        if diff <= -2: pts_finales[i] += 1.0  # Eagle o mejor
-        elif diff == -1: pts_finales[i] += 0.5 # Birdie
+        if diff <= -2: pts_finales[i] += 1.0
+        elif diff == -1: pts_finales[i] += 0.5
     return pts_finales
 
-# --- 2. FUNCIÓN PARA SUBIR A GOOGLE SHEETS ---
-
 def actualizar_hoja_google(df):
+    # Usamos la conexión que definiste (conn)
     try:
-        # Aquí usamos la 'conn' que definimos arriba
         conn.update(data=df)
         return True
     except Exception as e:
-        st.error(f"Error técnico de conexión: {e}")
+        st.error(f"Error al subir: {e}")
         return False
-
+        
 def guardar_hoyo_en_nube(hoyo, golpes_jugadores, puntos_reales):
     try:
         st.cache_data.clear()
