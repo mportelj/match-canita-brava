@@ -355,7 +355,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         df_f = df_actual[df_actual['fecha'].astype(str).str.strip() == fecha_str]
         
         # Depuración: Si quieres ver si encuentra el partido, descomenta la siguiente línea:
-         st.write(f"Partidos encontrados para esta fecha: {len(df_f)}")
+    st.write(f"Partidos encontrados para esta fecha: {len(df_f)}")
 
     if not df_f.empty:
             # Calculamos el marcador total del día
