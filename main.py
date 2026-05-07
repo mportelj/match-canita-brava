@@ -37,16 +37,50 @@ def calcular_puntos_jornada(par, lista_golpes):
 
 # --- 2. FUNCIÓN PARA SUBIR A GOOGLE SHEETS ---
 def actualizar_hoja_google(df):
-    # Nota: Aquí usamos la conexión que ya tienes configurada
-    # Si usas st.connection("gsheets"), el comando suele ser:
     try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        conn.update(data=df)
+        # Usamos la conexión que definiste al principio de tu archivo
+        # Importante: el DataFrame debe enviarse completo para que pise los 0 anteriores
+        conn.update(spreadsheet=URL_HOJA, data=df) 
         return True
-    except:
-        # Si usas gspread (la librería clásica), sería así:
-        # hoja_pool.update([df.columns.values.tolist()] + df.values.tolist())
-        st.error("Revisa la configuración de tu conexión a Google Sheets")
+    except Exception as e:
+        st.error(f"Error técnico al subir: {e}")
+        return False
+
+def guardar_hoyo_en_nube(hoyo, golpes_jugadores, puntos_reales):
+    try:
+        st.cache_data.clear()
+        df_nube = leer_datos() # Lee lo que hay ahora en la nube
+        
+        # Normalizar nombres de columnas a MAYÚSCULAS
+        df_nube.columns = [str(c).strip().upper() for c in df_nube.columns]
+        fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+        
+        # Preparamos los datos del hoyo
+        nueva_fila = {
+            'FECHA': fecha_hoy,
+            'HOYO': int(hoyo),
+            'PAR': int(PAR_RIA_VIGO[hoyo])
+        }
+        
+        for i in range(len(TODOS)):
+            nueva_fila[f'S{i}'] = int(golpes_jugadores[i])
+            # AQUÍ ESTÁ LA CLAVE: Aseguramos que se graben en P1_PTS, P2_PTS...
+            nueva_fila[f'P{i+1}_PTS'] = float(puntos_reales[i])
+            
+        # Lógica para no duplicar filas del mismo hoyo
+        mascara = (df_nube['FECHA'] == fecha_hoy) & (df_nube['HOYO'] == hoyo)
+        
+        if mascara.any():
+            idx = df_nube.index[mascara][0]
+            for col, val in nueva_fila.items():
+                df_nube.at[idx, col] = val
+        else:
+            df_nube = pd.concat([df_nube, pd.DataFrame([nueva_fila])], ignore_index=True)
+        
+        # SUBIDA FINAL
+        return actualizar_hoja_google(df_nube)
+    except Exception as e:
+        st.error(f"Error al procesar datos: {e}")
         return False
 
 # Datos de campo y jugadores
