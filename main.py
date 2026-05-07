@@ -101,120 +101,90 @@ if st.session_state.menu_seleccionado == "Inicio":
         <div><h2 style="color:{COLOR_B};">{EQUIPO_B_NOMBRES}</h2><h1>{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    if 'game' not in st.session_state or st.session_state.game is None:
-        st.subheader("No hay partida activa")
-        f = st.date_input("Fecha de la partida:", datetime.now(), format="DD/MM/YYYY")
-        if st.button("🚀 Iniciar Nueva Partida", use_container_width=True):
-            st.session_state.game = {'fecha': f.strftime("%d/%m/%Y"), 'h_sel': 1, 'logs': {}, 'id': datetime.now().strftime("%Y%m%d%H%M%S")}
-            st.rerun()
-    else:
-        g = st.session_state.game
-        
-        # --- 1. MARCADOR MATCH JORNADA ---
-        pts_a_tot = sum(l['pts'][0] for l in g['logs'].values())
-        pts_b_tot = sum(l['pts'][1] for l in g['logs'].values())
-        diff_a, diff_b = (pts_a_tot - pts_b_tot, 0) if pts_a_tot >= pts_b_tot else (0, pts_b_tot - pts_a_tot)
-        
-        st.markdown(f"""
-            <div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding:20px; border-radius:20px; text-align:center; margin-bottom:25px; border: 2px solid #2e7d32; box-shadow: 0px 4px 10px rgba(0,0,0,0.05);">
-                <div style="display:flex; justify-content:space-around; align-items:center;">
-                    <div style="color:{COLOR_A}; flex:1;">
-                        <b style="font-size:1.1rem; display:block; margin-bottom:5px;">{EQUIPO_A_NOMBRES}</b>
-                        <span style="font-size:45px; font-weight:900;">{diff_a:g}</span>
-                    </div>
-                    <div style="font-size:22px; font-weight:bold; color:#555; background:white; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; border: 2px solid #ddd;">VS</div>
-                    <div style="color:{COLOR_B}; flex:1;">
-                        <b style="font-size:1.1rem; display:block; margin-bottom:5px;">{EQUIPO_B_NOMBRES}</b>
-                        <span style="font-size:45px; font-weight:900;">{diff_b:g}</span>
-                    </div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+    st.title("🏌️ JUGAR / EDITAR PARTIDO")
 
-        # --- 2. NAVEGACIÓN Y SELECTOR (SIN ETIQUETA) ---
-        opciones = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
-        
-        col_prev, col_next = st.columns(2)
-        if col_prev.button("← Anterior", use_container_width=True, disabled=(g['h_sel'] <= 1)):
-            st.session_state.game['h_sel'] -= 1
-            st.rerun()
-        if col_next.button("Siguiente →", use_container_width=True, disabled=(g['h_sel'] >= 18)):
-            st.session_state.game['h_sel'] += 1
-            st.rerun()
+    # --- 1. GESTIÓN DE SINCRONIZACIÓN ---
+    if "ultima_sincro" not in st.session_state:
+        st.session_state.ultima_sincro = "No sincronizado"
+    
+    col_info, col_btn = st.columns([3, 1])
+    col_info.info(f"☁️ **Sincronización Nube:** {st.session_state.ultima_sincro}")
+    
+    if col_btn.button("🔄 REFRESCAR", use_container_width=True):
+        st.cache_data.clear()  # Forzamos a Streamlit a leer datos nuevos de Google Sheets
+        st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
+        st.rerun()
 
-        # Selector sin el texto "Ir al hoyo" (label="") y con key dinámica
-        seleccion_manual = st.selectbox(
-            label="Selector de Hoyo",
-            label_visibility="collapsed", # Oculta la línea de texto
-            options=opciones, 
-            index=g['h_sel'] - 1, 
-            key=f"sb_h_{g['h_sel']}_{g['id']}" 
-        )
-        
-        h_nueva = int(seleccion_manual.split(" ")[1])
-        if h_nueva != g['h_sel']:
-            st.session_state.game['h_sel'] = h_nueva
-            st.rerun()
-        
-        h = g['h_sel']
-        ya_guardado = str(h) in g['logs']
+    st.write("---")
 
-        # --- 3. MARCADOR DEL HOYO ---
-        if ya_guardado:
-            h_pts = g['logs'][str(h)]['pts']
-            h_diff_a, h_diff_b = (h_pts[0]-h_pts[1], 0) if h_pts[0]>=h_pts[1] else (0, h_pts[1]-h_pts[0])
-            color_h = COLOR_A if h_diff_a > h_diff_b else COLOR_B if h_diff_b > h_diff_a else "#666"
-            texto_h = "EMPATE" if h_diff_a == h_diff_b else f"GANA {EQUIPO_A_NOMBRES if h_diff_a > h_diff_b else EQUIPO_B_NOMBRES}"
+    # --- 2. SELECCIÓN DE HOYO Y CARGA DE DATOS ---
+    hoyo_sel = st.number_input("Selecciona el hoyo:", min_value=1, max_value=18, step=1)
+    par_hoyo = int(PAR_RIA_VIGO[hoyo_sel])
+    
+    # Leemos datos actuales para ver si ya existe información de este hoyo
+    df_actual = leer_datos()
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    
+    # Normalizamos columnas para evitar errores de lectura
+    df_actual.columns = [str(c).strip().upper() for c in df_actual.columns]
+    datos_existentes = df_actual[(df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_sel)]
+
+    # --- 3. ENTRADA DE GOLPES (Interfaz que ya conoces) ---
+    st.subheader(f"⛳ Hoyo {hoyo_sel} (Par {par_hoyo})")
+    cols = st.columns(4)
+    golpes_finales = []
+
+    for i, jug in enumerate(TODOS):
+        # Si el hoyo ya tiene golpes grabados en la nube, los precargamos
+        val_default = par_hoyo
+        if not datos_existentes.empty:
+            val_col = datos_existentes.iloc[0].get(f'S{i}')
+            if pd.notna(val_col): val_default = int(val_col)
             
-            st.markdown(f"""
-                <div style="text-align:center; background-color: #fff; border: 1px solid #eee; border-radius:12px; padding:12px; margin-top:10px; margin-bottom:20px; box-shadow: inset 0 0 5px rgba(0,0,0,0.02);">
-                    <span style="color:#888; font-size:0.9rem; font-weight:bold; text-transform:uppercase;">Resultado del hoyo {h}</span><br>
-                    <span style="color:{color_h}; font-size:1.8rem; font-weight:900;">{h_diff_a:g} — {h_diff_b:g}</span><br>
-                    <small style="color:{color_h}; font-weight:bold;">{texto_h}</small>
-                </div>
-            """, unsafe_allow_html=True)
+        g = cols[i].number_input(f"{jug}", min_value=1, max_value=15, value=val_default, key=f"edit_h{hoyo_sel}_j{i}")
+        golpes_finales.append(g)
 
-        # --- 4. ENTRADA DE GOLPES ---
-        v_inicio = [int(x) for x in g['logs'][str(h)]['s']] if ya_guardado else [int(PAR_RIA_VIGO[h])]*4
-        
-        c1, c2 = st.columns(2)
-        s1 = c1.number_input(TODOS[0], 0, 15, v_inicio[0], step=1, key=f"s1_h{h}_{g['id']}")
-        s2 = c1.number_input(TODOS[1], 0, 15, v_inicio[1], step=1, key=f"s2_h{h}_{g['id']}")
-        s3 = c2.number_input(TODOS[2], 0, 15, v_inicio[2], step=1, key=f"s3_h{h}_{g['id']}")
-        s4 = c2.number_input(TODOS[3], 0, 15, v_inicio[3], step=1, key=f"s4_h{h}_{g['id']}")
-        
-        v_actuales = [s1, s2, s3, s4]
-        hubo_cambios = v_actuales != v_inicio
-        boton_desactivado = ya_guardado and not hubo_cambios
-        texto_boton = "🔄 Actualizar Hoyo" if ya_guardado else "💾 Guardar Hoyo"
-        
-        if st.button(texto_boton, type="primary", use_container_width=True, disabled=boton_desactivado):
-            ejecutar_guardado_automatico()
-            st.rerun()
+    st.write("---")
+
+    # --- 4. GUARDADO ATÓMICO (Hoyo a Hoyo) ---
+    if st.button("💾 GUARDAR CAMBIOS Y SUBIR", type="primary", use_container_width=True):
+        with st.spinner("Sincronizando con Google Sheets..."):
             
-        # --- 5. CLASIFICACIÓN MVP ---
-        if ya_guardado:
-            st.write("")
-            with st.expander("⭐ Clasificaciones MVP"):
-                col_btn1, col_btn2 = st.columns(2)
-                if "mvp_view" not in st.session_state: st.session_state.mvp_view = "Hoyo"
+            # A. Calculamos los puntos (P1_PTS...P4_PTS)
+            # Esta función debe devolver la lista de puntos basada en tus reglas
+            puntos_reales = calcular_puntos_jornada(par_hoyo, golpes_finales)
+            
+            # B. Preparamos la fila para actualizar/insertar
+            nueva_fila = {
+                'FECHA': fecha_hoy,
+                'HOYO': hoyo_sel,
+                'PAR': par_hoyo
+            }
+            for i in range(len(TODOS)):
+                nueva_fila[f'S{i}'] = golpes_finales[i]
+                nueva_fila[f'P{i+1}_PTS'] = puntos_reales[i]
+            
+            # C. Lógica de actualización en el DataFrame
+            mascara = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_sel)
+            
+            if mascara.any():
+                idx = df_actual.index[mascara][0]
+                for col, val in nueva_fila.items():
+                    df_actual.at[idx, col] = val
+            else:
+                df_actual = pd.concat([df_actual, pd.DataFrame([nueva_fila])], ignore_index=True)
+            
+            # D. Subida final a Google Sheets
+            try:
+                # Usamos tu función de escritura (ej: conn.update o gspread)
+                actualizar_hoja_google(df_actual)
                 
-                if col_btn1.button("MVP del Hoyo", use_container_width=True): st.session_state.mvp_view = "Hoyo"
-                if col_btn2.button("MVP de la Jornada", use_container_width=True): st.session_state.mvp_view = "Jornada"
-
-                ranking = []
-                for i, jug in enumerate(TODOS):
-                    pts = g['logs'][str(h)]['mvp'][f'p{i+1}'] if st.session_state.mvp_view == "Hoyo" else sum(l['mvp'][f'p{i+1}'] for l in g['logs'].values())
-                    ranking.append({"nombre": jug, "puntos": pts})
-                
-                ranking = sorted(ranking, key=lambda x: x['puntos'], reverse=True)
-                for r in ranking:
-                    st.write(f"**{r['nombre']}**: {r['puntos']:g} pts")
-
-        st.divider()
-        if st.button("🏁 Guardar Partida", use_container_width=True):
-            st.session_state.game = None
-            st.rerun()
+                st.success(f"✅ Hoyo {hoyo_sel} sincronizado.")
+                st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
+                st.cache_data.clear() # Limpiamos caché para que las Estadísticas se actualicen
+                st.balloons()
+            except Exception as e:
+                st.error(f"Error al subir datos: {e}")
             
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 ESTADÍSTICAS")
