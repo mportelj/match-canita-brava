@@ -157,7 +157,7 @@ if st.session_state.menu_seleccionado == "Inicio":
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     st.title("⛳ Jugar / Editar Hoyo")
     
-    # 1. INICIALIZACIÓN DEL ESTADO
+    # 1. INICIALIZACIÓN
     if 'hoyo_actual' not in st.session_state:
         st.session_state.hoyo_actual = 1
     if 'hoyo_guardado' not in st.session_state:
@@ -169,47 +169,61 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     h_idx = st.session_state.hoyo_actual
     par_hoyo = PAR_RIA_VIGO.get(h_idx, 4)
 
-    # 2. CARGA DE DATOS PREVIOS
+    # 2. FUNCIÓN DE LÓGICA: MEJOR, PEOR Y BONUS
+    def calcular_puntos_hoyo(s0, s1, s2, s3, par):
+        # Equipos: E1 (Manu s0, Jose s2) vs E2 (Roge s1, Lalo s3)
+        e1 = [s0, s2]
+        e2 = [s1, s3]
+        
+        pts_e1, pts_e2 = 0, 0
+        
+        # A) Punto a la Mejor Bola
+        if min(e1) < min(e2): pts_e1 += 1
+        elif min(e2) < min(e1): pts_e2 += 1
+        
+        # B) Punto a la Peor Bola
+        if max(e1) < max(e2): pts_e1 += 1
+        elif max(e2) < max(e1): pts_e2 += 1
+        
+        # C) Bonus por Birdie o mejor
+        def get_bonus(golpes, p):
+            dif = golpes - p
+            if dif <= -3: return 3 # Albatros
+            if dif == -2: return 2 # Eagle
+            if dif == -1: return 1 # Birdie
+            return 0
+        
+        pts_e1 += sum([get_bonus(g, par) for g in e1])
+        pts_e2 += sum([get_bonus(g, par) for g in e2])
+        
+        return pts_e1, pts_e2
+
+    # 3. CARGA DE DATOS Y MARCADOR MATCH
     df_actual = leer_datos()
     golpes_a_mostrar = [par_hoyo, par_hoyo, par_hoyo, par_hoyo]
     
+    m_e1, m_e2 = 0, 0
     if not df_actual.empty:
-        busqueda = df_actual[(df_actual['fecha'] == fecha_str) & (df_actual['hoyo'].astype(str) == str(h_idx))]
+        df_f = df_actual[df_actual['fecha'] == fecha_str]
+        for _, row in df_f.iterrows():
+            p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
+            p1, p2 = calcular_puntos_hoyo(int(row['s0']), int(row['s1']), int(row['s2']), int(row['s3']), p_h)
+            m_e1 += p1
+            m_e2 += p2
+
+        busqueda = df_f[df_f['hoyo'].astype(str) == str(h_idx)]
         if not busqueda.empty:
             for i in range(4):
-                try:
-                    val = busqueda.iloc[0][f's{i}']
-                    if int(float(val)) > 0: golpes_a_mostrar[i] = int(float(val))
-                except: pass
+                val = busqueda.iloc[0][f's{i}']
+                if int(float(val)) > 0: golpes_a_mostrar[i] = int(float(val))
 
-    # 3. MARCADOR DEL MATCH (Equipos: MANU/JOSE vs ROGE/LALO)
-    def calcular_match_total(df, fecha):
-        if df.empty: return 0, 0
-        df_f = df[df['fecha'] == fecha].copy()
-        puntos_e1, puntos_e2 = 0, 0
-        for _, row in df_f.iterrows():
-            # Manu(s0) + Jose(s2) vs Roge(s1) + Lalo(s3)
-            sum_e1 = int(row['s0']) + int(row['s2'])
-            sum_e2 = int(row['s1']) + int(row['s3'])
-            if sum_e1 < sum_e2: puntos_e1 += 1
-            elif sum_e2 < sum_e1: puntos_e2 += 1
-        return puntos_e1, puntos_e2
-
-    m_e1, m_e2 = calcular_match_total(df_actual, fecha_str)
-
-    # Diseño del Marcador Superior
+    # Diseño Marcador Superior
     st.markdown(f"""
-    <div style="background-color: #f0f2f6; padding: 20px; border-radius: 10px; border: 2px solid #2e7d32; text-align: center; margin-bottom: 20px;">
+    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border: 2px solid #2e7d32; text-align: center;">
         <div style="display: flex; justify-content: space-around; align-items: center;">
-            <div>
-                <p style="margin:0; font-size: 1.1em; font-weight: bold;">MANU & JOSE</p>
-                <h1 style="margin:0; font-size: 3em;">{m_e1}</h1>
-            </div>
-            <div style="background-color: #555; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold;">VS</div>
-            <div>
-                <p style="margin:0; font-size: 1.1em; font-weight: bold;">ROGE & LALO</p>
-                <h1 style="margin:0; font-size: 3em;">{m_e2}</h1>
-            </div>
+            <div><p style="margin:0; font-weight:bold;">MANU & JOSE</p><h1 style="margin:0;">{m_e1}</h1></div>
+            <div style="background-color: #555; color: white; padding: 2px 10px; border-radius: 20px;">VS</div>
+            <div><p style="margin:0; font-weight:bold;">ROGE & LALO</p><h1 style="margin:0;">{m_e2}</h1></div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -217,65 +231,63 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     # 4. NAVEGACIÓN
     col_nav1, col_h, col_nav2 = st.columns([1, 2, 1])
     with col_nav1:
-        if st.button("⬅️ ANTERIOR") and h_idx > 1:
+        if st.button("⬅️ ANT.") and h_idx > 1:
             st.session_state.hoyo_actual -= 1
             st.session_state.hoyo_guardado = False
             st.rerun()
     with col_h:
-        st.markdown(f"<h2 style='text-align: center; margin:0;'>Hoyo {h_idx} (Par {par_hoyo})</h2>", unsafe_allow_html=True)
+        st.markdown(f"<h3 style='text-align: center;'>Hoyo {h_idx} (Par {par_hoyo})</h3>", unsafe_allow_html=True)
     with col_nav2:
-        if st.button("SIGUIENTE ➡️") and h_idx < 18:
+        if st.button("SIG. ➡️") and h_idx < 18:
             st.session_state.hoyo_actual += 1
             st.session_state.hoyo_guardado = False
             st.rerun()
 
     st.divider()
 
-    # 5. INPUTS DE GOLPES (Ordenados por Equipos para mayor claridad)
-    # Manu(s0), Jose(s2) | Roge(s1), Lalo(s3)
-    nombres = ["MANU", "JOSE", "ROGE", "LALO"]
-    indices = [0, 2, 1, 3] # Mapeo a las columnas del Excel s0, s2, s1, s3
-    
+    # 5. INPUTS Y MARCADOR HOYO EN TIEMPO REAL
     cols = st.columns(2)
-    nuevos_golpes_dict = {}
+    nombres = ["MANU", "JOSE", "ROGE", "LALO"]
+    indices = [0, 2, 1, 3] # Manu(s0), Jose(s2) vs Roge(s1), Lalo(s3)
+    in_golpes = {}
 
     for i, nombre in enumerate(nombres):
-        idx_excel = indices[i]
+        idx = indices[i]
         with cols[i % 2]:
-            v = st.number_input(nombre, min_value=1, max_value=15, value=golpes_a_mostrar[idx_excel], key=f"in_{nombre}_{h_idx}")
-            nuevos_golpes_dict[idx_excel] = v
+            v = st.number_input(nombre, 1, 15, golpes_a_mostrar[idx], key=f"g_{nombre}_{h_idx}")
+            in_golpes[idx] = v
 
-    # Reordenar para el Excel (s0, s1, s2, s3)
-    lista_golpes_final = [nuevos_golpes_dict[0], nuevos_golpes_dict[1], nuevos_golpes_dict[2], nuevos_golpes_dict[3]]
-
-    # Marcador en tiempo real del hoyo
-    res_e1 = nuevos_golpes_dict[0] + nuevos_golpes_dict[2] # Manu + Jose
-    res_e2 = nuevos_golpes_dict[1] + nuevos_golpes_dict[3] # Roge + Lalo
+    # Cálculo tiempo real del hoyo
+    ph_e1, ph_e2 = calcular_puntos_hoyo(in_golpes[0], in_golpes[1], in_golpes[2], in_golpes[3], par_hoyo)
     
-    if res_e1 < res_e2: estado = "🟢 Gana Manu/Jose"
-    elif res_e2 < res_e1: estado = "🔵 Gana Roge/Lalo"
-    else: estado = "⚪ Empate"
-    
-    st.markdown(f"<p style='text-align: center; font-size: 1.2em; font-weight: bold;'>Marcador Hoyo: {res_e1} vs {res_e2}<br>{estado}</p>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="text-align: center; border: 1px solid #ddd; padding: 10px; border-radius: 5px;">
+        <b>Puntos de este hoyo:</b><br>
+        <span style="color: green; font-size: 1.2em;">M&J: {ph_e1}</span> | 
+        <span style="color: blue; font-size: 1.2em;">R&L: {ph_e2}</span>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.divider()
 
-    # 6. BOTÓN DE GUARDADO CON BLOQUEO REAL
+    # 6. GUARDADO CON BLOQUEO
     if st.session_state.hoyo_guardado:
-        st.button("✅ HOYO GUARDADO CORRECTAMENTE", use_container_width=True, disabled=True)
-        st.info("Pasa al siguiente hoyo para continuar introduciendo datos.")
+        st.button("✅ HOYO GUARDADO", use_container_width=True, disabled=True)
     else:
         if st.button("💾 GUARDAR HOYO", use_container_width=True, type="primary"):
-            fila = [fecha_str, h_idx] + lista_golpes_final
+            fila = [fecha_str, h_idx, in_golpes[0], in_golpes[1], in_golpes[2], in_golpes[3]]
             try:
                 actualizar_o_insertar_hoyo(fila) 
-                st.session_state.hoyo_guardado = True # Bloqueo manual
-                st.success(f"¡Hoyo {h_idx} guardado!")
-                time.sleep(1)
+                st.session_state.hoyo_guardado = True
+                st.success("Guardado correctamente")
+                time.sleep(0.5)
                 st.rerun()
             except Exception as e:
-                st.error(f"Error al guardar: {e}")
+                st.error(f"Error: {e}")
 
+# ==========================================
+# SECCIÓN: ESTADISTICAS
+# ==========================================
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas y Clasificación")
     df_raw = leer_datos()
