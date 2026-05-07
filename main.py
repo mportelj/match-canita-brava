@@ -220,68 +220,76 @@ if st.session_state.menu_seleccionado == "Inicio":
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     st.title("🏌️ JUGAR / EDITAR PARTIDO")
 
-    # --- 1. GESTIÓN DE SINCRONIZACIÓN ---
+    # --- 1. MEMORIA DEL HOYO SELECCIONADO ---
+    # Si es la primera vez, inicializamos en el hoyo 1
+    if "hoyo_actual" not in st.session_state:
+        st.session_state.hoyo_actual = 1
+
+    # --- 2. GESTIÓN DE SINCRONIZACIÓN ---
     if "ultima_sincro" not in st.session_state:
         st.session_state.ultima_sincro = "No sincronizado"
     
     col_info, col_btn = st.columns([3, 1])
     col_info.info(f"☁️ **Sincronización:** {st.session_state.ultima_sincro}")
     
-    # EL CAMBIO AQUÍ: Limpieza total de caché al pulsar el botón
     if col_btn.button("🔄 REFRESCAR NUBE", use_container_width=True):
-        st.cache_data.clear()  # Borra TODA la memoria temporal de la app
-        if 'conn' in globals() or 'conn' in locals():
-            st.rerun() # Recarga la app desde cero leyendo de nuevo la hoja
+        st.cache_data.clear()
+        st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
+        st.rerun()
 
     st.write("---")
 
-    # --- 2. SELECCIÓN DE HOYO Y LECTURA DE DATOS ---
-    hoyo_sel = st.number_input("Selecciona el hoyo:", min_value=1, max_value=18, step=1)
+    # --- 3. SELECCIÓN DE HOYO (Con memoria) ---
+    # Usamos 'key' para que Streamlit guarde el valor automáticamente en session_state
+    hoyo_sel = st.number_input(
+        "Selecciona el hoyo:", 
+        min_value=1, 
+        max_value=18, 
+        step=1, 
+        key="hoyo_actual" # <-- Esta es la clave mágica
+    )
+    
     par_hoyo = int(PAR_RIA_VIGO[hoyo_sel])
     
-    # IMPORTANTE: Forzamos la lectura sin caché aquí también
+    # Lectura de datos
     df_actual = leer_datos() 
     df_actual.columns = [str(c).strip().upper() for c in df_actual.columns]
-    
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
     
-    # Buscamos datos existentes con limpieza de tipos
+    # Buscamos datos existentes
     datos_existentes = pd.DataFrame()
     if 'FECHA' in df_actual.columns and 'HOYO' in df_actual.columns:
-        # Convertimos columnas a tipos comparables para evitar errores de "1" vs "1.0"
         df_actual['HOYO'] = pd.to_numeric(df_actual['HOYO'], errors='coerce')
         df_actual['FECHA'] = df_actual['FECHA'].astype(str)
-        
         datos_existentes = df_actual[(df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_sel)]
 
-    # --- 3. INTERFAZ DE ENTRADA DE GOLPES ---
+    # --- 4. INTERFAZ DE ENTRADA DE GOLPES ---
     st.subheader(f"⛳ Hoyo {hoyo_sel} (Par {par_hoyo})")
     cols = st.columns(4)
     golpes_finales = []
     columnas_golpes = ['S0', 'S1', 'S2', 'S3']
 
     for i, jug in enumerate(TODOS):
-        # Lógica de carga: Si hay datos en la nube para ese hoyo y jugador, los usamos
         val_default = par_hoyo
         if not datos_existentes.empty:
             col_nombre = columnas_golpes[i]
             if col_nombre in datos_existentes.columns:
                 val_nube = datos_existentes.iloc[0][col_nombre]
-                # Si el valor no es nulo y es un número válido
                 if pd.notna(val_nube):
                     try:
                         val_default = int(float(val_nube))
                     except:
                         val_default = par_hoyo
             
-        g = cols[i].number_input(f"{jug}", min_value=1, max_value=15, value=val_default, key=f"edit_h{hoyo_sel}_j{i}")
+        # Importante: el key del input también debe ser único por hoyo
+        g = cols[i].number_input(f"{jug}", min_value=1, max_value=15, value=val_default, key=f"input_h{hoyo_sel}_j{i}")
         golpes_finales.append(g)
 
     st.write("---")
 
-    # --- 4. BOTÓN DE GUARDADO ---
+    # --- 5. BOTÓN DE GUARDADO ---
     if st.button("💾 GUARDAR CAMBIOS Y SUBIR", type="primary", use_container_width=True):
-        with st.spinner("Subiendo datos reales..."):
+        with st.spinner("Subiendo..."):
             try:
                 puntos_reales = calcular_puntos_jornada(par_hoyo, golpes_finales)
                 
@@ -291,17 +299,12 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                     'PAR': int(par_hoyo),
                     'TEMPORADA': 2024.0,
                     'PARTIDO_ID': float(fecha_hoy.replace("-", "")),
-                    'S0': int(golpes_finales[0]),
-                    'S1': int(golpes_finales[1]),
-                    'S2': int(golpes_finales[2]),
-                    'S3': int(golpes_finales[3]),
-                    'P1_PTS': float(puntos_reales[0]),
-                    'P2_PTS': float(puntos_reales[1]),
-                    'P3_PTS': float(puntos_reales[2]),
-                    'P4_PTS': float(puntos_reales[3])
+                    'S0': int(golpes_finales[0]), 'S1': int(golpes_finales[1]),
+                    'S2': int(golpes_finales[2]), 'S3': int(golpes_finales[3]),
+                    'P1_PTS': float(puntos_reales[0]), 'P2_PTS': float(puntos_reales[1]),
+                    'P3_PTS': float(puntos_reales[2]), 'P4_PTS': float(puntos_reales[3])
                 }
                 
-                # Actualizamos la fila si existe o añadimos si no
                 mascara = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == int(hoyo_sel))
                 if mascara.any():
                     idx = df_actual.index[mascara][0]
@@ -311,16 +314,14 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
                 else:
                     df_actual = pd.concat([df_actual, pd.DataFrame([datos_hoyo])], ignore_index=True)
                 
-                # Subida y limpieza de caché para que el siguiente "Refrescar" vea esto
                 conn.update(data=df_actual)
                 st.cache_data.clear() 
-                
-                st.success(f"✅ Hoyo {hoyo_sel} guardado correctamente.")
+                st.success(f"✅ Hoyo {hoyo_sel} guardado.")
                 st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
-                st.balloons()
+                # No hacemos rerun aquí para que el usuario vea el mensaje de éxito
                 
             except Exception as e:
-                st.error(f"Error al guardar: {e}")
+                st.error(f"Error: {e}")
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 ESTADÍSTICAS")
