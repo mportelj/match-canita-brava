@@ -275,19 +275,22 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         df_j = df_raw[df_raw['fecha'] == jornada_sel].copy()
         df_j['hoyo'] = pd.to_numeric(df_j['hoyo'], errors='coerce')
         
+        # Determinamos los hoyos de la partida (máximo jugado por cualquiera)
+        hoyos_partida = len(df_j['hoyo'].unique())
+        
         lista_resultados = []
         for i, jug in enumerate(TODOS):
             col_s = f's{i}'
             df_j[col_s] = pd.to_numeric(df_j[col_s], errors='coerce')
             
-            # Filtro: Solo hoyos con golpes registrados
+            # Filtro: Solo hoyos con golpes registrados > 0
             d_p = df_j[df_j[col_s] > 0][['hoyo', col_s]].copy()
             if d_p.empty: continue
 
             d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
             d_p['dif'] = d_p[col_s] - d_p['par_h']
             
-            # 1. CÁLCULO PUNTOS SCRATCH (Stableford Bruto)
+            # Puntos Scratch (Stableford Bruto)
             def calcular_puntos_scratch(dif):
                 if dif <= -2: return 4 # Eagle
                 if dif == -1: return 3 # Birdie
@@ -297,11 +300,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             
             scratch_total = int(d_p['dif'].apply(calcular_puntos_scratch).sum())
             
-            # 2. CÁLCULO +/- SEGÚN TU FÓRMULA: (Hoyos * 2) - Scratch
+            # Fórmula confirmada: (Hoyos Jugados * 2) - Puntos Scratch
             n_hoyos_jugador = len(d_p)
             plus_minus = (n_hoyos_jugador * 2) - scratch_total
 
-            # Conteos
+            # Conteos para categorías
             e = int((d_p['dif'] <= -2).sum())
             b = int((d_p['dif'] == -1).sum())
             p = int((d_p['dif'] == 0).sum())
@@ -315,24 +318,26 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "hoyos": n_hoyos_jugador
             })
 
-        # Ordenar por Scratch (Puntos)
+        # Ordenar por Scratch (Clasificación)
         lista_resultados = sorted(lista_resultados, key=lambda x: x['scratch'], reverse=True)
 
-        stats_rows = []
-        whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n📅 _Jornada: {jornada_sel}_\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+        # --- CONSTRUCCIÓN DEL MENSAJE DE WHATSAPP ---
+        whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n📅 _Jornada: {jornada_sel}_\n⛳ *Hoyos Jugados: {hoyos_partida}*\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
 
+        stats_rows = []
         for res in lista_resultados:
-            # Texto WhatsApp
+            # Texto para WhatsApp
             pm_txt = f"+{res['plus_minus']}" if res['plus_minus'] > 0 else (str(res['plus_minus']) if res['plus_minus'] < 0 else "E")
             whatsapp_text += f"👤 *{res['Jugador'].upper()}*\n"
-            whatsapp_text += f"⛳ Hoyos: {res['hoyos']} | 🏆 Res: *{pm_txt}* ({res['scratch']} pts)\n"
+            whatsapp_text += f"🏆 Resultado: *{pm_txt}* ({res['scratch']} pts)\n"
             whatsapp_text += f"🦅 Egl: {res['e']} | 🐤 Bir: {res['b']} | 🅿️ Par: {res['p']}\n"
             whatsapp_text += f"⚠️ Bog: {res['bog']} | 💀 D.Bog: {res['db']} | 💣 +T.Bog: {res['tb']}\n"
             whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
 
+            # Formato para la tabla en Streamlit
             def fmt(v, total_h):
                 pct = (v / total_h * 100) if total_h > 0 else 0
-                return f"<b>{v}</b><br><span style='color:gray; font-size:0.8em;'>{pct:.1f}%</span>"
+                return f"<b>{v}</b><br><span style='color:gray; font-size:0.8em;'>{pct:.1f} %</span>"
 
             stats_rows.append({
                 "Jugador": res['Jugador'],
@@ -346,12 +351,17 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "3+ Bogey": fmt(res['tb'], res['hoyos'])
             })
 
-        st.markdown("<style>table {width:100%; text-align:center;} th {background:#f8f9fa;} td {padding:8px; border-bottom:1px solid #eee;}</style>", unsafe_allow_html=True)
+        # Mostrar Tabla Visual
+        st.markdown("<style>table {width:100%; text-align:center;} th {background:#f8f9fa; padding:10px;} td {padding:8px; border-bottom:1px solid #eee;}</style>", unsafe_allow_html=True)
         st.write(pd.DataFrame(stats_rows).to_html(escape=False, index=False), unsafe_allow_html=True)
 
+        # Botón de WhatsApp
         import urllib.parse
         st.write("")
-        st.link_button("📲 Enviar por WhatsApp", f"https://wa.me/?text={urllib.parse.quote(whatsapp_text)}", use_container_width=True)
+        st.link_button("📲 Compartir en WhatsApp", f"https://wa.me/?text={urllib.parse.quote(whatsapp_text)}", use_container_width=True)
+
+    else:
+        st.info("No hay datos cargados para generar estadísticas.")
 
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Administración")
