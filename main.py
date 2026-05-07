@@ -5,6 +5,13 @@ from google.oauth2.service_account import Credentials
 import gspread
 from datetime import datetime
 
+# --- INICIALIZACIÓN GLOBAL (Al principio de tu main.py) ---
+if 'menu_seleccionado' not in st.session_state:
+    st.session_state.menu_seleccionado = "Inicio"
+
+if 'radio_menu' not in st.session_state:
+    st.session_state.radio_menu = "Inicio" # <--- ESTO EVITA EL ERROR
+
 # Función para conectar sin usar st.connection
 def cargar_datos_golf():
     # 1. Cargamos los secretos
@@ -69,7 +76,9 @@ if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
 def cambiar_menu():
-    st.session_state.menu_seleccionado = st.session_state.radio_menu
+    # Usamos .get() para que si no existe, devuelva "Inicio" en lugar de dar error
+    nuevo_menu = st.session_state.get('radio_menu', 'Inicio')
+    st.session_state.menu_seleccionado = nuevo_menu
 
 def actualizar_o_insertar_hoyo(datos):
     """
