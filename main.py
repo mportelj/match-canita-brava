@@ -44,6 +44,34 @@ def leer_datos():
         return df.drop_duplicates(subset=['partido_id', 'hoyo'], keep='last')
     except: return pd.DataFrame()
 
+def calcular_puntos_jornada(par, lista_golpes):
+    """
+    Calcula los puntos que se grabarán en las columnas P1_PTS... P4_PTS
+    Basado en enfrentamientos entre jugadores y bonus por calidad.
+    """
+    pts_finales = [0.0, 0.0, 0.0, 0.0]
+    
+    # 1. Puntos por enfrentamiento (Oponentes)
+    # Cada jugador se compara con los otros 3
+    for i in range(len(lista_golpes)):
+        for j in range(len(lista_golpes)):
+            if i != j:
+                if lista_golpes[i] < lista_golpes[j]:
+                    pts_finales[i] += 1.0  # Gana el hoyo al oponente
+                elif lista_golpes[i] == lista_golpes[j]:
+                    pts_finales[i] += 0.5  # Empata el hoyo
+
+    # 2. Bonus de Calidad (Opcional, según vuestras reglas)
+    # Ejemplo: Birdie +0.5, Eagle +1.0
+    for i, g in enumerate(lista_golpes):
+        diff = g - par
+        if diff <= -2: 
+            pts_finales[i] += 1.0  # Bonus por Eagle o mejor
+        elif diff == -1: 
+            pts_finales[i] += 0.5  # Bonus por Birdie
+
+    return pts_finales
+
 def calcular_puntos_hoyo(scores, hoyo_num):
     par = PAR_RIA_VIGO[hoyo_num]
     v = [int(s) for s in scores]
