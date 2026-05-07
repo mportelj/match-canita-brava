@@ -200,91 +200,28 @@ if st.session_state.menu_seleccionado == "Inicio":
         <div style="font-size:2em; align-self:center;">VS</div>
         <div><h2 style="color:{COLOR_B};">{EQUIPO_B_NOMBRES}</h2><h1>{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
-elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    st.title("🏌️ JUGAR / EDITAR PARTIDO")
+def calcular_puntos_jornada(par, lista_golpes):
+    pts_finales = [0.0, 0.0, 0.0, 0.0]
+    for i in range(len(lista_golpes)):
+        for j in range(len(lista_golpes)):
+            if i != j:
+                if lista_golpes[i] < lista_golpes[j]: pts_finales[i] += 1.0
+                elif lista_golpes[i] == lista_golpes[j]: pts_finales[i] += 0.5
+    # Bonus calidad
+    for i, g in enumerate(lista_golpes):
+        diff = g - par
+        if diff <= -2: pts_finales[i] += 1.0
+        elif diff == -1: pts_finales[i] += 0.5
+    return pts_finales
 
-    # --- 1. GESTIÓN DE SINCRONIZACIÓN ---
-    if "ultima_sincro" not in st.session_state:
-        st.session_state.ultima_sincro = "No sincronizado"
-    
-    col_info, col_btn = st.columns([3, 1])
-    col_info.info(f"☁️ **Sincronización Nube:** {st.session_state.ultima_sincro}")
-    
-    if col_btn.button("🔄 REFRESCAR", use_container_width=True):
-        st.cache_data.clear()  # Forzamos a Streamlit a leer datos nuevos de Google Sheets
-        st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
-        st.rerun()
-
-    st.write("---")
-
-    # --- 2. SELECCIÓN DE HOYO Y CARGA DE DATOS ---
-    hoyo_sel = st.number_input("Selecciona el hoyo:", min_value=1, max_value=18, step=1)
-    par_hoyo = int(PAR_RIA_VIGO[hoyo_sel])
-    
-    # Leemos datos actuales para ver si ya existe información de este hoyo
-    df_actual = leer_datos()
-    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
-    
-    # Normalizamos columnas para evitar errores de lectura
-    df_actual.columns = [str(c).strip().upper() for c in df_actual.columns]
-    datos_existentes = df_actual[(df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_sel)]
-
-    # --- 3. ENTRADA DE GOLPES (Interfaz que ya conoces) ---
-    st.subheader(f"⛳ Hoyo {hoyo_sel} (Par {par_hoyo})")
-    cols = st.columns(4)
-    golpes_finales = []
-
-    for i, jug in enumerate(TODOS):
-        # Si el hoyo ya tiene golpes grabados en la nube, los precargamos
-        val_default = par_hoyo
-        if not datos_existentes.empty:
-            val_col = datos_existentes.iloc[0].get(f'S{i}')
-            if pd.notna(val_col): val_default = int(val_col)
-            
-        g = cols[i].number_input(f"{jug}", min_value=1, max_value=15, value=val_default, key=f"edit_h{hoyo_sel}_j{i}")
-        golpes_finales.append(g)
-
-    st.write("---")
-
-    # --- 4. GUARDADO ATÓMICO (Hoyo a Hoyo) ---
-    if st.button("💾 GUARDAR CAMBIOS Y SUBIR", type="primary", use_container_width=True):
-        with st.spinner("Sincronizando con Google Sheets..."):
-            
-            # A. Calculamos los puntos (P1_PTS...P4_PTS)
-            # Esta función debe devolver la lista de puntos basada en tus reglas
-            puntos_reales = calcular_puntos_jornada(par_hoyo, golpes_finales)
-            
-            # B. Preparamos la fila para actualizar/insertar
-            nueva_fila = {
-                'FECHA': fecha_hoy,
-                'HOYO': hoyo_sel,
-                'PAR': par_hoyo
-            }
-            for i in range(len(TODOS)):
-                nueva_fila[f'S{i}'] = golpes_finales[i]
-                nueva_fila[f'P{i+1}_PTS'] = puntos_reales[i]
-            
-            # C. Lógica de actualización en el DataFrame
-            mascara = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_sel)
-            
-            if mascara.any():
-                idx = df_actual.index[mascara][0]
-                for col, val in nueva_fila.items():
-                    df_actual.at[idx, col] = val
-            else:
-                df_actual = pd.concat([df_actual, pd.DataFrame([nueva_fila])], ignore_index=True)
-            
-            # D. Subida final a Google Sheets
-            try:
-                # Usamos tu función de escritura (ej: conn.update o gspread)
-                actualizar_hoja_google(df_actual)
-                
-                st.success(f"✅ Hoyo {hoyo_sel} sincronizado.")
-                st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
-                st.cache_data.clear() # Limpiamos caché para que las Estadísticas se actualicen
-                st.balloons()
-            except Exception as e:
-                st.error(f"Error al subir datos: {e}")
+def actualizar_hoja_google(df):
+    # Usamos la conexión que definiste (conn)
+    try:
+        conn.update(data=df)
+        return True
+    except Exception as e:
+        st.error(f"Error al subir: {e}")
+        return False
             
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 ESTADÍSTICAS")
