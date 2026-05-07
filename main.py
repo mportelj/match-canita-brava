@@ -292,104 +292,110 @@ if st.session_state.menu_seleccionado == "Inicio":
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    # 1. ASEGURAR ESTADO DE SESIÓN
+    # 1. INICIALIZACIÓN DE SESIÓN
     if 'hoyo_actual' not in st.session_state:
         st.session_state.hoyo_actual = 1
     if 'fecha_partida' not in st.session_state:
-        st.session_state.fecha_partida = datetime.now()
+        # Aseguramos que sea un objeto date de Python
+        st.session_state.fecha_partida = datetime.now().date()
     
     df = leer_datos()
-    h_idx = int(st.session_state.hoyo_actual) 
+    h_idx = int(st.session_state.hoyo_actual)
     par_hoyo = int(PAR_RIA_VIGO.get(h_idx, 4))
     
-    # Valores por defecto (si no encuentra datos)
-    golpes = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo} 
+    # Valores por defecto
     m_e1, m_e2 = 0, 0
+    golpes = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo} 
     res_hoyo_a, res_hoyo_b = 0, 0
     hoyo_ya_grabado = False
 
-    # --- LÓGICA DE CARGA DE DATOS ---
+    # 2. CARGA Y FILTRADO SEGURO
     if df is not None and not df.empty:
-        # Formato de fecha para búsqueda (debe coincidir con el del Admin)
-        fecha_busqueda = st.session_state.fecha_partida.strftime("%d/%m/%Y")
+        # Convertimos la fecha de la sesión a los dos formatos posibles (ISO y Europeo)
+        f_obj = st.session_state.fecha_partida
+        f_iso = f_obj.strftime("%Y-%m-%d")
+        f_eur = f_obj.strftime("%d/%m/%Y")
         
-        # LIMPIEZA CRÍTICA: Forzamos tipos de datos para que la comparación no falle
-        df['hoyo_int'] = pd.to_numeric(df['hoyo'], errors='coerce').fillna(0).astype(int)
-        df['fecha_str'] = df['fecha'].astype(str).apply(lambda x: x.split(' ')[0].strip())
+        # Normalizamos la columna fecha del Excel a string para comparar
+        df['fecha_str'] = df['fecha'].astype(str).str.split(' ').str[0]
         
-        # Filtramos por fecha
-        df_jornada = df[df['fecha_str'] == fecha_busqueda]
+        # Filtramos la jornada (buscamos la fecha en cualquier formato)
+        df_jornada = df[df['fecha_str'].isin([f_iso, f_eur])]
         
         if not df_jornada.empty:
-            # Marcador Match (Suma de resultados ya grabados)
+            # --- CÁLCULO DEL MARCADOR MATCH (Suma neta de lo grabado) ---
             suma_a = pd.to_numeric(df_jornada['resultado_a'], errors='coerce').sum()
             suma_b = pd.to_numeric(df_jornada['resultado_b'], errors='coerce').sum()
-            dif = suma_a - suma_b
-            m_e1, m_e2 = (int(dif), 0) if dif > 0 else (0, int(abs(dif)))
-
-            # BUSCAMOS EL HOYO ESPECÍFICO
-            h_data = df_jornada[df_jornada['hoyo_int'] == h_idx]
             
-            if not h_data.empty:
+            diferencia = suma_a - suma_b
+            if diferencia > 0:
+                m_e1, m_e2 = int(diferencia), 0
+            elif diferencia < 0:
+                m_e1, m_e2 = 0, int(abs(diferencia))
+            
+            # --- CARGA DEL HOYO ESPECÍFICO ---
+            df_hoyo = df_jornada[df_jornada['hoyo'].astype(float).astype(int) == h_idx]
+            
+            if not df_hoyo.empty:
                 hoyo_ya_grabado = True
-                # CARGAMOS LOS GOLPES (Convertimos de float/string a int de forma segura)
-                golpes[0] = int(float(h_data.iloc[0]['s0']))
-                golpes[1] = int(float(h_data.iloc[0]['s1']))
-                golpes[2] = int(float(h_data.iloc[0]['s2']))
-                golpes[3] = int(float(h_data.iloc[0]['s3']))
-                # Cargamos resultados del hoyo
-                res_hoyo_a = int(float(h_data.iloc[0]['resultado_a']))
-                res_hoyo_b = int(float(h_data.iloc[0]['resultado_b']))
+                # Extraemos golpes (s0:Manu, s1:Jose, s2:Roge, s3:Lalo)
+                golpes[0] = int(float(df_hoyo.iloc[0]['s0']))
+                golpes[1] = int(float(df_hoyo.iloc[0]['s1']))
+                golpes[2] = int(float(df_hoyo.iloc[0]['s2']))
+                golpes[3] = int(float(df_hoyo.iloc[0]['s3']))
+                res_hoyo_a = int(float(df_hoyo.iloc[0]['resultado_a']))
+                res_hoyo_b = int(float(df_hoyo.iloc[0]['resultado_b']))
 
-    # --- DISEÑO DEL MARCADOR SUPERIOR ---
+    # --- 3. INTERFAZ VISUAL ---
+    # Marcador Match Play
     st.markdown(f"""
-    <div style="background-color: #f8fcf9; padding: 20px; border-radius: 20px; border: 1px solid #2e7d32; text-align: center; margin-bottom: 20px;">
+    <div style="background-color: #f0f4f0; padding: 15px; border-radius: 15px; border: 2px solid #2e7d32; text-align: center;">
         <div style="display: flex; justify-content: space-around; align-items: center;">
-            <div><p style="color:#2e7d32; font-weight:bold; margin:0;">MANU & JOSE</p><h1 style="margin:0;">{m_e1}</h1></div>
-            <div style="font-weight:bold; background:#333; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">VS</div>
-            <div><p style="color:#c62828; font-weight:bold; margin:0;">ROGE & LALO</p><h1 style="margin:0;">{m_e2}</h1></div>
+            <div><p style="margin:0; font-weight:bold; color:#2e7d32;">MANU & JOSE</p><h1 style="margin:0;">{m_e1}</h1></div>
+            <div style="background:#333; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">VS</div>
+            <div><p style="margin:0; font-weight:bold; color:#c62828;">ROGE & LALO</p><h1 style="margin:0;">{m_e2}</h1></div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- NAVEGACIÓN ---
-    c_nav1, c_nav2 = st.columns(2)
-    with c_nav1:
-        if st.button("← Anterior", use_container_width=True, disabled=(h_idx == 1)):
+    # Navegación
+    st.write("")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("⬅️ Hoyo Anterior", use_container_width=True, disabled=(h_idx == 1)):
             st.session_state.hoyo_actual -= 1
             st.rerun()
-    with c_nav2:
-        if st.button("Siguiente →", use_container_width=True, disabled=(h_idx == 18)):
+    with c2:
+        if st.button("Hoyo Siguiente ➡️", use_container_width=True, disabled=(h_idx == 18)):
             st.session_state.hoyo_actual += 1
             st.rerun()
 
-    # --- CONTENEDOR DE GOLPES ---
+    # Formulario de Golpes
     with st.container(border=True):
-        st.subheader(f"Hoyo {h_idx} (Par {par_hoyo})")
+        st.markdown(f"<h3 style='text-align:center;'>Hoyo {h_idx} (Par {par_hoyo})</h3>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align:center; background:#eee; border-radius:5px;'>Resultado Hoyo: <b>{res_hoyo_a} — {res_hoyo_b}</b></p>", unsafe_allow_html=True)
         
-        if hoyo_ya_grabado:
-            st.success(f"✅ Hoyo {h_idx} cargado desde la base de datos.")
-            st.write(f"Resultado en este hoyo: **{res_hoyo_a} - {res_hoyo_b}**")
-        
-        col_a, col_b = st.columns(2)
-        with col_a:
-            st.markdown("**MANU & JOSE**")
-            # El key debe incluir el hoyo para que se refresque al navegar
-            g0 = st.number_input("MANU", 1, 15, value=golpes[0], key=f"s0_h{h_idx}")
-            g1 = st.number_input("JOSE", 1, 15, value=golpes[1], key=f"s1_h{h_idx}")
-        with col_b:
-            st.markdown("**ROGE & LALO**")
-            g2 = st.number_input("ROGE", 1, 15, value=golpes[2], key=f"s2_h{h_idx}")
-            g3 = st.number_input("LALO", 1, 15, value=golpes[3], key=f"s3_h{h_idx}")
+        col_equipo_a, col_equipo_b = st.columns(2)
+        with col_equipo_a:
+            st.info("MANU & JOSE")
+            g0 = st.number_input("MANU (s0)", 1, 15, value=golpes[0], key=f"s0_h{h_idx}")
+            g1 = st.number_input("JOSE (s1)", 1, 15, value=golpes[1], key=f"s1_h{h_idx}")
+        with col_equipo_b:
+            st.warning("ROGE & LALO")
+            g2 = st.number_input("ROGE (s2)", 1, 15, value=golpes[2], key=f"s2_h{h_idx}")
+            g3 = st.number_input("LALO (s3)", 1, 15, value=golpes[3], key=f"s3_h{h_idx}")
 
-        # El botón de actualizar solo guarda si hay cambios o si no estaba grabado
-        if st.button("💾 GUARDAR / ACTUALIZAR HOYO", use_container_width=True, type="primary"):
+        # Botón de Guardado
+        # Usamos primary para el color naranja/rojo del diseño
+        if st.button("💾 GUARDAR / ACTUALIZAR", use_container_width=True, type="primary"):
+            # Calculamos los puntos del hoyo antes de enviar
             pts_a, pts_b = calcular_puntos_hoyo(g0, g1, g2, g3, par_hoyo)
-            fecha_str = st.session_state.fecha_partida.strftime("%d/%m/%Y")
-            nueva_fila = [fecha_str, h_idx, g0, g1, g2, g3, pts_a, pts_b]
-            actualizar_o_insertar_hoyo(nueva_fila)
-            st.success("Hoyo actualizado con éxito")
-            time.sleep(1)
+            f_str = st.session_state.fecha_partida.strftime("%d/%m/%Y")
+            
+            fila_actualizada = [f_str, h_idx, g0, g1, g2, g3, pts_a, pts_b]
+            actualizar_o_insertar_hoyo(fila_actualizada)
+            st.success("Hoyo guardado correctamente")
+            time.sleep(0.5)
             st.rerun()
 
 # ==========================================
