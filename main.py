@@ -357,7 +357,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         # Depuración: Si quieres ver si encuentra el partido, descomenta la siguiente línea:
          st.write(f"Partidos encontrados para esta fecha: {len(df_f)}")
 
-        if not df_f.empty:
+    if not df_f.empty:
             # Calculamos el marcador total del día
             for _, row in df_f.iterrows():
                 p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
@@ -369,7 +369,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             # Forzamos que ambos sean string para asegurar la comparación
             busqueda = df_f[df_f['hoyo'].astype(str).str.strip() == str(h_idx)]
             
-            if not busqueda.empty:
+        if not busqueda.empty:
                 # Si lo encuentra, extraemos s0, s1, s2, s3
                 for i in range(4):
                     try:
