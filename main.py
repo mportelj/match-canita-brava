@@ -551,69 +551,55 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 # ==========================================
 
 elif st.session_state.menu_seleccionado == "Admin":
-    st.title("⚙️ Administración de Partidas")
+    st.title("⚙️ Panel de Administración")
     
     df = leer_datos()
 
     if df is None or df.empty:
-        st.warning("No hay datos registrados o no se pudo conectar con la base de datos.")
+        st.warning("No hay datos registrados.")
     else:
-        # --- PASO 1: LIMPIEZA AGRESIVA DE FECHAS ---
-        # Convertimos la columna 'fecha' a string y quitamos horas si existen (el .split)
-        df['fecha_limpia'] = df['fecha'].astype(str).apply(lambda x: x.split(' ')[0].strip())
+        # 1. Limpieza de fechas
+        df['fecha_str'] = df['fecha'].astype(str).apply(lambda x: x.split(' ')[0].strip())
         
-        # Intentamos normalizar todas las fechas al mismo formato para agrupar
-        def normalizar_fecha(f):
-            try:
-                # Probamos a convertir cualquier cosa a fecha
-                return pd.to_datetime(f, dayfirst=True).strftime('%d/%m/%Y')
-            except:
-                return f # Si falla, dejamos lo que había
+        def formatear_fecha(f):
+            try: return pd.to_datetime(f).strftime('%d/%m/%Y')
+            except: return f
 
-        df['fecha_display'] = df['fecha_limpia'].apply(normalizar_fecha)
+        df['fecha_bonita'] = df['fecha_str'].apply(formatear_fecha)
+        partidos = df.groupby('fecha_bonita')
 
-        # --- PASO 2: AGRUPAR PARTIDOS ---
-        # Agrupamos por la fecha ya normalizada
-        partidos = df.groupby('fecha_display')
+        fechas_ordenadas = sorted(partidos.groups.keys(), 
+                                key=lambda x: pd.to_datetime(x, format='%d/%m/%Y'), 
+                                reverse=True)
 
-        if len(partidos) == 0:
-            st.error("Se leyeron los datos pero no se pudieron agrupar por fecha.")
-        else:
-            st.subheader(f"Jornadas registradas: {len(partidos)}")
-
-            # Ordenamos las fechas de más reciente a más antigua
-            fechas_ordenadas = sorted(partidos.groups.keys(), 
-                                    key=lambda x: pd.to_datetime(x, format='%d/%m/%Y'), 
-                                    reverse=True)
-
-            for f_disp in fechas_ordenadas:
-                datos_jornada = partidos.get_group(f_disp)
-                
-                # Conteo de hoyos
-                num_hoyos = len(datos_jornada['hoyo'].unique())
-                
-                # Cálculo de puntos acumulados para el título
-                p_e1, p_e2 = 0, 0
-                for _, row in datos_jornada.iterrows():
-                    try:
-                        p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
-                        res = calcular_puntos_hoyo(int(row['s0']), int(row['s1']), 
-                                                 int(row['s2']), int(row['s3']), p_h)
-                        p_e1 += res[0]
-                        p_e2 += res[1]
-                    except:
-                        continue
-
-                # --- PASO 3: MOSTRAR EXPANDER ---
-                with st.expander(f"📅 {f_disp} — ({num_hoyos} hoyos) — Marcador: {p_e1} vs {p_e2}"):
-                    # Tabla de detalles
-                    view = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values('hoyo')
-                    view.columns = ['Hoyo', 'Manu', 'Roge', 'Jose', 'Lalo']
-                    st.dataframe(view, hide_index=True, use_container_width=True)
+        for f_disp in fechas_ordenadas:
+            datos_jornada = partidos.get_group(f_disp)
+            num_hoyos = len(datos_jornada['hoyo'].unique())
+            
+            # --- CORRECCIÓN DEL MARCADOR ---
+            # Inicializamos los puntos de la jornada
+            p_e1_total, p_e2_total = 0, 0
+            
+            for _, row in datos_jornada.iterrows():
+                try:
+                    # Obtenemos el par del hoyo para el cálculo
+                    h_num = int(row['hoyo'])
+                    p_h = int(PAR_RIA_VIGO.get(h_num, 4))
                     
-                    # Botón de borrado (opcional)
-                    if st.button(f"Eliminar jornada {f_disp}", key=f"btn_{f_disp}"):
-                        st.warning("Para borrar necesitas una función específica que elimine filas en el Excel.")
-
-    if st.button("🔄 Refrescar"):
-        st.rerun()
+                    # Usamos tu función lógica de puntos
+                    res = calcular_puntos_hoyo(
+                        int(row['s0']), int(row['s1']), 
+                        int(row['s2']), int(row['s3']), p_h
+                    )
+                    p_e1_total += res[0]
+                    p_e2_total += res[1]
+                except:
+                    continue
+            
+            # --- RENDERIZADO ---
+            # Aquí es donde se muestra el marcador. 
+            # Si quieres que salga "10 vs 0", asegúrate de que p_e1_total sea 10 y p_e2_total sea 0
+            with st.expander(f"📅 {f_disp} — ({num_hoyos} hoyos) — Marcador: {p_e1_total} vs {p_e2_total}"):
+                tabla_resumen = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values('hoyo')
+                tabla_resumen.columns = ['Hoyo', 'Manu', 'Roge', 'Jose', 'Lalo']
+                st.dataframe(tabla_resumen, hide_index=True, use_container_width=True)
