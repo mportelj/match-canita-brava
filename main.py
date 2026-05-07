@@ -7,10 +7,10 @@ import urllib.parse
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
-# --- CONFIGURACIÓN DEL CAMPO (RIA DE VIGO) ---
+# --- 1. CONFIGURACIÓN CORREGIDA DEL CAMPO ---
 PAR_RIA_VIGO = {
-    1: 5, 2: 4, 3: 4, 4: 4, 5: 3, 6: 5, 7: 4, 8: 3, 9: 4,
-    10: 4, 11: 3, 12: 4, 13: 4, 14: 3, 15: 5, 16: 4, 17: 4, 18: 4  # <-- Actualizado a Par 4
+    1: 4, 2: 5, 3: 3, 4: 4, 5: 4, 6: 5, 7: 3, 8: 4, 9: 4,
+    10: 4, 11: 3, 12: 4, 13: 3, 14: 5, 15: 4, 16: 5, 17: 4, 18: 4
 }
 TODOS = ["MANU", "JOSE", "ROGE", "LALO"] 
 EQUIPO_A_NOMBRES = f"{TODOS[0]}/{TODOS[1]}"
@@ -269,16 +269,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     df_raw = leer_datos()
     
     if not df_raw.empty:
-        # 1. Selector de Jornada
-        fechas_disponibles = sorted(df_raw['fecha'].unique().tolist(), reverse=True)
-        jornada_sel = st.selectbox("Seleccionar Jornada:", fechas_disponibles)
+        # Selector de Jornada
+        fechas = sorted(df_raw['fecha'].unique().tolist(), reverse=True)
+        jornada_sel = st.selectbox("Seleccionar Jornada:", fechas)
         
-        # Filtro por fecha y conversión a números
         df_j = df_raw[df_raw['fecha'] == jornada_sel].copy()
         df_j['hoyo'] = pd.to_numeric(df_j['hoyo'], errors='coerce')
-        # Importante: forzar que el par sea el correcto (18=4)
-        df_j['par_campo'] = df_j['hoyo'].map(PAR_RIA_VIGO)
-        
         hoyos_jugados = len(df_j['hoyo'].unique())
         
         stats_rows = []
@@ -286,17 +282,18 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         for i, jug in enumerate(TODOS):
             col_s = f's{i}'
             
-            # Limpieza de golpes: solo mayores que 0
-            d_p = df_j[['hoyo', 'par_campo', col_s]].copy()
+            # Limpieza y mapeo con los NUEVOS PARES
+            d_p = df_j[['hoyo', col_s]].copy()
             d_p[col_s] = pd.to_numeric(d_p[col_s], errors='coerce')
             d_p = d_p[d_p[col_s] > 0].dropna()
             
-            # Cálculo de diferencia
-            d_p['dif'] = d_p[col_s] - d_p['par_campo']
+            d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
+            d_p['dif'] = d_p[col_s] - d_p['par_h']
             
             # Métricas principales
-            plus_minus = int(d_p[col_s].sum() - d_p['par_campo'].sum())
+            plus_minus = int(d_p[col_s].sum() - d_p['par_h'].sum())
             
+            # Scratch (Stableford Bruto)
             def pts_scratch(d):
                 if d <= -2: return 4
                 if d == -1: return 3
@@ -305,57 +302,48 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 return 0
             scratch_total = int(sum(d_p['dif'].apply(pts_scratch)))
 
-            # Conteos
+            # Conteos exactos
             e = int((d_p['dif'] <= -2).sum())
             b = int((d_p['dif'] == -1).sum())
             p = int((d_p['dif'] == 0).sum())
             bog = int((d_p['dif'] == 1).sum())
             db = int((d_p['dif'] >= 2).sum())
 
-            def fmt_table(val):
+            def fmt_html(val):
                 pct = (val / hoyos_jugados * 100) if hoyos_jugados > 0 else 0
-                # Usamos <b> en lugar de ** para evitar errores de renderizado
                 return f"<b>{val}</b><br><span style='color:gray; font-size:0.8em;'>{pct:.1f}%</span>"
 
             stats_rows.append({
                 "Jugador": jug,
                 "+/-": f"<b style='color:red;'>+{plus_minus}</b>" if plus_minus > 0 else (f"<b>{plus_minus}</b>" if plus_minus < 0 else "<b>E</b>"),
                 "Scratch": f"<b>{scratch_total}</b>",
-                "Albatros": fmt_table(0),
-                "Eagles": fmt_table(e),
-                "Birdies": fmt_table(b),
-                "Pares": fmt_table(p),
-                "Bogey": fmt_table(bog),
-                "D.Bogey+": fmt_table(db)
+                "Albatros": fmt_html(0),
+                "Eagles": fmt_html(e),
+                "Birdies": fmt_html(b),
+                "Pares": fmt_html(p),
+                "Bogey": fmt_html(bog),
+                "D.Bogey+": fmt_html(db)
             })
 
-        # --- RENDERIZADO TABLA ---
+        # Renderizado de Tabla
         df_final = pd.DataFrame(stats_rows)
-        
-        # Estilo CSS para la tabla
         st.markdown("""
             <style>
-                table { width: 100%; border-collapse: collapse; text-align: center; font-family: sans-serif; }
-                th { background-color: #f8f9fa; padding: 10px; border-bottom: 2px solid #ddd; }
-                td { padding: 12px; border-bottom: 1px solid #eee; line-height: 1.2; }
+                table { width: 100%; border-collapse: collapse; text-align: center; }
+                th { background-color: #f8f9fa; padding: 10px; border-bottom: 2px solid #ddd; font-size: 0.9em; }
+                td { padding: 12px; border-bottom: 1px solid #eee; line-height: 1.3; }
             </style>
         """, unsafe_allow_html=True)
         
         st.write(df_final.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # --- VERIFICADOR PARA MANU ---
-        with st.expander("🔍 Auditoría de hoyos (Para verificar Birdies)"):
-            for i, jug in enumerate(TODOS):
-                col_s = f's{i}'
-                data_jug = df_j[df_j[col_s] > 0][['hoyo', col_s, 'par_campo']]
-                data_jug['Resultado'] = data_jug[col_s] - data_jug['par_campo']
-                # Filtramos para mostrar solo lo que NO es Bogey/Doble
-                aciertos = data_jug[data_jug['Resultado'] <= 0]
-                if not aciertos.empty:
-                    st.write(f"Aciertos de **{jug}** (Columna {col_s}):")
-                    st.table(aciertos)
+        # Verificador rápido para estar seguros
+        with st.expander("🔍 Auditoría de Pares (Hoyo 6 y 8)"):
+            st.write("Configuración cargada:")
+            st.write(f"Hoyo 6: Par {PAR_RIA_VIGO[6]} | Hoyo 8: Par {PAR_RIA_VIGO[8]}")
+            st.write("Si Manu hizo un 4 en el 6 y un 3 en el 8, ahora aparecerán sus 2 birdies.")
     else:
-        st.info("No hay datos cargados.")
+        st.info("Sin datos.")
 
 
 elif st.session_state.menu_seleccionado == "Admin":
