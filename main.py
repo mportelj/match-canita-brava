@@ -487,27 +487,28 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         else:
             lider_txt = f"EMPATE TEMPORADA ({texto_temporada})"
 
-       # --- MENSAJE WHATSAPP ---
+       n_hoyos_info = len(df_stats['hoyo'].unique())
+
+        # --- CONSTRUCCIÓN MENSAJE WHATSAPP ---
         whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n"
         whatsapp_text += f"📅 *Jornada: {f_formateada}* ({n_hoyos_info} hoyos)\n"
-    
+        
         if not ver_acumulado:
             whatsapp_text += f"⛳ Marcador hoy: *{res_match_dia}*\n"
-    
-        # Usamos la variable calculada al inicio
-        whatsapp_text += f"🏆 *TEMPORADA: {texto_marcador_global}*\n"
-    
-    # Lógica de líder para el texto resaltado
-    if marcador_global_a > marcador_global_b:
-        lider_txt = f"MANU & JOSE lideran ({texto_marcador_global})"
-    elif marcador_global_b > marcador_global_a:
-        lider_txt = f"ROGE & LALO lideran ({texto_marcador_global})"
-    else:
-        lider_txt = f"EMPATE TEMPORADA ({texto_marcador_global})"
         
-    whatsapp_text += f"✨ *{lider_txt.upper()}* ✨\n"
-    whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
-      
+        whatsapp_text += f"🏆 *TEMPORADA: {texto_marcador_global}*\n"
+        
+        if marcador_global_a > marcador_global_b:
+            lider_info = f"MANU & JOSE lideran ({texto_marcador_global})"
+        elif marcador_global_b > marcador_global_a:
+            lider_info = f"ROGE & LALO lideran ({texto_marcador_global})"
+        else:
+            lider_info = f"EMPATE TEMPORADA ({texto_marcador_global})"
+
+        whatsapp_text += f"✨ *{lider_info.upper()}* ✨\n"
+        whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+
+        # ESTE ES EL BLOQUE QUE DABA ERROR DE INDENTACIÓN
         for res in lista_resultados:
             pm_txt = f"+{res['plus_minus']}" if res['plus_minus'] > 0 else (str(res['plus_minus']) if res['plus_minus'] < 0 else "E")
             h = res['hoyos']
@@ -521,12 +522,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             whatsapp_text += f"⚠️ Bog: {w_fmt(res['bog'])}\n💀 D.Bog: {w_fmt(res['db'])}\n💣 +T.Bog: {w_fmt(res['tb'])}\n"
             whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
 
-        # --- RENDERIZADO EN APP ---
+        # --- RENDERIZADO APP ---
         st.subheader(f"📈 {titulo_seccion} ({n_hoyos_info} hoyos)")
-        if not ver_acumulado:
-            st.markdown(f"**Resultado Match: {res_match_dia}**")
-        st.markdown(f"**{texto_marcador_global}**")
-        st.info(status_global)
+        if not ver_acumulado and res_match_dia:
+            st.markdown(f"**{res_match_dia}**")
+        st.info(f"Temporada: {texto_marcador_global}")
 
         if lista_resultados:
             # (Aquí va tu código de la tabla stats_rows que ya tenías)
