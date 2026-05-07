@@ -556,69 +556,76 @@ elif st.session_state.menu_seleccionado == "Admin":
     df = leer_datos()
 
     if df is None or df.empty:
-        st.warning("No hay datos registrados en la base de datos.")
+        st.warning("No hay datos registrados.")
     else:
-        # 1. LIMPIEZA DE FECHAS (Formato dd/mm/aaaa)
+        # 1. NORMALIZACIÓN DE FECHAS
         df['fecha_str'] = df['fecha'].astype(str).apply(lambda x: x.split(' ')[0].strip())
-        
         def formatear_fecha(f):
-            try:
-                return pd.to_datetime(f).strftime('%d/%m/%Y')
-            except:
-                return f
-
+            try: return pd.to_datetime(f).strftime('%d/%m/%Y')
+            except: return f
         df['fecha_bonita'] = df['fecha_str'].apply(formatear_fecha)
+        
         partidos = df.groupby('fecha_bonita')
-
-        # Ordenar: la jornada más reciente primero
         fechas_ordenadas = sorted(partidos.groups.keys(), 
                                 key=lambda x: pd.to_datetime(x, format='%d/%m/%Y'), 
                                 reverse=True)
 
-        # 2. RENDERIZADO POR JORNADA
         for f_disp in fechas_ordenadas:
             datos_jornada = partidos.get_group(f_disp)
             num_hoyos = len(datos_jornada['hoyo'].unique())
             
-            # --- CÁLCULO DEL MARCADOR REAL (resultado_a y resultado_b) ---
+            # --- CÁLCULO REAL DEL MATCH ---
             resultado_a = 0  # MANU & JOSE
             resultado_b = 0  # ROGE & LALO
             
             for _, row in datos_jornada.iterrows():
                 try:
                     p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
-                    # Llamamos a tu función lógica
-                    pts_a, pts_b = calcular_puntos_hoyo(
+                    pts_hoyo_a, pts_hoyo_b = calcular_puntos_hoyo(
                         int(row['s0']), int(row['s1']), 
                         int(row['s2']), int(row['s3']), p_h
                     )
-                    resultado_a += pts_a
-                    resultado_b += pts_b
+                    # LÓGICA MATCH PLAY: El que más puntos saque en el hoyo, se lleva 1 punto de match
+                    if pts_hoyo_a > pts_hoyo_b:
+                        resultado_a += 1
+                    elif pts_hoyo_b > pts_hoyo_a:
+                        resultado_b += 1
                 except:
                     continue
 
-            # 3. MOSTRAR EXPANDER CON NOMBRES DETALLADOS
-            # Usamos un título claro que identifique a los equipos y el resultado neto
-            titulo_expander = (
-                f"📅 {f_disp} — {num_hoyos} hoyos — "
-                f"M&J: {resultado_a}  vs  R&L: {resultado_b}"
-            )
+            # --- RENDERIZADO DEL EXPANDER ---
+            titulo = f"📅 {f_disp} — ({num_hoyos} hoyos) — MANU & JOSE {resultado_a} vs {resultado_b} ROGE & LALO"
             
-            with st.expander(titulo_expander):
-                st.markdown(f"""
-                **Resumen de la Jornada:**
-                * **Equipo A (MANU & JOSE):** {resultado_a} puntos.
-                * **Equipo B (ROGE & LALO):** {resultado_b} puntos.
-                """)
-                
-                # Tabla de golpes por hoyo
-                tabla_resumen = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values('hoyo')
-                tabla_resumen.columns = ['Hoyo', 'MANU', 'ROGE', 'JOSE', 'LALO']
-                
-                st.dataframe(tabla_resumen, hide_index=True, use_container_width=True)
-                
-                if st.button(f"Eliminar jornada {f_disp}", key=f"del_{f_disp}"):
-                    st.error("Función de borrado protegida. Contacta con soporte.")
+            with st.expander(titulo):
+                # Tabla de datos
+                tabla = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values('hoyo')
+                tabla.columns = ['Hoyo', 'MANU', 'ROGE', 'JOSE', 'LALO']
+                st.dataframe(tabla, hide_index=True, use_container_width=True)
 
-    if st.button("🔄 Actualizar"):
+                # --- BOTONES DE ACCIÓN ---
+                col_ed, col_del = st.columns(2)
+                
+                with col_ed:
+                    if st.button(f"✏️ Editar Jornada", key=f"ed_{f_disp}"):
+                        # Guardamos la fecha en el estado y saltamos al menú jugar
+                        st.session_state.fecha_partida = pd.to_datetime(f_disp, dayfirst=True)
+                        st.session_state.menu_seleccionado = "Jugar/Editar"
+                        st.rerun()
+                
+                with col_del:
+                    # Confirmación de borrado para evitar sustos
+                    confirmar = st.checkbox("Confirmar borrado", key=f"conf_{f_disp}")
+                    if st.button(f"🗑️ Borrar Jornada", key=f"btn_del_{f_disp}", disabled=not confirmar, type="primary"):
+                        try:
+                            # Filtramos el DF original para quitar esa fecha
+                            # Nota: Esto depende de cómo manejes tu función de guardado
+                            df_nuevo = df[df['fecha_bonita'] != f_disp]
+                            # Aquí llamarías a la función que sobreescribe tu Sheets
+                            # guardar_todo_el_df(df_nuevo) 
+                            st.success(f"Jornada {f_disp} eliminada (Simulación)")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error al borrar: {e}")
+
+    if st.button("🔄 Actualizar Datos"):
         st.rerun()
