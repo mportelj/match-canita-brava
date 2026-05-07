@@ -272,42 +272,40 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         fechas = sorted(df_raw['fecha'].unique().tolist(), reverse=True)
         jornada_sel = st.selectbox("Seleccionar Jornada:", fechas)
         
-        # Filtro de jornada y limpieza de hoyos
+        # Filtro de jornada
         df_j = df_raw[df_raw['fecha'] == jornada_sel].copy()
         df_j['hoyo'] = pd.to_numeric(df_j['hoyo'], errors='coerce')
-        df_j = df_j[df_j['hoyo'].isin(PAR_RIA_VIGO.keys())]
         
         lista_resultados = []
         for i, jug in enumerate(TODOS):
             col_s = f's{i}'
-            
-            # PROCESAMIENTO ULTRA-ESTRICTO
-            # 1. Convertimos a número, lo que no sea número será NaN
             df_j[col_s] = pd.to_numeric(df_j[col_s], errors='coerce')
             
-            # 2. Solo filas donde los GOLPES sean mayores que 0 (evita celdas vacías/ceros)
+            # Solo hoyos donde el jugador realmente golpeó (mayor que 0)
             d_p = df_j[df_j[col_s] > 0][['hoyo', col_s]].copy()
             
             if d_p.empty: continue
 
             d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
+            # Diferencia por hoyo (Golpes - Par)
             d_p['dif'] = d_p[col_s] - d_p['par_h']
             
-            # +/- Real (Suma de las diferencias de los hoyos jugados)
+            # EL CÁLCULO CLAVE:
+            # Resultado +/- es la suma simple de las diferencias
             plus_minus = int(d_p['dif'].sum())
             
-            # Scratch (Stableford Bruto): Albatros: 5, Eagle: 4, Birdie: 3, Par: 2, Bogey: 1, Otros: 0
-            def calcular_puntos(dif):
-                if dif <= -3: return 5
-                if dif == -2: return 4
-                if dif == -1: return 3
-                if dif == 0:  return 2
-                if dif == 1:  return 1
-                return 0
+            # Scratch (Stableford Bruto): 
+            # Birdie o mejor: 3+ pts | Par: 2 pts | Bogey: 1 pt | Doble+ : 0 pts
+            def calcular_puntos_scratch(dif):
+                if dif <= -2: return 4 # Eagle
+                if dif == -1: return 3 # Birdie
+                if dif == 0:  return 2 # Par
+                if dif == 1:  return 1 # Bogey
+                return 0             # Doble Bogey o peor
             
-            scratch_total = int(d_p['dif'].apply(calcular_puntos).sum())
+            scratch_total = int(d_p['dif'].apply(calcular_puntos_scratch).sum())
 
-            # Conteos
+            # Conteos para la tabla
             e = int((d_p['dif'] <= -2).sum())
             b = int((d_p['dif'] == -1).sum())
             p = int((d_p['dif'] == 0).sum())
@@ -322,15 +320,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
         # Ordenar por Scratch (Puntos)
         lista_resultados = sorted(lista_resultados, key=lambda x: x['scratch'], reverse=True)
-        
-        # Hoyos jugados en total por la partida (para el porcentaje)
         hoyos_partida = len(df_j['hoyo'].unique())
 
         stats_rows = []
         whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n📅 _Jornada: {jornada_sel}_\n⛳ *Hoyos Jugados: {hoyos_partida}*\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
 
         for res in lista_resultados:
-            # Texto WhatsApp
             pm_txt = f"+{res['plus_minus']}" if res['plus_minus'] > 0 else (str(res['plus_minus']) if res['plus_minus'] < 0 else "E")
             whatsapp_text += f"👤 *{res['Jugador'].upper()}*\n"
             whatsapp_text += f"🏆 Resultado: *{pm_txt}* ({res['scratch']} pts)\n"
@@ -355,9 +350,10 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         st.write(pd.DataFrame(stats_rows).to_html(escape=False, index=False), unsafe_allow_html=True)
 
         import urllib.parse
-        st.write("")
         st.link_button("📲 Enviar por WhatsApp", f"https://wa.me/?text={urllib.parse.quote(whatsapp_text)}", use_container_width=True)
 
+    else:
+        st.info("Sin datos.")
 
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Administración")
