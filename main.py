@@ -74,6 +74,7 @@ def actualizar_o_insertar_hoyo(datos):
 
 # --- 2. FUNCIONES DE DATOS ---
 @st.cache_data(ttl=0)  # ttl=0 asegura que si hay cambios, los intente leer frescos
+
 def leer_datos():
     """
     Lee la base de datos desde Google Sheets.
@@ -81,8 +82,8 @@ def leer_datos():
     """
     try:
         # 1. Leemos la hoja (ajusta "Hoja1" si tu pestaña tiene otro nombre)
-        # Usamos st.secrets["gsheets"]["url"] para no escribir la URL en el código
-        df = conn.read(spreadsheet=st.secrets["gsheets"]["url"], worksheet="historial")
+        # Usamos st.secrets["golf_datos"]["url"] para no escribir la URL en el código
+        df = conn.read(spreadsheet=st.secrets["golf_datos"]["url"], worksheet="historial")
         
         if df is None or df.empty:
             # Si el Excel está vacío, devolvemos un DataFrame con la estructura correcta
