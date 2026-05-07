@@ -291,7 +291,7 @@ if st.session_state.menu_seleccionado == "Inicio":
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     st.title("⛳ Jugar / Editar Hoyo")
     
-    # --- 1. INICIALIZACIÓN (Limpia los espacios aquí) ---
+    # --- 1. INICIALIZACIÓN DE ESTADO ---
     if 'hoyo_actual' not in st.session_state:
         st.session_state.hoyo_actual = 1
     if 'hoyo_guardado' not in st.session_state:
@@ -299,18 +299,62 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if 'fecha_partida' not in st.session_state:
         st.session_state.fecha_partida = datetime.now()
 
-    # --- 2. SELECTOR DE FECHA ---
+    # --- 2. SELECTOR DE FECHA Y NAVEGACIÓN ---
     fecha_input = st.date_input(
         "Fecha de la partida:", 
         value=st.session_state.fecha_partida,
         format="DD/MM/YYYY"
     )
+    # Guardamos en el estado para que no se resetee al hoyo siguiente
     st.session_state.fecha_partida = fecha_input
     fecha_str = fecha_input.strftime("%d/%m/%Y")
     
-   # Diseño Marcador Superior CORREGIDO
-  # Diseño Marcador Superior - Versión Blindada
-    # Usamos {{ }} para el CSS y { } para las variables de Python
+    h_idx = st.session_state.hoyo_actual
+    par_hoyo = PAR_RIA_VIGO.get(h_idx, 4)
+
+    # --- 3. CARGA DE DATOS Y LÓGICA DE MARCADOR ---
+    df_actual = leer_datos()
+    
+    # Inicialización de seguridad (Evita errores de "variable not defined")
+    m_e1, m_e2 = 0, 0 
+    golpes_a_mostrar = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo}
+    
+    if not df_actual.empty:
+        # Formatos de búsqueda (Europa e ISO)
+        f_iso = fecha_input.strftime("%Y-%m-%d")
+        f_eur = fecha_input.strftime("%d/%m/%Y")
+
+        # Filtramos todas las filas de ese día
+        df_f = df_actual[
+            (df_actual['fecha'].astype(str) == f_eur) | 
+            (df_actual['fecha'].astype(str) == f_iso)
+        ]
+        
+        if not df_f.empty:
+            # Calcular marcador acumulado del Match
+            for _, row in df_f.iterrows():
+                try:
+                    p_h = int(PAR_RIA_VIGO.get(int(row['hoyo']), 4))
+                    p1, p2 = calcular_puntos_hoyo(
+                        int(row['s0']), int(row['s1']), 
+                        int(row['s2']), int(row['s3']), p_h
+                    )
+                    m_e1 += p1
+                    m_e2 += p2
+                except:
+                    continue
+
+            # Buscar si el hoyo actual ya tiene golpes grabados
+            busqueda = df_f[df_f['hoyo'].astype(str).str.strip() == str(h_idx)]
+            if not busqueda.empty:
+                for i in range(4):
+                    try:
+                        v = int(float(busqueda.iloc[0][f's{i}']))
+                        if v > 0: golpes_a_mostrar[i] = v
+                    except:
+                        continue
+
+    # --- 4. DISEÑO DEL MARCADOR SUPERIOR ---
     st.markdown(f"""
     <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border: 2px solid #2e7d32; text-align: center;">
         <div style="display: flex; justify-content: space-around; align-items: center;">
@@ -326,11 +370,9 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Aquí inyectamos las variables m_e1 y m_e2 de forma segura
-    st.markdown(html_marcador.format(val_e1=m_e1, val_e2=m_e2), unsafe_allow_html=True)
 
-    # 4. NAVEGACIÓN
+    # --- 5. BOTONES DE NAVEGACIÓN ENTRE HOYOS ---
+    st.write("") # Espacio
     col_nav1, col_h, col_nav2 = st.columns([1, 2, 1])
     with col_nav1:
         if st.button("⬅️ ANT.") and h_idx > 1:
@@ -338,7 +380,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.session_state.hoyo_guardado = False
             st.rerun()
     with col_h:
-        st.markdown(f"<h3 style='text-align: center;'>Hoyo {h_idx} (Par {par_hoyo})</h3>", unsafe_allow_html=True)
+        st.markdown(f"<h3 style='text-align: center; margin: 0;'>Hoyo {h_idx} (Par {par_hoyo})</h3>", unsafe_allow_html=True)
     with col_nav2:
         if st.button("SIG. ➡️") and h_idx < 18:
             st.session_state.hoyo_actual += 1
@@ -347,55 +389,48 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
 
     st.divider()
 
-    # --- 5. INPUTS CORREGIDOS ---
+    # --- 6. INPUTS DE GOLPES ---
     cols = st.columns(2)
-    # Definimos claramente quién es quién
-    config_jugadores = [
-        {"nombre": "MANU", "idx": 0},
-        {"nombre": "ROGE", "idx": 1},
-        {"nombre": "JOSE", "idx": 2},
-        {"nombre": "LALO", "idx": 3}
+    # s0:Manu, s1:Roge, s2:Jose, s3:Lalo
+    config = [
+        {"n": "MANU", "id": 0}, {"n": "ROGE", "id": 1},
+        {"n": "JOSE", "id": 2}, {"n": "LALO", "id": 3}
     ]
     
     in_golpes = {}
-    for i, jug in enumerate(config_jugadores):
+    for i, j in enumerate(config):
         with cols[i % 2]:
-            # Usamos el diccionario golpes_a_mostrar con el índice correcto
-            v = st.number_input(
-                jug["nombre"], 
-                1, 15, 
-                value=golpes_a_mostrar[jug["idx"]], 
-                key=f"g_{jug['nombre']}_{h_idx}"
-            )
-            in_golpes[jug["idx"]] = v
+            val_defecto = golpes_a_mostrar[j["id"]]
+            v = st.number_input(j["n"], 1, 15, value=val_defecto, key=f"g_{j['n']}_{h_idx}")
+            in_golpes[j["id"]] = v
 
-    # Cálculo tiempo real del hoyo
+    # Cálculo en tiempo real del hoyo actual
     ph_e1, ph_e2 = calcular_puntos_hoyo(in_golpes[0], in_golpes[1], in_golpes[2], in_golpes[3], par_hoyo)
     
     st.markdown(f"""
-    <div style="text-align: center; border: 1px solid #ddd; padding: 10px; border-radius: 5px;">
-        <b>Puntos de este hoyo:</b><br>
-        <span style="color: green; font-size: 1.2em;">M&J: {ph_e1}</span> | 
-        <span style="color: blue; font-size: 1.2em;">R&L: {ph_e2}</span>
+    <div style="text-align: center; background: #fff; border: 1px solid #ddd; padding: 10px; border-radius: 10px; margin-top: 10px;">
+        <small>Puntos hoyo {h_idx}:</small><br>
+        <b style="color: #2e7d32;">M&J: {ph_e1}</b> | <b style="color: #1976d2;">R&L: {ph_e2}</b>
     </div>
     """, unsafe_allow_html=True)
 
     st.divider()
 
-    # 6. GUARDADO CON BLOQUEO
+    # --- 7. BOTÓN DE GUARDADO ---
     if st.session_state.hoyo_guardado:
         st.button("✅ HOYO GUARDADO", use_container_width=True, disabled=True)
     else:
         if st.button("💾 GUARDAR HOYO", use_container_width=True, type="primary"):
+            # IMPORTANTE: Usamos fecha_str (la del selector)
             fila = [fecha_str, h_idx, in_golpes[0], in_golpes[1], in_golpes[2], in_golpes[3]]
             try:
                 actualizar_o_insertar_hoyo(fila) 
                 st.session_state.hoyo_guardado = True
-                st.success("Guardado correctamente")
+                st.success(f"Hoyo {h_idx} guardado correctamente")
                 time.sleep(0.5)
                 st.rerun()
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Error al guardar: {e}")
 
 # ==========================================
 # SECCIÓN: ESTADISTICAS
