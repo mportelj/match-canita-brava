@@ -275,8 +275,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         
         df_j = df_raw[df_raw['fecha'] == jornada_sel].copy()
         df_j['hoyo'] = pd.to_numeric(df_j['hoyo'], errors='coerce')
-        # Filtramos solo hoyos válidos del 1 al 18
-        df_j = df_j[df_j['hoyo'].between(1, 18)]
         hoyos_jugados = len(df_j['hoyo'].unique())
         
         lista_resultados = []
@@ -285,22 +283,21 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             d_p = df_j[['hoyo', col_s]].copy()
             d_p[col_s] = pd.to_numeric(d_p[col_s], errors='coerce')
             
-            # FILTRO CLAVE: Solo contamos hoyos donde el jugador realmente puso golpes
+            # Filtro: Solo hoyos donde el jugador tiene golpes > 0
             d_p = d_p[d_p[col_s] > 0].dropna()
             d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
             d_p['dif'] = d_p[col_s] - d_p['par_h']
             
-            # Resultado +/- (Ej: +7 o +14)
+            # Resultado +/- (Golpes totales - Par total de los hoyos jugados)
             plus_minus = int(d_p[col_s].sum() - d_p['par_h'].sum())
             
-            # Puntos Scratch (Stableford Bruto)
+            # Puntos Scratch (Stableford)
             def pts_scratch(d):
-                if d <= -2: return 4 # Eagle
-                if d == -1: return 3 # Birdie
-                if d == 0:  return 2 # Par
-                if d == 1:  return 1 # Bogey
-                return 0             # Doble Bogey o peor
-            
+                if d <= -2: return 4
+                if d == -1: return 3
+                if d == 0:  return 2
+                if d == 1:  return 1
+                return 0
             scratch_total = int(d_p['dif'].apply(pts_scratch).sum())
 
             lista_resultados.append({
@@ -315,10 +312,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "tb": int((d_p['dif'] >= 3).sum())
             })
 
-        # Ordenar por scratch (puntos) de mayor a menor
+        # Ordenar por puntos Scratch (Clasificación)
         lista_resultados = sorted(lista_resultados, key=lambda x: x['scratch'], reverse=True)
 
-        # Construir Tabla y Mensaje
         stats_rows = []
         whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n📅 _Jornada: {jornada_sel}_\n⛳ *Hoyos Jugados: {hoyos_jugados}*\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
 
@@ -332,8 +328,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             whatsapp_text += f"💀 D.Bog: {res['db']} ({ (res['db']/hoyos_jugados*100):.1f}%) | 💣 +T.Bog: {res['tb']} ({ (res['tb']/hoyos_jugados*100):.1f}%)\n"
             whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
 
-            # Tabla Streamlit
-            def fmt_h(v):
+            # Formato Tabla Streamlit (Todas las columnas)
+            def fmt(v):
                 p = (v / hoyos_jugados * 100) if hoyos_jugados > 0 else 0
                 return f"<b>{v}</b><br><span style='color:gray; font-size:0.8em;'>{p:.1f}%</span>"
 
@@ -341,13 +337,16 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 "Jugador": res['Jugador'],
                 "+/-": f"<b style='color:red;'>+{res['plus_minus']}</b>" if res['plus_minus'] > 0 else (f"<b>{res['plus_minus']}</b>" if res['plus_minus'] < 0 else "<b>E</b>"),
                 "Scratch": f"<b>{res['scratch']}</b>",
-                "Birdies": fmt_h(res['b']),
-                "Pares": fmt_h(res['p']),
-                "Bogey": fmt_h(res['bog']),
-                "D.Bogey+": fmt_h(res['db'] + res['tb'])
+                "Eagles": fmt(res['e']),
+                "Birdies": fmt(res['b']),
+                "Pares": fmt(res['p']),
+                "Bogey": fmt(res['bog']),
+                "D.Bogey": fmt(res['db']),
+                "3+ Bogey": fmt(res['tb'])
             })
 
-        st.markdown("<style>table {width:100%; text-align:center;} th {background:#f8f9fa;} td {padding:10px; border-bottom:1px solid #eee;}</style>", unsafe_allow_html=True)
+        # Renderizado de Tabla
+        st.markdown("<style>table {width:100%; text-align:center;} th {background:#f8f9fa; font-size:0.85em;} td {padding:8px; border-bottom:1px solid #eee;}</style>", unsafe_allow_html=True)
         st.write(pd.DataFrame(stats_rows).to_html(escape=False, index=False), unsafe_allow_html=True)
 
         # Botón WhatsApp
@@ -358,6 +357,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
     else:
         st.info("No hay datos.")
+
+
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Administración")
     df = leer_datos()
