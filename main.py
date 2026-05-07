@@ -292,7 +292,7 @@ if st.session_state.menu_seleccionado == "Inicio":
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    # 1. GESTIÓN DE ESTADO Y DATOS
+    # 1. GESTIÓN DE ESTADO
     if 'hoyo_actual' not in st.session_state:
         st.session_state.hoyo_actual = 1
     if 'fecha_partida' not in st.session_state:
@@ -302,13 +302,12 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     h_idx = int(st.session_state.hoyo_actual)
     par_hoyo = int(PAR_RIA_VIGO.get(h_idx, 4))
     
-    # Inicialización de variables
+    # Valores por defecto (Valores "Originales")
+    golpes_orig = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo}
     m_e1, m_e2 = 0, 0
-    golpes = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo} 
     res_hoyo_a, res_hoyo_b = 0, 0
-    hoyo_ya_grabado = False
 
-    # 2. CARGA DE DATOS (Misma lógica blindada que ya funciona)
+    # 2. CARGA DE DATOS
     if df is not None and not df.empty:
         f_obj = st.session_state.fecha_partida
         f_iso = f_obj.strftime("%Y-%m-%d")
@@ -317,94 +316,87 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         df_jornada = df[df['fecha_str'].isin([f_iso, f_eur])]
         
         if not df_jornada.empty:
+            # Marcador Match
             s_a = pd.to_numeric(df_jornada['resultado_a'], errors='coerce').sum()
             s_b = pd.to_numeric(df_jornada['resultado_b'], errors='coerce').sum()
             dif = s_a - s_b
             if dif > 0: m_e1, m_e2 = int(dif), 0
             elif dif < 0: m_e1, m_e2 = 0, int(abs(dif))
             
+            # Cargar golpes grabados
             df_hoyo = df_jornada[df_jornada['hoyo'].astype(float).astype(int) == h_idx]
             if not df_hoyo.empty:
-                hoyo_ya_grabado = True
-                golpes[0] = int(float(df_hoyo.iloc[0]['s0']))
-                golpes[1] = int(float(df_hoyo.iloc[0]['s1']))
-                golpes[2] = int(float(df_hoyo.iloc[0]['s2']))
-                golpes[3] = int(float(df_hoyo.iloc[0]['s3']))
+                golpes_orig[0] = int(float(df_hoyo.iloc[0]['s0']))
+                golpes_orig[1] = int(float(df_hoyo.iloc[0]['s1']))
+                golpes_orig[2] = int(float(df_hoyo.iloc[0]['s2']))
+                golpes_orig[3] = int(float(df_hoyo.iloc[0]['s3']))
                 res_hoyo_a = int(float(df_hoyo.iloc[0]['resultado_a']))
                 res_hoyo_b = int(float(df_hoyo.iloc[0]['resultado_b']))
 
-    # --- 3. DISEÑO DE LA PANTALLA (ESTILO APP GOLF) ---
-
-    # MARCADOR SUPERIOR DESTACADO
-    st.markdown(f"""
-    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 15px; border-left: 10px solid #2e7d32; border-right: 10px solid #c62828; text-align: center; box-shadow: 2px 2px 10px rgba(0,0,0,0.1);">
-        <div style="display: flex; justify-content: space-around; align-items: center;">
-            <div style="flex: 1;">
-                <p style="margin: 0; font-size: 0.8em; color: #666; font-weight: bold;">MANU & JOSE</p>
-                <h1 style="margin: 0; font-size: 3.5em; color: #2e7d32;">{m_e1}</h1>
-            </div>
-            <div style="background: #333; color: white; border-radius: 50%; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8em;">VS</div>
-            <div style="flex: 1;">
-                <p style="margin: 0; font-size: 0.8em; color: #666; font-weight: bold;">ROGE & LALO</p>
-                <h1 style="margin: 0; font-size: 3.5em; color: #c62828;">{m_e2}</h1>
-            </div>
+    # --- 3. DISEÑO DE INTERFAZ ---
+    # (Marcador y Navegación igual que antes...)
+    st.markdown(f"""<div style="background-color:#f8f9fa; padding:20px; border-radius:15px; border-left:10px solid #2e7d32; border-right:10px solid #c62828; text-align:center;">
+        <div style="display:flex; justify-content:space-around; align-items:center;">
+            <div><p style="margin:0; font-weight:bold; color:#2e7d32;">MANU & JOSE</p><h1 style="margin:0;">{m_e1}</h1></div>
+            <div style="background:#333; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">VS</div>
+            <div><p style="margin:0; font-weight:bold; color:#c62828;">ROGE & LALO</p><h1 style="margin:0;">{m_e2}</h1></div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
-
+    </div>""", unsafe_allow_html=True)
+    
     st.write("")
-
-    # NAVEGACIÓN ENTRE HOYOS
-    col_nav1, col_nav2 = st.columns(2)
-    with col_nav1:
-        if st.button("⬅️ Anterior", use_container_width=True, key="prev", disabled=(h_idx == 1)):
+    c_nav1, c_nav2 = st.columns(2)
+    with c_nav1:
+        if st.button("⬅️ Anterior", use_container_width=True, disabled=(h_idx==1)):
             st.session_state.hoyo_actual -= 1
             st.rerun()
-    with col_nav2:
-        if st.button("Siguiente ➡️", use_container_width=True, key="next", disabled=(h_idx == 18)):
+    with c_nav2:
+        if st.button("Siguiente ➡️", use_container_width=True, disabled=(h_idx==18)):
             st.session_state.hoyo_actual += 1
             st.rerun()
 
-    # CONTENEDOR PRINCIPAL DEL HOYO
+    # CONTENEDOR DEL HOYO
     with st.container(border=True):
-        st.markdown(f"<h2 style='text-align: center; color: #1e3a8a;'>Hoyo {h_idx} (Par {par_hoyo})</h2>", unsafe_allow_html=True)
+        st.markdown(f"<h3 style='text-align:center;'>Hoyo {h_idx} (Par {par_hoyo})</h3>", unsafe_allow_html=True)
         
-        # Resultado del hoyo actual
-        st.markdown(f"""
-            <div style="text-align: center; background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 20px;">
-                <span style="font-size: 0.8em; color: #64748b; font-weight: bold;">RESULTADO DEL HOYO</span>
-                <h3 style="margin: 5px 0; color: #0f172a;">{res_hoyo_a} — {res_hoyo_b}</h3>
-            </div>
-        """, unsafe_allow_html=True)
+        # Inputs de golpes (Siempre activos)
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.markdown("**EQUIPO A**")
+            g0 = st.number_input("MANU", 1, 15, value=golpes_orig[0], key=f"m_{h_idx}")
+            g1 = st.number_input("JOSE", 1, 15, value=golpes_orig[1], key=f"j_{h_idx}")
+        with col_b:
+            st.markdown("**EQUIPO B**")
+            g2 = st.number_input("ROGE", 1, 15, value=golpes_orig[2], key=f"r_{h_idx}")
+            g3 = st.number_input("LALO", 1, 15, value=golpes_orig[3], key=f"l_{h_idx}")
 
-        if hoyo_ya_grabado:
-            st.success(f"✅ Hoyo {h_idx} grabado")
-
-        # ENTRADA DE GOLPES EN DOS COLUMNAS
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("<p style='text-align:center; font-weight:bold; color:#2e7d32;'>EQUIPO A</p>", unsafe_allow_html=True)
-            g0 = st.number_input("MANU", 1, 15, value=golpes[0], key=f"m_{h_idx}", disabled=hoyo_ya_grabado)
-            g1 = st.number_input("JOSE", 1, 15, value=golpes[1], key=f"j_{h_idx}", disabled=hoyo_ya_grabado)
-        with c2:
-            st.markdown("<p style='text-align:center; font-weight:bold; color:#c62828;'>EQUIPO B</p>", unsafe_allow_html=True)
-            g2 = st.number_input("ROGE", 1, 15, value=golpes[2], key=f"r_{h_idx}", disabled=hoyo_ya_grabado)
-            g3 = st.number_input("LALO", 1, 15, value=golpes[3], key=f"l_{h_idx}", disabled=hoyo_ya_grabado)
+        # --- LÓGICA DEL BOTÓN INTELIGENTE ---
+        # Comparamos si los valores actuales son distintos a los grabados
+        hay_cambios = (g0 != golpes_orig[0] or g1 != golpes_orig[1] or 
+                       g2 != golpes_orig[2] or g3 != golpes_orig[3])
+        
+        # El botón solo está habilitado si hay cambios o si el hoyo es nuevo (no grabado)
+        btn_deshabilitado = not hay_cambios and res_hoyo_a == 0 and res_hoyo_b == 0 and not hay_cambios
+        
+        # Si ya hay un resultado pero no hay cambios, lo bloqueamos. 
+        # Si el hoyo está vacío (0-0), permitimos guardar.
+        if (res_hoyo_a != 0 or res_hoyo_b != 0) and not hay_cambios:
+            mostrar_btn = False
+        else:
+            mostrar_btn = True
 
         st.write("")
-        
-        # BOTÓN DE ACCIÓN PRINCIPAL
-        if st.button("💾 ACTUALIZAR HOYO", use_container_width=True, type="primary", disabled=hoyo_ya_grabado):
-            pts_a, pts_b = calcular_puntos_hoyo(g0, g1, g2, g3, par_hoyo)
-            f_str = st.session_state.fecha_partida.strftime("%d/%m/%Y")
-            nueva_fila = [f_str, h_idx, g0, g1, g2, g3, pts_a, pts_b]
-            actualizar_o_insertar_hoyo(nueva_fila)
-            st.rerun()
-
-    # ACORDEÓN DE CLASIFICACIÓN (COMO EN LA IMAGEN)
-    with st.expander("🏆 Clasificaciones MVP"):
-        st.write("Cargando estadísticas de la temporada...")
-
+        if mostrar_btn:
+            if st.button("💾 ACTUALIZAR HOYO", use_container_width=True, type="primary"):
+                pts_a, pts_b = calcular_puntos_hoyo(g0, g1, g2, g3, par_hoyo)
+                f_str = st.session_state.fecha_partida.strftime("%d/%m/%Y")
+                nueva_fila = [f_str, h_idx, g0, g1, g2, g3, pts_a, pts_b]
+                actualizar_o_insertar_hoyo(nueva_fila)
+                st.success("Hoyo actualizado")
+                time.sleep(0.5)
+                st.rerun()
+        else:
+            st.button("💾 ACTUALIZAR HOYO", use_container_width=True, disabled=True)
+            st.caption("✅ Los golpes coinciden con lo grabado. Cambia un valor para actualizar.")
 # ==========================================
 # SECCIÓN: ESTADISTICAS
 # ==========================================
