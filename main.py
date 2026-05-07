@@ -292,101 +292,58 @@ if st.session_state.menu_seleccionado == "Inicio":
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    # 1. INICIALIZACIÓN DE ESTADOS
-    if 'partido_iniciado' not in st.session_state:
-        st.session_state.partido_iniciado = False
-    if 'hoyo_actual' not in st.session_state:
-        st.session_state.hoyo_actual = 1
+    # 1. PREPARACIÓN DE LAS OPCIONES DEL COMBO (Fechas con resumen)
+    df = leer_datos()
+    opciones_fechas = ["Nueva Partida (Hoy)"] # Opción por defecto
+    dict_fechas = {} # Para mapear el texto del combo a la fecha real
 
-    # --- PANTALLA DE ENTRADA (Solo se ve una vez) ---
-    if not st.session_state.partido_iniciado:
-        st.markdown("### 📅 Nueva Partida")
-        with st.container(border=True):
-            fecha_sel = st.date_input("Selecciona la fecha:", value=datetime.now().date())
-            if st.button("🚀 COMENZAR PARTIDO", use_container_width=True, type="primary"):
-                st.session_state.fecha_partida = fecha_sel
-                st.session_state.partido_iniciado = True
-                st.rerun()
+    if df is not None and not df.empty:
+        # Agrupamos por fecha para sacar el resumen
+        df['fecha_dt'] = pd.to_datetime(df['fecha'], errors='coerce')
+        resumen = df.groupby('fecha').agg({
+            'hoyo': 'count',
+            'resultado_a': 'sum',
+            'resultado_b': 'sum'
+        }).reset_index()
 
-    # --- PANTALLA DE JUEGO (La acción real) ---
-    else:
-        df = leer_datos()
-        fecha_sel = st.session_state.fecha_partida
-        
-        # Combo de salto rápido (Limpio, sin etiquetas pesadas)
-        h_idx = st.selectbox("📍 Hoyo:", list(range(1, 19)), 
-                             index=st.session_state.hoyo_actual - 1, 
-                             key="sb_hoyo")
-        st.session_state.hoyo_actual = h_idx
-        par_hoyo = int(PAR_RIA_VIGO.get(h_idx, 4))
-
-        # Lógica de carga de datos
-        m_a, m_b = 0, 0
-        g_orig = {0: par_hoyo, 1: par_hoyo, 2: par_hoyo, 3: par_hoyo}
-        res_h_a, res_h_b = 0, 0
-
-        if df is not None and not df.empty:
-            f_str = fecha_sel.strftime("%d/%m/%Y")
-            f_iso = fecha_sel.strftime("%Y-%m-%d")
-            df['f_tmp'] = df['fecha'].astype(str).str.split(' ').str[0]
-            df_j = df[df['f_tmp'].isin([f_str, f_iso])]
+        for _, row in resumen.sort_values('fecha', ascending=False).iterrows():
+            f_obj = pd.to_datetime(row['fecha'])
+            f_str = f_obj.strftime("%d/%m/%Y")
             
-            if not df_j.empty:
-                # Marcador Match acumulado
-                sa = pd.to_numeric(df_j['resultado_a'], errors='coerce').sum()
-                sb = pd.to_numeric(df_j['resultado_b'], errors='coerce').sum()
-                dif = sa - sb
-                m_a, m_b = (int(dif), 0) if dif > 0 else (0, int(abs(dif)))
-                
-                # Cargar golpes del hoyo
-                df_h = df_j[df_j['hoyo'].astype(float).astype(int) == h_idx]
-                if not df_h.empty:
-                    g_orig = {0: int(float(df_h.iloc[0]['s0'])), 1: int(float(df_h.iloc[0]['s1'])),
-                              2: int(float(df_h.iloc[0]['s2'])), 3: int(float(df_h.iloc[0]['s3']))}
-                    res_h_a = int(float(df_h.iloc[0]['resultado_a']))
-                    res_h_b = int(float(df_h.iloc[0]['resultado_b']))
+            # Calculamos el resultado del match para el texto
+            dif = int(row['resultado_a'] - row['resultado_b'])
+            res_txt = f"L {dif}" if dif > 0 else (f"V {abs(dif)}" if dif < 0 else "A.S.")
+            
+            # Formato: 20/05/2024 - 18 Hoyos - L 2
+            texto_opcion = f"{f_str} - {row['hoyo']} Hoyos - {res_txt}"
+            
+            opciones_fechas.append(texto_opcion)
+            dict_fechas[texto_opcion] = f_obj.date()
 
-        # MARCADOR MATCH PLAY (Estilo visual imagen)
-        st.markdown(f"""
-        <div style="background:#f8f9fa; padding:20px; border-radius:15px; border:1px solid #2e7d32; text-align:center; margin-bottom:15px;">
-            <div style="display:flex; justify-content:space-around; align-items:center;">
-                <div><p style="margin:0; font-size:0.8em; color:#2e7d32; font-weight:bold;">MANU & JOSE</p><h1 style="margin:0; font-size:3em;">{m_a}</h1></div>
-                <div style="background:#eee; border-radius:50%; width:35px; height:35px; display:flex; align-items:center; justify-content:center; font-weight:bold;">VS</div>
-                <div><p style="margin:0; font-size:0.8em; color:#c62828; font-weight:bold;">ROGE & LALO</p><h1 style="margin:0; font-size:3em;">{m_b}</h1></div>
-            </div>
-        </div>""", unsafe_allow_html=True)
+    # --- PANTALLA DE SELECCIÓN ---
+    if not st.session_state.partido_iniciado:
+        st.markdown("### 📅 Selección de Jornada")
+        
+        seleccion = st.selectbox("Selecciona una partida existente o crea una nueva:", 
+                                 options=opciones_fechas,
+                                 key="combo_jornada_inicial")
+        
+        # Si elige "Nueva", mostramos el date_input, si no, usamos la del dict
+        if seleccion == "Nueva Partida (Hoy)":
+            fecha_final = st.date_input("Confirmar fecha para nueva partida:", value=datetime.now().date())
+        else:
+            fecha_final = dict_fechas[seleccion]
+            st.info(f"Has seleccionado la jornada del {fecha_final.strftime('%d/%m/%Y')}")
 
-        # TARJETA DEL HOYO
-        with st.container(border=True):
-            st.markdown(f"<h3 style='text-align:center; margin:0;'>Hoyo {h_idx} (Par {par_hoyo})</h3>", unsafe_allow_html=True)
-            st.markdown(f"<div style='text-align:center; background:#e2e8f0; border-radius:10px; padding:5px; margin:10px 0;'><b>Resultado Hoyo: {res_h_a} — {res_h_b}</b></div>", unsafe_allow_html=True)
+        if st.button("🚀 COMENZAR PARTIDO", use_container_width=True, type="primary"):
+            st.session_state.fecha_partida = fecha_final
+            st.session_state.partido_iniciado = True
+            st.rerun()
 
-            c1, c2 = st.columns(2)
-            with c1:
-                st.markdown("<p style='text-align:center; color:#2e7d32; font-weight:bold;'>EQ. A</p>", unsafe_allow_html=True)
-                g0 = st.number_input("MANU", 1, 15, value=g_orig[0], key=f"m{h_idx}")
-                g1 = st.number_input("JOSE", 1, 15, value=g_orig[1], key=f"j{h_idx}")
-            with c2:
-                st.markdown("<p style='text-align:center; color:#c62828; font-weight:bold;'>EQ. B</p>", unsafe_allow_html=True)
-                g2 = st.number_input("ROGE", 1, 15, value=g_orig[2], key=f"r{h_idx}")
-                g3 = st.number_input("LALO", 1, 15, value=g_orig[3], key=f"l{h_idx}")
-
-            # Botón de Guardar inteligente
-            cambios = (g0 != g_orig[0] or g1 != g_orig[1] or g2 != g_orig[2] or g3 != g_orig[3])
-            es_nuevo = (res_h_a == 0 and res_h_b == 0)
-
-            st.write("")
-            if cambios or es_nuevo:
-                if st.button("💾 GUARDAR HOYO", use_container_width=True, type="primary"):
-                    pts_a, pts_b = calcular_puntos_hoyo(g0, g1, g2, g3, par_hoyo)
-                    nueva_fila = [fecha_sel.strftime("%d/%m/%Y"), h_idx, g0, g1, g2, g3, pts_a, pts_b]
-                    actualizar_o_insertar_hoyo(nueva_fila)
-                    st.success("Guardado")
-                    time.sleep(0.5)
-                    st.rerun()
-            else:
-                st.button("✅ GUARDADO", use_container_width=True, disabled=True)
-
+    # --- PANTALLA DE JUEGO (Se activa tras pulsar el botón) ---
+    else:
+        # (Aquí va todo el bloque de código de marcadores y golpes que ya teníamos)
+        # El sistema ya usará st.session_state.fecha_partida para filtrar
 
 # ==========================================
 # SECCIÓN: ESTADISTICAS
