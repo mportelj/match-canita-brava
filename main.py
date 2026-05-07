@@ -7,8 +7,11 @@ import urllib.parse
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
-# Corregido: Par del campo según tu lista
-PAR_RIA_VIGO = {i: p for i, p in zip(range(1, 19), [4,5,3,4,4,5,3,4,4,4,3,4,3,5,4,5,4,5])}
+# --- CONFIGURACIÓN DEL CAMPO (RIA DE VIGO) ---
+PAR_RIA_VIGO = {
+    1: 5, 2: 4, 3: 4, 4: 4, 5: 3, 6: 5, 7: 4, 8: 3, 9: 4,
+    10: 4, 11: 3, 12: 4, 13: 4, 14: 3, 15: 5, 16: 4, 17: 4, 18: 4  # <-- Actualizado a Par 4
+}
 TODOS = ["MANU", "JOSE", "ROGE", "LALO"] 
 EQUIPO_A_NOMBRES = f"{TODOS[0]}/{TODOS[1]}"
 EQUIPO_B_NOMBRES = f"{TODOS[2]}/{TODOS[3]}"
