@@ -341,7 +341,7 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
             st.rerun()
 
     # --- PANTALLA DE JUEGO (Se activa tras pulsar el botón) ---
-    else:
+        else:
         # (Aquí va todo el bloque de código de marcadores y golpes que ya teníamos)
         # El sistema ya usará st.session_state.fecha_partida para filtrar
 
