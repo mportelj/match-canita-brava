@@ -285,6 +285,21 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     # 1. INICIALIZACIÓN
     if 'hoyo_actual' not in st.session_state:
         st.session_state.hoyo_actual = 1
+
+    # Selector de fecha con formato corregido dd/mm/aaaa
+    fecha_input = st.date_input(
+        "Fecha de la partida:", 
+        value=datetime.now(),
+        format="DD/MM/YYYY"  # Esto corrige la visualización
+    )
+    
+    # IMPORTANTE: Forzamos el formato de texto para buscar y guardar
+    # Usamos este string para buscar en la BBDD y para INSERTAR/ACTUALIZAR
+    fecha_str = fecha_input.strftime("%d/%m/%Y")
+    
+    # 1. INICIALIZACIÓN
+    if 'hoyo_actual' not in st.session_state:
+        st.session_state.hoyo_actual = 1
     if 'hoyo_guardado' not in st.session_state:
         st.session_state.hoyo_guardado = False
 
