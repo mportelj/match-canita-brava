@@ -157,6 +157,29 @@ def calcular_puntos_hoyo(scores, hoyo_num):
     mvp = {f"p{i+1}": sum(0.5 for j in range(4) if i!=j and v[i]<v[j]) + (3.0 if v[i]<=par-2 else 1.5 if v[i]==par-1 else 0.5 if v[i]==par else 0) for i in range(4)}
     return pa, pb, mvp
 
+def calcular_puntos_jornada(par, lista_golpes):
+    pts_finales = [0.0, 0.0, 0.0, 0.0]
+    for i in range(len(lista_golpes)):
+        for j in range(len(lista_golpes)):
+            if i != j:
+                if lista_golpes[i] < lista_golpes[j]: pts_finales[i] += 1.0
+                elif lista_golpes[i] == lista_golpes[j]: pts_finales[i] += 0.5
+    # Bonus calidad
+    for i, g in enumerate(lista_golpes):
+        diff = g - par
+        if diff <= -2: pts_finales[i] += 1.0
+        elif diff == -1: pts_finales[i] += 0.5
+    return pts_finales
+
+def actualizar_hoja_google(df):
+    # Usamos la conexión que definiste (conn)
+    try:
+        conn.update(data=df)
+        return True
+    except Exception as e:
+        st.error(f"Error al subir: {e}")
+        return False
+        
 def ejecutar_guardado_automatico():
     g = st.session_state.game
     h = int(g['h_sel'])
@@ -200,28 +223,7 @@ if st.session_state.menu_seleccionado == "Inicio":
         <div style="font-size:2em; align-self:center;">VS</div>
         <div><h2 style="color:{COLOR_B};">{EQUIPO_B_NOMBRES}</h2><h1>{pb_t:g}</h1></div></div></div>""", unsafe_allow_html=True)
 
-def calcular_puntos_jornada(par, lista_golpes):
-    pts_finales = [0.0, 0.0, 0.0, 0.0]
-    for i in range(len(lista_golpes)):
-        for j in range(len(lista_golpes)):
-            if i != j:
-                if lista_golpes[i] < lista_golpes[j]: pts_finales[i] += 1.0
-                elif lista_golpes[i] == lista_golpes[j]: pts_finales[i] += 0.5
-    # Bonus calidad
-    for i, g in enumerate(lista_golpes):
-        diff = g - par
-        if diff <= -2: pts_finales[i] += 1.0
-        elif diff == -1: pts_finales[i] += 0.5
-    return pts_finales
 
-def actualizar_hoja_google(df):
-    # Usamos la conexión que definiste (conn)
-    try:
-        conn.update(data=df)
-        return True
-    except Exception as e:
-        st.error(f"Error al subir: {e}")
-        return False
             
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
     st.title("🏌️ JUGAR / EDITAR PARTIDO")
