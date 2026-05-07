@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 from google.oauth2.service_account import Credentials
 import gspread
+from datetime import datetime
 
 # Función para conectar sin usar st.connection
 def cargar_datos_golf():
