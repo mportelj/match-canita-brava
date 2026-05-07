@@ -367,15 +367,16 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 # SECCIÓN: ESTADISTICAS
 # ==========================================
 elif st.session_state.menu_seleccionado == "Estadísticas":
+    # Eliminamos el st.write genérico y ponemos el título real
     st.title("📊 Estadísticas y Clasificación")
+    
     df_raw = leer_datos()
     
     if df_raw is not None and not df_raw.empty:
         # --- SELECTORES ---
         col1, col2 = st.columns(2)
         with col1:
-            # Aseguramos que las fechas se vean bien en el selector
-            df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], errors='coerce')
+            # Convertimos a datetime para ordenar bien, pero mostramos como texto
             fechas = sorted(df_raw['fecha'].unique().tolist(), reverse=True)
             jornada_sel = st.selectbox("Seleccionar Jornada:", fechas)
         with col2:
@@ -392,7 +393,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         df_stats['hoyo'] = pd.to_numeric(df_stats['hoyo'], errors='coerce')
         
         lista_resultados = []
-        # TODOS debe estar definido al inicio de tu main.py
+        # Importante: La lista TODOS debe estar definida arriba en tu código
         for i, jug in enumerate(TODOS):
             col_s = f's{i}'
             if col_s not in df_stats.columns: continue
@@ -477,7 +478,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         st.link_button(btn_label, f"https://wa.me/?text={urllib.parse.quote(whatsapp_text)}", use_container_width=True)
 
     else:
-        st.info("No hay datos cargados.")
+        st.info("No hay datos cargados para mostrar estadísticas.")
 
 # ==========================================
 # SECCIÓN: ADMIN
