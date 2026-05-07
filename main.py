@@ -298,13 +298,20 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
     )
     st.session_state.fecha_partida = fecha_input
     fecha_str = fecha_input.strftime("%d/%m/%Y")
-    # Diseño Marcador Superior
+    
+   # Diseño Marcador Superior CORREGIDO
     st.markdown(f"""
     <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border: 2px solid #2e7d32; text-align: center;">
         <div style="display: flex; justify-content: space-around; align-items: center;">
-            <div><p style="margin:0; font-weight:bold;">MANU & JOSE</p><h1 style="margin:0;">{m_e1}</h1></div>
+            <div>
+                <p style="margin:0; font-weight:bold;">MANU & JOSE</p>
+                <h1 style="margin:0;">{m_e1}</h1>
+            </div>
             <div style="background-color: #555; color: white; padding: 2px 10px; border-radius: 20px;">VS</div>
-            <div><p style="margin:0; font-weight:bold;">ROGE & LALO</p><h1 style="margin:0;">{m_e2}</h1></div>
+            <div>
+                <p style="margin:0; font-weight:bold;">ROGE & LALO</p>
+                <h1 style="margin:0;">{m_e2}</h1>
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
