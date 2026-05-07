@@ -100,16 +100,14 @@ menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Estadísticas", "Ad
 
 # --- 2. FUNCIONES DE DATOS ---
 def leer_datos():
-    try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(worksheet="historial", ttl=0) 
-        if df is None or df.empty: return pd.DataFrame()
-        df.columns = [c.lower().strip() for c in df.columns]
-        for col in ['temporada', 'hoyo', 's0', 's1', 's2', 's3']:
-            if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
-        return df.drop_duplicates(subset=['partido_id', 'hoyo'], keep='last')
-    except: return pd.DataFrame()
-
+    # Leemos la hoja
+    df = conn.read()
+    # ESTO ES CRÍTICO: Limpia espacios y pasa todo a MAYÚSCULAS
+    df.columns = [str(c).strip().upper() for c in df.columns]
+    # Si hay filas vacías al principio, las quitamos
+    df = df.dropna(how='all', axis=0)
+    return df
+    
 def calcular_puntos_jornada(par, lista_golpes):
     """
     Calcula los puntos que se grabarán en las columnas P1_PTS... P4_PTS
@@ -227,99 +225,101 @@ elif st.session_state.menu_seleccionado == "Jugar/Editar":
         st.session_state.ultima_sincro = "No sincronizado"
     
     col_info, col_btn = st.columns([3, 1])
-    col_info.info(f"☁️ **Sincronización Nube:** {st.session_state.ultima_sincro}")
+    col_info.info(f"☁️ **Sincronización:** {st.session_state.ultima_sincro}")
     
-    if col_btn.button("🔄 REFRESCAR", use_container_width=True):
-        st.cache_data.clear()  # Forzamos a Streamlit a leer datos nuevos de Google Sheets
+    if col_btn.button("🔄 REFRESCAR NUBE", use_container_width=True):
+        st.cache_data.clear()
         st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
         st.rerun()
 
     st.write("---")
 
-    # --- 2. SELECCIÓN DE HOYO Y CARGA DE DATOS ---
+    # --- 2. SELECCIÓN DE HOYO Y LECTURA DE DATOS ---
     hoyo_sel = st.number_input("Selecciona el hoyo:", min_value=1, max_value=18, step=1)
     par_hoyo = int(PAR_RIA_VIGO[hoyo_sel])
     
-    # Leemos datos actuales para ver si ya existe información de este hoyo
-    df_actual = leer_datos()
+    # Leemos datos y limpiamos columnas inmediatamente para evitar KeyError
+    df_actual = leer_datos() 
+    df_actual.columns = [str(c).strip().upper() for c in df_actual.columns]
+    
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
     
-    # Normalizamos columnas para evitar errores de lectura
-    df_actual.columns = [str(c).strip().upper() for c in df_actual.columns]
-    datos_existentes = df_actual[(df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_sel)]
+    # Buscamos si ya existen datos para este hoyo hoy
+    datos_existentes = pd.DataFrame()
+    if 'FECHA' in df_actual.columns and 'HOYO' in df_actual.columns:
+        df_actual['HOYO'] = pd.to_numeric(df_actual['HOYO'], errors='coerce')
+        datos_existentes = df_actual[(df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == hoyo_sel)]
 
-    # --- 3. ENTRADA DE GOLPES (Interfaz que ya conoces) ---
+    # --- 3. INTERFAZ DE ENTRADA DE GOLPES ---
     st.subheader(f"⛳ Hoyo {hoyo_sel} (Par {par_hoyo})")
     cols = st.columns(4)
     golpes_finales = []
 
+    # Mapeo de columnas de golpes según tu Excel: S0, S1, S2, S3
+    columnas_golpes = ['S0', 'S1', 'S2', 'S3']
+
     for i, jug in enumerate(TODOS):
-        # Si el hoyo ya tiene golpes grabados en la nube, los precargamos
+        # Valor por defecto: lo que haya en la nube, si no, el Par
         val_default = par_hoyo
         if not datos_existentes.empty:
-            val_col = datos_existentes.iloc[0].get(f'S{i}')
-            if pd.notna(val_col): val_default = int(val_col)
+            col_nombre = columnas_golpes[i]
+            if col_nombre in datos_existentes.columns:
+                val_nube = datos_existentes.iloc[0][col_nombre]
+                if pd.notna(val_nube):
+                    val_default = int(val_nube)
             
         g = cols[i].number_input(f"{jug}", min_value=1, max_value=15, value=val_default, key=f"edit_h{hoyo_sel}_j{i}")
         golpes_finales.append(g)
 
     st.write("---")
 
-    # --- 4. GUARDADO ATÓMICO (Hoyo a Hoyo) ---
+    # --- 4. BOTÓN DE GUARDADO SEGURO ---
     if st.button("💾 GUARDAR CAMBIOS Y SUBIR", type="primary", use_container_width=True):
-        with st.spinner("Sincronizando con Google Sheets..."):
-            
-            st.cache_data.clear()
-            df_actual = leer_datos()
-            df_actual.columns = [str(c).strip().upper() for c in df_actual.columns]
-            
-            puntos_reales = calcular_puntos_jornada(par_hoyo, golpes_finales)
-            fecha_hoy = datetime.now().strftime("%Y-%m-%d")
-            
-            # --- ASIGNACIÓN MANUAL (Para asegurar que no falla ningún campo) ---
-            datos_hoyo = {
-                'FECHA': fecha_hoy,
-                'HOYO': int(hoyo_sel),
-                'PAR': int(par_hoyo),
-                'TEMPORADA': "2024",
-                'PARTIDO_ID': fecha_hoy.replace("-", ""),
-                # Golpes de cada jugador (S0 a S3)
-                'S0': int(golpes_finales[0]),
-                'S1': int(golpes_finales[1]),
-                'S2': int(golpes_finales[2]),
-                'S3': int(golpes_finales[3]),
-                # Puntos de cada jugador (P1_PTS a P4_PTS)
-                'P1_PTS': float(puntos_reales[0]),
-                'P2_PTS': float(puntos_reales[1]),
-                'P3_PTS': float(puntos_reales[2]),
-                'P4_PTS': float(puntos_reales[3])
-            }
-
-            # 3. Lógica de Actualización
-            # Aseguramos que la columna HOYO en el DataFrame sea numérica para comparar bien
-            df_actual['HOYO'] = pd.to_numeric(df_actual['HOYO'], errors='coerce')
-            
-            mascara = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == int(hoyo_sel))
-            
-            if mascara.any():
-                idx = df_actual.index[mascara][0]
-                for col, val in datos_hoyo.items():
-                    if col in df_actual.columns:
-                        df_actual.at[idx, col] = val
-            else:
-                df_nueva_fila = pd.DataFrame([datos_hoyo])
-                df_actual = pd.concat([df_actual, df_nueva_fila], ignore_index=True)
-            
-            # 4. SUBIDA DEFINITIVA
+        with st.spinner("Subiendo datos a Google Sheets..."):
             try:
-                # Importante: enviamos el DataFrame limpio
+                # A. Calculamos puntos con tu función
+                puntos_reales = calcular_puntos_jornada(par_hoyo, golpes_finales)
+                
+                # B. Preparamos el diccionario con los nombres EXACTOS de tu Excel
+                datos_hoyo = {
+                    'FECHA': fecha_hoy,
+                    'HOYO': int(hoyo_sel),
+                    'PAR': int(par_hoyo),
+                    'TEMPORADA': "2024",
+                    'PARTIDO_ID': fecha_hoy.replace("-", ""),
+                    # Golpes (S0-S3)
+                    'S0': int(golpes_finales[0]),
+                    'S1': int(golpes_finales[1]),
+                    'S2': int(golpes_finales[2]),
+                    'S3': int(golpes_finales[3]),
+                    # Puntos (P1_PTS-P4_PTS)
+                    'P1_PTS': float(puntos_reales[0]),
+                    'P2_PTS': float(puntos_reales[1]),
+                    'P3_PTS': float(puntos_reales[2]),
+                    'P4_PTS': float(puntos_reales[3])
+                }
+                
+                # C. Actualizamos el DataFrame local
+                mascara = (df_actual['FECHA'] == fecha_hoy) & (df_actual['HOYO'] == int(hoyo_sel))
+                
+                if mascara.any():
+                    idx = df_actual.index[mascara][0]
+                    for col, val in datos_hoyo.items():
+                        if col in df_actual.columns:
+                            df_actual.at[idx, col] = val
+                else:
+                    df_actual = pd.concat([df_actual, pd.DataFrame([datos_hoyo])], ignore_index=True)
+                
+                # D. Subida a la nube
                 conn.update(data=df_actual)
-                st.success(f"✅ Hoyo {hoyo_sel} guardado. ¡Comprueba S0, S1, S2 y S3!")
+                
+                st.success(f"✅ Hoyo {hoyo_sel} sincronizado con éxito.")
                 st.session_state.ultima_sincro = datetime.now().strftime("%H:%M:%S")
                 st.cache_data.clear()
                 st.balloons()
+                
             except Exception as e:
-                st.error(f"Error al subir a la nube: {e}")
+                st.error(f"Error al guardar: {e}")
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 ESTADÍSTICAS")
