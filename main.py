@@ -152,36 +152,95 @@ if st.session_state.menu_seleccionado == "Inicio":
 # SECCIÓN: JUGAR / EDITAR (Modo Match Play)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    # 1. Limpieza de seguridad: Si no hay juego en session_state, forzamos que no lea datos
+    # 1. Aseguramos que el refresco exista
+    if 'refresco_id' not in st.session_state: 
+        st.session_state.refresco_id = 0
+
+    # 2. CASO A: NO HAY PARTIDA ACTIVA
     if 'game' not in st.session_state:
-        st.subheader("🏁 Nueva Partida")
-        st.info("No hay ninguna partida activa. Selecciona una fecha para empezar o edita una existente en Administración.")
+        st.markdown("### ⛳ Nueva Partida")
+        st.info("No hay ninguna partida activa en este momento.")
         
-        f = st.date_input("Fecha de la partida:", datetime.now(), format="DD/MM/YYYY")
+        f = st.date_input("Selecciona la fecha para empezar:", datetime.now(), format="DD/MM/YYYY")
+        
         if st.button("🚀 Iniciar Partida", use_container_width=True):
-            # Creamos el nuevo ID único
-            nuevo_id = datetime.now().strftime("%Y%m%d%H%M%S")
+            # Creamos el diccionario de juego
             st.session_state.game = {
                 'fecha': f.strftime("%d/%m/%Y"), 
                 'h_sel': 1, 
                 'logs': {}, 
-                'id': nuevo_id
+                'id': datetime.now().strftime("%Y%m%d%H%M%S")
             }
             st.rerun()
-    
-    # 2. Solo si existe 'game' en session_state, mostramos el marcador y los hoyos
+
+    # 3. CASO B: HAY UNA PARTIDA ACTIVA (O SE ESTÁ EDITANDO UNA)
     else:
         g = st.session_state.game
         df_p = leer_datos()
         
-        # Filtramos estrictamente por el ID que tenemos en memoria
+        # Filtramos estrictamente por el ID actual
         df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])]
         
-        # --- A partir de aquí sigue el resto de tu código del marcador ---
+        # --- MARCADOR MATCH PLAY ---
         pts_a_total = df_partido_actual['resultado_a'].sum()
         pts_b_total = df_partido_actual['resultado_b'].sum()
         
-        # ... (resto del código igual) ...
+        dif = pts_a_total - pts_b_total
+        m_a = dif if dif > 0 else 0
+        m_b = abs(dif) if dif < 0 else 0
+
+        st.markdown(f"""
+            <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-around; align-items: center; text-align: center;">
+                    <div style="flex: 1;">
+                        <h4 style="color: #2e7d32; margin: 0; font-size: 0.9em; font-weight: bold;">{EQUIPO_A_NOMBRES}</h4>
+                        <h1 style="margin: 0; font-size: 4em; color: {COLOR_A if m_a > 0 else '#333'};">{m_a:g}</h1>
+                    </div>
+                    <div style="background: #ccc; border-radius: 50%; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #666; font-size: 0.8em;">VS</div>
+                    <div style="flex: 1;">
+                        <h4 style="color: #c62828; margin: 0; font-size: 0.9em; font-weight: bold;">{EQUIPO_B_NOMBRES}</h4>
+                        <h1 style="margin: 0; font-size: 4em; color: {COLOR_B if m_b > 0 else '#333'};">{m_b:g}</h1>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # --- NAVEGACIÓN Y SELECTOR ---
+        c_nav1, c_nav2 = st.columns(2)
+        if c_nav1.button("← Anterior", use_container_width=True):
+            g['h_sel'] = max(1, g['h_sel'] - 1)
+            st.session_state.refresco_id += 1
+            st.rerun()
+        if c_nav2.button("Siguiente →", use_container_width=True):
+            g['h_sel'] = min(18, g['h_sel'] + 1)
+            st.session_state.refresco_id += 1
+            st.rerun()
+
+        h = g['h_sel']
+        par_h = PAR_RIA_VIGO[h]
+        fila_hoyo = df_partido_actual[df_partido_actual['hoyo'] == h]
+        ya_existe = not fila_hoyo.empty
+
+        # --- ENTRADA DE GOLPES ---
+        rid = st.session_state.refresco_id
+        v_ref = [int(fila_hoyo.iloc[0][f's{i}']) if ya_existe else par_h for i in range(4)]
+        
+        col_j1, col_j2 = st.columns(2)
+        s1 = col_j1.number_input(TODOS[0], 1, 15, v_ref[0], key=f"s1_h{h}_r{rid}")
+        s2 = col_j1.number_input(TODOS[1], 1, 15, v_ref[1], key=f"s2_h{h}_r{rid}")
+        s3 = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"s3_h{h}_r{rid}")
+        s4 = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"s4_h{h}_r{rid}")
+
+        if st.button("💾 Actualizar Hoyo", type="primary", use_container_width=True, disabled=([s1,s2,s3,s4] == v_ref)):
+            ejecutar_guardado_automatico()
+            st.rerun()
+
+        st.write("---")
+        with st.popover("🏁 Finalizar Partida", use_container_width=True):
+            if st.button("Confirmar Cierre", type="primary", use_container_width=True):
+                del st.session_state.game
+                st.cache_data.clear()
+                st.rerun()
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas Temporada")
