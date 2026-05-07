@@ -437,7 +437,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 res_match_dia = f"Roge & Lalo +{abs(dif_dia)}"
             else:
                 res_match_dia = "Empate (AS)"
-
         n_hoyos_info = len(df_stats['hoyo'].unique())
 
         # --- CÁLCULOS DE JUGADORES ---
