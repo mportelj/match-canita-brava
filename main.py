@@ -111,12 +111,12 @@ def actualizar_o_insertar_hoyo(datos):
 
 def leer_datos():
     """
-    Lee la base de datos desde Google Sheets usando gspread.
-    Asegura que las columnas se llamen siempre: fecha, hoyo, s0, s1, s2, s3
+    Lee la base de datos completa desde Google Sheets.
+    Mapea todas las columnas: id, partido_id, hoyo, fecha, temporada, etc.
     """
     try:
-        # 1. Configuración de credenciales (usando lo que ya nos funcionó)
-        s = st.secrets["golf_datos"] # o "golf_datos", como lo tengas en Secrets
+        # 1. Configuración de conexión (usando lo que ya funciona)
+        s = st.secrets["gsheets"]
         credentials_dict = {
             "type": s["type"],
             "project_id": s["project_id"],
@@ -134,37 +134,41 @@ def leer_datos():
         creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
         client = gspread.authorize(creds)
         
-        # 2. Abrir la hoja y leer datos
+        # 2. Abrir la hoja y leer
         sh = client.open_by_url(s["url"])
         worksheet = sh.worksheet("historial")
         data = worksheet.get_all_records()
         df = pd.DataFrame(data)
         
         if df.empty:
-            return pd.DataFrame(columns=['fecha', 'hoyo', 's0', 's1', 's2', 's3'])
-        
-        # 3. Tu lógica de limpieza original
+            return pd.DataFrame(columns=['id', 'partido_id', 'hoyo', 'fecha', 'temporada', 's0', 's1', 's2', 's3'])
+
+        # 3. Limpieza de nombres de columnas (quitar espacios y minúsculas)
         df.columns = [str(c).strip().lower() for c in df.columns]
         
-        # Mapeo por posición para asegurar nombres
-        mapeo_columnas = {
-            df.columns[0]: 'fecha',
-            df.columns[1]: 'hoyo',
-            df.columns[2]: 's0',
-            df.columns[3]: 's1',
-            df.columns[4]: 's2',
-            df.columns[5]: 's3'
-        }
-        df = df.rename(columns=mapeo_columnas)
+        # 4. MAPEO COMPLETO SEGÚN TU LISTA
+        # Esto asegura que aunque el Excel tenga nombres algo distintos, Python use estos:
+        columnas_ordenadas = [
+            'id', 'partido_id', 'hoyo', 'fecha', 'temporada', 
+            'resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 
+            'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3'
+        ]
         
-        # 4. Asegurar que el hoyo sea número
+        # Mapeamos dinámicamente por posición para evitar errores si cambias un nombre en el Excel
+        mapeo = {df.columns[i]: columnas_ordenadas[i] for i in range(len(columnas_ordenadas)) if i < len(df.columns)}
+        df = df.rename(columns=mapeo)
+
+        # 5. Conversiones de tipo necesarias
         df['hoyo'] = pd.to_numeric(df['hoyo'], errors='coerce')
+        df['temporada'] = df['temporada'].astype(str) # Para que el filtro de temporada no falle
+        df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
         
         return df
 
     except Exception as e:
-        st.error(f"Error detallado al leer datos: {e}")
-        return pd.DataFrame(columns=['fecha', 'hoyo', 's0', 's1', 's2', 's3'])
+        st.error(f"Error al leer la base de datos: {e}")
+        # Devolvemos estructura mínima en caso de error para que no rompa la línea 239
+        return pd.DataFrame(columns=['fecha', 'hoyo', 'temporada', 's0', 's1', 's2', 's3'])
 
 def calcular_puntos_hoyo(scores, hoyo_num):
     par = PAR_RIA_VIGO[hoyo_num]
