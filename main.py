@@ -431,10 +431,10 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             p_b_d = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
             
             # --- NUEVO FORMATO DE MARCADOR DE JORNADA ---
-            #res_match_dia = f"<b style='color=green';>+MANU & JOSE: {p_a_d}</b>  vs  <b style='color=red';>+ROGE & LALO: {p_b_d}</b>   - {status_global}"
+            # res_match_dia = f"<b style='color=green';>+MANU & JOSE: {p_a_d}</b>  vs  <b style='color=red';>+ROGE & LALO: {p_b_d}</b>   - {status_global}"
             res_match_dia = (
                 f"<b style='color: green;'>Marcador hoyos: MANU & JOSE: {p_a_d}</b>  vs  "
-                f"<b style='color: red;'>ROGE & LALO: {p_b_d}</b>   - <b style>{status_global}</b>"
+                f"<b style='color: red;'>ROGE & LALO: {p_b_d}</b>   - <p><b style>{status_global}</b></p>"
             )
             st.markdown(res_match_dia, unsafe_allow_html=True)
 
