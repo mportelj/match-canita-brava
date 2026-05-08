@@ -492,9 +492,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         whatsapp_text += f"📅 *Jornada: {f_formateada}* ({n_hoyos_info} hoyos)\n"
         
         if not ver_acumulado:
-        whatsapp_text += f"⛳ Marcador hoy: *{res_match_dia}*\n"
+            whatsapp_text += f"⛳ Marcador hoy: *{res_match_dia}*\n"
         
-        whatsapp_text += f"🏆 *TEMPORADA: {texto_marcador_global}*\n"
+            whatsapp_text += f"🏆 *TEMPORADA: {texto_marcador_global}*\n"
         
         if marcador_global_a > marcador_global_b:
             lider_info = f"MANU & JOSE lideran ({texto_marcador_global})"
