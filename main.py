@@ -437,12 +437,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             puntos_b_dia = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
             dif_dia = puntos_a_dia - puntos_b_dia
             
-            if dif_dia > 0:
-                res_match_dia = f"Manu & Jose +{dif_dia}"
-            elif dif_dia < 0:
-                res_match_dia = f"Roge & Lalo +{abs(dif_dia)}"
-            else:
-                res_match_dia = "Empate (AS)"
+            #if dif_dia > 0:
+            #    res_match_dia = f"Manu & Jose +{dif_dia}"
+            #elif dif_dia < 0:
+            #    res_match_dia = f"Roge & Lalo +{abs(dif_dia)}"
+            #else:
+            #    res_match_dia = "Empate (AS)"
             n_hoyos_info = len(df_stats['hoyo'].unique())
 
         # --- CÁLCULOS DE JUGADORES ---
