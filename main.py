@@ -524,7 +524,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         st.subheader(f"📈 {titulo_seccion} ({n_hoyos_info} hoyos)")
         if not ver_acumulado and res_match_dia:
             st.markdown(f"**{res_match_dia}**")
-        st.info(f"Temporada: {texto_marcador_global}")
+        #st.info(f"Temporada: {texto_marcador_global}")
 
         if lista_resultados:
             # (Aquí va tu código de la tabla stats_rows que ya tenías)
