@@ -435,8 +435,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             res_match_dia = (
                 f"<b style='color: green;'>+MANU & JOSE: {p_a_d}</b>  vs  "
                 f"<b style='color: red;'>+ROGE & LALO: {p_b_d}</b>   - {status_global}"
-                )
-                st.markdown(res_match_dia, unsafe_allow_html=True)
+            )
+            st.markdown(res_match_dia, unsafe_allow_html=True)
 
             puntos_a_dia = pd.to_numeric(df_stats['resultado_a'], errors='coerce').sum()
             puntos_b_dia = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
