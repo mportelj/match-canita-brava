@@ -425,7 +425,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         else:
             df_stats = df_raw[df_raw['fecha'] == jornada_sel_raw].copy()
             f_formateada = opciones_combo[jornada_sel_raw]
-            titulo_seccion = f"Jornada: {f_formateada}" # <-- Variable corregida
+            titulo_seccion = f"Jornada: {f_formateada}"
+            
+            p_a_d = pd.to_numeric(df_stats['resultado_a'], errors='coerce').sum()
+            p_b_d = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
+            
+            # --- NUEVO FORMATO DE MARCADOR DE JORNADA ---
+            res_match_dia = f"MANU & JOSE +{p_a_d}  VS  ROGE & LALO +{p_b_d}"
             
             puntos_a_dia = pd.to_numeric(df_stats['resultado_a'], errors='coerce').sum()
             puntos_b_dia = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
