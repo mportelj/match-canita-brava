@@ -410,11 +410,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         # Determinamos quién va ganando para el mensaje resaltado
         dif_total = puntos_a_total - puntos_b_total
         if dif_total > 0:
-            status_global = f"MANU & JOSE GANAN {dif_total} UP"
+            status_global = f"MANU & JOSE {dif_total} UP"
         elif dif_total < 0:
-            status_global = f"ROGE & LALO GANAN {abs(dif_total)} UP"
+            status_global = f"ROGE & LALO {abs(dif_total)} UP"
         else:
-            status_global = "ALL SQUARE (EMPATE)"
+            status_global = "ALL SQUARE (AS)"
 
         # --- FILTRADO POR JORNADA ---
         if ver_acumulado:
@@ -431,8 +431,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             p_b_d = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
             
             # --- NUEVO FORMATO DE MARCADOR DE JORNADA ---
-            res_match_dia = f"<b style='color=green';>+MANU & JOSE: {p_a_d}</b>  vs  <b style='color=red';>+ROGE & LALO: {p_b_d}</b>   - {status_global}"
-
+            #res_match_dia = f"<b style='color=green';>+MANU & JOSE: {p_a_d}</b>  vs  <b style='color=red';>+ROGE & LALO: {p_b_d}</b>   - {status_global}"
+            res_match_dia = (
+                f"<b style='color: green;'>+MANU & JOSE: {p_a_d}</b>  vs  "
+                f"<b style='color: red;'>+ROGE & LALO: {p_b_d}</b>   - {status_global}"
+                )
+                st.markdown(res_match_dia, unsafe_allow_html=True)
 
             puntos_a_dia = pd.to_numeric(df_stats['resultado_a'], errors='coerce').sum()
             puntos_b_dia = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
