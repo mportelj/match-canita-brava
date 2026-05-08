@@ -433,8 +433,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             # --- NUEVO FORMATO DE MARCADOR DE JORNADA ---
             res_match_dia = f"<b style='color=green;'>+MANU & JOSE: {p_a_d}  vs  <b style='color=red;'>+ROGE & LALO: {p_b_d}   - {status_global}"
 
-f"<b style='color:red;'>+{res['plus_minus']}</b>
-            
+
             puntos_a_dia = pd.to_numeric(df_stats['resultado_a'], errors='coerce').sum()
             puntos_b_dia = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
             dif_dia = puntos_a_dia - puntos_b_dia
