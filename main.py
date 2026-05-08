@@ -492,7 +492,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         whatsapp_text += f"📅 *Jornada: {f_formateada}* ({n_hoyos_info} hoyos)\n"
         
         if not ver_acumulado:
-            whatsapp_text += f"⛳ Marcador hoy: *{res_match_dia}*\n"
+        whatsapp_text += f"⛳ Marcador hoy: *{res_match_dia}*\n"
         
         whatsapp_text += f"🏆 *TEMPORADA: {texto_marcador_global}*\n"
         
@@ -524,6 +524,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         st.subheader(f"📈 {titulo_seccion} ({n_hoyos_info} hoyos)")
         if not ver_acumulado and res_match_dia:
             st.markdown(f"**{res_match_dia}**")
+            st.info(f"**{lider_info}**")
         #st.info(f"Temporada: {texto_marcador_global}")
 
         if lista_resultados:
