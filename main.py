@@ -431,7 +431,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             p_b_d = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
             
             # --- NUEVO FORMATO DE MARCADOR DE JORNADA ---
-            res_match_dia = f"MANU & JOSE: {p_a_d}  vs  ROGE & LALO: {p_b_d} - ´{abs(dif_total)}  - status_global"
+            res_match_dia = f"MANU & JOSE: {p_a_d}  vs  ROGE & LALO: {p_b_d} - ´{abs(dif_total)}  - {status_global}"
             
             puntos_a_dia = pd.to_numeric(df_stats['resultado_a'], errors='coerce').sum()
             puntos_b_dia = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
