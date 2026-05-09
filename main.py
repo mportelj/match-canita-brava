@@ -215,56 +215,43 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         p_a = 1 if res_a < res_b else 0
         p_b = 1 if res_b < res_a else 0
 
-        # --- 2. Lectura Fresca ---
-        # Forzamos la limpieza de caché antes de leer para no pisar datos
-        st.cache_data.clear()
-        df = leer_datos()
-        
-        if df is None:
-            st.error("Error: No se pudo leer la base de datos")
-            return
-
-        # Limpiamos nombres de columnas
-        df.columns = [str(c).strip() for c in df.columns]
-        
+        # --- 2. Preparar la fila como una lista simple ---
         g = st.session_state.game
-        partido_id = str(g['id'])
+        # Formato: partido_id, fecha, hoyo, s0, s1, s2, s3, res_a, res_b
+        nueva_fila = [
+            str(g['id']), 
+            str(g['fecha']), 
+            int(hoyo_id), 
+            int(g0), int(g1), int(g2), int(g3), 
+            int(p_a), int(p_b)
+        ]
 
-        # --- 3. Preparar la fila ---
-        nueva_fila = {
-            'partido_id': partido_id,
-            'fecha': g['fecha'],
-            'hoyo': int(hoyo_id),
-            's0': int(g0),
-            's1': int(g1),
-            's2': int(g2),
-            's3': int(g3),
-            'resultado_a': float(p_a),
-            'resultado_b': float(p_b)
-        }
-
-        # --- 4. Actualizar el DataFrame ---
-        # Borramos el hoyo si ya existía para evitar duplicados
-        df = df[~((df['partido_id'].astype(str) == partido_id) & 
-                  (df['hoyo'].astype(int) == int(hoyo_id)))]
+        # --- 3. GRABACIÓN DIRECTA ---
+        # Primero borramos el hoyo si ya existe para evitar duplicados
+        # (Esto es opcional, pero limpia la base de datos)
+        lista_de_listas = sh.get_all_values()
+        df_temp = pd.DataFrame(lista_de_listas[1:], columns=lista_de_listas[0])
         
-        # Añadimos la nueva fila
-        df = pd.concat([df, pd.DataFrame([nueva_fila])], ignore_index=True)
-
-        # --- 5. GRABACIÓN CON GSPREAD (Paso Crítico) ---
-        # IMPORTANTE: Asegúrate de que 'sh' es tu objeto de hoja (worksheet)
-        # Convertimos todo a string o tipos básicos para evitar errores de JSON
-        datos_lista = [df.columns.values.tolist()] + df.values.tolist()
+        # Filtramos para quitar el hoyo viejo si existe
+        df_temp = df_temp[~((df_temp['partido_id'] == str(g['id'])) & 
+                            (df_temp['hoyo'] == str(hoyo_id)))]
         
-        # Usamos .update() para sobreescribir desde la celda A1
-        # Reemplaza 'sh' por la variable que uses para tu hoja de cálculo
-        sh.update('A1', datos_lista) 
+        # Añadimos la nueva fila al DataFrame
+        df_nuevo = pd.concat([df_temp, pd.DataFrame([nueva_fila], columns=df_temp.columns)], ignore_index=True)
         
-        # Forzamos limpieza de caché después de grabar
+        # ACTUALIZACIÓN TOTAL (Forzada)
+        # Convertimos NaN a vacío para que Google no de error
+        df_nuevo = df_nuevo.fillna("")
+        
+        # Esta es la instrucción que "manda" en gspread
+        sh.update('A1', [df_nuevo.columns.values.tolist()] + df_nuevo.values.tolist())
+        
+        # --- 4. LIMPIEZA DE CACHÉ ---
         st.cache_data.clear()
-        
+        st.success(f"Hoyo {hoyo_id} actualizado en la nube")
+
     except Exception as e:
-        st.error(f"Error al grabar: {e}")
+        st.error(f"Error de gspread: {e}")
 
 # --- 3. NAVEGACIÓN ---
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Nueva Partida", "Estadísticas", "Admin"], 
