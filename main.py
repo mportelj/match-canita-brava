@@ -215,29 +215,31 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         p_a = 1 if res_a < res_b else 0
         p_b = 1 if res_b < res_a else 0
 
-        # 2. Datos de sesión
+        # 2. Datos del partido
         g = st.session_state.game
         p_id = str(g['id'])
         fecha = str(g['fecha'])
 
-        # 3. Obtener TODA la hoja como lista de listas
-        # Esto es más seguro que usar pandas para escribir
-        filas = sh.get_all_values()
-        if not filas:
-            st.error("La hoja no tiene cabeceras.")
+        # 3. Obtener todas las filas de la hoja
+        # Forzamos limpieza de caché antes de leer
+        st.cache_data.clear()
+        todas_las_filas = sh.get_all_values()
+        
+        if not todas_las_filas:
+            st.error("La hoja está vacía. Debe tener al menos las cabeceras.")
             return
 
-        header = filas[0]
-        datos = filas[1:]
+        cabeceras = todas_las_filas[0]
+        datos_actuales = todas_las_filas[1:]
 
-        # 4. Buscar si el hoyo ya existe para este partido y eliminarlo
-        # (Índices: 0=partido_id, 2=hoyo según tu estructura)
-        datos_limpios = [
-            f for f in datos 
-            if not (f[0] == p_id and str(f[2]) == str(hoyo_id))
+        # 4. Filtrar: eliminar la fila de este hoyo si ya existía
+        # Asumimos: Columna 0 = partido_id, Columna 2 = hoyo
+        nuevos_datos = [
+            fila for fila in datos_actuales 
+            if not (fila[0] == p_id and str(fila[2]) == str(hoyo_id))
         ]
 
-        # 5. Crear la nueva fila (Asegurando que todo sean strings o ints básicos)
+        # 5. Crear la nueva fila (todo como strings/ints simples)
         nueva_fila = [
             p_id, 
             fecha, 
@@ -245,25 +247,25 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
             int(g0), int(g1), int(g2), int(g3), 
             int(p_a), int(p_b)
         ]
-        datos_limpios.append(nueva_fila)
+        nuevos_datos.append(nueva_fila)
 
-        # 6. Ordenar por hoyo (opcional, pero ayuda a la vista)
-        datos_limpios.sort(key=lambda x: int(x[2]))
+        # 6. Ordenar por hoyo para que el Excel quede limpio
+        nuevos_datos.sort(key=lambda x: int(x[2]))
 
-        # 7. ESCRIBIR DE VUELTA
-        cuerpo_total = [header] + datos_limpios
+        # 7. ESCRIBIR EN GOOGLE SHEETS
+        # Combinamos cabeceras con datos limpios
+        cuerpo_final = [cabeceras] + nuevos_datos
         
-        # Limpiamos y actualizamos
+        # Limpiamos la hoja por completo y subimos todo el bloque
         sh.clear()
-        sh.update('A1', cuerpo_total)
+        sh.update('A1', cuerpo_final)
         
-        # Forzar limpieza de caché de Streamlit
+        # Notificación y refresco
         st.cache_data.clear()
-        st.success(f"✅ Hoyo {hoyo_id} guardado correctamente")
+        st.success(f"✅ Hoyo {hoyo_id} guardado y sincronizado")
 
     except Exception as e:
-        st.error(f"Error técnico en el guardado: {str(e)}")
-
+        st.error(f"Fallo en la grabación: {str(e)}")
 # --- 3. NAVEGACIÓN ---
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Nueva Partida", "Estadísticas", "Admin"], 
                        index=["Inicio", "Nueva Partida", "Estadísticas", "Admin"].index(st.session_state.menu_seleccionado),
