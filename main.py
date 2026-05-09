@@ -199,44 +199,52 @@ def leer_datos():
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     try:
         hoja = st.session_state.sh
-        g = st.session_state.game  # Aquí ya vienen la fecha y temporada elegidas
+        g = st.session_state.game
         
-        # --- LÓGICA DE PUNTOS ---
-        res_a, res_b = min(g0, g1), min(g2, g3)
-        p_a = 1 if res_a < res_b else (0.5 if res_a == res_b else 0)
-        p_b = 1 if res_b < res_a else (0.5 if res_a == res_b else 0)
-        
-        # --- CONSTRUCCIÓN DE LA FILA (15 CAMPOS) ---
-        # Respetando el orden: id, partido_id, hoyo, fecha, temporada, etc.
-        nueva_fila = [
-            f"{g['id']}_{hoyo_id}", # A: id (único)
-            str(g['id']),           # B: partido_id
-            int(hoyo_id),           # C: hoyo
-            g['fecha'],             # D: fecha (la seleccionada en el combo)
-            g['temporada'],         # E: temporada (año de la fecha seleccionada)
-            p_a,                    # F: resultado_a
-            p_b,                    # G: resultado_b
-            0, 0, 0, 0,             # H-K: p1_pts a p4_pts (rellenar según tu lógica)
-            int(g0), int(g1),       # L, M: s0, s1
-            int(g2), int(g3)        # N, O: s2, s3
-        ]
+        # ... (tus cálculos de p_a, p_b, etc.) ...
 
-        # --- ACTUALIZACIÓN ---
+        # 1. Obtenemos todos los datos actuales de la hoja
         filas = hoja.get_all_values()
         header = filas[0]
         
-        # Filtro para evitar duplicar el mismo hoyo en la misma partida
-        datos_actualizados = [
-            f for f in filas[1:] 
-            if not (len(f) > 2 and str(f[1]) == str(g['id']) and str(f[2]) == str(hoyo_id))
-        ]
+        # 2. FILTRO CRÍTICO: 
+        # Mantenemos las filas que:
+        # - Sean de OTRO partido 
+        # - O sean de este partido pero de OTRO hoyo
+        datos_limpios = []
+        for f in filas[1:]:
+            if len(f) > 2:
+                es_mismo_partido = str(f[1]) == str(g['id'])
+                es_mismo_hoyo = str(f[2]) == str(hoyo_id)
+                
+                # Solo descartamos si coinciden AMBAS (mismo partido y mismo hoyo)
+                if not (es_mismo_partido and es_mismo_hoyo):
+                    datos_limpios.append(f)
         
-        datos_actualizados.append(nueva_fila)
-        datos_actualizados.sort(key=lambda x: int(x[2])) # Ordenar por hoyo para el Excel
+        # 3. Añadimos la nueva fila
+        nueva_fila = [
+            f"{g['id']}_{hoyo_id}", # id único (A)
+            str(g['id']),           # partido_id (B)
+            int(hoyo_id),           # hoyo (C)
+            g['fecha'],             # fecha (D)
+            g['temporada'],         # temporada (E)
+            p_a, p_b,               # res_a, res_b (F, G)
+            0, 0, 0, 0,             # pts individuales (H, I, J, K)
+            int(g0), int(g1),       # s0, s1 (L, M)
+            int(g2), int(g3)        # s2, s3 (N, O)
+        ]
+        datos_limpios.append(nueva_fila)
+        
+        # 4. Ordenar: Primero por fecha/ID de partido y luego por hoyo
+        # Esto evita que los hoyos nuevos se mezclen con los viejos
+        datos_limpios.sort(key=lambda x: (str(x[1]), int(x[2])))
 
+        # 5. Subida limpia
         hoja.clear()
-        hoja.update('A1', [header] + datos_actualizados)
-        st.toast(f"✅ Hoyo {hoyo_id} guardado en Temporada {g['temporada']}")
+        hoja.update('A1', [header] + datos_limpios)
+        
+        st.toast(f"✅ Hoyo {hoyo_id} guardado en partida {g['id']}")
+        st.cache_data.clear()
 
     except Exception as e:
         st.error(f"Error al guardar: {e}")
