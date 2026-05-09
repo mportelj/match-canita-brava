@@ -261,25 +261,28 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
 
 
 # --- 3. NAVEGACIÓN ---
-# --- CONFIGURACIÓN DEL MENÚ LATERAL (VISIBLE) ---
+# --- CONFIGURACIÓN DEL MENÚ LATERAL ---
 opciones_menu = ["Inicio", "Nueva Partida", "Estadísticas", "Admin"]
 
-# Evitar el ValueError si el estado se pierde
-if 'menu_seleccionado' not in st.session_state:
+# 1. Validar que el valor en session_state sea correcto ANTES de buscar el índice
+menu_actual = st.session_state.get('menu_seleccionado', "Inicio")
+
+if menu_actual not in opciones_menu:
+    menu_actual = "Inicio"
     st.session_state.menu_seleccionado = "Inicio"
 
-# Menú lateral permanente
-
+# 2. Ahora el índice nunca fallará
 with st.sidebar:
     st.title("⛳ Match Play")
-    # Usamos radio para que todas las opciones se vean sin pulsar un combo
     seleccion = st.radio(
         "Navegación",
         opciones_menu,
-        index=opciones_menu.index(st.session_state.menu_seleccionado),
-        key="menu_radio"
+        index=opciones_menu.index(menu_actual),
+        key="menu_radio_main"
     )
+    # Actualizamos el estado global
     st.session_state.menu_seleccionado = seleccion
+    
 df_raw = leer_datos()
 
 if df_raw is not None and not df_raw.empty:
