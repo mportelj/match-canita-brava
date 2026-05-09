@@ -241,41 +241,32 @@ def leer_datos():
 
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
-    try:
-        hoja = st.session_state.sh
-        g = st.session_state.game
-        
-        # --- 1. CÁLCULOS DE PUNTOS (CORREGIDO) ---
-        # A) Marcador del Match (Parejas)
-        res_a, res_b = min(g0, g1), min(g2, g3)
-        p_a = 1 if res_a < res_b else (0.5 if res_a == res_b else 0)
-        p_b = 1 if res_b < res_a else (0.5 if res_a == res_b else 0)
+    # ... (inicio de la función igual) ...
+    
+    par_actual = PAR_RIA_VIGO[int(hoyo_id)]
+    
+    # Calculamos puntos usando la función corregida de arriba
+    # IMPORTANTE: El orden de los jugadores debe ser el correcto
+    p_e1, p_e2 = calcular_puntos_hoyo(g0, g2, g1, g3, par_actual)
 
-        # B) Puntos MVP (Individuales + Bonus)
-        # Usamos la función que calcula: Mejor bola, Peor bola y Birdies
-        par_hoyo = PAR_RIA_VIGO[int(hoyo_id)]
-        pts_e1, pts_e2 = calcular_puntos_hoyo(g0, g2, g1, g3, par_hoyo) 
-        # Nota: Asegúrate de pasar los golpes en el orden que espera tu función
-        # (Manu, Jose vs Roge, Lalo) -> g0, g2 vs g1, g3
+    # El resultado del Match (Parejas) se mantiene para las columnas F y G
+    res_a, res_b = min(g0, g1), min(g2, g3)
+    match_a = 1 if res_a < res_b else (0.5 if res_a == res_b else 0)
+    match_b = 1 if res_b < res_a else (0.5 if res_a == res_b else 0)
 
-        # 2. Normalizamos ID
-        id_partido_busqueda = f"{float(g['id']):.1f}"
-
-        # --- 3. CONSTRUCCIÓN DE LA FILA (CON PUNTOS REALES) ---
-        nueva_fila = [
-            f"{id_partido_busqueda}_H{hoyo_id}", # id
-            id_partido_busqueda,                 # partido_id
-            int(hoyo_id),                        # hoyo
-            str(g['fecha']),                     # fecha
-            str(g['temporada']),                 # temporada
-            float(p_a), float(p_b),              # F, G: Match Play Parejas
-            float(pts_e1), float(pts_e1),        # H, I: Puntos MVP Equipo A (Manu/Jose)
-            float(pts_e2), float(pts_e2),        # J, K: Puntos MVP Equipo B (Roge/Lalo)
-            int(g0), int(g1),                    # s0, s1
-            int(g2), int(g3)                     # s2, s3
-        ]
-
-        # ... resto del código de filtrado y hoja.update ...
+    # --- AQUÍ ESTÁ EL CAMBIO EN LA FILA ---
+    nueva_fila = [
+        f"{id_partido_busqueda}_H{hoyo_id}", 
+        id_partido_busqueda,                 
+        int(hoyo_id),                        
+        str(g['fecha']),                     
+        str(g['temporada']),                 
+        float(match_a), float(match_b),      # Columnas F, G (Match)
+        float(p_e1), float(p_e1),            # Columnas H, I (Puntos Equipo A con Bonus)
+        float(p_e2), float(p_e2),            # Columnas J, K (Puntos Equipo B con Bonus)
+        int(g0), int(g1),                    
+        int(g2), int(g3)                     
+    ]
 
         # 4. LEER Y FILTRAR (Aquí es donde evitamos la duplicación)
         filas = hoja.get_all_values()
