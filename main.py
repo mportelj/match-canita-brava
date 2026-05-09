@@ -198,65 +198,48 @@ def leer_datos():
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     try:
-        # Verificamos que la conexión exista
-        if 'sh' not in st.session_state:
-            st.error("No hay conexión con la hoja de cálculo.")
-            return
-
         hoja = st.session_state.sh
+        g = st.session_state.game  # Aquí ya vienen la fecha y temporada elegidas
         
-        # 1. Lógica de Puntos
-        p_a = 1 if min(g0, g1) < min(g2, g3) else 0
-        p_b = 1 if min(g2, g3) < min(g0, g1) else 0
+        # --- LÓGICA DE PUNTOS ---
+        res_a, res_b = min(g0, g1), min(g2, g3)
+        p_a = 1 if res_a < res_b else (0.5 if res_a == res_b else 0)
+        p_b = 1 if res_b < res_a else (0.5 if res_a == res_b else 0)
         
-        # 2. Datos del partido
-        g = st.session_state.game
-        p_id = str(g['id'])
-        
-        # 3. Leer datos actuales (Paso crítico)
-        # Usamos get_all_values para obtener una lista de listas
-        filas = hoja.get_all_values()
-        
-        if not filas:
-            st.error("La hoja de cálculo está vacía (falta el encabezado).")
-            return
-            
-        header = filas[0]
-        datos_viejos = filas[1:]
-
-        # 4. Crear la nueva fila
+        # --- CONSTRUCCIÓN DE LA FILA (15 CAMPOS) ---
+        # Respetando el orden: id, partido_id, hoyo, fecha, temporada, etc.
         nueva_fila = [
-            p_id, 
-            str(g['fecha']), 
-            int(hoyo_id), 
-            int(g0), int(g1), int(g2), int(g3), 
-            int(p_a), int(p_b)
+            f"{g['id']}_{hoyo_id}", # A: id (único)
+            str(g['id']),           # B: partido_id
+            int(hoyo_id),           # C: hoyo
+            g['fecha'],             # D: fecha (la seleccionada en el combo)
+            g['temporada'],         # E: temporada (año de la fecha seleccionada)
+            p_a,                    # F: resultado_a
+            p_b,                    # G: resultado_b
+            0, 0, 0, 0,             # H-K: p1_pts a p4_pts (rellenar según tu lógica)
+            int(g0), int(g1),       # L, M: s0, s1
+            int(g2), int(g3)        # N, O: s2, s3
         ]
 
-        # 5. Filtrar duplicados: eliminamos la fila si el hoyo ya existía
-        # f[0] es partido_id, f[2] es hoyo
+        # --- ACTUALIZACIÓN ---
+        filas = hoja.get_all_values()
+        header = filas[0]
+        
+        # Filtro para evitar duplicar el mismo hoyo en la misma partida
         datos_actualizados = [
-            f for f in datos_viejos 
-            if not (len(f) > 2 and str(f[0]) == p_id and str(f[2]) == str(hoyo_id))
+            f for f in filas[1:] 
+            if not (len(f) > 2 and str(f[1]) == str(g['id']) and str(f[2]) == str(hoyo_id))
         ]
         
-        # Añadimos la nueva y ordenamos
         datos_actualizados.append(nueva_fila)
-        datos_actualizados.sort(key=lambda x: int(x[2]))
+        datos_actualizados.sort(key=lambda x: int(x[2])) # Ordenar por hoyo para el Excel
 
-        # 6. GRABAR EN GOOGLE SHEETS
-        # Combinamos header + datos y limpiamos la hoja antes de subir
-        cuerpo_final = [header] + datos_actualizados
-        
         hoja.clear()
-        hoja.update('A1', cuerpo_final)
-        
-        # 7. Finalizar
-        st.cache_data.clear() # Limpia el caché para que el marcador se actualice
-        st.success(f"✅ Hoyo {hoyo_id} guardado correctamente")
+        hoja.update('A1', [header] + datos_actualizados)
+        st.toast(f"✅ Hoyo {hoyo_id} guardado en Temporada {g['temporada']}")
 
     except Exception as e:
-        st.error(f"Error al grabar: {e}")
+        st.error(f"Error al guardar: {e}")
 
 # --- 3. NAVEGACIÓN ---
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Nueva Partida", "Estadísticas", "Admin"], 
@@ -327,7 +310,7 @@ if st.session_state.menu_seleccionado == "Inicio":
     """, unsafe_allow_html=True)
    
 # ==========================================
-# SECCIÓN: NUEVA PARTIDA (SOLUCIÓN ERROR 429)
+# SECCIÓN: NUEVA PARTIDA 
 # ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
 
@@ -338,13 +321,21 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     # --- BLOQUE A: CONFIGURACIÓN DE INICIO ---
     if 'game' not in st.session_state:
         st.markdown("### ⛳ Nueva Partida")
-        f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
-        if st.button("🚀 Iniciar Partida", use_container_width=True):
-            st.session_state.game = {
-                'fecha': f.strftime("%d/%m/%Y"), 
-                'h_sel': 1, 
-                'id': datetime.now().strftime("%Y%m%d%H%M%S")
-            }
+        fecha_seleccionada = st.date_input("Selecciona la fecha del partido")
+
+if st.button("Iniciar Partido"):
+    # Extraemos el año de la fecha seleccionada para la temporada
+    año_temporada = str(fecha_seleccionada.year)
+    fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
+    
+    st.session_state.game = {
+        "id": datetime.now().strftime("%Y%m%d%H%M%S"),
+        "fecha": fecha_formateada,
+        "temporada": año_temporada,
+        "puntos_acumulados_a": 0,
+        "puntos_acumulados_b": 0
+    }
+    st.success(f"Partida iniciada para la temporada {año_temporada}")
             # Limpiamos caché para asegurar que al empezar no haya datos viejos
             st.cache_data.clear()
             st.rerun()
