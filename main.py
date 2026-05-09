@@ -19,11 +19,11 @@ if 'sh' not in st.session_state:
 # Creamos una variable local para usarla fácilmente
 sh = st.session_state.sh
 # Función para conectar sin usar st.connection
-# def cargar_datos_golf():
-    # 1. Cargamos los secretos
+
+def cargar_datos_golf():
+    # Línea 24: Asegúrate de que 's' tenga exactamente 4 espacios antes
     s = st.secrets["gsheets"]
     
-    # 2. Construimos el diccionario de credenciales
     credentials_dict = {
         "type": s["type"],
         "project_id": s["project_id"],
@@ -37,18 +37,15 @@ sh = st.session_state.sh
         "client_x509_cert_url": s["client_x509_cert_url"]
     }
     
-    # 3. Autorizamos
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
     client = gspread.authorize(creds)
 
-    # 4. ABRIR EL ARCHIVO (Aquí estaba el fallo)
-    # Opción A: Por URL (la que tienes en el navegador)
     url_hoja = "https://docs.google.com/spreadsheets/d/17mwvtZY-f6BWXOlDGkDdYur8l0ATvGYpbkshjv1sJAk/edit?gid=0#gid=0"
-    sh = client.open_by_url(url_hoja).sheet1 # Abre la primera pestaña
+    sh = client.open_by_url(url_hoja).sheet1 
     
-    return sh # IMPORTANTE: Retornamos el objeto de la hoja
-
+    return sh
+    
 # Lógica de la app
 #st.title("⛳ CAÑITA BRAVA")
 
