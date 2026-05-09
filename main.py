@@ -309,78 +309,47 @@ if st.session_state.menu_seleccionado == "Inicio":
 # ==========================================
 # SECCIÓN: NUEVA PARTIDA (Modo Match Play)
 # ==========================================
-# ==========================================
-# SECCIÓN: NUEVA PARTIDA (Lógica Optimizada)
-# ==========================================
-elif st.session_state.menu_seleccionado == "Nueva Partida":
-    
-    # --- BLOQUE 0: INICIALIZACIÓN DE ESTADO ---
+elif st.session_state.menu_seleccionado == "Jugar/Editar":
     if 'refresco_id' not in st.session_state: 
         st.session_state.refresco_id = 0
-    if 'datos_partida' not in st.session_state:
-        st.session_state.datos_partida = None
 
-    # --- BLOQUE A: CONFIGURACIÓN DE PARTIDA ---
     if 'game' not in st.session_state:
         st.markdown("### ⛳ Nueva Partida")
         f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
         if st.button("🚀 Iniciar Partida", use_container_width=True):
             st.session_state.game = {
-                'fecha': f.strftime("%d/%m/%Y"), 
-                'h_sel': 1, 
+                'fecha': f.strftime("%d/%m/%Y"), 'h_sel': 1, 'logs': {}, 
                 'id': datetime.now().strftime("%Y%m%d%H%M%S")
             }
-            # Primera lectura al iniciar: se guarda en session_state
-            st.session_state.datos_partida = leer_datos()
             st.rerun()
-            
     else:
-        # --- BLOQUE B: GESTIÓN DE DATOS (SIN REPETICIÓN) ---
         g = st.session_state.game
+        df_p = leer_datos()
+        df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])]
         
-        # Si por algún motivo se pierde el estado, recargamos una sola vez
-        if st.session_state.datos_partida is None:
-            st.session_state.datos_partida = leer_datos()
-        
-        # Usamos la "copia en memoria" para filtrar, sin llamar a leer_datos()
-        df_completo = st.session_state.datos_partida
-        df_actual = df_completo[df_completo['partido_id'] == str(g['id'])] if df_completo is not None else pd.DataFrame()
+        # --- 1. MARCADOR MATCH PLAY ---
+        pts_a_total = df_partido_actual['resultado_a'].sum()
+        pts_b_total = df_partido_actual['resultado_b'].sum()
+        dif = pts_a_total - pts_b_total
+        m_a, m_b = (dif, 0) if dif > 0 else (0, abs(dif))
 
-        # --- BLOQUE C: MARCADOR GLOBAL ---
-        def mostrar_cabecera_match(df):
-            pts_a = df['resultado_a'].sum() if not df.empty else 0
-            pts_b = df['resultado_b'].sum() if not df.empty else 0
-            dif = pts_a - pts_b
-            m_a, m_b = (dif, 0) if dif > 0 else (0, abs(dif))
-            
-            st.markdown(f"""
-                <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px;">
-                    <div style="display: flex; justify-content: space-around; align-items: center; text-align: center;">
-                        <div style="flex: 1;">
-                            <p style="color: #2e7d32; margin: 0; font-size: 0.8em; font-weight: bold;">MANU & JOSE</p>
-                            <h1 style="margin: 0; font-size: 4em; color: {'#2e7d32' if m_a > 0 else '#333'};">{m_a:g}</h1>
-                        </div>
-                        <div style="background: #ccc; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #666;">VS</div>
-                        <div style="flex: 1;">
-                            <p style="color: #c62828; margin: 0; font-size: 0.8em; font-weight: bold;">ROGE & LALO</p>
-                            <h1 style="margin: 0; font-size: 4em; color: {'#c62828' if m_b > 0 else '#333'};">{m_b:g}</h1>
-                        </div>
+        st.markdown(f"""
+            <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-around; align-items: center; text-align: center;">
+                    <div style="flex: 1;">
+                        <h4 style="color: #2e7d32; margin: 0; font-size: 0.9em; font-weight: bold;">{EQUIPO_A_NOMBRES}</h4>
+                        <h1 style="margin: 0; font-size: 4.5em; color: {COLOR_A if m_a > 0 else '#333'};">{m_a:g}</h1>
+                    </div>
+                    <div style="background: #ccc; border-radius: 50%; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #666; font-size: 0.8em;">VS</div>
+                    <div style="flex: 1;">
+                        <h4 style="color: #c62828; margin: 0; font-size: 0.9em; font-weight: bold;">{EQUIPO_B_NOMBRES}</h4>
+                        <h1 style="margin: 0; font-size: 4.5em; color: {COLOR_B if m_b > 0 else '#333'};">{m_b:g}</h1>
                     </div>
                 </div>
-            """, unsafe_allow_html=True)
+            </div>
+        """, unsafe_allow_html=True)
 
-        mostrar_cabecera_match(df_actual)
-
-        # --- BLOQUE D: SELECTOR Y NAVEGACIÓN ---
-        lista_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
-        sel_hoyo = st.selectbox("Hoyo", lista_hoyos, index=g['h_sel']-1, label_visibility="collapsed", key=f"h_sel_{st.session_state.refresco_id}")
-        
-        # Al navegar, NO se dispara leer_datos() porque los datos ya están en session_state
-        if int(sel_hoyo.split(" ")[1]) != g['h_sel']:
-            g['h_sel'] = int(sel_hoyo.split(" ")[1])
-            st.session_state.refresco_id += 1
-            st.rerun()
-
+        # --- 2. NAVEGACIÓN Y SELECTOR DESTACADO ---
         c_nav1, c_nav2 = st.columns(2)
         if c_nav1.button("← Anterior", use_container_width=True):
             g['h_sel'] = max(1, g['h_sel'] - 1)
@@ -391,40 +360,65 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.session_state.refresco_id += 1
             st.rerun()
 
-        # --- BLOQUE E: DATOS DEL HOYO ---
-        h_actual = g['h_sel']
-        fila_h = df_actual[df_actual['hoyo'] == h_actual]
-        existe = not fila_h.empty
-        v_inicio = [int(fila_h.iloc[0][f's{i}']) if existe else PAR_RIA_VIGO[h_actual] for i in range(4)]
+        # CSS para agrandar el texto del selector y ponerlo en negrita
+        st.markdown("""
+            <style>
+                div[data-baseweb="select"] > div {
+                    font-size: 26px !important;
+                    font-weight: 800 !important;
+                    height: 65px !important;
+                    border-radius: 10px !important;
+                }
+            </style>
+        """, unsafe_allow_html=True)
 
-        c1, c2 = st.columns(2)
-        s1 = c1.number_input(TODOS[0], 1, 15, v_inicio[0], key=f"s1_{h_actual}_{st.session_state.refresco_id}")
-        s2 = c1.number_input(TODOS[1], 1, 15, v_inicio[1], key=f"s2_{h_actual}_{st.session_state.refresco_id}")
-        s3 = c2.number_input(TODOS[2], 1, 15, v_inicio[2], key=f"s3_{h_actual}_{st.session_state.refresco_id}")
-        s4 = c2.number_input(TODOS[3], 1, 15, v_inicio[3], key=f"s4_{h_actual}_{st.session_state.refresco_id}")
-
-        # Marcador en vivo del hoyo
-        res_a, res_b = min(s1, s2), min(s3, s4)
-        p_a = 1 if res_a < res_b else (0.5 if res_a == res_b else 0)
-        p_b = 1 if res_b < res_a else (0.5 if res_a == res_b else 0)
+        lista_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
+        seleccion = st.selectbox(
+            "h_sel", lista_hoyos, index=g['h_sel']-1, 
+            label_visibility="collapsed", 
+            key=f"h_selector_{st.session_state.refresco_id}"
+        )
         
-        st.info(f"Puntos Hoyo {h_actual}: {p_a:g} — {p_b:g}")
-
-        # --- BLOQUE F: GUARDADO (ÚNICO MOMENTO DE RECARGA) ---
-        if st.button("💾 ACTUALIZAR HOYO", type="primary", use_container_width=True):
-            # 1. Guardar en el Excel (Tu función de guardado real aquí)
-            # 2. Forzamos la actualización de la copia en memoria
-            st.session_state.datos_partida = leer_datos()
-            st.success("Guardado y sincronizado")
+        nuevo_h_id = int(seleccion.split(" ")[1])
+        if nuevo_h_id != g['h_sel']:
+            g['h_sel'] = nuevo_h_id
+            st.session_state.refresco_id += 1
             st.rerun()
 
-        # --- BLOQUE G: CIERRE ---
+        h = g['h_sel']
+        par_h = PAR_RIA_VIGO[h]
+        fila_hoyo = df_partido_actual[df_partido_actual['hoyo'] == h]
+        ya_existe = not fila_hoyo.empty
+
+        # --- 3. RESULTADO HOYO ---
+        if ya_existe:
+            ha, hb = fila_hoyo.iloc[0]['resultado_a'], fila_hoyo.iloc[0]['resultado_b']
+            color_res = COLOR_A if ha > hb else (COLOR_B if hb > ha else "#666")
+            st.markdown(f"""
+                <div style="border: 1px solid #eee; border-radius: 10px; padding: 10px; text-align: center; background: white; margin-bottom: 15px;">
+                    <h2 style="margin: 0; letter-spacing: 4px; color: {color_res};">{ha:g} — {hb:g}</h2>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # --- 4. ENTRADA DE GOLPES (SIN ETIQUETAS DE TEXTO EXTRA) ---
+        v_ref = [int(fila_hoyo.iloc[0][f's{i}']) if ya_existe else par_h for i in range(4)]
+        col_j1, col_j2 = st.columns(2)
+        s1 = col_j1.number_input(TODOS[0], 1, 15, v_ref[0], key=f"s1_{h}_{st.session_state.refresco_id}")
+        s2 = col_j1.number_input(TODOS[1], 1, 15, v_ref[1], key=f"s2_{h}_{st.session_state.refresco_id}")
+        s3 = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"s3_{h}_{st.session_state.refresco_id}")
+        s4 = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"s4_{h}_{st.session_state.refresco_id}")
+
+        if st.button("💾 Actualizar Hoyo", type="primary", use_container_width=True, disabled=([s1,s2,s3,s4] == v_ref)):
+            ejecutar_guardado_automatico()
+            st.rerun()
+
         st.write("---")
         with st.popover("🏁 Finalizar Partida", use_container_width=True):
             if st.button("Confirmar Cierre", type="primary", use_container_width=True):
-                del st.session_state.game
-                st.session_state.datos_partida = None # Limpiamos memoria
+                if 'game' in st.session_state: del st.session_state.game
+                st.cache_data.clear()
                 st.rerun()
+
 
 # ==========================================
 # SECCIÓN: ESTADISTICAS (Versión Restaurada)
