@@ -30,22 +30,25 @@ def cargar_datos_golf():
 if 'sh' not in st.session_state:
     st.session_state.sh = cargar_datos_golf()
 
-# --- NAVEGACIÓN DINÁMICA (Crítico para que funcione Editar) ---
+
+# --- CONFIGURACIÓN DE NAVEGACIÓN ---
 opciones_menu = ["Inicio", "Nueva Partida", "Estadísticas", "Admin"]
 
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-# Calculamos el índice para que el radio se mueva solo al pulsar Editar
+# Calculamos el índice dinámicamente para que el radio se mueva solo
 try:
     indice_actual = opciones_menu.index(st.session_state.menu_seleccionado)
 except ValueError:
     indice_actual = 0
 
 with st.sidebar:
-    st.title("⛳ Menú Principal")
+    st.title("⛳ Menú")
+    # El parámetro 'index' es la clave para que la pantalla cambie
     seleccion = st.radio("Ir a:", opciones_menu, index=indice_actual, key="nav_radio")
     st.session_state.menu_seleccionado = seleccion
+
 
 # --- LÓGICA DE DATOS ---
 @st.cache_data(ttl=60)
@@ -344,7 +347,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     if 'refresco_id' not in st.session_state: 
         st.session_state.refresco_id = 0
     
-    # Inicializamos df_p y df_partido_actual SIEMPRE al inicio de la sección
     df_p = pd.DataFrame()
     df_partido_actual = pd.DataFrame()
 
@@ -362,44 +364,40 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 "id": datetime.now().strftime("%Y%m%d%H%M%S"),
                 "fecha": fecha_formateada,
                 "temporada": año_temporada,
-                "h_sel": 1,
-                "puntos_acumulados_a": 0,
-                "puntos_acumulados_b": 0
+                "h_sel": 1
             }
-            
-            st.success(f"✅ Partida iniciada para la temporada {año_temporada}")
             st.cache_data.clear()
             st.rerun()
             
     else:
-        # --- BLOQUE B: LECTURA ÚNICA CENTRALIZADA ---
+        # --- BLOQUE B: LECTURA ÚNICA (CORREGIDO) ---
         g = st.session_state.game
         
         try:
             df_p = leer_datos() 
             if df_p is not None and not df_p.empty:
-                df_p.columns = [str(c).strip() for c in df_p.columns]
+                # AJUSTE 1: Limpieza profunda de nombres de columnas
+                df_p.columns = [str(c).strip().lower() for c in df_p.columns]
                 
-                if 'partido_id' in df_p.columns:
-                    # Normalizamos la comparación con el .0 para que encuentre los datos
-                    id_busqueda_con_punto = f"{float(g['id']):.1f}"
-                    df_p['partido_id'] = df_p['partido_id'].astype(str)
-                    df_partido_actual = df_p[df_p['partido_id'] == id_busqueda_con_punto]
+                # AJUSTE 2: Normalización robusta del ID
+                # Convertimos ambos a string puro para evitar problemas de .0
+                id_target = str(g['id']).split('.')[0] # Quita el .0 si existe
+                df_p['partido_id'] = df_p['partido_id'].astype(str).str.split('.').str[0]
+                
+                df_partido_actual = df_p[df_p['partido_id'] == id_target]
         except Exception as e:
             st.error(f"Error al leer datos: {e}")
 
         # --- BLOQUE C: MARCADOR MATCH PLAY ---
-        pts_a_total = 0
-        pts_b_total = 0
-        
-        if not df_partido_actual.empty:
-            if 'resultado_a' in df_partido_actual.columns:
-                pts_a_total = df_partido_actual['resultado_a'].sum()
-            if 'resultado_b' in df_partido_actual.columns:
-                pts_b_total = df_partido_actual['resultado_b'].sum()
+        # (Tu código de CSS y HTML está perfecto, se mantiene igual)
+        pts_a_total = df_partido_actual['resultado_a'].sum() if not df_partido_actual.empty else 0
+        pts_b_total = df_partido_actual['resultado_b'].sum() if not df_partido_actual.empty else 0
         
         dif = pts_a_total - pts_b_total
         m_a, m_b = (dif, 0) if dif > 0 else (0, abs(dif))
+
+        # AJUSTE 3: Mostrar título de edición ARRIBA para confirmar que estamos dentro
+        st.subheader(f"📍 Editando: Partido {g['fecha']}")
 
         st.markdown(f"""
             <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
@@ -417,6 +415,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 <p style="margin-top:5px; color:#666; font-size:0.9em;">{"All Square" if dif == 0 else f"{abs(dif)} Up"}</p>
             </div>
         """, unsafe_allow_html=True)
+
+        # --- RESTO DE TU CÓDIGO (Navegación, Golpes, Guardado) ---
+        # Asegúrate de que los inputs usen v_ref para mostrar los golpes ya guardados
 
         # --- BLOQUE D: NAVEGACIÓN ---
         c_nav1, c_nav2 = st.columns(2)
