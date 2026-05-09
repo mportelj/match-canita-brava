@@ -210,63 +210,59 @@ def leer_datos():
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     try:
-        # 1. Lógica de Puntos
+        # 1. Lógica Match Play
         res_a, res_b = min(g0, g1), min(g2, g3)
         p_a = 1 if res_a < res_b else 0
         p_b = 1 if res_b < res_a else 0
 
-        # 2. Forzar lectura fresca de la nube
-        st.cache_data.clear()
-        lista_de_listas = sh.get_all_values() # Leemos directamente de la variable 'sh'
-        
-        if not lista_de_listas:
-            st.error("La hoja está totalmente vacía o no se pudo leer.")
+        # 2. Datos de sesión
+        g = st.session_state.game
+        p_id = str(g['id'])
+        fecha = str(g['fecha'])
+
+        # 3. Obtener TODA la hoja como lista de listas
+        # Esto es más seguro que usar pandas para escribir
+        filas = sh.get_all_values()
+        if not filas:
+            st.error("La hoja no tiene cabeceras.")
             return
 
-        # Convertimos a DataFrame para manipular fácilmente
-        df = pd.DataFrame(lista_de_listas[1:], columns=lista_de_listas[0])
-        df.columns = [str(c).strip() for c in df.columns]
+        header = filas[0]
+        datos = filas[1:]
 
-        # 3. Preparar nueva fila
-        g = st.session_state.game
-        partido_id = str(g['id'])
-        
-        nueva_fila = {
-            'partido_id': partido_id,
-            'fecha': str(g['fecha']),
-            'hoyo': str(hoyo_id),
-            's0': str(g0),
-            's1': str(g1),
-            's2': str(g2),
-            's3': str(g3),
-            'resultado_a': str(p_a),
-            'resultado_b': str(p_b)
-        }
+        # 4. Buscar si el hoyo ya existe para este partido y eliminarlo
+        # (Índices: 0=partido_id, 2=hoyo según tu estructura)
+        datos_limpios = [
+            f for f in datos 
+            if not (f[0] == p_id and str(f[2]) == str(hoyo_id))
+        ]
 
-        # 4. Eliminar duplicado (si ya existía el hoyo para este partido)
-        df = df[~((df['partido_id'].astype(str) == partido_id) & 
-                  (df['hoyo'].astype(str) == str(hoyo_id)))]
-        
-        # 5. Unir datos
-        df = pd.concat([df, pd.DataFrame([nueva_fila])], ignore_index=True)
-        df = df.fillna("") # Evita errores de celdas vacías en Google
+        # 5. Crear la nueva fila (Asegurando que todo sean strings o ints básicos)
+        nueva_fila = [
+            p_id, 
+            fecha, 
+            int(hoyo_id), 
+            int(g0), int(g1), int(g2), int(g3), 
+            int(p_a), int(p_b)
+        ]
+        datos_limpios.append(nueva_fila)
 
-        # --- 6. ESCRITURA FORZADA ---
-        # Convertimos el DataFrame a lista de listas (formato nativo de Google Sheets)
-        cuerpo = [df.columns.values.tolist()] + df.values.tolist()
+        # 6. Ordenar por hoyo (opcional, pero ayuda a la vista)
+        datos_limpios.sort(key=lambda x: int(x[2]))
+
+        # 7. ESCRIBIR DE VUELTA
+        cuerpo_total = [header] + datos_limpios
         
-        # Limpiamos la hoja antes de escribir para evitar datos residuales
-        sh.clear() 
+        # Limpiamos y actualizamos
+        sh.clear()
+        sh.update('A1', cuerpo_total)
         
-        # Escribimos todo de nuevo desde la A1
-        sh.update('A1', cuerpo)
-        
-        # Limpieza de caché para que Streamlit vea los cambios al instante
+        # Forzar limpieza de caché de Streamlit
         st.cache_data.clear()
-        st.success(f"✅ Hoyo {hoyo_id} sincronizado con Google Sheets")
+        st.success(f"✅ Hoyo {hoyo_id} guardado correctamente")
 
     except Exception as e:
-        st.error(f"❌ Error crítico en gspread: {e}")
+        st.error(f"Error técnico en el guardado: {str(e)}")
 
 # --- 3. NAVEGACIÓN ---
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Nueva Partida", "Estadísticas", "Admin"], 
