@@ -32,23 +32,33 @@ if 'sh' not in st.session_state:
 
 
 # --- CONFIGURACIÓN DE NAVEGACIÓN ---
+
 opciones_menu = ["Inicio", "Nueva Partida", "Estadísticas", "Admin"]
 
+# 1. Aseguramos que la variable exista
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-# Calculamos el índice dinámicamente para que el radio se mueva solo
+# 2. CALCULAMOS EL ÍNDICE (Esto es lo que hace que el marcador se mueva solo)
 try:
-    indice_actual = opciones_menu.index(st.session_state.menu_seleccionado)
+    # Si st.session_state.menu_seleccionado es "Nueva Partida", esto valdrá 1
+    indice_seccion = opciones_menu.index(st.session_state.menu_seleccionado)
 except ValueError:
-    indice_actual = 0
+    indice_seccion = 0
 
 with st.sidebar:
-    st.title("⛳ Menú")
-    # El parámetro 'index' es la clave para que la pantalla cambie
-    seleccion = st.radio("Ir a:", opciones_menu, index=indice_actual, key="nav_radio")
+    st.title("⛳ Menú Principal")
+    
+    # 3. CRÍTICO: Usar el parámetro 'index'
+    seleccion = st.radio(
+        "Ir a:",
+        opciones_menu,
+        index=indice_seccion, # <-- Esto obliga al menú a saltar
+        key="navegacion_radio"
+    )
+    
+    # 4. Actualizamos el estado con lo que el usuario pulse manualmente
     st.session_state.menu_seleccionado = seleccion
-
 
 # --- LÓGICA DE DATOS ---
 @st.cache_data(ttl=60)
