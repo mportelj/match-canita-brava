@@ -571,8 +571,8 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             type="primary",
             disabled=boton_deshabilitado
         ):
-        ejecutar_guardado_automatico(hoyo_actual, v0, v1, v2, v3)
-        st.rerun()
+            ejecutar_guardado_automatico(hoyo_actual, v0, v1, v2, v3)
+            st.rerun()
 
         # Feedback visual para el usuario
         if ya_guardado and not cambios_detectados:
