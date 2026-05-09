@@ -263,31 +263,29 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
 # --- 3. NAVEGACIÓN ---
 # --- CONFIGURACIÓN DEL MENÚ LATERAL ---
 # --- CONFIGURACIÓN DEL MENÚ (Parte superior del script) ---
+# --- CONFIGURACIÓN DEL MENÚ ---
 opciones_menu = ["Inicio", "Nueva Partida", "Estadísticas", "Admin"]
 
-# Si el estado no existe, inicializamos
+# 1. Asegurar que exista la variable en el estado
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-# BUSCAMOS EL ÍNDICE BASÁNDONOS EN EL ESTADO ACTUAL
-# Si el botón de Admin cambió el estado a "Nueva Partida", 
-# el index será 1 automáticamente.
+# 2. Calcular el índice ANTES de dibujar el radio
 try:
-    idx_actual = opciones_menu.index(st.session_state.menu_seleccionado)
+    indice_actual = opciones_menu.index(st.session_state.menu_seleccionado)
 except ValueError:
-    idx_actual = 0
+    indice_actual = 0
 
 with st.sidebar:
     st.title("⛳ Match Play")
-    # IMPORTANTE: El radio debe usar el index calculado para "saltar" de sección
+    # El radio DEBE tener el index=indice_actual para obedecer al botón Editar
     seleccion = st.radio(
         "Navegación",
         opciones_menu,
-        index=idx_actual,
-        key="menu_radio_persistente"
+        index=indice_actual,
+        key="menu_radio_principal"
     )
-    
-    # Actualizamos el estado con lo que el usuario pulse manualmente
+    # Actualizamos el estado con la selección (manual o automática)
     st.session_state.menu_seleccionado = seleccion
     
 df_raw = leer_datos()
@@ -734,17 +732,21 @@ elif st.session_state.menu_seleccionado == "Admin":
                 c1, c2 = st.columns(2)
                 with c1:
                     # CLAVE DEL ERROR: El nombre del menú y el objeto 'game'
-                    if st.button(f"✏️ Editar Partido", key=f"ed_{p_id}"):
-                        # 1. Creamos el objeto game para que 'Nueva Partida' lo reconozca
+                    # Dentro del bucle de partidos en Admin
+                    if st.button(f"✏️ Editar", key=f"ed_{p_id}"):
+                    # PASO 1: Cargar datos del partido
                         st.session_state.game = {
-                            "id": str(p_id),
-                            "fecha": f_disp,
-                            "temporada": datos_jornada['temporada'].iloc[0] if 'temporada' in datos_jornada.columns else "2026",
-                            "h_sel": 1
+                        "id": str(p_id), 
+                        "fecha": f_disp,
+                        "temporada": datos_jornada['temporada'].iloc[0] if 'temporada' in datos_jornada.columns else "2026",
+                        "h_sel": 1
                         }
-                        # 2. Redirigimos a la sección exacta del menú
-                        st.session_state.menu_seleccionado = "Nueva Partida"
-                        st.rerun()
+    
+    # PASO 2: Cambiar el menú a "Nueva Partida" (Debe ser idéntico al texto del radio)
+    st.session_state.menu_seleccionado = "Nueva Partida"
+    
+    # PASO 3: Forzar recarga
+    st.rerun()
                 
                 with c2:
                     conf = st.checkbox("Confirmar borrar", key=f"ch_{p_id}")
