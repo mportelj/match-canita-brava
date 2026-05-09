@@ -683,18 +683,80 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 # SECCIÓN: ADMIN
 # ==========================================
 
-# Dentro del bucle de partidos en Admin
-if st.button(f"✏️ Editar", key=f"ed_{p_id}"):
-    # PASO 1: Cargar datos del partido
-    st.session_state.game = {
-        "id": str(p_id), 
-        "fecha": f_disp,
-        "temporada": datos_jornada['temporada'].iloc[0] if 'temporada' in datos_jornada.columns else "2026",
-        "h_sel": 1
-    }
-    
-    # PASO 2: Cambiar el menú a "Nueva Partida" (Debe ser idéntico al texto del radio)
-    st.session_state.menu_seleccionado = "Nueva Partida"
-    
-    # PASO 3: Forzar recarga
-    st.rerun()
+elif st.session_state.menu_seleccionado == "Admin":
+    st.title("⚙️ Panel de Administración")
+    
+    df = leer_datos()
+
+    if df is None or df.empty:
+        st.warning("No hay datos registrados en la base de datos.")
+    else:
+        # 1. LIMPIEZA DE DATOS: Aseguramos que los puntos grabados sean números
+        columnas_numericas = ['resultado_a', 'resultado_b', 's0', 's1', 's2', 's3', 'hoyo']
+        for col in columnas_numericas:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
+        # Normalización de fecha para agrupar
+        df['fecha_str'] = df['fecha'].astype(str).apply(lambda x: x.split(' ')[0].strip())
+        def formatear_fecha(f):
+            try: return pd.to_datetime(f, dayfirst=True).strftime('%d/%m/%Y')
+            except: return f
+        df['fecha_bonita'] = df['fecha_str'].apply(formatear_fecha)
+        
+        partidos = df.groupby('fecha_bonita')
+        fechas_ordenadas = sorted(partidos.groups.keys(), 
+                                key=lambda x: pd.to_datetime(x, format='%d/%m/%Y'), 
+                                reverse=True)
+
+        # 2. RENDERIZADO DE CADA JORNADA
+        for f_disp in fechas_ordenadas:
+            datos_jornada = partidos.get_group(f_disp)
+            num_hoyos = len(datos_jornada['hoyo'].unique())
+            
+            # --- CÁLCULO DIRECTO DESDE LAS COLUMNAS GRABADAS ---
+            # Sumamos los valores que ya están escritos en la hoja
+            suma_a = datos_jornada['resultado_a'].sum()
+            suma_b = datos_jornada['resultado_b'].sum()
+            
+            # Aplicamos la resta neta para el marcador Match Play
+            diferencia = suma_a - suma_b
+            
+            if diferencia > 18: diferencia = 18 # Capamos a 18 si fuera necesario
+            
+            if diferencia > 0:
+                m_a, m_b = int(diferencia), 0
+                match_txt = f"MANU & JOSE: {m_a} vs ROGE & LALO: 0"
+            elif diferencia < 0:
+                m_a, m_b = 0, int(abs(diferencia))
+                match_txt = f"MANU & JOSE: 0 vs ROGE & LALO: {m_b}"
+            else:
+                m_a, m_b = 0, 0
+                match_txt = "EMPATE (All Square)"
+
+            # --- DISEÑO DEL PANEL ---
+            with st.expander(f"📅 {f_disp} — {num_hoyos} Hoyos — [ {match_txt} ]"):
+                st.markdown(f"**Resultado Acumulado:** `{match_txt}`")
+                
+                # Tabla con los golpes (s0-s3) mapeados a los nombres
+                # s0:MANU, s1:JOSE, s2:ROGE, s3:LALO
+                tabla_vista = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values('hoyo')
+                tabla_vista.columns = ['Hoyo', 'MANU', 'JOSE', 'ROGE', 'LALO']
+                
+                st.dataframe(tabla_vista, hide_index=True, use_container_width=True)
+
+                # BOTONES DE ACCIÓN
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button(f"✏️ Editar", key=f"ed_{f_disp}"):
+                        st.session_state.fecha_partida = pd.to_datetime(f_disp, dayfirst=True)
+                        st.session_state.menu_seleccionado = "Jugar/Editar"
+                        st.rerun()
+                with c2:
+                    conf = st.checkbox("Confirmar borrar", key=f"ch_{f_disp}")
+                    if st.button(f"🗑️ Borrar", key=f"del_{f_disp}", disabled=not conf, type="primary"):
+                        # Aquí iría tu lógica de borrar filas por fecha en el Sheets
+                        st.warning("Función de borrado no conectada")
+
+    if st.button("🔄 Refrescar"):
+        st.rerun()
