@@ -261,10 +261,27 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
 
 
 # --- 3. NAVEGACIÓN ---
-menu = st.sidebar.radio("Ir a:", ["Inicio", "Nueva Partida", "Estadísticas", "Admin"], 
-                       index=["Inicio", "Nueva Partida", "Estadísticas", "Admin"].index(st.session_state.menu_seleccionado),
-                       key="radio_menu", on_change=cambiar_menu)
+# 1. Definimos las opciones en una variable para evitar errores de escritura
+opciones = ["Inicio", "Nueva Partida", "Estadísticas", "Admin"]
 
+# 2. Verificación de seguridad: si el menú no existe o es inválido, forzamos "Inicio"
+if 'menu_seleccionado' not in st.session_state or st.session_state.menu_seleccionado not in opciones:
+    st.session_state.menu_seleccionado = "Inicio"
+
+# 3. Calculamos el índice de forma segura
+indice_seguro = opciones.index(st.session_state.menu_seleccionado)
+
+# 4. Tu componente de menú (ejemplo con st.sidebar.option_menu o selectbox)
+# Asegúrate de usar 'index=indice_seguro'
+with st.sidebar:
+    seleccion = st.selectbox(
+        "Menú de Navegación",
+        opciones,
+        index=indice_seguro,
+        key="menu_app" # Añadir una key fija ayuda a mantener el estado
+    )
+    # Actualizamos el estado con la nueva selección
+    st.session_state.menu_seleccionado = seleccion
 
 df_raw = leer_datos()
 
