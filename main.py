@@ -33,6 +33,32 @@ if 'sh' not in st.session_state:
 
 sh = st.session_state.sh
 
+# --- 1. CONFIGURACIÓN DEL MENÚ (AL PRINCIPIO DEL SCRIPT) ---
+opciones_menu = ["Inicio", "Nueva Partida", "Estadísticas", "Admin"]
+
+# Inicializar el estado si no existe
+if 'menu_seleccionado' not in st.session_state:
+    st.session_state.menu_seleccionado = "Inicio"
+
+# BUSCAR EL ÍNDICE ACTUAL: 
+# Si el botón Editar cambió el estado a "Nueva Partida", esto valdrá 1.
+try:
+    indice_seccion = opciones_menu.index(st.session_state.menu_seleccionado)
+except ValueError:
+    indice_seccion = 0
+
+with st.sidebar:
+    st.title("⛳ Menú Principal")
+    # CRÍTICO: El index debe ser igual a indice_seccion
+    seleccion = st.radio(
+        "Ir a:",
+        opciones_menu,
+        index=indice_seccion,
+        key="navegacion_radio"
+    )
+    # Actualizamos el estado con lo que el usuario elija manualmente
+    st.session_state.menu_seleccionado = seleccion
+
 # --- INICIALIZACIÓN GLOBAL (Al principio de tu main.py) ---
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
@@ -259,29 +285,6 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     except Exception as e:
         st.error(f"Error al editar/guardar: {e}")
 
-
-# --- 3. NAVEGACIÓN ---
-# --- CONFIGURACIÓN GLOBAL DE NAVEGACIÓN ---
-
-opciones = ["Inicio", "Nueva Partida", "Estadísticas", "Admin"]
-
-# Si la variable no existe, la creamos
-if 'menu_seleccionado' not in st.session_state:
-    st.session_state.menu_seleccionado = "Inicio"
-
-# Calculamos el índice basándonos en el estado actual
-# Esto es lo que permite que el botón de Editar mueva el selector solo
-try:
-    idx_actual = opciones.index(st.session_state.menu_seleccionado)
-except ValueError:
-    idx_actual = 0
-
-with st.sidebar:
-    st.title("⛳ Menú")
-    # El radio DEBE usar el 'index=idx_actual'
-    seleccion = st.radio("Navegación", opciones, index=idx_actual, key="nav_radio")
-    # Actualizamos el estado con la selección del usuario
-    st.session_state.menu_seleccionado = seleccion
     
 df_raw = leer_datos()
 
