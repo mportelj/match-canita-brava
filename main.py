@@ -198,68 +198,66 @@ def leer_datos():
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     try:
-        # 1. Verificación de conexión
-        if 'sh' not in st.session_state:
-            st.error("No hay conexión con la hoja de cálculo.")
-            return
         hoja = st.session_state.sh
         g = st.session_state.game
         
-        # 2. Cálculos Match Play
+        # 1. Cálculos Match Play
         res_a, res_b = min(g0, g1), min(g2, g3)
         p_a = 1 if res_a < res_b else (0.5 if res_a == res_b else 0)
         p_b = 1 if res_b < res_a else (0.5 if res_a == res_b else 0)
-        
-        # 3. Preparar la fila (15 campos exactos)
-        # --- CONSTRUCCIÓN DE LA FILA PARA MANTENER COHERENCIA ---
-        # 1. Forzamos el .0 en el partido_id para que sea idéntico al histórico
-        id_con_decimal = f"{float(g['id']):.1f}" 
-        
+
+        # 2. Normalizamos el ID del partido para la búsqueda y el guardado
+        # Forzamos el .0 para que coincida con el histórico de tus imágenes
+        id_partido_busqueda = f"{float(g['id']):.1f}"
+
+        # 3. Construimos la nueva fila con el formato histórico
         nueva_fila = [
-            f"{id_con_decimal}_H{hoyo_id}", # A: id (Ej: 202605...0_H1)
-            id_con_decimal,                 # B: partido_id (Ej: 202605...0)
-            int(hoyo_id),                   # C: hoyo
-            str(g['fecha']),                # D: fecha
-            str(g['temporada']),            # E: temporada
-            float(p_a),                     # F: resultado_a
-            float(p_b),                     # G: resultado_b
-            0.0, 0.0, 0.0, 0.0,             # H-K: puntos con decimales
-            int(g0), int(g1),               # L, M: s0, s1
-            int(g2), int(g3)                # N, O: s2, s3
+            f"{id_partido_busqueda}_H{hoyo_id}", # A: id (Ej: ...0_H1)
+            id_partido_busqueda,                 # B: partido_id (Ej: ...0)
+            int(hoyo_id),                        # C: hoyo
+            str(g['fecha']),                     # D: fecha
+            str(g['temporada']),                 # E: temporada
+            float(p_a), float(p_b),              # F, G: resultados
+            0.0, 0.0, 0.0, 0.0,                  # H-K: puntos
+            int(g0), int(g1),                    # L, M: s0, s1
+            int(g2), int(g3)                     # N, O: s2, s3
         ]
 
-        # 4. Obtener datos y filtrar (Protección contra fallos de lectura)
-        try:
-            todo = hoja.get_all_values()
-            headers = todo[0]
-            
-            # Filtro estricto: eliminamos solo si coincide PARTIDO Y HOYO
-            datos_finales = []
-            for fila in todo[1:]:
-                if len(fila) >= 3:
-                    mismo_partido = str(fila[1]) == str(g['id'])
-                    mismo_hoyo = str(fila[2]) == str(hoyo_id)
-                    if not (mismo_partido and mismo_hoyo):
-                        datos_finales.append(fila)
-            
-            datos_finales.append(nueva_fila)
-            # Ordenar por Partido y luego por Hoyo
-            datos_finales.sort(key=lambda x: (str(x[1]), int(x[2])))
-            
-            # 5. Escritura Atómica
-            hoja.clear()
-            hoja.update('A1', [headers] + datos_finales)
-            
-        except Exception as e_inner:
-            # Plan B: Si la limpieza falla, simplemente añade la fila al final
-            st.warning("Error en limpieza de duplicados, usando modo seguro (append)...")
-            hoja.append_row(nueva_fila)
+        # 4. LEER Y FILTRAR (Aquí es donde evitamos la duplicación)
+        filas = hoja.get_all_values()
+        header = filas[0]
+        datos_restantes = []
 
-        st.toast(f"✅ Hoyo {hoyo_id} guardado correctamente")
+        for f in filas[1:]:
+            if len(f) > 2:
+                # Comparamos quitando espacios y forzando float en ambos lados para seguridad
+                try:
+                    f_partido_id = f"{float(f[1]):.1f}"
+                    f_hoyo = int(f[2])
+                    
+                    # SI ES EL MISMO PARTIDO Y MISMO HOYO, NO LO AÑADIMOS (se borrará)
+                    if f_partido_id == id_partido_busqueda and f_hoyo == int(hoyo_id):
+                        continue 
+                except:
+                    pass
+                
+                datos_restantes.append(f)
+
+        # 5. Añadimos la fila editada
+        datos_restantes.append(nueva_fila)
+        
+        # 6. Ordenamos para que no se desordene el Excel
+        datos_restantes.sort(key=lambda x: (str(x[1]), int(x[2])))
+
+        # 7. Actualización atómica
+        hoja.clear()
+        hoja.update('A1', [header] + datos_restantes)
+        
+        st.toast(f"✅ Hoyo {hoyo_id} actualizado con éxito")
         st.cache_data.clear()
 
     except Exception as e:
-        st.error(f"❌ Error crítico al grabar: {e}")
+        st.error(f"Error al editar/guardar: {e}")
 
 
 # --- 3. NAVEGACIÓN ---
