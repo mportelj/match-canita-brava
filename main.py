@@ -312,21 +312,24 @@ if st.session_state.menu_seleccionado == "Inicio":
 elif st.session_state.menu_seleccionado == "Nueva Partida":
     st.title("🗓️ Nueva Partida")
     
-    # El componente st.date_input usa por defecto el formato local del navegador,
-    # pero podemos forzar la visualización en el éxito del registro.
-    fecha_dt = st.date_input("Fecha del Encuentro:", value=pd.Timestamp.now())
-    
-    # Convertimos la fecha al formato que quieres: dd/mm/aaaa
-    fecha_formateada = fecha_dt.strftime('%d/%m/%Y')
+    # El truco está en el parámetro 'format'
+    # Esto fuerza al componente visual a mostrarse como 09/05/2026
+    fecha_dt = st.date_input(
+        "Fecha del Encuentro:", 
+        value=pd.Timestamp.now(),
+        format="DD/MM/YYYY"  # <--- ESTO cambia lo que ve el usuario
+    )
     
     st.write("") 
     
     if st.button("🚀 COMENZAR PARTIDO", use_container_width=True):
-        # Reseteamos los golpes en el session_state
+        # Convertimos a string para guardarlo en tu Excel/DB
+        fecha_formateada = fecha_dt.strftime('%d/%m/%Y')
+        
+        # Reseteamos los golpes
         for i in range(len(TODOS)):
             st.session_state[f'jugador_{i}_golpes'] = {} 
         
-        # Guardamos en el estado con el formato dd/mm/aaaa para que así viaje a la base de datos/Excel
         st.session_state.fecha_actual = fecha_formateada
         st.session_state.partida_iniciada = True
         
