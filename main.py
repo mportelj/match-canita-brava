@@ -293,14 +293,7 @@ if df_raw is not None and not df_raw.empty:
 if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
-#-----------
-try:
-    # Intenta escribir la hora en una celda lejana (Z1)
-    sh.update_acell('Z1', f"Last Sync: {datetime.now().strftime('%H:%M:%S')}")
-    st.sidebar.success(f"Conectado a: {sh.title}")
-except Exception as e:
-    st.sidebar.error(f"Error de enlace: {e}")
-#-------
+
     
     # Definimos la temporada actual
     anio_actual = 2026
