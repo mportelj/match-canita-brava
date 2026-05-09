@@ -198,56 +198,64 @@ def leer_datos():
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     try:
+        # 1. Verificación de conexión
+        if 'sh' not in st.session_state:
+            st.error("No hay conexión con la hoja de cálculo.")
+            return
         hoja = st.session_state.sh
         g = st.session_state.game
         
-        # ... (tus cálculos de p_a, p_b, etc.) ...
-
-        # 1. Obtenemos todos los datos actuales de la hoja
-        filas = hoja.get_all_values()
-        header = filas[0]
+        # 2. Cálculos Match Play
+        res_a, res_b = min(g0, g1), min(g2, g3)
+        p_a = 1 if res_a < res_b else (0.5 if res_a == res_b else 0)
+        p_b = 1 if res_b < res_a else (0.5 if res_a == res_b else 0)
         
-        # 2. FILTRO CRÍTICO: 
-        # Mantenemos las filas que:
-        # - Sean de OTRO partido 
-        # - O sean de este partido pero de OTRO hoyo
-        datos_limpios = []
-        for f in filas[1:]:
-            if len(f) > 2:
-                es_mismo_partido = str(f[1]) == str(g['id'])
-                es_mismo_hoyo = str(f[2]) == str(hoyo_id)
-                
-                # Solo descartamos si coinciden AMBAS (mismo partido y mismo hoyo)
-                if not (es_mismo_partido and es_mismo_hoyo):
-                    datos_limpios.append(f)
-        
-        # 3. Añadimos la nueva fila
+        # 3. Preparar la fila (15 campos exactos)
         nueva_fila = [
-            f"{g['id']}_{hoyo_id}", # id único (A)
-            str(g['id']),           # partido_id (B)
-            int(hoyo_id),           # hoyo (C)
-            g['fecha'],             # fecha (D)
-            g['temporada'],         # temporada (E)
-            p_a, p_b,               # res_a, res_b (F, G)
-            0, 0, 0, 0,             # pts individuales (H, I, J, K)
-            int(g0), int(g1),       # s0, s1 (L, M)
-            int(g2), int(g3)        # s2, s3 (N, O)
+            f"{g['id']}_{hoyo_id}", # A: id único
+            str(g['id']),           # B: partido_id
+            int(hoyo_id),           # C: hoyo
+            g['fecha'],             # D: fecha
+            g['temporada'],         # E: temporada
+            p_a, p_b,               # F, G: resultados
+            0, 0, 0, 0,             # H-K: p_pts
+            int(g0), int(g1),       # L, M: s0, s1
+            int(g2), int(g3)        # N, O: s2, s3
         ]
-        datos_limpios.append(nueva_fila)
-        
-        # 4. Ordenar: Primero por fecha/ID de partido y luego por hoyo
-        # Esto evita que los hoyos nuevos se mezclen con los viejos
-        datos_limpios.sort(key=lambda x: (str(x[1]), int(x[2])))
 
-        # 5. Subida limpia
-        hoja.clear()
-        hoja.update('A1', [header] + datos_limpios)
-        
-        st.toast(f"✅ Hoyo {hoyo_id} guardado en partida {g['id']}")
+        # 4. Obtener datos y filtrar (Protección contra fallos de lectura)
+        try:
+            todo = hoja.get_all_values()
+            headers = todo[0]
+            
+            # Filtro estricto: eliminamos solo si coincide PARTIDO Y HOYO
+            datos_finales = []
+            for fila in todo[1:]:
+                if len(fila) >= 3:
+                    mismo_partido = str(fila[1]) == str(g['id'])
+                    mismo_hoyo = str(fila[2]) == str(hoyo_id)
+                    if not (mismo_partido and mismo_hoyo):
+                        datos_finales.append(fila)
+            
+            datos_finales.append(nueva_fila)
+            # Ordenar por Partido y luego por Hoyo
+            datos_finales.sort(key=lambda x: (str(x[1]), int(x[2])))
+            
+            # 5. Escritura Atómica
+            hoja.clear()
+            hoja.update('A1', [headers] + datos_finales)
+            
+        except Exception as e_inner:
+            # Plan B: Si la limpieza falla, simplemente añade la fila al final
+            st.warning("Error en limpieza de duplicados, usando modo seguro (append)...")
+            hoja.append_row(nueva_fila)
+
+        st.toast(f"✅ Hoyo {hoyo_id} guardado correctamente")
         st.cache_data.clear()
 
     except Exception as e:
-        st.error(f"Error al guardar: {e}")
+        st.error(f"❌ Error crítico al grabar: {e}")
+
 
 # --- 3. NAVEGACIÓN ---
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Nueva Partida", "Estadísticas", "Admin"], 
