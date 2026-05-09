@@ -210,75 +210,66 @@ def leer_datos():
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     """
-    Procesa y guarda los golpes de un hoyo en Google Sheets.
-    g0, g1: Golpes Equipo A (Manu & Jose)
-    g2, g3: Golpes Equipo B (Roge & Lalo)
+    Graba los golpes utilizando gspread.
     """
     try:
-        # --- 1. CÁLCULO DE MEJORES RESULTADOS ---
-        # Obtenemos el mejor resultado (mínimo) de cada pareja
+        # 1. Lógica de Puntos (Match Play: Empate = 0)
         res_a = min(g0, g1)
         res_b = min(g2, g3)
-
-        # --- 2. LÓGICA MATCH PLAY (REGLA: Empate no suma) ---
-        # Solo se suma 1 punto si ganas el hoyo. 
-        # Si empatan (res_a == res_b), ambos se quedan con 0.
         p_a = 1 if res_a < res_b else 0
         p_b = 1 if res_b < res_a else 0
 
-        # --- 3. PREPARACIÓN DE DATOS PARA GOOGLE SHEETS ---
-        # Obtenemos los datos de la partida actual desde el session_state
+        # 2. Obtener datos actuales y limpiar caché
+        st.cache_data.clear()
+        df = leer_datos() 
+        
+        if df is None:
+            st.error("No se pudo leer la base de datos.")
+            return
+
+        # Limpieza de columnas para evitar errores de búsqueda
+        df.columns = [str(c).strip() for c in df.columns]
+        
         g = st.session_state.game
         partido_id = str(g['id'])
-        fecha = g['fecha']
 
-        # Creamos la fila con el formato exacto de tu base de datos
-        # partido_id | fecha | hoyo | s0 | s1 | s2 | s3 | resultado_a | resultado_b
-        nueva_fila = [
-            partido_id, 
-            fecha, 
-            int(hoyo_id), 
-            int(g0), 
-            int(g1), 
-            int(g2), 
-            int(g3), 
-            float(p_a), 
-            float(p_b)
-        ]
+        # 3. Preparar la nueva fila
+        nueva_fila_dict = {
+            'partido_id': partido_id,
+            'fecha': g['fecha'],
+            'hoyo': int(hoyo_id),
+            's0': int(g0),
+            's1': int(g1),
+            's2': int(g2),
+            's3': int(g3),
+            'resultado_a': float(p_a),
+            'resultado_b': float(p_b)
+        }
 
-        # --- 4. EJECUCIÓN DEL GUARDADO ---
-        # Leemos todos los datos para encontrar si el hoyo ya existe y sobreescribirlo
-        df = leer_datos()
+        # 4. Actualizar el DataFrame en memoria
+        # Eliminamos si ya existe el hoyo para este partido (evita duplicados)
+        df = df[~((df['partido_id'].astype(str) == partido_id) & 
+                  (df['hoyo'].astype(int) == int(hoyo_id)))]
         
-        if df is not None and not df.empty:
-            # Limpiamos columnas por seguridad
-            df.columns = [str(c).strip() for c in df.columns]
-            
-            # Buscamos si ya existe el hoyo para este partido
-            mascara = (df['partido_id'].astype(str) == partido_id) & (df['hoyo'].astype(int) == int(hoyo_id))
-            
-            if mascara.any():
-                # Si existe, eliminamos la fila vieja para insertar la nueva
-                df = df[~mascara]
-            
-            # Añadimos la nueva fila
-            df_nueva = pd.DataFrame([nueva_fila], columns=df.columns)
-            df = pd.concat([df, df_nueva], ignore_index=True)
-        else:
-            # Si el archivo está vacío, creamos el DataFrame con las columnas necesarias
-            columnas = ['partido_id', 'fecha', 'hoyo', 's0', 's1', 's2', 's3', 'resultado_a', 'resultado_b']
-            df = pd.DataFrame([nueva_fila], columns=columnas)
+        # Añadimos la fila nueva
+        df = pd.concat([df, pd.DataFrame([nueva_fila_dict])], ignore_index=True)
 
-        # --- 5. ESCRITURA FINAL ---
-        # Llamas a tu función de conexión que escribe el dataframe en Google Sheets
-        # Ejemplo: conn.update(worksheet="Hoja1", data=df)
-        actualizar_base_de_datos(df) 
+        # --- 5. GRABACIÓN REAL EN GOOGLE SHEETS (GSPREAD) ---
+        # Suponiendo que tu objeto de hoja se llama 'sh' o lo obtienes así:
+        # client = gspread.authorize(creds)
+        # sh = client.open("NombreDeTuExcel").sheet1
         
-        # Nota: He eliminado la llamada a 'calcular_puntos_hoyo(s, h)' 
-        # porque la lógica ya está integrada aquí arriba de forma segura.
+        # Convertir DataFrame a lista de listas (incluyendo cabeceras) para gspread
+        datos_a_enviar = [df.columns.values.tolist()] + df.values.tolist()
+        
+        # IMPORTANTE: Reemplaza 'sh' por tu variable global o local de la hoja
+        sh.update('A1', datos_a_enviar) 
+        
+        st.success(f"✅ Hoyo {hoyo_id} grabado en Google Sheets")
 
     except Exception as e:
-        st.error(f"Error al guardar los datos: {e}")
+        st.error(f"❌ Error al grabar con gspread: {e}")
+
 
 # --- 3. NAVEGACIÓN ---
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Nueva Partida", "Estadísticas", "Admin"], 
