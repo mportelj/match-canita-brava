@@ -683,75 +683,18 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 # SECCIÓN: ADMIN
 # ==========================================
 
-elif st.session_state.menu_seleccionado == "Admin":
-    st.title("⚙️ Panel de Administración")
+# Dentro del bucle de partidos en Admin
+if st.button(f"✏️ Editar", key=f"ed_{p_id}"):
+    # PASO 1: Cargar datos del partido
+    st.session_state.game = {
+        "id": str(p_id), 
+        "fecha": f_disp,
+        "temporada": datos_jornada['temporada'].iloc[0] if 'temporada' in datos_jornada.columns else "2026",
+        "h_sel": 1
+    }
     
-    df = leer_datos()
-
-    if df is None or df.empty:
-        st.warning("No hay datos registrados en la base de datos.")
-    else:
-        # 1. LIMPIEZA Y NORMALIZACIÓN
-        columnas_numericas = ['resultado_a', 'resultado_b', 's0', 's1', 's2', 's3', 'hoyo']
-        for col in columnas_numericas:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-
-        # Usamos 'partido_id' para agrupar, ya que es el identificador único real
-        # Si no existe, usamos la fecha como respaldo
-        grupo_col = 'partido_id' if 'partido_id' in df.columns else 'fecha'
-        partidos = df.groupby(grupo_col)
-        
-        # Ordenamos por fecha (asumiendo que el ID contiene la fecha YYYYMMDD...)
-        ids_ordenados = sorted(partidos.groups.keys(), reverse=True)
-
-        # 2. RENDERIZADO DE PARTIDOS
-        for p_id in ids_ordenados:
-            datos_jornada = partidos.get_group(p_id)
-            f_disp = datos_jornada['fecha'].iloc[0]
-            num_hoyos = len(datos_jornada['hoyo'].unique())
-            
-            suma_a = datos_jornada['resultado_a'].sum()
-            suma_b = datos_jornada['resultado_b'].sum()
-            diferencia = suma_a - suma_b
-            
-            # Formateo de texto del marcador
-            if diferencia > 0:
-                match_txt = f"MANU & JOSE: {int(diferencia)} Up"
-            elif diferencia < 0:
-                match_txt = f"ROGE & LALO: {int(abs(diferencia))} Up"
-            else:
-                match_txt = "All Square"
-
-            with st.expander(f"📅 {f_disp} — {num_hoyos} Hoyos — [ {match_txt} ]"):
-                tabla_vista = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values('hoyo')
-                tabla_vista.columns = ['Hoyo', 'MANU', 'JOSE', 'ROGE', 'LALO']
-                st.dataframe(tabla_vista, hide_index=True, use_container_width=True)
-
-                # BOTONES DE ACCIÓN
-                c1, c2 = st.columns(2)
-                with c1:
-                    # CLAVE DEL ERROR: El nombre del menú y el objeto 'game'
-                    # Dentro del bucle de partidos en Admin
-                    if st.button(f"✏️ Editar", key=f"ed_{p_id}"):
-                    # PASO 1: Cargar datos del partido
-                        st.session_state.game = {
-                        "id": str(p_id), 
-                        "fecha": f_disp,
-                        "temporada": datos_jornada['temporada'].iloc[0] if 'temporada' in datos_jornada.columns else "2026",
-                        "h_sel": 1
-                        }
+    # PASO 2: Cambiar el menú a "Nueva Partida" (Debe ser idéntico al texto del radio)
+    st.session_state.menu_seleccionado = "Nueva Partida"
     
-                    # PASO 2: Cambiar el menú a "Nueva Partida" (Debe ser idéntico al texto del radio)
-                    st.session_state.menu_seleccionado = "Nueva Partida"
-    
-                    # PASO 3: Forzar recarga
-                    st.rerun()
-                
-                with c2:
-                    conf = st.checkbox("Confirmar borrar", key=f"ch_{p_id}")
-                    if st.button(f"🗑️ Borrar", key=f"del_{p_id}", disabled=not conf, type="primary"):
-                        st.error("Función de borrado en desarrollo")
-
-    if st.button("🔄 Refrescar"):
-        st.rerun()
+    # PASO 3: Forzar recarga
+    st.rerun()
