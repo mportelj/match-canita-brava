@@ -241,82 +241,74 @@ def leer_datos():
 
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
-    # ... (inicio de la función igual) ...
-    
-    par_actual = PAR_RIA_VIGO[int(hoyo_id)]
-    
-    # Calculamos puntos usando la función corregida de arriba
-    # IMPORTANTE: El orden de los jugadores debe ser el correcto
-    p_e1, p_e2 = calcular_puntos_hoyo(g0, g2, g1, g3, par_actual)
+    try:
+        hoja = st.session_state.sh
+        g = st.session_state.game
+        
+        # 1. CÁLCULO DE PUNTOS (Match Play + Calidad)
+        par_hoyo = PAR_RIA_VIGO[int(hoyo_id)]
+        
+        # Marcador Match Play Parejas (Columnas F y G)
+        res_a, res_b = min(g0, g1), min(g2, g3)
+        p_match_a = 1 if res_a < res_b else (0.5 if res_a == res_b else 0)
+        p_match_b = 1 if res_b < res_a else (0.5 if res_a == res_b else 0)
 
-    # El resultado del Match (Parejas) se mantiene para las columnas F y G
-    res_a, res_b = min(g0, g1), min(g2, g3)
-    match_a = 1 if res_a < res_b else (0.5 if res_a == res_b else 0)
-    match_b = 1 if res_b < res_a else (0.5 if res_a == res_b else 0)
+        # Puntos de Calidad (Bonus)
+        def calc_bonus(golpes, p):
+            dif = golpes - p
+            if dif <= -3: return 3 # Albatros
+            if dif == -2: return 2 # Eagle
+            if dif == -1: return 1 # Birdie
+            return 0
 
-    # --- AQUÍ ESTÁ EL CAMBIO EN LA FILA ---
-    nueva_fila = [
-        f"{id_partido_busqueda}_H{hoyo_id}", 
-        id_partido_busqueda,                 
-        int(hoyo_id),                        
-        str(g['fecha']),                     
-        str(g['temporada']),                 
-        float(match_a), float(match_b),      # Columnas F, G (Match)
-        float(p_e1), float(p_e1),            # Columnas H, I (Puntos Equipo A con Bonus)
-        float(p_e2), float(p_e2),            # Columnas J, K (Puntos Equipo B con Bonus)
-        int(g0), int(g1),                    
-        int(g2), int(g3)                     
+        # Puntos Totales (Match + Bonus de cada jugador)
+        pts_e1 = p_match_a + calc_bonus(g0, par_hoyo) + calc_bonus(g1, par_hoyo)
+        pts_e2 = p_match_b + calc_bonus(g2, par_hoyo) + calc_bonus(g3, par_hoyo)
+
+        # 2. Normalizar ID
+        id_partido_busqueda = f"{float(g['id']):.1f}"
+
+        # 3. Construcción de la Fila
+        nueva_fila = [
+            f"{id_partido_busqueda}_H{hoyo_id}", 
+            id_partido_busqueda,                 
+            int(hoyo_id),                        
+            str(g['fecha']),                     
+            str(g['temporada']),                 
+            float(p_match_a), float(p_match_b),  # F, G
+            float(pts_e1), float(pts_e1),        # H, I (MVP Equipo A)
+            float(pts_e2), float(pts_e2),        # J, K (MVP Equipo B)
+            int(g0), int(g1),                    # L, M
+            int(g2), int(g3)                     # N, O
         ]
 
-        # 4. LEER Y FILTRAR (Aquí es donde evitamos la duplicación)
+        # 4. Leer y Actualizar
         filas = hoja.get_all_values()
         header = filas[0]
         datos_restantes = []
 
         for f in filas[1:]:
             if len(f) > 2:
-                # Comparamos quitando espacios y forzando float en ambos lados para seguridad
                 try:
                     f_partido_id = f"{float(f[1]):.1f}"
                     f_hoyo = int(f[2])
-                    
-                    # SI ES EL MISMO PARTIDO Y MISMO HOYO, NO LO AÑADIMOS (se borrará)
                     if f_partido_id == id_partido_busqueda and f_hoyo == int(hoyo_id):
                         continue 
                 except:
                     pass
-                
-                datos_restantes.append(f)
+            datos_restantes.append(f)
 
-        # 5. Añadimos la fila editada
         datos_restantes.append(nueva_fila)
-        
-        # 6. Ordenamos para que no se desordene el Excel
         datos_restantes.sort(key=lambda x: (str(x[1]), int(x[2])))
 
-        # 7. Actualización atómica
         hoja.clear()
         hoja.update('A1', [header] + datos_restantes)
         
-        st.toast(f"✅ Hoyo {hoyo_id} actualizado con éxito")
+        st.toast(f"✅ Hoyo {hoyo_id} guardado con Bonus")
         st.cache_data.clear()
 
     except Exception as e:
-        st.error(f"Error al editar/guardar: {e}")
-
-if df_raw is not None and not df_raw.empty:
-    # --- CÁLCULO DEL MARCADOR DE LA TEMPORADA (4.5 vs 3.5) ---
-    # Agrupamos por fecha y sumamos los resultados de cada pareja en cada jornada
-    jornadas_totales = df_raw.groupby('fecha')[['resultado_a', 'resultado_b']].sum()
-    
-    # Calculamos los puntos: 1 por ganar jornada, 0.5 por empate
-    marcador_global_a = (jornadas_totales['resultado_a'] > jornadas_totales['resultado_b']).sum() + \
-                        (jornadas_totales['resultado_a'] == jornadas_totales['resultado_b']).sum() * 0.5
-    marcador_global_b = (jornadas_totales['resultado_b'] > jornadas_totales['resultado_a']).sum() + \
-                        (jornadas_totales['resultado_a'] == jornadas_totales['resultado_b']).sum() * 0.5
-    
-    # Guardamos en variables que usaremos en cualquier pestaña
-    texto_marcador_global = f"{marcador_global_a} vs {marcador_global_b}"
+        st.error(f"Error al guardar: {e}")
 
 # --- 4. PANTALLAS ---
 # ==========================================
