@@ -473,21 +473,26 @@ s2_val = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"in_s2_{h}_{st.sess
 s3_val = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"in_s3_{h}_{st.session_state.refresco_id}")
 
 # --- BLOQUE G: ACCIÓN DE GUARDADO ---
-if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
+        if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
             st.toast("⏳ Iniciando guardado...", icon="⏳")
             ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
             st.rerun()
 
-# --- BLOQUE H: FINALIZAR ---
-st.write("---") 
+        # --- BLOQUE H: FINALIZAR ---
+        st.write("---") 
         
+        # El popover debe estar alineado con el 'if' del botón de arriba
         with st.popover("🏁 Finalizar Partida", use_container_width=True):
             st.warning("¿Estás seguro de que quieres cerrar la partida actual?")
+            
+            # Los elementos dentro del 'with' llevan un nivel más de sangría
             if st.button("Confirmar Cierre y Borrar Sesión", type="primary", use_container_width=True):
                 if 'game' in st.session_state:
                     del st.session_state.game
+                
                 st.cache_data.clear()
                 st.rerun()
+                
 # ==========================================
 # SECCIÓN: ESTADISTICAS (Versión Restaurada)
 # ==========================================
