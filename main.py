@@ -305,20 +305,16 @@ if st.session_state.menu_seleccionado == "Inicio":
         </div>
     """, unsafe_allow_html=True)
    
-
 # ==========================================
-# SECCIÓN: NUEVA PARTIDA (Modo Match Play)
-# ==========================================
-# ==========================================
-# SECCIÓN: NUEVA PARTIDA (ESTRUCTURA MODULAR)
+# SECCIÓN: NUEVA PARTIDA (REORGANIZADA)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
 
-    # --- BLOQUE 0: INICIALIZACIÓN DE ESTADO ---
+    # --- BLOQUE 0: INICIALIZACIÓN ---
     if 'refresco_id' not in st.session_state: 
         st.session_state.refresco_id = 0
 
-    # --- BLOQUE A: CONFIGURACIÓN DE PARTIDA (PANTALLA DE INICIO) ---
+    # --- BLOQUE A: CONFIGURACIÓN INICIAL ---
     if 'game' not in st.session_state:
         st.markdown("### ⛳ Nueva Partida")
         f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
@@ -332,38 +328,34 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.rerun()
             
     else:
-        # --- BLOQUE B: GESTIÓN DE DATOS (LECTURA ÚNICA) ---
-        # Colocamos la lectura aquí para que ocurra una sola vez por renderizado
+        # --- BLOQUE B: LECTURA ÚNICA ---
         g = st.session_state.game
         df_p = leer_datos()
         df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])] if df_p is not None else pd.DataFrame()
 
-        # --- BLOQUE C: MARCADOR MATCH PLAY (HEADER) ---
-        def render_marcador_global(df):
-            pts_a_total = df['resultado_a'].sum() if not df.empty else 0
-            pts_b_total = df['resultado_b'].sum() if not df.empty else 0
-            dif = pts_a_total - pts_b_total
-            m_a, m_b = (dif, 0) if dif > 0 else (0, abs(dif))
+        # --- BLOQUE C: MARCADOR MATCH PLAY ---
+        pts_a_total = df_partido_actual['resultado_a'].sum() if not df_partido_actual.empty else 0
+        pts_b_total = df_partido_actual['resultado_b'].sum() if not df_partido_actual.empty else 0
+        dif = pts_a_total - pts_b_total
+        m_a, m_b = (dif, 0) if dif > 0 else (0, abs(dif))
 
-            st.markdown(f"""
-                <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px;">
-                    <div style="display: flex; justify-content: space-around; align-items: center; text-align: center;">
-                        <div style="flex: 1;">
-                            <h4 style="color: #2e7d32; margin: 0; font-size: 0.9em; font-weight: bold;">{EQUIPO_A_NOMBRES}</h4>
-                            <h1 style="margin: 0; font-size: 4.5em; color: {COLOR_A if m_a > 0 else '#333'};">{m_a:g}</h1>
-                        </div>
-                        <div style="background: #ccc; border-radius: 50%; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #666; font-size: 0.8em;">VS</div>
-                        <div style="flex: 1;">
-                            <h4 style="color: #c62828; margin: 0; font-size: 0.9em; font-weight: bold;">{EQUIPO_B_NOMBRES}</h4>
-                            <h1 style="margin: 0; font-size: 4.5em; color: {COLOR_B if m_b > 0 else '#333'};">{m_b:g}</h1>
-                        </div>
+        st.markdown(f"""
+            <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
+                <div style="display: flex; justify-content: space-around; align-items: center;">
+                    <div style="flex: 1;">
+                        <h4 style="color: #2e7d32; margin: 0; font-size: 0.9em;">{EQUIPO_A_NOMBRES}</h4>
+                        <h1 style="margin: 0; font-size: 4em; color: {COLOR_A if m_a > 0 else '#333'};">{m_a:g}</h1>
+                    </div>
+                    <div style="background: #ccc; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold;">VS</div>
+                    <div style="flex: 1;">
+                        <h4 style="color: #c62828; margin: 0; font-size: 0.9em;">{EQUIPO_B_NOMBRES}</h4>
+                        <h1 style="margin: 0; font-size: 4em; color: {COLOR_B if m_b > 0 else '#333'};">{m_b:g}</h1>
                     </div>
                 </div>
-            """, unsafe_allow_html=True)
-        
-        render_marcador_global(df_partido_actual)
+            </div>
+        """, unsafe_allow_html=True)
 
-        # --- BLOQUE D: NAVEGACIÓN Y SELECTOR DE HOYO ---
+        # --- BLOQUE D: NAVEGACIÓN ---
         c_nav1, c_nav2 = st.columns(2)
         if c_nav1.button("← Anterior", use_container_width=True):
             g['h_sel'] = max(1, g['h_sel'] - 1)
@@ -374,8 +366,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.session_state.refresco_id += 1
             st.rerun()
 
-        st.markdown("""<style>div[data-baseweb="select"] > div { font-size: 26px !important; font-weight: 800 !important; height: 65px !important; border-radius: 10px !important; }</style>""", unsafe_allow_html=True)
-        
+        # --- BLOQUE E: SELECTOR DE HOYO ---
         lista_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
         seleccion = st.selectbox("h_sel", lista_hoyos, index=g['h_sel']-1, label_visibility="collapsed", key=f"h_selector_{st.session_state.refresco_id}")
         
@@ -385,23 +376,12 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.session_state.refresco_id += 1
             st.rerun()
 
-        # --- BLOQUE E: RESULTADO DEL HOYO ACTUAL (DISPLAY) ---
+        # --- BLOQUE F: GOLPES E INPUTS ---
         h = g['h_sel']
-        par_h = PAR_RIA_VIGO[h]
         fila_hoyo = df_partido_actual[df_partido_actual['hoyo'] == h] if not df_partido_actual.empty else pd.DataFrame()
         ya_existe = not fila_hoyo.empty
+        v_ref = [int(fila_hoyo.iloc[0][f's{i}']) if ya_existe else PAR_RIA_VIGO[h] for i in range(4)]
 
-        if ya_existe:
-            ha, hb = fila_hoyo.iloc[0]['resultado_a'], fila_hoyo.iloc[0]['resultado_b']
-            color_res = COLOR_A if ha > hb else (COLOR_B if hb > ha else "#666")
-            st.markdown(f"""
-                <div style="border: 1px solid #eee; border-radius: 10px; padding: 10px; text-align: center; background: white; margin-bottom: 15px;">
-                    <h2 style="margin: 0; letter-spacing: 4px; color: {color_res};">{ha:g} — {hb:g}</h2>
-                </div>
-            """, unsafe_allow_html=True)
-
-        # --- BLOQUE F: ENTRADA DE GOLPES (INPUTS) ---
-        v_ref = [int(fila_hoyo.iloc[0][f's{i}']) if ya_existe else par_h for i in range(4)]
         col_j1, col_j2 = st.columns(2)
         s1 = col_j1.number_input(TODOS[0], 1, 15, v_ref[0], key=f"s1_{h}_{st.session_state.refresco_id}")
         s2 = col_j1.number_input(TODOS[1], 1, 15, v_ref[1], key=f"s2_{h}_{st.session_state.refresco_id}")
@@ -410,17 +390,16 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
         # --- BLOQUE G: ACCIÓN DE GUARDADO ---
         if st.button("💾 Actualizar Hoyo", type="primary", use_container_width=True, disabled=([s1,s2,s3,s4] == v_ref)):
-        # Pasamos los valores actuales directamente para evitar errores de KeyError
-        ejecutar_guardado_automatico(h, s1, s2, s3, s4)
-        st.rerun()
+            # Aquí la indentación corregida (estos dos deben estar alineados dentro del IF)
+            ejecutar_guardado_automatico(h, s1, s2, s3, s4)
+            st.rerun()
 
-        # --- BLOQUE H: CIERRE DE PARTIDA ---
+        # --- BLOQUE H: FINALIZACIÓN ---
         st.write("---")
         with st.popover("🏁 Finalizar Partida", use_container_width=True):
             if st.button("Confirmar Cierre", type="primary", use_container_width=True):
                 if 'game' in st.session_state: 
                     del st.session_state.game
-                st.cache_data.clear()
                 st.rerun()
 
 
