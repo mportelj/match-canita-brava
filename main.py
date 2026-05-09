@@ -742,11 +742,11 @@ elif st.session_state.menu_seleccionado == "Admin":
                         "h_sel": 1
                         }
     
-    # PASO 2: Cambiar el menú a "Nueva Partida" (Debe ser idéntico al texto del radio)
-    st.session_state.menu_seleccionado = "Nueva Partida"
+                    # PASO 2: Cambiar el menú a "Nueva Partida" (Debe ser idéntico al texto del radio)
+                    st.session_state.menu_seleccionado = "Nueva Partida"
     
-    # PASO 3: Forzar recarga
-    st.rerun()
+                    # PASO 3: Forzar recarga
+                    st.rerun()
                 
                 with c2:
                     conf = st.checkbox("Confirmar borrar", key=f"ch_{p_id}")
