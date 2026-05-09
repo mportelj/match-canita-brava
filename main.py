@@ -338,7 +338,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         st.session_state.refresco_id = 0
     
     # Inicializamos df_p y df_partido_actual SIEMPRE al inicio de la sección
-    # Esto elimina el NameError de la línea 358
     df_p = pd.DataFrame()
     df_partido_actual = pd.DataFrame()
 
@@ -355,7 +354,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 "id": datetime.now().strftime("%Y%m%d%H%M%S"),
                 "fecha": fecha_formateada,
                 "temporada": año_temporada,
-                "h_sel": 1, # Añadimos hoyo seleccionado inicial
+                "h_sel": 1,
                 "puntos_acumulados_a": 0,
                 "puntos_acumulados_b": 0
             }
@@ -371,18 +370,17 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         try:
             df_p = leer_datos() 
             if df_p is not None and not df_p.empty:
-                # Limpieza de nombres de columnas
                 df_p.columns = [str(c).strip() for c in df_p.columns]
                 
-                # Filtramos el partido actual de forma segura
                 if 'partido_id' in df_p.columns:
+                    # Normalizamos la comparación con el .0 para que encuentre los datos
+                    id_busqueda_con_punto = f"{float(g['id']):.1f}"
                     df_p['partido_id'] = df_p['partido_id'].astype(str)
-                    df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])]
+                    df_partido_actual = df_p[df_p['partido_id'] == id_busqueda_con_punto]
         except Exception as e:
             st.error(f"Error al leer datos: {e}")
 
         # --- BLOQUE C: MARCADOR MATCH PLAY ---
-        # Usamos .get() o verificamos existencia para evitar errores si las columnas no existen
         pts_a_total = 0
         pts_b_total = 0
         
@@ -434,65 +432,48 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.rerun()
 
         # --- BLOQUE F: GOLPES (Carga s0 a s3) ---
-h = g['h_sel']
-
-# 1. Normalizamos el ID del partido actual para que coincida con el formato del Excel (.0)
-id_busqueda = f"{float(g['id']):.1f}"
-
-# 2. Buscamos la fila del hoyo actual dentro del partido actual
-# Forzamos que tanto la columna del DataFrame como nuestro ID sean strings comparables
-if not df_partido_actual.empty:
-    fila_hoyo = df_partido_actual[
-        (df_partido_actual['hoyo'].astype(int) == int(h))
-    ]
-else:
-    fila_hoyo = pd.DataFrame()
-
-ya_existe = not fila_hoyo.empty
-
-# 3. Preparamos los valores de referencia (v_ref)
-v_ref = []
-if ya_existe:
-    # Si existe, extraemos los valores s0, s1, s2, s3
-    # Usamos .iloc[0] para asegurar que cogemos la primera coincidencia
-    v_ref = [
-        int(fila_hoyo.iloc[0]['s0']),
-        int(fila_hoyo.iloc[0]['s1']),
-        int(fila_hoyo.iloc[0]['s2']),
-        int(fila_hoyo.iloc[0]['s3'])
-    ]
-else:
-    # Si no existe, cargamos el Par por defecto
-    v_ref = [PAR_RIA_VIGO[h]] * 4
-
-# 4. Los inputs ahora mostrarán siempre lo que hay en v_ref
-col_j1, col_j2 = st.columns(2)
-s0_val = col_j1.number_input(TODOS[0], 1, 15, v_ref[0], key=f"in_s0_{h}_{st.session_state.refresco_id}")
-s1_val = col_j1.number_input(TODOS[1], 1, 15, v_ref[1], key=f"in_s1_{h}_{st.session_state.refresco_id}")
-s2_val = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"in_s2_{h}_{st.session_state.refresco_id}")
-s3_val = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"in_s3_{h}_{st.session_state.refresco_id}")
-
-# --- BLOQUE G: ACCIÓN DE GUARDADO ---
-# Este 'if' debe estar alineado exactamente con los inputs de golpes de arriba
-if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
-    st.toast("⏳ Iniciando guardado...", icon="⏳")
-    ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
-    st.rerun()
-
-# --- BLOQUE H: FINALIZAR ---
-st.write("---") 
+        h = g['h_sel']
         
-# El popover también debe estar alineado con el botón de guardado
-with st.popover("🏁 Finalizar Partida", use_container_width=True):
-    st.warning("¿Estás seguro de que quieres cerrar la partida actual?")
-            
-    # Todo lo que esté DENTRO del popover lleva un nivel más de sangría
-    if st.button("Confirmar Cierre y Borrar Sesión", type="primary", use_container_width=True):
-        if 'game' in st.session_state:
-            del st.session_state.game
-            st.cache_data.clear()
+        if not df_partido_actual.empty:
+            fila_hoyo = df_partido_actual[df_partido_actual['hoyo'].astype(int) == int(h)]
+        else:
+            fila_hoyo = pd.DataFrame()
+
+        ya_existe = not fila_hoyo.empty
+        v_ref = []
+        
+        if ya_existe:
+            v_ref = [
+                int(fila_hoyo.iloc[0]['s0']),
+                int(fila_hoyo.iloc[0]['s1']),
+                int(fila_hoyo.iloc[0]['s2']),
+                int(fila_hoyo.iloc[0]['s3'])
+            ]
+        else:
+            v_ref = [PAR_RIA_VIGO[h]] * 4
+
+        col_j1, col_j2 = st.columns(2)
+        s0_val = col_j1.number_input(TODOS[0], 1, 15, v_ref[0], key=f"in_s0_{h}_{st.session_state.refresco_id}")
+        s1_val = col_j1.number_input(TODOS[1], 1, 15, v_ref[1], key=f"in_s1_{h}_{st.session_state.refresco_id}")
+        s2_val = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"in_s2_{h}_{st.session_state.refresco_id}")
+        s3_val = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"in_s3_{h}_{st.session_state.refresco_id}")
+
+        # --- BLOQUE G: ACCIÓN DE GUARDADO ---
+        if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
+            st.toast("⏳ Iniciando guardado...", icon="⏳")
+            ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
             st.rerun()
-                
+
+        # --- BLOQUE H: FINALIZAR ---
+        st.write("---") 
+        
+        with st.popover("🏁 Finalizar Partida", use_container_width=True):
+            st.warning("¿Estás seguro de que quieres cerrar la partida actual?")
+            if st.button("Confirmar Cierre y Borrar Sesión", type="primary", use_container_width=True):
+                if 'game' in st.session_state:
+                    del st.session_state.game
+                st.cache_data.clear()
+                st.rerun()
 # ==========================================
 # SECCIÓN: ESTADISTICAS (Versión Restaurada)
 # ==========================================
