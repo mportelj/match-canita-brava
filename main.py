@@ -735,17 +735,21 @@ elif st.session_state.menu_seleccionado == "Admin":
                 c1, c2 = st.columns(2)
                 with c1:
                     # CLAVE: El key usa p_id para evitar NameError
+                    # --- DENTRO DEL BUCLE DE PARTIDOS EN ADMIN ---
                     if st.button(f"✏️ Editar Partido", key=f"ed_{p_id}"):
-                        # Cargamos el objeto game para que la otra sección lo reconozca
+                    # 1. Cargamos los datos para que 'Nueva Partida' sepa qué editar
                         st.session_state.game = {
-                            "id": str(p_id),
-                            "fecha": f_disp,
-                            "temporada": str(datos_jornada['temporada'].iloc[0]) if 'temporada' in datos_jornada.columns else "2026",
-                            "h_sel": 1
-                        }
-                        # Redirigimos a la sección EXACTA de tu menú
-                        st.session_state.menu_seleccionado = "Nueva Partida"
-                        st.rerun()
+                        "id": str(p_id),
+                        "fecha": f_disp,
+                        "temporada": str(datos_jornada['temporada'].iloc[0]) if 'temporada' in datos_jornada.columns else "2026",
+                        "h_sel": 1  # Empezamos en el hoyo 1
+                        }    
+    
+                    # 2. Cambiamos el nombre de la sección (idéntico al de la lista)
+                    st.session_state.menu_seleccionado = "Nueva Partida"
+    
+                    # 3. Forzamos el refresco para que el menú lateral lea el nuevo índice
+                    st.rerun()
                 
                 with c2:
                     conf = st.checkbox("Confirmar borrar", key=f"ch_{p_id}")
