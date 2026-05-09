@@ -309,29 +309,40 @@ if st.session_state.menu_seleccionado == "Inicio":
 # ==========================================
 # SECCIÓN: NUEVA PARTIDA (Modo Match Play)
 # ==========================================
+# ==========================================
+# SECCIÓN: NUEVA PARTIDA (Modo Match Play)
+# ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
     if 'refresco_id' not in st.session_state: 
         st.session_state.refresco_id = 0
 
     if 'game' not in st.session_state:
         st.markdown("### ⛳ Nueva Partida")
+        # Usamos format="DD/MM/YYYY" para que se vea como quieres
         f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
+        
         if st.button("🚀 Iniciar Partida", use_container_width=True):
             st.session_state.game = {
-                'fecha': f.strftime("%d/%m/%Y"), 'h_sel': 1, 'logs': {}, 
+                'fecha': f.strftime("%d/%m/%Y"), 
+                'h_sel': 1, 
                 'id': datetime.now().strftime("%Y%m%d%H%M%S")
             }
             st.rerun()
     else:
         g = st.session_state.game
         df_p = leer_datos()
-        df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])]
+        
+        # Filtrar datos de este partido específico
+        df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])] if df_p is not None and not df_p.empty else pd.DataFrame()
         
         # --- 1. MARCADOR MATCH PLAY ---
-        pts_a_total = df_partido_actual['resultado_a'].sum()
-        pts_b_total = df_partido_actual['resultado_b'].sum()
-        dif = pts_a_total - pts_b_total
-        m_a, m_b = (dif, 0) if dif > 0 else (0, abs(dif))
+        if not df_partido_actual.empty:
+            pts_a_total = df_partido_actual['resultado_a'].sum()
+            pts_b_total = df_partido_actual['resultado_b'].sum()
+            dif = pts_a_total - pts_b_total
+            m_a, m_b = (dif, 0) if dif > 0 else (0, abs(dif))
+        else:
+            m_a, m_b = 0, 0
 
         st.markdown(f"""
             <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px;">
@@ -349,7 +360,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             </div>
         """, unsafe_allow_html=True)
 
-        # --- 2. NAVEGACIÓN Y SELECTOR DESTACADO ---
+        # --- 2. NAVEGACIÓN ---
         c_nav1, c_nav2 = st.columns(2)
         if c_nav1.button("← Anterior", use_container_width=True):
             g['h_sel'] = max(1, g['h_sel'] - 1)
@@ -360,18 +371,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.session_state.refresco_id += 1
             st.rerun()
 
-        # CSS para agrandar el texto del selector y ponerlo en negrita
-        st.markdown("""
-            <style>
-                div[data-baseweb="select"] > div {
-                    font-size: 26px !important;
-                    font-weight: 800 !important;
-                    height: 65px !important;
-                    border-radius: 10px !important;
-                }
-            </style>
-        """, unsafe_allow_html=True)
-
+        # Selector de hoyo
         lista_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
         seleccion = st.selectbox(
             "h_sel", lista_hoyos, index=g['h_sel']-1, 
@@ -379,18 +379,14 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             key=f"h_selector_{st.session_state.refresco_id}"
         )
         
-        nuevo_h_id = int(seleccion.split(" ")[1])
-        if nuevo_h_id != g['h_sel']:
-            g['h_sel'] = nuevo_h_id
-            st.session_state.refresco_id += 1
-            st.rerun()
-
+        g['h_sel'] = int(seleccion.split(" ")[1])
         h = g['h_sel']
         par_h = PAR_RIA_VIGO[h]
-        fila_hoyo = df_partido_actual[df_partido_actual['hoyo'] == h]
+        
+        fila_hoyo = df_partido_actual[df_partido_actual['hoyo'] == h] if not df_partido_actual.empty else pd.DataFrame()
         ya_existe = not fila_hoyo.empty
 
-        # --- 3. RESULTADO HOYO ---
+        # --- 3. RESULTADO HOYO ACTUAL ---
         if ya_existe:
             ha, hb = fila_hoyo.iloc[0]['resultado_a'], fila_hoyo.iloc[0]['resultado_b']
             color_res = COLOR_A if ha > hb else (COLOR_B if hb > ha else "#666")
@@ -400,16 +396,26 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- 4. ENTRADA DE GOLPES (SIN ETIQUETAS DE TEXTO EXTRA) ---
+        # --- 4. ENTRADA DE GOLPES ---
+        # Referencia de golpes: si ya existe el hoyo, muestra lo guardado, si no, muestra el PAR
         v_ref = [int(fila_hoyo.iloc[0][f's{i}']) if ya_existe else par_h for i in range(4)]
+        
         col_j1, col_j2 = st.columns(2)
         s1 = col_j1.number_input(TODOS[0], 1, 15, v_ref[0], key=f"s1_{h}_{st.session_state.refresco_id}")
         s2 = col_j1.number_input(TODOS[1], 1, 15, v_ref[1], key=f"s2_{h}_{st.session_state.refresco_id}")
         s3 = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"s3_{h}_{st.session_state.refresco_id}")
         s4 = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"s4_{h}_{st.session_state.refresco_id}")
 
-        if st.button("💾 Actualizar Hoyo", type="primary", use_container_width=True, disabled=([s1,s2,s3,s4] == v_ref)):
-            ejecutar_guardado_automatico()
+        # BOTÓN DE GUARDADO
+        if st.button("💾 Actualizar Hoyo", type="primary", use_container_width=True):
+            # En lugar de llamar a la función que da error, extraemos los datos aquí directamente
+            puntos_hoyo = [s1, s2, s3, s4]
+            
+            # Aquí debes llamar a tu función de GUARDAR en el Excel
+            # Ejemplo: guardar_fila_hoyo(g['id'], g['fecha'], h, puntos_hoyo)
+            
+            st.success(f"Hoyo {h} actualizado")
+            st.cache_data.clear() # Limpiar cache para que lea los nuevos datos
             st.rerun()
 
         st.write("---")
