@@ -1,11 +1,13 @@
-
 import streamlit as st
 import pandas as pd
 from google.oauth2.service_account import Credentials
 import gspread
 from datetime import datetime
-df_p = pd.DataFrame() # <--- Inicialización global para evitar el NameError
-# 1. PRIMERO DEFINES LA FUNCIÓN
+
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
+
+# --- FUNCIONES DE CONEXIÓN ---
 def cargar_datos_golf():
     s = st.secrets["gsheets"]
     credentials_dict = {
@@ -23,55 +25,43 @@ def cargar_datos_golf():
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
     client = gspread.authorize(creds)
-    
-    url_hoja = "https://docs.google.com/spreadsheets/d/17mwvtZY-f6BWXOlDGkDdYur8l0ATvGYpbkshjv1sJAk/edit?gid=0#gid=0"
-    return client.open_by_url(url_hoja).sheet1
+    return client.open_by_url(s["url"]).sheet1
 
-# 2. DESPUÉS LA LLAMAS
 if 'sh' not in st.session_state:
     st.session_state.sh = cargar_datos_golf()
 
-sh = st.session_state.sh
-
-# --- 1. CONFIGURACIÓN DEL MENÚ (AL PRINCIPIO DEL SCRIPT) ---
+# --- NAVEGACIÓN DINÁMICA (Crítico para que funcione Editar) ---
 opciones_menu = ["Inicio", "Nueva Partida", "Estadísticas", "Admin"]
 
-# Inicializar el estado si no existe
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-# BUSCAR EL ÍNDICE ACTUAL: 
-# Si el botón Editar cambió el estado a "Nueva Partida", esto valdrá 1.
+# Calculamos el índice para que el radio se mueva solo al pulsar Editar
 try:
-    indice_seccion = opciones_menu.index(st.session_state.menu_seleccionado)
+    indice_actual = opciones_menu.index(st.session_state.menu_seleccionado)
 except ValueError:
-    indice_seccion = 0
+    indice_actual = 0
 
 with st.sidebar:
     st.title("⛳ Menú Principal")
-    # CRÍTICO: El index debe ser igual a indice_seccion
-    seleccion = st.radio(
-        "Ir a:",
-        opciones_menu,
-        index=indice_seccion,
-        key="navegacion_radio"
-    )
-    # Actualizamos el estado con lo que el usuario elija manualmente
+    seleccion = st.radio("Ir a:", opciones_menu, index=indice_actual, key="nav_radio")
     st.session_state.menu_seleccionado = seleccion
 
-# --- INICIALIZACIÓN GLOBAL (Al principio de tu main.py) ---
-if 'menu_seleccionado' not in st.session_state:
-    st.session_state.menu_seleccionado = "Inicio"
+# --- LÓGICA DE DATOS ---
+@st.cache_data(ttl=60)
+def leer_datos():
+    try:
+        sh = st.session_state.sh
+        data = sh.get_all_records()
+        df = pd.DataFrame(data)
+        if df.empty: return pd.DataFrame()
+        df.columns = [str(c).strip().lower() for c in df.columns]
+        return df
+    except:
+        return pd.DataFrame()
 
-if 'radio_menu' not in st.session_state:
-    st.session_state.radio_menu = "Inicio" # <--- ESTO EVITA EL ERROR
+df_raw = leer_datos()
 
-# Lógica de la app
-#st.title("⛳ CAÑITA BRAVA")
-
-
-# --- 1. CONFIGURACIÓN ---
-st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
 
 # --- 1. CONFIGURACIÓN CORREGIDA DEL CAMPO ---
 PAR_RIA_VIGO = {
@@ -284,9 +274,6 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
 
     except Exception as e:
         st.error(f"Error al editar/guardar: {e}")
-
-    
-df_raw = leer_datos()
 
 if df_raw is not None and not df_raw.empty:
     # --- CÁLCULO DEL MARCADOR DE LA TEMPORADA (4.5 vs 3.5) ---
