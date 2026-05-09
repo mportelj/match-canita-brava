@@ -246,44 +246,42 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         g = st.session_state.game
         par_hoyo = PAR_RIA_VIGO[int(hoyo_id)]
         
-        # 1. LÓGICA DE PUNTOS INDIVIDUALES (MVP)
-        golpes = [int(g0), int(g1), int(g2), int(g3)] # Manu, Jose, Roge, Lalo
-        mejor_resultado = min(golpes)
-        
-        # ¿Quiénes hicieron la mejor bola?
-        ganadores_hoyo = [i for i, score in enumerate(golpes) if score == mejor_resultado]
-        num_ganadores = len(ganadores_hoyo)
-        
-        # Inicializamos puntos MVP en 0
+        # 1. LISTA DE JUGADORES Y EQUIPOS
+        # Manu:0, Jose:1 (Equipo A) | Roge:2, Lalo:3 (Equipo B)
+        golpes = [int(g0), int(g1), int(g2), int(g3)]
         p_mvp = [0.0, 0.0, 0.0, 0.0]
-        
-        # Reparto del punto de "Mejor Bola" (1 pto a repartir)
-        # Si uno gana solo -> 1 pto. Si empatan dos -> 0.5 cada uno. Si empatan tres -> 0.33...
-        valor_punto = 1.0 / num_ganadores
-        for i in ganadores_hoyo:
-            p_mvp[i] = valor_punto
 
-        # 2. BONUS DE CALIDAD PERSONAL (Independiente del resultado del hoyo)
-        def calc_bonus(score, p):
+        # 2. CÁLCULO: OPONENTE BATIDO (0.5 por cada uno)
+        # Cada jugador se compara con los 3 restantes
+        for i in range(4):
+            puntos_oponentes = 0
+            for j in range(4):
+                if i == j: continue # No se compara consigo mismo
+                if golpes[i] < golpes[j]:
+                    puntos_oponentes += 0.5
+            p_mvp[i] = puntos_oponentes
+
+        # 3. CÁLCULO: BONUS POR CALIDAD
+        # Albatros +4, Eagle +3, Birdie +1.5, Par +0.5
+        def calc_bonus_calidad(score, p):
             dif = score - p
-            if dif <= -3: return 3.0 # Albatros
-            if dif == -2: return 2.0 # Eagle
-            if dif == -1: return 1.0 # Birdie
+            if dif <= -3: return 4.0   # Albatros
+            if dif == -2: return 3.0   # Eagle
+            if dif == -1: return 1.5   # Birdie
+            if dif == 0:  return 0.5   # Par
             return 0.0
 
-        # Sumamos el bonus individual a cada jugador
         for i in range(4):
-            p_mvp[i] += calc_bonus(golpes[i], par_hoyo)
+            p_mvp[i] += calc_bonus_calidad(golpes[i], par_hoyo)
 
-        # 3. MARCADOR DEL MATCH (Parejas - Columnas F y G)
-        # Esto sigue funcionando por equipo: mejor de (Manu/Jose) vs mejor de (Roge/Lalo)
-        res_equipo_a = min(golpes[0], golpes[1])
-        res_equipo_b = min(golpes[2], golpes[3])
-        
-        match_a = 1.0 if res_equipo_a < res_equipo_b else (0.5 if res_equipo_a == res_equipo_b else 0.0)
-        match_b = 1.0 if res_equipo_b < res_equipo_a else (0.5 if res_equipo_a == res_equipo_b else 0.0)
+        # 4. MARCADOR DEL MATCH (Match Play Parejas - Col F y G)
+        # Se mantiene la regla estándar: quien gane el hoyo por mejor bola suma 1 o 0.5
+        res_a = min(golpes[0], golpes[1])
+        res_b = min(golpes[2], golpes[3])
+        match_a = 1.0 if res_a < res_b else (0.5 if res_a == res_b else 0.0)
+        match_b = 1.0 if res_b < res_a else (0.5 if res_a == res_b else 0.0)
 
-        # 4. NORMALIZAR ID Y CONSTRUIR FILA
+        # 5. CONSTRUCCIÓN DE LA FILA
         id_partido_busqueda = f"{float(g['id']):.1f}"
         nueva_fila = [
             f"{id_partido_busqueda}_H{hoyo_id}", 
@@ -291,16 +289,17 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
             int(hoyo_id),                        
             str(g['fecha']),                     
             str(g['temporada']),                 
-            float(match_a), float(match_b),      # F, G (Match Parejas)
+            float(match_a), float(match_b),      # Match Parejas
             p_mvp[0], p_mvp[1],                  # H, I (Manu, Jose)
             p_mvp[2], p_mvp[3],                  # J, K (Roge, Lalo)
             int(g0), int(g1),                    
             int(g2), int(g3)                     
         ]
 
-        # 5. GUARDADO EN GOOGLE SHEETS (Sin errores de indentación)
+        # 6. GUARDADO EN GOOGLE SHEETS
         filas = hoja.get_all_values()
         header = filas[0]
+        # Filtramos para no duplicar el hoyo si se edita
         datos_restantes = [f for f in filas[1:] if not (f[1] == id_partido_busqueda and int(f[2]) == int(hoyo_id))]
         
         datos_restantes.append(nueva_fila)
@@ -309,11 +308,13 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         hoja.clear()
         hoja.update('A1', [header] + datos_restantes)
         
-        st.toast(f"✅ Hoyo {hoyo_id} guardado correctamente")
+        st.toast(f"✅ Hoyo {hoyo_id} guardado. MVP actualizado.")
         st.cache_data.clear()
 
     except Exception as e:
-        st.error(f"Error al guardar: {e}")
+        st.error(f"Error crítico al guardar: {e}")
+
+
 # --- 4. PANTALLAS ---
 # ==========================================
 # SECCIÓN: INICIO (Marcador de Temporada)
