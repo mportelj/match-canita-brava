@@ -310,103 +310,113 @@ if st.session_state.menu_seleccionado == "Inicio":
 # SECCIÓN: NUEVA PARTIDA (Modo Match Play)
 # ==========================================
 # ==========================================
-# SECCIÓN: NUEVA PARTIDA (Lectura Única)
+# SECCIÓN: NUEVA PARTIDA (REORGANIZADA)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
+    
+    # --- BLOQUE 0: INICIALIZACIÓN ---
     if 'refresco_id' not in st.session_state: 
         st.session_state.refresco_id = 0
 
+    # --- BLOQUE A: CONFIGURACIÓN INICIAL (FECHA) ---
     if 'game' not in st.session_state:
-        # PANTALLA DE INICIO (Aquí no se lee el histórico todavía)
-        st.markdown("### ⛳ Nueva Partida")
-        f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
+        st.subheader("⛳ Configurar Encuentro")
+        fecha_input = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
+        
         if st.button("🚀 Iniciar Partida", use_container_width=True):
             st.session_state.game = {
-                'fecha': f.strftime("%d/%m/%Y"), 
+                'fecha': fecha_input.strftime("%d/%m/%Y"), 
                 'h_sel': 1, 
                 'id': datetime.now().strftime("%Y%m%d%H%M%S")
             }
             st.rerun()
+            
     else:
-        # --- PASO 1: LA ÚNICA LECTURA ---
-        # Se coloca aquí para que ocurra UNA VEZ al entrar en el modo "juego"
+        # --- BLOQUE B: LECTURA ÚNICA DE DATOS ---
+        # Solo se llama una vez al entrar en este 'else'
         g = st.session_state.game
-        df_completo = leer_datos()  # <--- Única llamada en todo el bloque
-        
-        # --- PASO 2: FILTRADO ÚNICO ---
-        # Creamos una variable local con el partido actual. No volvemos a filtrar más abajo.
-        df_actual = df_completo[df_completo['partido_id'] == str(g['id'])] if df_completo is not None else pd.DataFrame()
-        
-        # --- 3. MARCADOR GLOBAL (Usando la variable df_actual) ---
-        pts_a = df_actual['resultado_a'].sum() if not df_actual.empty else 0
-        pts_b = df_actual['resultado_b'].sum() if not df_actual.empty else 0
-        dif = pts_a - pts_b
-        m_a, m_b = (dif, 0) if dif > 0 else (0, abs(dif))
+        df_todo = leer_datos() 
+        df_actual = df_todo[df_todo['partido_id'] == str(g['id'])] if df_todo is not None else pd.DataFrame()
 
-        st.markdown(f"""
-            <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px;">
-                <div style="display: flex; justify-content: space-around; align-items: center; text-align: center;">
-                    <div style="flex: 1;">
-                        <h4 style="color: #2e7d32; margin: 0; font-size: 0.9em; font-weight: bold;">MANU & JOSE</h4>
-                        <h1 style="margin: 0; font-size: 4.5em; color: {'#2e7d32' if m_a > 0 else '#333'};">{m_a:g}</h1>
-                    </div>
-                    <div style="background: #ccc; border-radius: 50%; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #666; font-size: 0.8em;">VS</div>
-                    <div style="flex: 1;">
-                        <h4 style="color: #c62828; margin: 0; font-size: 0.9em; font-weight: bold;">ROGE & LALO</h4>
-                        <h1 style="margin: 0; font-size: 4.5em; color: {'#c62828' if m_b > 0 else '#333'};">{m_b:g}</h1>
+        # --- BLOQUE C: MARCADOR GLOBAL (HEADER) ---
+        def mostrar_marcador_matchplay(df):
+            pts_a = df['resultado_a'].sum() if not df.empty else 0
+            pts_b = df['resultado_b'].sum() if not df.empty else 0
+            dif = pts_a - pts_b
+            m_a, m_b = (dif, 0) if dif > 0 else (0, abs(dif))
+            
+            st.markdown(f"""
+                <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-around; align-items: center; text-align: center;">
+                        <div style="flex: 1;">
+                            <p style="color: #2e7d32; margin: 0; font-size: 0.8em; font-weight: bold;">MANU & JOSE</p>
+                            <h1 style="margin: 0; font-size: 4em; color: {'#2e7d32' if m_a > 0 else '#333'};">{m_a:g}</h1>
+                        </div>
+                        <div style="background: #ccc; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #666;">VS</div>
+                        <div style="flex: 1;">
+                            <p style="color: #c62828; margin: 0; font-size: 0.8em; font-weight: bold;">ROGE & LALO</p>
+                            <h1 style="margin: 0; font-size: 4em; color: {'#c62828' if m_b > 0 else '#333'};">{m_b:g}</h1>
+                        </div>
                     </div>
                 </div>
-            </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-        # --- 4. SELECTOR DE HOYO Y NAVEGACIÓN ---
-        st.markdown("""<style>div[data-baseweb="select"] > div { font-size: 28px !important; font-weight: 800 !important; background-color: #e8f5e9 !important; border: 2px solid #2e7d32 !important; height: 70px !important; }</style>""", unsafe_allow_html=True)
+        mostrar_marcador_matchplay(df_actual)
+
+        # --- BLOQUE D: NAVEGADOR DE HOYOS ---
+        st.markdown("""<style>div[data-baseweb="select"] > div { font-size: 24px !important; font-weight: 800 !important; background-color: #e8f5e9 !important; border: 2px solid #2e7d32 !important; }</style>""", unsafe_allow_html=True)
         
         lista_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
-        seleccion = st.selectbox("h_sel", lista_hoyos, index=g['h_sel']-1, label_visibility="collapsed", key=f"h_sel_{st.session_state.refresco_id}")
+        sel_hoyo = st.selectbox("Hoyo", lista_hoyos, index=g['h_sel']-1, label_visibility="collapsed", key=f"h_sel_{st.session_state.refresco_id}")
         
-        # Si el usuario cambia el selector manualmente
-        nuevo_h = int(seleccion.split(" ")[1])
-        if nuevo_h != g['h_sel']:
-            g['h_sel'] = nuevo_h
+        # Sincronizar selector
+        if int(sel_hoyo.split(" ")[1]) != g['h_sel']:
+            g['h_sel'] = int(sel_hoyo.split(" ")[1])
             st.session_state.refresco_id += 1
             st.rerun()
 
-        c_nav1, c_nav2 = st.columns(2)
-        if c_nav1.button("← Anterior", use_container_width=True):
+        col_prev, col_next = st.columns(2)
+        if col_prev.button("← Anterior", use_container_width=True):
             g['h_sel'] = max(1, g['h_sel'] - 1)
             st.session_state.refresco_id += 1
             st.rerun()
-        if c_nav2.button("Siguiente →", use_container_width=True):
+        if col_next.button("Siguiente →", use_container_width=True):
             g['h_sel'] = min(18, g['h_sel'] + 1)
             st.session_state.refresco_id += 1
             st.rerun()
 
-        # --- 5. INPUTS (Usando df_actual) ---
-        h = g['h_sel']
-        fila = df_actual[df_actual['hoyo'] == h]
-        ya_existe = not fila.empty
-        v_ref = [int(fila.iloc[0][f's{i}']) if ya_existe else PAR_RIA_VIGO[h] for i in range(4)]
+        # --- BLOQUE E: FORMULARIO DE GOLPES ---
+        h_actual = g['h_sel']
+        fila_h = df_actual[df_actual['hoyo'] == h_actual]
+        existe = not fila_h.empty
+        v_inicio = [int(fila_h.iloc[0][f's{i}']) if existe else PAR_RIA_VIGO[h_actual] for i in range(4)]
 
-        col1, col2 = st.columns(2)
-        s1 = col1.number_input(TODOS[0], 1, 15, v_ref[0], key=f"s1_{h}_{st.session_state.refresco_id}")
-        s2 = col1.number_input(TODOS[1], 1, 15, v_ref[1], key=f"s2_{h}_{st.session_state.refresco_id}")
-        s3 = col2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"s3_{h}_{st.session_state.refresco_id}")
-        s4 = col2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"s4_{h}_{st.session_state.refresco_id}")
+        c1, c2 = st.columns(2)
+        s1 = c1.number_input(TODOS[0], 1, 15, v_inicio[0], key=f"s1_{h_actual}_{st.session_state.refresco_id}")
+        s2 = c1.number_input(TODOS[1], 1, 15, v_inicio[1], key=f"s2_{h_actual}_{st.session_state.refresco_id}")
+        s3 = c2.number_input(TODOS[2], 1, 15, v_inicio[2], key=f"s3_{h_actual}_{st.session_state.refresco_id}")
+        s4 = c2.number_input(TODOS[3], 1, 15, v_inicio[3], key=f"s4_{h_actual}_{st.session_state.refresco_id}")
 
-        # --- 6. MARCADOR DEL HOYO EN VIVO ---
+        # --- BLOQUE F: CÁLCULO DE RESULTADO DEL HOYO ---
         res_a, res_b = min(s1, s2), min(s3, s4)
         p_a = 1 if res_a < res_b else (0.5 if res_a == res_b else 0)
         p_b = 1 if res_b < res_a else (0.5 if res_a == res_b else 0)
         
         color_h = "#2e7d32" if p_a > p_b else ("#c62828" if p_b > p_a else "#666")
-        st.markdown(f"""<div style="border: 1px solid #ddd; border-radius: 10px; padding: 10px; text-align: center; background: white; margin-top: 10px;"><h2 style="margin: 0; color: {color_h}; letter-spacing: 2px;">{p_a:g} — {p_b:g}</h2></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div style="border: 1px solid #ddd; border-radius: 10px; padding: 10px; text-align: center; background: white; margin-top: 10px;"><p style="margin:0; font-size:0.7em; font-weight:bold; color:#999;">PUNTOS HOYO {h_actual}</p><h2 style="margin: 0; color: {color_h};">{p_a:g} — {p_b:g}</h2></div>""", unsafe_allow_html=True)
 
-        if st.button("💾 Actualizar Hoyo", type="primary", use_container_width=True):
-            # Aquí va tu función de guardado (que escribe en el Excel)
-            # Ejemplo: guardar_datos(g['id'], g['fecha'], h, [s1, s2, s3, s4], p_a, p_b)
-            st.success("Guardado")
+        # --- BLOQUE G: ACCIÓN DE GUARDADO ---
+        if st.button("💾 ACTUALIZAR HOYO", type="primary", use_container_width=True):
+            # Tu lógica de guardado aquí
+            st.success(f"Hoyo {h_actual} actualizado")
             st.rerun()
+
+        # --- BLOQUE H: FINALIZACIÓN ---
+        st.write("---")
+        with st.popover("🏁 Terminar Partida", use_container_width=True):
+            if st.button("Confirmar Cierre", type="primary", use_container_width=True):
+                if 'game' in st.session_state: del st.session_state.game
+                st.rerun()
 
 # ==========================================
 # SECCIÓN: ESTADISTICAS (Versión Restaurada)
