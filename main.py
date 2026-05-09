@@ -51,12 +51,28 @@ def cb_editar_partido(p_id, fecha, temporada):
     st.session_state.menu_seleccionado = "Nueva Partida"
 
 # --- 2. EL SIDEBAR (MENÚ LATERAL) ---
+# --- CONFIGURACIÓN DEL MENÚ EN EL SIDEBAR ---
 opciones_menu = ["Inicio", "Nueva Partida", "Estadísticas", "Admin"]
+
+# Inicializamos la variable si no existe
+if 'menu_seleccionado' not in st.session_state:
+    st.session_state.menu_seleccionado = "Inicio"
+
+# Calculamos el índice basándonos en el texto guardado
+try:
+    idx_actual = opciones_menu.index(st.session_state.menu_seleccionado)
+except ValueError:
+    idx_actual = 0
 
 with st.sidebar:
     st.title("⛳ Menú Principal")
-    # Es fundamental que el key sea "nav_radio"
-    seleccion = st.radio("Ir a:", opciones_menu, key="nav_radio")
+    # USAMOS index=idx_actual y QUITAMOS el key del radio para evitar conflictos
+    seleccion = st.radio(
+        "Ir a:", 
+        opciones_menu, 
+        index=idx_actual
+    )
+    # Actualizamos la variable con la selección manual del usuario
     st.session_state.menu_seleccionado = seleccion
 
 
@@ -727,26 +743,24 @@ elif st.session_state.menu_seleccionado == "Admin":
                 st.dataframe(tabla_vista, hide_index=True, use_container_width=True)
 
                 c1, c2 = st.columns(2)
+                
                 with c1:
-                    # --- EL BOTÓN CON LA SOLUCIÓN DEFINITIVA ---
                     if st.button(f"✏️ Editar Partido", key=f"btn_ed_{p_id}", use_container_width=True):
-                        # 1. Seteamos los datos del juego
+                        # 1. Cargamos los datos del juego
                         st.session_state.game = {
                             "id": str(p_id),
                             "fecha": f_disp,
                             "temporada": str(datos_jornada['temporada'].iloc[0]) if 'temporada' in datos_jornada.columns else "2026",
                             "h_sel": 1
                         }
-                        # 2. Cambiamos el valor lógico
+        
+                        # 2. Cambiamos SOLO la variable de control
                         st.session_state.menu_seleccionado = "Nueva Partida"
-                        
-                        # 3. IMPORTANTE: Cambiamos también el valor del Widget del sidebar
-                        # Esto asume que tu st.radio tiene key="nav_radio"
-                        if "nav_radio" in st.session_state:
-                            st.session_state.nav_radio = "Nueva Partida"
-                        
-                        # 4. Forzamos el salto inmediato
+        
+                        # 3. Forzamos el reinicio. Al recargar, el sidebar leerá "Nueva Partida" 
+                        # y el radio se moverá al índice 1 automáticamente.
                         st.rerun()
+                
                 
                 with c2:
                     conf = st.checkbox("Borrar", key=f"ch_{p_id}")
