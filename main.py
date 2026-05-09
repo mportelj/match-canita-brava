@@ -210,64 +210,66 @@ def leer_datos():
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     try:
-        # 1. Lógica de Puntos Match Play
+        # --- PASO 1: Entrada ---
+        print(f"DEBUG: Entrando en guardado - Hoyo {hoyo_id}")
+        st.write("DEBUG: Procesando datos...") 
+
         res_a, res_b = min(g0, g1), min(g2, g3)
         p_a = 1 if res_a < res_b else 0
         p_b = 1 if res_b < res_a else 0
 
-        # 2. Datos del partido desde Session State
-        g = st.session_state.game
-        p_id = str(g['id'])
-        fecha = str(g['fecha'])
-
-        # 3. Lectura directa de gspread (Sin caché)
+        # --- PASO 2: Conexión ---
         st.cache_data.clear()
-        todas_las_filas = sh.get_all_values()
-        
-        if not todas_las_filas:
-            st.error("🚨 La hoja de Google Sheets parece estar vacía o inaccesible.")
+        # Intentamos una lectura cruda para saltar cualquier error de pandas
+        filas_crudas = sh.get_all_values()
+        print(f"DEBUG: Filas leídas: {len(filas_crudas)}")
+
+        if not filas_crudas:
+            st.error("La hoja está vacía o no responde.")
             return
 
-        cabeceras = todas_las_filas[0]
-        datos_viejos = todas_las_filas[1:]
+        header = filas_crudas[0]
+        datos = filas_crudas[1:]
 
-        # 4. Filtrar: quitamos la fila de este hoyo si ya existía para este partido
-        # Columna 0: partido_id | Columna 2: hoyo
-        datos_nuevos = [
-            f for f in datos_viejos 
-            if not (len(f) > 2 and f[0] == p_id and str(f[2]) == str(hoyo_id))
+        # --- PASO 3: Filtrado ---
+        g = st.session_state.game
+        p_id = str(g['id'])
+        
+        # Eliminamos el hoyo si ya existía para evitar duplicados
+        datos_limpios = [
+            f for f in datos 
+            if not (len(f) > 0 and str(f[0]) == p_id and str(f[2]) == str(hoyo_id))
         ]
 
-        # 5. Crear la nueva fila (Aseguramos formatos simples)
+        # --- PASO 4: Preparar Fila ---
         nueva_fila = [
             p_id, 
-            fecha, 
+            str(g['fecha']), 
             int(hoyo_id), 
             int(g0), int(g1), int(g2), int(g3), 
             int(p_a), int(p_b)
         ]
-        datos_nuevos.append(nueva_fila)
+        datos_limpios.append(nueva_fila)
+        datos_limpios.sort(key=lambda x: int(x[2])) # Ordenar por hoyo
 
-        # 6. Ordenar por hoyo para mantener orden visual
-        datos_nuevos.sort(key=lambda x: int(x[2]))
-
-        # --- 7. EL MOMENTO DE LA VERDAD: ESCRITURA ---
-        cuerpo_completo = [cabeceras] + datos_nuevos
+        # --- PASO 5: Escritura Forzada ---
+        print("DEBUG: Intentando sh.update...")
+        cuerpo_final = [header] + datos_limpios
         
-        # Primero intentamos escribir en una celda de control
-        sh.update_acell('Z1', f"Último cambio: {datetime.now().strftime('%H:%M:%S')}")
+        # Intentamos escribir primero un testigo en Z1
+        sh.update_acell('Z1', f"Sync: {datetime.now().strftime('%H:%M:%S')}")
         
-        # Limpiamos y sobreescribimos todo el bloque
+        # Sobreescritura total
         sh.clear()
-        sh.update('A1', cuerpo_completo)
+        sh.update('A1', cuerpo_final)
         
-        # 8. Limpieza de rastro
+        print("DEBUG: ¡Guardado exitoso!")
+        st.toast("✅ ¡Guardado en Google Sheets!", icon="⛳")
         st.cache_data.clear()
-        st.success(f"✅ Hoyo {hoyo_id} guardado con éxito.")
 
     except Exception as e:
-        st.error(f"❌ Error real detectado: {str(e)}")
-
+        print(f"ERROR CRÍTICO: {str(e)}")
+        st.error(f"Error detectado: {e}")
 
 # --- 3. NAVEGACIÓN ---
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Nueva Partida", "Estadísticas", "Admin"], 
@@ -434,14 +436,11 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         s2_val = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"in_s2_{h}_{st.session_state.refresco_id}")
         s3_val = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"in_s3_{h}_{st.session_state.refresco_id}")
 
-        # --- BLOQUE G: ACCIÓN DE GUARDADO ---
-        if st.button("💾 Actualizar Hoyo", type="primary", use_container_width=True, disabled=([s0_val, s1_val, s2_val, s3_val] == v_ref)):
-            # Enviamos datos a la función
+       # --- BLOQUE G: ACCIÓN DE GUARDADO ---
+        # Forzamos un mensaje previo para ver si el botón responde
+        if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
+            st.toast("⏳ Iniciando proceso de guardado...") # Mensaje rápido en la esquina
             ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
-            
-            # MUY IMPORTANTE: Borramos caché para que al recargar lea los datos recién guardados
-            st.cache_data.clear()
-            st.success(f"Hoyo {h} guardado")
             st.rerun()
 
         # --- BLOQUE H: FINALIZAR ---
