@@ -559,7 +559,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 cambios_detectados = True
         else:
         # Si no está guardado, el botón debe estar habilitado siempre que haya valores
-        cambios_detectados = True
+            cambios_detectados = True
 
         # --- BLOQUE G: ACCIÓN DE GUARDADO ---
         # Definimos el estado del botón
