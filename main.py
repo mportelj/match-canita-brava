@@ -211,16 +211,18 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         p_b = 1 if res_b < res_a else (0.5 if res_a == res_b else 0)
         
         # 3. Preparar la fila (15 campos exactos)
+        # --- CONSTRUCCIÓN DE LA FILA CON TIPOS FORZADOS ---
         nueva_fila = [
-            f"{g['id']}_{hoyo_id}", # A: id único
-            str(g['id']),           # B: partido_id
-            int(hoyo_id),           # C: hoyo
-            g['fecha'],             # D: fecha
-            g['temporada'],         # E: temporada
-            p_a, p_b,               # F, G: resultados
-            0, 0, 0, 0,             # H-K: p_pts
-            int(g0), int(g1),       # L, M: s0, s1
-            int(g2), int(g3)        # N, O: s2, s3
+            str(f"{g['id']}_{hoyo_id}"), # A: Texto
+            str(g['id']),                # B: Texto (así evitamos el .0)
+            int(hoyo_id),                # C: Número entero
+            str(g['fecha']),             # D: Texto
+            str(g['temporada']),         # E: Texto
+            float(p_a),                  # F: Número (decimal si hay 0.5)
+            float(p_b),                  # G: Número
+            0, 0, 0, 0,                  # H-K: Números
+            int(g0), int(g1),            # L, M: Números enteros
+            int(g2), int(g3)             # N, O: Números enteros
         ]
 
         # 4. Obtener datos y filtrar (Protección contra fallos de lectura)
