@@ -4,7 +4,7 @@ import pandas as pd
 from google.oauth2.service_account import Credentials
 import gspread
 from datetime import datetime
-
+df_p = pd.DataFrame() # <--- Inicialización global para evitar el NameError
 # 1. PRIMERO DEFINES LA FUNCIÓN
 def cargar_datos_golf():
     s = st.secrets["gsheets"]
