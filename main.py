@@ -479,19 +479,19 @@ if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
     ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
     st.rerun()
 
-        # --- BLOQUE H: FINALIZAR ---
-        st.write("---") 
+# --- BLOQUE H: FINALIZAR ---
+st.write("---") 
         
-        # El popover también debe estar alineado con el botón de guardado
-        with st.popover("🏁 Finalizar Partida", use_container_width=True):
-            st.warning("¿Estás seguro de que quieres cerrar la partida actual?")
+# El popover también debe estar alineado con el botón de guardado
+with st.popover("🏁 Finalizar Partida", use_container_width=True):
+    st.warning("¿Estás seguro de que quieres cerrar la partida actual?")
             
-            # Todo lo que esté DENTRO del popover lleva un nivel más de sangría
-            if st.button("Confirmar Cierre y Borrar Sesión", type="primary", use_container_width=True):
-                if 'game' in st.session_state:
-                    del st.session_state.game
-                st.cache_data.clear()
-                st.rerun()
+    # Todo lo que esté DENTRO del popover lleva un nivel más de sangría
+    if st.button("Confirmar Cierre y Borrar Sesión", type="primary", use_container_width=True):
+    if 'game' in st.session_state:
+        del st.session_state.game
+        st.cache_data.clear()
+        st.rerun()
                 
 # ==========================================
 # SECCIÓN: ESTADISTICAS (Versión Restaurada)
