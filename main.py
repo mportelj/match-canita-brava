@@ -440,20 +440,20 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         s3_val = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"in_s3_{h}_{st.session_state.refresco_id}")
 
        # --- BLOQUE G: ACCIÓN DE GUARDADO ---
-if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
-    # Esto aparecerá en la esquina superior derecha apenas pulses
-    st.toast("Iniciando guardado...", icon="⏳")
-    
-    # Ejecutamos la función
-    ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
-    
-    # Forzamos el refresco para ver el marcador nuevo
-    st.rerun()
+        if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
+            st.toast("⏳ Iniciando guardado...", icon="⏳")
+            ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
+            st.rerun()
+
         # --- BLOQUE H: FINALIZAR ---
-        st.write("---")
+        # Asegúrate de que st.write esté al mismo nivel que el 'if' del botón de arriba
+        st.write("---") 
+        
         with st.popover("🏁 Finalizar Partida", use_container_width=True):
-            if st.button("Confirmar Cierre", type="primary", use_container_width=True):
-                if 'game' in st.session_state: del st.session_state.game
+            st.warning("¿Estás seguro de que quieres cerrar la partida actual?")
+            if st.button("Confirmar Cierre y Borrar Sesión", type="primary", use_container_width=True):
+                if 'game' in st.session_state:
+                    del st.session_state.game
                 st.cache_data.clear()
                 st.rerun()
 
