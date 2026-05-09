@@ -473,11 +473,11 @@ s2_val = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"in_s2_{h}_{st.sess
 s3_val = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"in_s3_{h}_{st.session_state.refresco_id}")
 
 # --- BLOQUE G: ACCIÓN DE GUARDADO ---
-        # Este 'if' debe estar alineado exactamente con los inputs de golpes de arriba
-        if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
-            st.toast("⏳ Iniciando guardado...", icon="⏳")
-            ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
-            st.rerun()
+# Este 'if' debe estar alineado exactamente con los inputs de golpes de arriba
+if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
+    st.toast("⏳ Iniciando guardado...", icon="⏳")
+    ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
+    st.rerun()
 
         # --- BLOQUE H: FINALIZAR ---
         st.write("---") 
