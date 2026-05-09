@@ -209,67 +209,70 @@ def leer_datos():
 
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
-    try:
-        # --- PASO 1: Entrada ---
-        print(f"DEBUG: Entrando en guardado - Hoyo {hoyo_id}")
-        st.write("DEBUG: Procesando datos...") 
+    # Creamos un contenedor de estado para ver qué pasa
+    with st.status("Comunicando con Google Sheets...", expanded=True) as status:
+        try:
+            # 1. Lógica de Puntos
+            status.write("🔢 Calculando resultados...")
+            res_a, res_b = min(g0, g1), min(g2, g3)
+            p_a = 1 if res_a < res_b else 0
+            p_b = 1 if res_b < res_a else 0
 
-        res_a, res_b = min(g0, g1), min(g2, g3)
-        p_a = 1 if res_a < res_b else 0
-        p_b = 1 if res_b < res_a else 0
+            # 2. Conexión y Lectura Cruda
+            status.write("📡 Leyendo datos actuales de la nube...")
+            st.cache_data.clear() # Limpieza total de caché previa
+            
+            # Intentamos leer TODA la hoja
+            # Asegúrate que 'sh' esté definida globalmente como tu hoja de gspread
+            filas_totales = sh.get_all_values()
+            
+            if not filas_totales:
+                status.update(label="❌ Error: Hoja vacía", state="error")
+                return
 
-        # --- PASO 2: Conexión ---
-        st.cache_data.clear()
-        # Intentamos una lectura cruda para saltar cualquier error de pandas
-        filas_crudas = sh.get_all_values()
-        print(f"DEBUG: Filas leídas: {len(filas_crudas)}")
+            cabeceras = filas_totales[0]
+            datos_cuerpo = filas_totales[1:]
 
-        if not filas_crudas:
-            st.error("La hoja está vacía o no responde.")
-            return
+            # 3. Preparar los datos del partido
+            g = st.session_state.game
+            p_id = str(g['id'])
+            
+            status.write(f"🔍 Buscando si el hoyo {hoyo_id} ya existe...")
+            # Quitamos la fila anterior de este hoyo si existe
+            datos_filtrados = [
+                f for f in datos_cuerpo 
+                if not (len(f) > 2 and str(f[0]) == p_id and str(f[2]) == str(hoyo_id))
+            ]
 
-        header = filas_crudas[0]
-        datos = filas_crudas[1:]
+            # 4. Crear la nueva fila
+            nueva_fila = [
+                p_id, 
+                str(g['fecha']), 
+                int(hoyo_id), 
+                int(g0), int(g1), int(g2), int(g3), 
+                int(p_a), int(p_b)
+            ]
+            datos_filtrados.append(nueva_fila)
+            
+            # Ordenar para que no sea un caos
+            datos_filtrados.sort(key=lambda x: int(x[2]))
 
-        # --- PASO 3: Filtrado ---
-        g = st.session_state.game
-        p_id = str(g['id'])
-        
-        # Eliminamos el hoyo si ya existía para evitar duplicados
-        datos_limpios = [
-            f for f in datos 
-            if not (len(f) > 0 and str(f[0]) == p_id and str(f[2]) == str(hoyo_id))
-        ]
+            # 5. ESCRITURA FINAL
+            status.write("💾 Escribiendo en Google Sheets...")
+            cuerpo_completo = [cabeceras] + datos_filtrados
+            
+            # Limpiamos y escribimos
+            sh.clear()
+            sh.update('A1', cuerpo_completo)
+            
+            # 6. Éxito
+            st.cache_data.clear()
+            status.update(label="✅ ¡Guardado con éxito!", state="complete", expanded=False)
+            st.toast("Datos sincronizados", icon="⛳")
 
-        # --- PASO 4: Preparar Fila ---
-        nueva_fila = [
-            p_id, 
-            str(g['fecha']), 
-            int(hoyo_id), 
-            int(g0), int(g1), int(g2), int(g3), 
-            int(p_a), int(p_b)
-        ]
-        datos_limpios.append(nueva_fila)
-        datos_limpios.sort(key=lambda x: int(x[2])) # Ordenar por hoyo
-
-        # --- PASO 5: Escritura Forzada ---
-        print("DEBUG: Intentando sh.update...")
-        cuerpo_final = [header] + datos_limpios
-        
-        # Intentamos escribir primero un testigo en Z1
-        sh.update_acell('Z1', f"Sync: {datetime.now().strftime('%H:%M:%S')}")
-        
-        # Sobreescritura total
-        sh.clear()
-        sh.update('A1', cuerpo_final)
-        
-        print("DEBUG: ¡Guardado exitoso!")
-        st.toast("✅ ¡Guardado en Google Sheets!", icon="⛳")
-        st.cache_data.clear()
-
-    except Exception as e:
-        print(f"ERROR CRÍTICO: {str(e)}")
-        st.error(f"Error detectado: {e}")
+        except Exception as e:
+            status.update(label=f"❌ Error crítico: {str(e)}", state="error")
+            st.error(f"Detalle del error: {e}")
 
 # --- 3. NAVEGACIÓN ---
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Nueva Partida", "Estadísticas", "Admin"], 
@@ -437,12 +440,15 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         s3_val = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"in_s3_{h}_{st.session_state.refresco_id}")
 
        # --- BLOQUE G: ACCIÓN DE GUARDADO ---
-        # Forzamos un mensaje previo para ver si el botón responde
-        if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
-            st.toast("⏳ Iniciando proceso de guardado...") # Mensaje rápido en la esquina
-            ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
-            st.rerun()
-
+if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
+    # Esto aparecerá en la esquina superior derecha apenas pulses
+    st.toast("Iniciando guardado...", icon="⏳")
+    
+    # Ejecutamos la función
+    ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
+    
+    # Forzamos el refresco para ver el marcador nuevo
+    st.rerun()
         # --- BLOQUE H: FINALIZAR ---
         st.write("---")
         with st.popover("🏁 Finalizar Partida", use_container_width=True):
