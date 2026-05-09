@@ -317,56 +317,61 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     # --- BLOQUE 0: INICIALIZACIÓN ---
     if 'refresco_id' not in st.session_state: 
         st.session_state.refresco_id = 0
+    
+    # Inicializamos df_p y df_partido_actual SIEMPRE al inicio de la sección
+    # Esto elimina el NameError de la línea 358
+    df_p = pd.DataFrame()
+    df_partido_actual = pd.DataFrame()
 
     # --- BLOQUE A: CONFIGURACIÓN DE INICIO ---
     if 'game' not in st.session_state:
         st.markdown("### ⛳ Nueva Partida")
         fecha_seleccionada = st.date_input("Selecciona la fecha del partido")
 
-    if st.button("Iniciar Partido", type="primary", use_container_width=True):
-        # 1. Extraemos el año de la fecha seleccionada para la temporada
-        año_temporada = str(fecha_seleccionada.year)
-        fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
-    
-        # 2. Inicializamos el estado del juego con los datos del combo
-        st.session_state.game = {
-            "id": datetime.now().strftime("%Y%m%d%H%M%S"),
-            "fecha": fecha_formateada,
-            "temporada": año_temporada,
-            "puntos_acumulados_a": 0,
-            "puntos_acumulados_b": 0
-        }
+        if st.button("Iniciar Partido", type="primary", use_container_width=True):
+            año_temporada = str(fecha_seleccionada.year)
+            fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
         
-        # 3. Acciones post-inicio (TODO esto debe ir dentro del IF)
-        st.success(f"✅ Partida iniciada para la temporada {año_temporada}")
-        st.cache_data.clear()
-        st.rerun()
+            st.session_state.game = {
+                "id": datetime.now().strftime("%Y%m%d%H%M%S"),
+                "fecha": fecha_formateada,
+                "temporada": año_temporada,
+                "h_sel": 1, # Añadimos hoyo seleccionado inicial
+                "puntos_acumulados_a": 0,
+                "puntos_acumulados_b": 0
+            }
+            
+            st.success(f"✅ Partida iniciada para la temporada {año_temporada}")
+            st.cache_data.clear()
+            st.rerun()
             
     else:
         # --- BLOQUE B: LECTURA ÚNICA CENTRALIZADA ---
-        # Si ya hay un juego en curso, cargamos los datos
-        if 'game' in st.session_state:
-            g = st.session_state.game
-            
-            # Leemos los datos UNA SOLA VEZ para todo este renderizado
+        g = st.session_state.game
+        
+        try:
             df_p = leer_datos() 
-            # Filtramos los datos que pertenezcan a este partido_id (Columna B de tu Excel)
-            if not df_p.empty:
-                df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])]
-            else:
-                df_partido_actual = pd.DataFrame()
-        if df_p is not None and not df_p.empty:
-            # Limpieza de nombres de columnas por si hay espacios
-            df_p.columns = [str(c).strip() for c in df_p.columns]
-            
-            # Filtramos el partido actual de forma segura
-            if 'partido_id' in df_p.columns:
-                df_p['partido_id'] = df_p['partido_id'].astype(str)
-                df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])]
+            if df_p is not None and not df_p.empty:
+                # Limpieza de nombres de columnas
+                df_p.columns = [str(c).strip() for c in df_p.columns]
+                
+                # Filtramos el partido actual de forma segura
+                if 'partido_id' in df_p.columns:
+                    df_p['partido_id'] = df_p['partido_id'].astype(str)
+                    df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])]
+        except Exception as e:
+            st.error(f"Error al leer datos: {e}")
 
         # --- BLOQUE C: MARCADOR MATCH PLAY ---
-        pts_a_total = df_partido_actual['resultado_a'].sum() if not df_partido_actual.empty else 0
-        pts_b_total = df_partido_actual['resultado_b'].sum() if not df_partido_actual.empty else 0
+        # Usamos .get() o verificamos existencia para evitar errores si las columnas no existen
+        pts_a_total = 0
+        pts_b_total = 0
+        
+        if not df_partido_actual.empty:
+            if 'resultado_a' in df_partido_actual.columns:
+                pts_a_total = df_partido_actual['resultado_a'].sum()
+            if 'resultado_b' in df_partido_actual.columns:
+                pts_b_total = df_partido_actual['resultado_b'].sum()
         
         dif = pts_a_total - pts_b_total
         m_a, m_b = (dif, 0) if dif > 0 else (0, abs(dif))
@@ -413,7 +418,15 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         h = g['h_sel']
         fila_hoyo = df_partido_actual[df_partido_actual['hoyo'] == h] if not df_partido_actual.empty else pd.DataFrame()
         ya_existe = not fila_hoyo.empty
-        v_ref = [int(fila_hoyo.iloc[0][f's{i}']) if ya_existe else PAR_RIA_VIGO[h] for i in range(4)]
+        
+        # Cargamos valores previos o el par del hoyo si es nuevo
+        v_ref = []
+        for i in range(4):
+            col_name = f's{i}'
+            if ya_existe and col_name in fila_hoyo.columns:
+                v_ref.append(int(fila_hoyo.iloc[0][col_name]))
+            else:
+                v_ref.append(PAR_RIA_VIGO[h])
 
         col_j1, col_j2 = st.columns(2)
         s0_val = col_j1.number_input(TODOS[0], 1, 15, v_ref[0], key=f"in_s0_{h}_{st.session_state.refresco_id}")
@@ -421,14 +434,13 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         s2_val = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"in_s2_{h}_{st.session_state.refresco_id}")
         s3_val = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"in_s3_{h}_{st.session_state.refresco_id}")
 
-       # --- BLOQUE G: ACCIÓN DE GUARDADO ---
+        # --- BLOQUE G: ACCIÓN DE GUARDADO ---
         if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
             st.toast("⏳ Iniciando guardado...", icon="⏳")
             ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
             st.rerun()
 
         # --- BLOQUE H: FINALIZAR ---
-        # Asegúrate de que st.write esté al mismo nivel que el 'if' del botón de arriba
         st.write("---") 
         
         with st.popover("🏁 Finalizar Partida", use_container_width=True):
@@ -438,7 +450,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     del st.session_state.game
                 st.cache_data.clear()
                 st.rerun()
-
 # ==========================================
 # SECCIÓN: ESTADISTICAS (Versión Restaurada)
 # ==========================================
