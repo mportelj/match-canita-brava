@@ -248,51 +248,62 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         
         # 1. LISTA DE GOLPES (0:Manu, 1:Jose, 2:Roge, 3:Lalo)
         golpes = [int(g0), int(g1), int(g2), int(g3)]
-        p_mvp = [0.0, 0.0, 0.0, 0.0]
-
-        # --- LÓGICA DE BONUS DE CALIDAD ---
-        # Para MVP: Albatros +4, Eagle +3, Birdie +1.5, Par +0.5
-        # Para MATCH: Albatros +2, Birdie +1 (según tu nueva indicación)
+        
+        # --- LÓGICA DE BONUS ---
         def calc_bonus_mvp(score, p):
             dif = score - p
-            if dif <= -3: return 4.0
-            if dif == -2: return 3.0
-            if dif == -1: return 1.5
-            if dif == 0:  return 0.5
+            if dif <= -3: return 4.0   # Albatros MVP
+            if dif == -2: return 3.0   # Eagle MVP
+            if dif == -1: return 1.5   # Birdie MVP
+            if dif == 0:  return 0.5   # Par MVP
             return 0.0
 
         def calc_bonus_match(score, p):
             dif = score - p
-            if dif <= -3: return 2.0 # Albatros para el Match
-            if dif == -1: return 1.0 # Birdie para el Match
+            if dif <= -3: return 3.0   # Albatros MATCH
+            if dif == -2: return 2.0   # Eagle MATCH
+            if dif == -1: return 1.0   # Birdie MATCH
             return 0.0
 
-        # 2. CÁLCULO MVP INDIVIDUAL (Oponentes + Calidad MVP)
+        # 2. CÁLCULO MVP INDIVIDUAL (H, I, J, K)
+        p_mvp = [0.0, 0.0, 0.0, 0.0]
         for i in range(4):
             puntos_oponentes = 0
             for j in range(4):
                 if i == j: continue 
-                if golpes[i] < golpes[j]:
-                    puntos_oponentes += 0.5
+                if golpes[i] < golpes[j]: puntos_oponentes += 0.5
             p_mvp[i] = puntos_oponentes + calc_bonus_mvp(golpes[i], par_hoyo)
 
-        # 3. MARCADOR DEL MATCH (Parejas - Col F y G)
-        # Puntos base por ganar el hoyo (Mejor Bola)
-        res_a = min(golpes[0], golpes[1])
-        res_b = min(golpes[2], golpes[3])
+        # 3. CÁLCULO RESULTADO MATCH (F, G)
+        # Separamos por equipos para claridad
+        equipo_a = [golpes[0], golpes[1]]
+        equipo_b = [golpes[2], golpes[3]]
         
-        base_a = 1.0 if res_a < res_b else 0.0
-        base_b = 1.0 if res_b < res_a else 0.0
+        # A) Puntos por Mejor Bola
+        mejor_a, mejor_b = min(equipo_a), min(equipo_b)
+        pts_mejor_a = 1.0 if mejor_a < mejor_b else 0.0
+        pts_mejor_b = 1.0 if mejor_b < mejor_a else 0.0
+        
+        # B) Puntos por Peor Bola (NUEVO)
+        peor_a, peor_b = max(equipo_a), max(equipo_b)
+        pts_peor_a = 1.0 if peor_a < peor_b else 0.0
+        pts_peor_b = 1.0 if peor_b < peor_a else 0.0
 
-        # Sumamos Bonus de Calidad del Match (Albatros=2, Birdie=1)
-        bonus_match_a = calc_bonus_match(golpes[0], par_hoyo) + calc_bonus_match(golpes[1], par_hoyo)
-        bonus_match_b = calc_bonus_match(golpes[2], par_hoyo) + calc_bonus_match(golpes[3], par_hoyo)
+        # C) Puntos por calidad (Bonus Match)
+        b_a = calc_bonus_match(equipo_a[0], par_hoyo) + calc_bonus_match(equipo_a[1], par_hoyo)
+        b_b = calc_bonus_match(equipo_b[0], par_hoyo) + calc_bonus_match(equipo_b[1], par_hoyo)
 
-        match_a = base_a + bonus_match_a
-        match_b = base_b + bonus_match_b
+        # D) Cálculo Bruto y Netear (Solo uno puntúa en F/G)
+        total_hoyo_a = pts_mejor_a + pts_peor_a + b_a
+        total_hoyo_b = pts_mejor_b + pts_peor_b + b_b
 
-        # Si tras sumar bonus hay empate total en el hoyo, ambos a 0 (según regla anterior)
-        if match_a == match_b:
+        if total_hoyo_a > total_hoyo_b:
+            match_a = total_hoyo_a - total_hoyo_b
+            match_b = 0.0
+        elif total_hoyo_b > total_hoyo_a:
+            match_a = 0.0
+            match_b = total_hoyo_b - total_hoyo_a
+        else:
             match_a, match_b = 0.0, 0.0
 
         # 4. CONSTRUCCIÓN DE LA FILA
@@ -303,25 +314,24 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
             int(hoyo_id),                        
             str(g['fecha']),                     
             str(g['temporada']),                 
-            float(match_a), float(match_b),      # Columnas F y G (Match + Bonus Calidad)
-            p_mvp[0], p_mvp[1],                  # Columnas H e I (Manu, Jose MVP)
-            p_mvp[2], p_mvp[3],                  # Columnas J y K (Roge, Lalo MVP)
+            float(match_a), float(match_b),      
+            p_mvp[0], p_mvp[1],                  
+            p_mvp[2], p_mvp[3],                  
             int(g0), int(g1),                    
             int(g2), int(g3)                     
         ]
 
-        # 5. GUARDADO EN GOOGLE SHEETS
+        # 5. GUARDADO
         filas = hoja.get_all_values()
         header = filas[0]
         datos_restantes = [f for f in filas[1:] if not (f[1] == id_partido_busqueda and int(f[2]) == int(hoyo_id))]
-        
         datos_restantes.append(nueva_fila)
         datos_restantes.sort(key=lambda x: (str(x[1]), int(x[2])))
-
+        
         hoja.clear()
         hoja.update('A1', [header] + datos_restantes)
         
-        st.toast(f"✅ Hoyo {hoyo_id} guardado con Bonus de Match")
+        st.toast(f"✅ Hoyo {hoyo_id} guardado (Mejor/Peor + Bonus)")
         st.cache_data.clear()
 
     except Exception as e:
