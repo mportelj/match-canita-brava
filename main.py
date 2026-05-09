@@ -210,48 +210,63 @@ def leer_datos():
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     try:
-        # --- 1. Lógica de Puntos ---
+        # 1. Lógica de Puntos
         res_a, res_b = min(g0, g1), min(g2, g3)
         p_a = 1 if res_a < res_b else 0
         p_b = 1 if res_b < res_a else 0
 
-        # --- 2. Preparar la fila como una lista simple ---
-        g = st.session_state.game
-        # Formato: partido_id, fecha, hoyo, s0, s1, s2, s3, res_a, res_b
-        nueva_fila = [
-            str(g['id']), 
-            str(g['fecha']), 
-            int(hoyo_id), 
-            int(g0), int(g1), int(g2), int(g3), 
-            int(p_a), int(p_b)
-        ]
-
-        # --- 3. GRABACIÓN DIRECTA ---
-        # Primero borramos el hoyo si ya existe para evitar duplicados
-        # (Esto es opcional, pero limpia la base de datos)
-        lista_de_listas = sh.get_all_values()
-        df_temp = pd.DataFrame(lista_de_listas[1:], columns=lista_de_listas[0])
-        
-        # Filtramos para quitar el hoyo viejo si existe
-        df_temp = df_temp[~((df_temp['partido_id'] == str(g['id'])) & 
-                            (df_temp['hoyo'] == str(hoyo_id)))]
-        
-        # Añadimos la nueva fila al DataFrame
-        df_nuevo = pd.concat([df_temp, pd.DataFrame([nueva_fila], columns=df_temp.columns)], ignore_index=True)
-        
-        # ACTUALIZACIÓN TOTAL (Forzada)
-        # Convertimos NaN a vacío para que Google no de error
-        df_nuevo = df_nuevo.fillna("")
-        
-        # Esta es la instrucción que "manda" en gspread
-        sh.update('A1', [df_nuevo.columns.values.tolist()] + df_nuevo.values.tolist())
-        
-        # --- 4. LIMPIEZA DE CACHÉ ---
+        # 2. Forzar lectura fresca de la nube
         st.cache_data.clear()
-        st.success(f"Hoyo {hoyo_id} actualizado en la nube")
+        lista_de_listas = sh.get_all_values() # Leemos directamente de la variable 'sh'
+        
+        if not lista_de_listas:
+            st.error("La hoja está totalmente vacía o no se pudo leer.")
+            return
+
+        # Convertimos a DataFrame para manipular fácilmente
+        df = pd.DataFrame(lista_de_listas[1:], columns=lista_de_listas[0])
+        df.columns = [str(c).strip() for c in df.columns]
+
+        # 3. Preparar nueva fila
+        g = st.session_state.game
+        partido_id = str(g['id'])
+        
+        nueva_fila = {
+            'partido_id': partido_id,
+            'fecha': str(g['fecha']),
+            'hoyo': str(hoyo_id),
+            's0': str(g0),
+            's1': str(g1),
+            's2': str(g2),
+            's3': str(g3),
+            'resultado_a': str(p_a),
+            'resultado_b': str(p_b)
+        }
+
+        # 4. Eliminar duplicado (si ya existía el hoyo para este partido)
+        df = df[~((df['partido_id'].astype(str) == partido_id) & 
+                  (df['hoyo'].astype(str) == str(hoyo_id)))]
+        
+        # 5. Unir datos
+        df = pd.concat([df, pd.DataFrame([nueva_fila])], ignore_index=True)
+        df = df.fillna("") # Evita errores de celdas vacías en Google
+
+        # --- 6. ESCRITURA FORZADA ---
+        # Convertimos el DataFrame a lista de listas (formato nativo de Google Sheets)
+        cuerpo = [df.columns.values.tolist()] + df.values.tolist()
+        
+        # Limpiamos la hoja antes de escribir para evitar datos residuales
+        sh.clear() 
+        
+        # Escribimos todo de nuevo desde la A1
+        sh.update('A1', cuerpo)
+        
+        # Limpieza de caché para que Streamlit vea los cambios al instante
+        st.cache_data.clear()
+        st.success(f"✅ Hoyo {hoyo_id} sincronizado con Google Sheets")
 
     except Exception as e:
-        st.error(f"Error de gspread: {e}")
+        st.error(f"❌ Error crítico en gspread: {e}")
 
 # --- 3. NAVEGACIÓN ---
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Nueva Partida", "Estadísticas", "Admin"], 
