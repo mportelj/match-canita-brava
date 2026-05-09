@@ -434,24 +434,43 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.rerun()
 
         # --- BLOQUE F: GOLPES (Carga s0 a s3) ---
-        h = g['h_sel']
-        fila_hoyo = df_partido_actual[df_partido_actual['hoyo'] == h] if not df_partido_actual.empty else pd.DataFrame()
-        ya_existe = not fila_hoyo.empty
-        
-        # Cargamos valores previos o el par del hoyo si es nuevo
-        v_ref = []
-        for i in range(4):
-            col_name = f's{i}'
-            if ya_existe and col_name in fila_hoyo.columns:
-                v_ref.append(int(fila_hoyo.iloc[0][col_name]))
-            else:
-                v_ref.append(PAR_RIA_VIGO[h])
+h = g['h_sel']
 
-        col_j1, col_j2 = st.columns(2)
-        s0_val = col_j1.number_input(TODOS[0], 1, 15, v_ref[0], key=f"in_s0_{h}_{st.session_state.refresco_id}")
-        s1_val = col_j1.number_input(TODOS[1], 1, 15, v_ref[1], key=f"in_s1_{h}_{st.session_state.refresco_id}")
-        s2_val = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"in_s2_{h}_{st.session_state.refresco_id}")
-        s3_val = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"in_s3_{h}_{st.session_state.refresco_id}")
+# 1. Normalizamos el ID del partido actual para que coincida con el formato del Excel (.0)
+id_busqueda = f"{float(g['id']):.1f}"
+
+# 2. Buscamos la fila del hoyo actual dentro del partido actual
+# Forzamos que tanto la columna del DataFrame como nuestro ID sean strings comparables
+if not df_partido_actual.empty:
+    fila_hoyo = df_partido_actual[
+        (df_partido_actual['hoyo'].astype(int) == int(h))
+    ]
+else:
+    fila_hoyo = pd.DataFrame()
+
+ya_existe = not fila_hoyo.empty
+
+# 3. Preparamos los valores de referencia (v_ref)
+v_ref = []
+if ya_existe:
+    # Si existe, extraemos los valores s0, s1, s2, s3
+    # Usamos .iloc[0] para asegurar que cogemos la primera coincidencia
+    v_ref = [
+        int(fila_hoyo.iloc[0]['s0']),
+        int(fila_hoyo.iloc[0]['s1']),
+        int(fila_hoyo.iloc[0]['s2']),
+        int(fila_hoyo.iloc[0]['s3'])
+    ]
+else:
+    # Si no existe, cargamos el Par por defecto
+    v_ref = [PAR_RIA_VIGO[h]] * 4
+
+# 4. Los inputs ahora mostrarán siempre lo que hay en v_ref
+col_j1, col_j2 = st.columns(2)
+s0_val = col_j1.number_input(TODOS[0], 1, 15, v_ref[0], key=f"in_s0_{h}_{st.session_state.refresco_id}")
+s1_val = col_j1.number_input(TODOS[1], 1, 15, v_ref[1], key=f"in_s1_{h}_{st.session_state.refresco_id}")
+s2_val = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"in_s2_{h}_{st.session_state.refresco_id}")
+s3_val = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"in_s3_{h}_{st.session_state.refresco_id}")
 
         # --- BLOQUE G: ACCIÓN DE GUARDADO ---
         if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
