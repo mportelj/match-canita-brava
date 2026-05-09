@@ -239,8 +239,8 @@ def ejecutar_guardado_automatico():
     st.cache_data.clear()
 
 # --- 3. NAVEGACIÓN ---
-menu = st.sidebar.radio("Ir a:", ["Inicio", "Jugar/Editar", "Estadísticas", "Admin"], 
-                       index=["Inicio", "Jugar/Editar", "Estadísticas", "Admin"].index(st.session_state.menu_seleccionado),
+menu = st.sidebar.radio("Ir a:", ["Inicio", "Nueva Partida", "Estadísticas", "Admin"], 
+                       index=["Inicio", "Nueva Partida", "Estadísticas", "Admin"].index(st.session_state.menu_seleccionado),
                        key="radio_menu", on_change=cambiar_menu)
 
 
@@ -307,77 +307,27 @@ if st.session_state.menu_seleccionado == "Inicio":
    
 
 # ==========================================
-# SECCIÓN: JUGAR / EDITAR (Modo Match Play)
+# SECCIÓN: NUEVA PARTIDA (Modo Match Play)
 # ==========================================
-elif st.session_state.menu_seleccionado == "Jugar/Editar":
-    # 1. PREPARACIÓN DE OPCIONES (FECHAS CON RESUMEN)
-    df = leer_datos()
-    opciones_fechas = ["Nueva Partida (Hoy)"]
-    dict_fechas = {}
-
-    if df is not None and not df.empty:
-        # Aseguramos que la columna fecha sea string para agrupar
-        df['fecha_str_tmp'] = df['fecha'].astype(str).str.split(' ').str[0]
-        resumen = df.groupby('fecha_str_tmp').agg({
-            'hoyo': 'count',
-            'resultado_a': 'sum',
-            'resultado_b': 'sum'
-        }).reset_index()
-
-        for _, row in resumen.sort_values('fecha_str_tmp', ascending=False).iterrows():
-            f_str = row['fecha_str_tmp']
-            # Intentar formatear fecha de YYYY-MM-DD a DD/MM/YYYY si es necesario
-            try:
-                f_obj = pd.to_datetime(f_str)
-                f_display = f_obj.strftime("%d/%m/%Y")
-            except:
-                f_display = f_str
-            
-            dif = int(row['resultado_a'] - row['resultado_b'])
-            res_txt = f"L {dif}" if dif > 0 else (f"V {abs(dif)}" if dif < 0 else "A.S.")
-            texto_opcion = f"{f_display} - {row['hoyo']} Hoyos - {res_txt}"
-            
-            opciones_fechas.append(texto_opcion)
-            dict_fechas[texto_opcion] = f_str
-
-    # --- PANTALLA A: SELECCIÓN ---
-    if 'partido_iniciado' not in st.session_state:
-        st.session_state.partido_iniciado = False
-
-    if not st.session_state.partido_iniciado:
-        st.markdown("### 📅 Selección de Jornada")
-        seleccion = st.selectbox("Partidas guardadas:", options=opciones_fechas)
+elif st.session_state.menu_seleccionado == "Nueva Partida":
+    st.title("🗓️ Nueva Partida")
+    
+    # Quitamos el st.selectbox de partidas guardadas
+    # Dejamos solo la fecha y el botón
+    fecha_partida = st.date_input("Fecha del Encuentro:", value=pd.Timestamp.now())
+    
+    st.write("") # Espacio visual
+    
+    if st.button("🚀 COMENZAR PARTIDO", use_container_width=True):
+        # Aquí reseteamos los hoyos para empezar de cero
+        # Suponiendo que usas un diccionario para los golpes s0, s1, etc.
+        for i in range(len(TODOS)):
+            st.session_state[f'jugador_{i}_golpes'] = {} 
         
-        if seleccion == "Nueva Partida (Hoy)":
-            fecha_final = st.date_input("Fecha:", value=datetime.now().date())
-        else:
-            fecha_final = dict_fechas[seleccion] # Es un string
-
-        if st.button("🚀 COMENZAR PARTIDO", use_container_width=True, type="primary"):
-            st.session_state.fecha_partida = fecha_final
-            st.session_state.partido_iniciado = True
-            st.rerun()
-
-    # --- PANTALLA B: INTERFAZ DE JUEGO (Aquí estaba el fallo de indentación) ---
-    else:
-        # RECUERDA: Todo este bloque debe estar indentado dentro del 'else'
-        # Si dejas esto vacío o sin indentar, dará el error que mencionas.
-        
-        # 1. Recuperar info
-        f_partida = st.session_state.fecha_partida
-        h_idx = st.session_state.get('hoyo_actual', 1)
-        
-        # Selector de hoyo (Salto rápido)
-        h_idx = st.selectbox("📍 Hoyo:", list(range(1, 19)), index=h_idx-1)
-        st.session_state.hoyo_actual = h_idx
-        
-        # (Aquí pegas el código del marcador VS y los inputs de golpes que ya tenías)
-        st.write(f"Partida del día: {f_partida} - Hoyo {h_idx}")
-        
-        # Si quieres probar si el error desaparece, con este st.write ya basta.
-        # Luego rellena con los contenedores de los golpes.
-
-# --- LÍNEA 351 (El error decía que esto fallaba porque el else de arriba estaba vacío) ---
+        st.session_state.fecha_actual = fecha_partida.strftime('%Y/%m/%d')
+        st.session_state.partida_iniciada = True
+        st.success(f"¡Partida creada para el {st.session_state.fecha_actual}!")
+        # Opcional: Redirigir automáticamente a la carga de puntos si tienes esa lógica
 
 # ==========================================
 # SECCIÓN: ESTADISTICAS (Versión Restaurada)
