@@ -323,12 +323,12 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         st.markdown("### ⛳ Nueva Partida")
         fecha_seleccionada = st.date_input("Selecciona la fecha del partido")
 
-if st.button("Iniciar Partido"):
-    # Extraemos el año de la fecha seleccionada para la temporada
-    año_temporada = str(fecha_seleccionada.year)
-    fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
+    if st.button("Iniciar Partido"):
+        # Extraemos el año de la fecha seleccionada para la temporada
+        año_temporada = str(fecha_seleccionada.year)
+        fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
     
-    st.session_state.game = {
+        st.session_state.game = {
         "id": datetime.now().strftime("%Y%m%d%H%M%S"),
         "fecha": fecha_formateada,
         "temporada": año_temporada,
