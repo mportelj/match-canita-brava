@@ -145,6 +145,7 @@ def actualizar_o_insertar_hoyo(datos):
 # --- 2. FUNCIONES DE DATOS ---
 @st.cache_data(ttl=0)  # ttl=0 asegura que si hay cambios, los intente leer frescos
 
+@st.cache_data(ttl=60) # Mantiene los datos en memoria 1 minuto
 def leer_datos():
     """
     Lee la base de datos completa desde Google Sheets.
@@ -313,16 +314,15 @@ if st.session_state.menu_seleccionado == "Inicio":
     """, unsafe_allow_html=True)
    
 # ==========================================
-# SECCIÓN: NUEVA PARTIDA (REORGANIZADA)
-# ==========================================
-# ==========================================
-# SECCIÓN: NUEVA PARTIDA (LÓGICA MATCH PLAY CORREGIDA)
+# SECCIÓN: NUEVA PARTIDA (OPTIMIZADA)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
 
+    # --- BLOQUE 0: INICIALIZACIÓN ---
     if 'refresco_id' not in st.session_state: 
         st.session_state.refresco_id = 0
 
+    # --- BLOQUE A: CONFIGURACIÓN DE INICIO ---
     if 'game' not in st.session_state:
         st.markdown("### ⛳ Nueva Partida")
         f = st.date_input("Fecha:", datetime.now(), format="DD/MM/YYYY")
@@ -332,16 +332,24 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 'h_sel': 1, 
                 'id': datetime.now().strftime("%Y%m%d%H%M%S")
             }
+            st.cache_data.clear() # Limpiamos caché para asegurar datos frescos al empezar
             st.rerun()
             
     else:
-        # --- BLOQUE B: LECTURA ÚNICA ---
+        # --- BLOQUE B: LECTURA ÚNICA Y SEGURA (Evita Error 429) ---
         g = st.session_state.game
-        df_p = leer_datos()
-        df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])] if df_p is not None else pd.DataFrame()
+        df_p = leer_datos() 
+        df_partido_actual = pd.DataFrame()
 
-        # --- BLOQUE C: MARCADOR MATCH PLAY (Lógica: Ganados vs Perdidos) ---
-        # En Match Play, el marcador suma 1 si ganas el hoyo, 0 si empatas o pierdes.
+        if df_p is not None and not df_p.empty:
+            # Limpieza de nombres de columnas
+            df_p.columns = [str(c).strip() for c in df_p.columns]
+            
+            if 'partido_id' in df_p.columns:
+                df_p['partido_id'] = df_p['partido_id'].astype(str)
+                df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])]
+
+        # --- BLOQUE C: MARCADOR MATCH PLAY ---
         pts_a_total = df_partido_actual['resultado_a'].sum() if not df_partido_actual.empty else 0
         pts_b_total = df_partido_actual['resultado_b'].sum() if not df_partido_actual.empty else 0
         
@@ -352,16 +360,16 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
                 <div style="display: flex; justify-content: space-around; align-items: center;">
                     <div style="flex: 1;">
-                        <p style="color: #2e7d32; margin: 0; font-size: 0.8em; font-weight: bold;">{EQUIPO_A_NOMBRES}</p>
-                        <h1 style="margin: 0; font-size: 4em; color: {COLOR_A if m_a > 0 else '#333'};">{m_a:g}</h1>
+                        <p style="margin:0; font-size:0.8em; color:#2e7d32; font-weight:bold;">{EQUIPO_A_NOMBRES}</p>
+                        <h1 style="margin:0; font-size:4.5em; color:{COLOR_A if m_a > 0 else '#333'};">{m_a:g}</h1>
                     </div>
-                    <div style="background: #ccc; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold;">VS</div>
+                    <div style="background:#ccc; border-radius:50%; width:40px; height:40px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#666;">VS</div>
                     <div style="flex: 1;">
-                        <p style="color: #c62828; margin: 0; font-size: 0.8em; font-weight: bold;">{EQUIPO_B_NOMBRES}</p>
-                        <h1 style="margin: 0; font-size: 4em; color: {COLOR_B if m_b > 0 else '#333'};">{m_b:g}</h1>
+                        <p style="margin:0; font-size:0.8em; color:#c62828; font-weight:bold;">{EQUIPO_B_NOMBRES}</p>
+                        <h1 style="margin:0; font-size:4.5em; color:{COLOR_B if m_b > 0 else '#333'};">{m_b:g}</h1>
                     </div>
                 </div>
-                <p style="margin: 5px 0 0 0; font-size: 0.9em; color: #666;">{"All Square" if dif == 0 else f"{abs(dif)} Up"}</p>
+                <p style="margin-top:5px; color:#666;">{"All Square" if dif == 0 else f"{abs(dif)} Up"}</p>
             </div>
         """, unsafe_allow_html=True)
 
@@ -376,7 +384,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.session_state.refresco_id += 1
             st.rerun()
 
-        # --- BLOQUE E: SELECTOR DE HOYO ---
+        # --- BLOQUE E: SELECTOR ---
         lista_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
         seleccion = st.selectbox("h_sel", lista_hoyos, index=g['h_sel']-1, label_visibility="collapsed", key=f"h_selector_{st.session_state.refresco_id}")
         
@@ -386,7 +394,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.session_state.refresco_id += 1
             st.rerun()
 
-        # --- BLOQUE F: ENTRADA DE GOLPES (s0 a s3) ---
+        # --- BLOQUE F: GOLPES (Carga s0 a s3) ---
         h = g['h_sel']
         fila_hoyo = df_partido_actual[df_partido_actual['hoyo'] == h] if not df_partido_actual.empty else pd.DataFrame()
         ya_existe = not fila_hoyo.empty
@@ -398,23 +406,14 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         s2_val = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"in_s2_{h}_{st.session_state.refresco_id}")
         s3_val = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"in_s3_{h}_{st.session_state.refresco_id}")
 
-        # --- BLOQUE G: LÓGICA DE PUNTO Y GUARDADO ---
-        # Calculamos el punto del hoyo basado en tu regla:
-        # Si empatan, resultado_a y resultado_b son 0.
-        res_a, res_b = min(s0_val, s1_val), min(s2_val, s3_val)
-        p_a = 1 if res_a < res_b else 0
-        p_b = 1 if res_b < res_a else 0
-
-        # Mostrar estado visual del hoyo antes de guardar
-        if res_a == res_b:
-            st.warning("Hoyo Empatado (Halved)")
-        else:
-            ganador = "Equipo A" if p_a > p_b else "Equipo B"
-            st.success(f"Ganador del Hoyo: {ganador}")
-
+        # --- BLOQUE G: GUARDADO (Lógica: Empate = 0 puntos) ---
         if st.button("💾 Actualizar Hoyo", type="primary", use_container_width=True, disabled=([s0_val, s1_val, s2_val, s3_val] == v_ref)):
-            # Enviamos p_a y p_b (que serán 0 si hay empate)
+            # Enviamos datos a la función
             ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
+            
+            # Forzamos recarga de Google Sheets para el marcador
+            st.cache_data.clear()
+            st.success(f"Hoyo {h} guardado")
             st.rerun()
 
         # --- BLOQUE H: CIERRE ---
@@ -422,6 +421,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         with st.popover("🏁 Finalizar Partida", use_container_width=True):
             if st.button("Confirmar Cierre", type="primary", use_container_width=True):
                 if 'game' in st.session_state: del st.session_state.game
+                st.cache_data.clear()
                 st.rerun()
 
 # ==========================================
