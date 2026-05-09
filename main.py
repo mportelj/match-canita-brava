@@ -337,8 +337,8 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     }
     st.success(f"Partida iniciada para la temporada {año_temporada}")
             # Limpiamos caché para asegurar que al empezar no haya datos viejos
-            st.cache_data.clear()
-            st.rerun()
+    st.cache_data.clear()
+    st.rerun()
             
     else:
         # --- BLOQUE B: LECTURA ÚNICA CENTRALIZADA ---
