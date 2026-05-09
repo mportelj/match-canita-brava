@@ -210,36 +210,35 @@ def leer_datos():
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     try:
-        # 1. Lógica Match Play
+        # 1. Lógica de Puntos Match Play
         res_a, res_b = min(g0, g1), min(g2, g3)
         p_a = 1 if res_a < res_b else 0
         p_b = 1 if res_b < res_a else 0
 
-        # 2. Datos del partido
+        # 2. Datos del partido desde Session State
         g = st.session_state.game
         p_id = str(g['id'])
         fecha = str(g['fecha'])
 
-        # 3. Obtener todas las filas de la hoja
-        # Forzamos limpieza de caché antes de leer
+        # 3. Lectura directa de gspread (Sin caché)
         st.cache_data.clear()
         todas_las_filas = sh.get_all_values()
         
         if not todas_las_filas:
-            st.error("La hoja está vacía. Debe tener al menos las cabeceras.")
+            st.error("🚨 La hoja de Google Sheets parece estar vacía o inaccesible.")
             return
 
         cabeceras = todas_las_filas[0]
-        datos_actuales = todas_las_filas[1:]
+        datos_viejos = todas_las_filas[1:]
 
-        # 4. Filtrar: eliminar la fila de este hoyo si ya existía
-        # Asumimos: Columna 0 = partido_id, Columna 2 = hoyo
-        nuevos_datos = [
-            fila for fila in datos_actuales 
-            if not (fila[0] == p_id and str(fila[2]) == str(hoyo_id))
+        # 4. Filtrar: quitamos la fila de este hoyo si ya existía para este partido
+        # Columna 0: partido_id | Columna 2: hoyo
+        datos_nuevos = [
+            f for f in datos_viejos 
+            if not (len(f) > 2 and f[0] == p_id and str(f[2]) == str(hoyo_id))
         ]
 
-        # 5. Crear la nueva fila (todo como strings/ints simples)
+        # 5. Crear la nueva fila (Aseguramos formatos simples)
         nueva_fila = [
             p_id, 
             fecha, 
@@ -247,25 +246,29 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
             int(g0), int(g1), int(g2), int(g3), 
             int(p_a), int(p_b)
         ]
-        nuevos_datos.append(nueva_fila)
+        datos_nuevos.append(nueva_fila)
 
-        # 6. Ordenar por hoyo para que el Excel quede limpio
-        nuevos_datos.sort(key=lambda x: int(x[2]))
+        # 6. Ordenar por hoyo para mantener orden visual
+        datos_nuevos.sort(key=lambda x: int(x[2]))
 
-        # 7. ESCRIBIR EN GOOGLE SHEETS
-        # Combinamos cabeceras con datos limpios
-        cuerpo_final = [cabeceras] + nuevos_datos
+        # --- 7. EL MOMENTO DE LA VERDAD: ESCRITURA ---
+        cuerpo_completo = [cabeceras] + datos_nuevos
         
-        # Limpiamos la hoja por completo y subimos todo el bloque
+        # Primero intentamos escribir en una celda de control
+        sh.update_acell('Z1', f"Último cambio: {datetime.now().strftime('%H:%M:%S')}")
+        
+        # Limpiamos y sobreescribimos todo el bloque
         sh.clear()
-        sh.update('A1', cuerpo_final)
+        sh.update('A1', cuerpo_completo)
         
-        # Notificación y refresco
+        # 8. Limpieza de rastro
         st.cache_data.clear()
-        st.success(f"✅ Hoyo {hoyo_id} guardado y sincronizado")
+        st.success(f"✅ Hoyo {hoyo_id} guardado con éxito.")
 
     except Exception as e:
-        st.error(f"Fallo en la grabación: {str(e)}")
+        st.error(f"❌ Error real detectado: {str(e)}")
+
+
 # --- 3. NAVEGACIÓN ---
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Nueva Partida", "Estadísticas", "Admin"], 
                        index=["Inicio", "Nueva Partida", "Estadísticas", "Admin"].index(st.session_state.menu_seleccionado),
