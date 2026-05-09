@@ -307,18 +307,41 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
             match_a, match_b = 0.0, 0.0
 
         # 4. CONSTRUCCIÓN DE LA FILA
-        id_partido_busqueda = f"{float(g['id']):.1f}"
+        # --- 4. CONSTRUCCIÓN DE LA FILA (CORRECCIÓN DE FORMATOS) ---
+        
+        # 1. Aseguramos que el partido_id sea un string con ".0" para coincidir con los antiguos
+        try:
+            id_float = float(g['id'])
+            id_partido_formateado = f"{id_float:.1f}"
+        except:
+            id_partido_formateado = str(g['id'])
+
+        # 2. Formateamos la fecha a DD/MM/YYYY
+        # Si la fecha viene como objeto datetime, la convertimos. Si es string, la limpiamos.
+        fecha_original = g['fecha']
+        if hasattr(fecha_original, 'strftime'):
+            fecha_str = fecha_original.strftime('%d/%m/%Y')
+        else:
+            # Por si acaso viene un string de tipo "YYYY-MM-DD..."
+            try:
+                from datetime import datetime
+                # Intentamos parsear el formato ISO que suele dar Streamlit si falla
+                temp_dt = pd.to_datetime(fecha_original)
+                fecha_str = temp_dt.strftime('%d/%m/%Y')
+            except:
+                fecha_str = str(fecha_original)
+
         nueva_fila = [
-            f"{id_partido_busqueda}_H{hoyo_id}", 
-            id_partido_busqueda,                 
-            int(hoyo_id),                        
-            str(g['fecha']),                     
-            str(g['temporada']),                 
-            float(match_a), float(match_b),      
-            p_mvp[0], p_mvp[1],                  
-            p_mvp[2], p_mvp[3],                  
-            int(g0), int(g1),                    
-            int(g2), int(g3)                     
+            f"{id_partido_formateado}_H{hoyo_id}", # id único
+            id_partido_formateado,                 # partido_id (con .0)
+            int(hoyo_id),                          # hoyo
+            fecha_str,                             # fecha (DD/MM/YYYY)
+            str(g['temporada']),                   # temporada
+            float(match_a), float(match_b),        # F, G
+            p_mvp[0], p_mvp[1],                    # H, I
+            p_mvp[2], p_mvp[3],                    # J, K
+            int(g0), int(g1),                      # L, M
+            int(g2), int(g3)                       # N, O
         ]
 
         # 5. GUARDADO
