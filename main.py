@@ -33,31 +33,27 @@ if 'sh' not in st.session_state:
 
 # --- CONFIGURACIÓN DE NAVEGACIÓN ---
 
+# --- CONFIGURACIÓN DEL MENÚ EN EL SIDEBAR ---
 opciones_menu = ["Inicio", "Nueva Partida", "Estadísticas", "Admin"]
 
-# 1. Aseguramos que la variable exista
+# Si el botón de editar ya puso "Nueva Partida" en el estado, el radio lo leerá
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-# 2. CALCULAMOS EL ÍNDICE (Esto es lo que hace que el marcador se mueva solo)
 try:
-    # Si st.session_state.menu_seleccionado es "Nueva Partida", esto valdrá 1
     indice_seccion = opciones_menu.index(st.session_state.menu_seleccionado)
 except ValueError:
     indice_seccion = 0
 
 with st.sidebar:
     st.title("⛳ Menú Principal")
-    
-    # 3. CRÍTICO: Usar el parámetro 'index'
     seleccion = st.radio(
         "Ir a:",
         opciones_menu,
-        index=indice_seccion, # <-- Esto obliga al menú a saltar
-        key="navegacion_radio"
+        index=indice_seccion,
+        key="navegacion_radio" # Esta clave debe coincidir con la del callback
     )
-    
-    # 4. Actualizamos el estado con lo que el usuario pulse manualmente
+    # Sincronizamos la variable que usas en tus if/elif
     st.session_state.menu_seleccionado = seleccion
 
 # --- LÓGICA DE DATOS ---
