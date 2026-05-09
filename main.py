@@ -216,70 +216,66 @@ def leer_datos():
 
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
-    # Creamos un contenedor de estado para ver qué pasa
-    with st.status("Comunicando con Google Sheets...", expanded=True) as status:
-        try:
-            # 1. Lógica de Puntos
-            status.write("🔢 Calculando resultados...")
-            res_a, res_b = min(g0, g1), min(g2, g3)
-            p_a = 1 if res_a < res_b else 0
-            p_b = 1 if res_b < res_a else 0
+    try:
+        # Verificamos que la conexión exista
+        if 'sh' not in st.session_state:
+            st.error("No hay conexión con la hoja de cálculo.")
+            return
 
-            # 2. Conexión y Lectura Cruda
-            status.write("📡 Leyendo datos actuales de la nube...")
-            st.cache_data.clear() # Limpieza total de caché previa
+        hoja = st.session_state.sh
+        
+        # 1. Lógica de Puntos
+        p_a = 1 if min(g0, g1) < min(g2, g3) else 0
+        p_b = 1 if min(g2, g3) < min(g0, g1) else 0
+        
+        # 2. Datos del partido
+        g = st.session_state.game
+        p_id = str(g['id'])
+        
+        # 3. Leer datos actuales (Paso crítico)
+        # Usamos get_all_values para obtener una lista de listas
+        filas = hoja.get_all_values()
+        
+        if not filas:
+            st.error("La hoja de cálculo está vacía (falta el encabezado).")
+            return
             
-            # Intentamos leer TODA la hoja
-            # Asegúrate que 'sh' esté definida globalmente como tu hoja de gspread
-            filas_totales = sh.get_all_values()
-            
-            if not filas_totales:
-                status.update(label="❌ Error: Hoja vacía", state="error")
-                return
+        header = filas[0]
+        datos_viejos = filas[1:]
 
-            cabeceras = filas_totales[0]
-            datos_cuerpo = filas_totales[1:]
+        # 4. Crear la nueva fila
+        nueva_fila = [
+            p_id, 
+            str(g['fecha']), 
+            int(hoyo_id), 
+            int(g0), int(g1), int(g2), int(g3), 
+            int(p_a), int(p_b)
+        ]
 
-            # 3. Preparar los datos del partido
-            g = st.session_state.game
-            p_id = str(g['id'])
-            
-            status.write(f"🔍 Buscando si el hoyo {hoyo_id} ya existe...")
-            # Quitamos la fila anterior de este hoyo si existe
-            datos_filtrados = [
-                f for f in datos_cuerpo 
-                if not (len(f) > 2 and str(f[0]) == p_id and str(f[2]) == str(hoyo_id))
-            ]
+        # 5. Filtrar duplicados: eliminamos la fila si el hoyo ya existía
+        # f[0] es partido_id, f[2] es hoyo
+        datos_actualizados = [
+            f for f in datos_viejos 
+            if not (len(f) > 2 and str(f[0]) == p_id and str(f[2]) == str(hoyo_id))
+        ]
+        
+        # Añadimos la nueva y ordenamos
+        datos_actualizados.append(nueva_fila)
+        datos_actualizados.sort(key=lambda x: int(x[2]))
 
-            # 4. Crear la nueva fila
-            nueva_fila = [
-                p_id, 
-                str(g['fecha']), 
-                int(hoyo_id), 
-                int(g0), int(g1), int(g2), int(g3), 
-                int(p_a), int(p_b)
-            ]
-            datos_filtrados.append(nueva_fila)
-            
-            # Ordenar para que no sea un caos
-            datos_filtrados.sort(key=lambda x: int(x[2]))
+        # 6. GRABAR EN GOOGLE SHEETS
+        # Combinamos header + datos y limpiamos la hoja antes de subir
+        cuerpo_final = [header] + datos_actualizados
+        
+        hoja.clear()
+        hoja.update('A1', cuerpo_final)
+        
+        # 7. Finalizar
+        st.cache_data.clear() # Limpia el caché para que el marcador se actualice
+        st.success(f"✅ Hoyo {hoyo_id} guardado correctamente")
 
-            # 5. ESCRITURA FINAL
-            status.write("💾 Escribiendo en Google Sheets...")
-            cuerpo_completo = [cabeceras] + datos_filtrados
-            
-            # Limpiamos y escribimos
-            sh.clear()
-            sh.update('A1', cuerpo_completo)
-            
-            # 6. Éxito
-            st.cache_data.clear()
-            status.update(label="✅ ¡Guardado con éxito!", state="complete", expanded=False)
-            st.toast("Datos sincronizados", icon="⛳")
-
-        except Exception as e:
-            status.update(label=f"❌ Error crítico: {str(e)}", state="error")
-            st.error(f"Detalle del error: {e}")
+    except Exception as e:
+        st.error(f"Error al grabar: {e}")
 
 # --- 3. NAVEGACIÓN ---
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Nueva Partida", "Estadísticas", "Admin"], 
