@@ -269,12 +269,7 @@ if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
 # Menú lateral permanente
-with st.sidebar:
-    st.session_state.menu_seleccionado = st.radio(
-        "Menú", 
-        opciones_menu, 
-        index=opciones_menu.index(st.session_state.menu_seleccionado)
-    )
+
 with st.sidebar:
     st.title("⛳ Match Play")
     # Usamos radio para que todas las opciones se vean sin pulsar un combo
