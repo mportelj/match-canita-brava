@@ -684,10 +684,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 # ==========================================
 
 elif st.session_state.menu_seleccionado == "Admin":
-    st.title("Panel de Administración")
-    
+    st.title("⚙️ Panel de Administración")
     df = leer_datos()
-
     if df is None or df.empty:
         st.warning("No hay datos registrados en la base de datos.")
     else:
