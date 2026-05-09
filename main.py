@@ -444,7 +444,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         if st.button("💾 Actualizar Hoyo", type="primary", use_container_width=True, disabled=([s0_val, s1_val, s2_val, s3_val] == v_ref)):
     
         # Llamamos a la función con el hoyo y los 4 valores de los inputs
-        ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
+            ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
     
         # Limpiamos caché para que el marcador se actualice con los nuevos datos
         st.cache_data.clear()
