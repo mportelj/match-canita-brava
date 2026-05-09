@@ -410,9 +410,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
         # --- BLOQUE G: ACCIÓN DE GUARDADO ---
         if st.button("💾 Actualizar Hoyo", type="primary", use_container_width=True, disabled=([s1,s2,s3,s4] == v_ref)):
-            ejecutar_guardado_automatico()
-            # Al guardar, queremos que el marcador se actualice, así que hacemos rerun
-            st.rerun()
+        # Pasamos los valores actuales directamente para evitar errores de KeyError
+        ejecutar_guardado_automatico(h, s1, s2, s3, s4)
+        st.rerun()
 
         # --- BLOQUE H: CIERRE DE PARTIDA ---
         st.write("---")
