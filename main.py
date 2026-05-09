@@ -103,29 +103,28 @@ EQUIPO_B_NOMBRES = f"{TODOS[2]}/{TODOS[3]}"
 COLOR_A, COLOR_B = "#2e7d32", "#c62828"
 COL_NECESARIAS = ['id', 'partido_id', 'hoyo', 'fecha', 'temporada', 'resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3']
 
-def calcular_puntos_hoyo(s0, s1, s2, s3, par):
-    # Equipos: E1 (Manu s0, Jose s2) vs E2 (Roge s1, Lalo s3)
+def calcular_puntos_hoyo(s0, s2, s1, s3, par):
+    # s0/s2: Equipo A | s1/s3: Equipo B
     e1 = [s0, s2]
     e2 = [s1, s3]
-    
     pts_e1, pts_e2 = 0, 0
     
-    # A) Punto a la Mejor Bola
+    # --- A) PUNTOS POR HOYO (MATCH PLAY) ---
     if min(e1) < min(e2): pts_e1 += 1
     elif min(e2) < min(e1): pts_e2 += 1
     
-    # B) Punto a la Peor Bola
+    # Punto por Peor Bola (opcional, si vuestras reglas lo usan)
     if max(e1) < max(e2): pts_e1 += 1
     elif max(e2) < max(e1): pts_e2 += 1
     
-    # C) Bonus por Birdie o mejor
+    # --- B) BONUS DE CALIDAD (ALBATROS, EAGLE, BIRDIE) ---
     def get_bonus(golpes, p):
         dif = golpes - p
         if dif <= -3: return 3 # Albatros
         if dif == -2: return 2 # Eagle
         if dif == -1: return 1 # Birdie
         return 0
-    
+
     pts_e1 += sum([get_bonus(g, par) for g in e1])
     pts_e2 += sum([get_bonus(g, par) for g in e2])
     
