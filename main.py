@@ -209,42 +209,76 @@ def leer_datos():
 
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
-    # 1. Obtener el mejor resultado de cada pareja
-    res_a = min(g0, g1)
-    res_b = min(g2, g3)
-    
-    # 2. Lógica Match Play: Solo suma 1 si ganas el hoyo. 
-    # Si empatan (res_a == res_b), ambos reciben 0.
-    p_a = 1 if res_a < res_b else 0
-    p_b = 1 if res_b < res_a else 0
-    
+    """
+    Procesa y guarda los golpes de un hoyo en Google Sheets.
+    g0, g1: Golpes Equipo A (Manu & Jose)
+    g2, g3: Golpes Equipo B (Roge & Lalo)
+    """
+    try:
+        # --- 1. CÁLCULO DE MEJORES RESULTADOS ---
+        # Obtenemos el mejor resultado (mínimo) de cada pareja
+        res_a = min(g0, g1)
+        res_b = min(g2, g3)
+
+        # --- 2. LÓGICA MATCH PLAY (REGLA: Empate no suma) ---
+        # Solo se suma 1 punto si ganas el hoyo. 
+        # Si empatan (res_a == res_b), ambos se quedan con 0.
+        p_a = 1 if res_a < res_b else 0
+        p_b = 1 if res_b < res_a else 0
+
+        # --- 3. PREPARACIÓN DE DATOS PARA GOOGLE SHEETS ---
+        # Obtenemos los datos de la partida actual desde el session_state
+        g = st.session_state.game
+        partido_id = str(g['id'])
+        fecha = g['fecha']
+
+        # Creamos la fila con el formato exacto de tu base de datos
+        # partido_id | fecha | hoyo | s0 | s1 | s2 | s3 | resultado_a | resultado_b
+        nueva_fila = [
+            partido_id, 
+            fecha, 
+            int(hoyo_id), 
+            int(g0), 
+            int(g1), 
+            int(g2), 
+            int(g3), 
+            float(p_a), 
+            float(p_b)
+        ]
+
+        # --- 4. EJECUCIÓN DEL GUARDADO ---
+        # Leemos todos los datos para encontrar si el hoyo ya existe y sobreescribirlo
+        df = leer_datos()
         
-    # 3. AQUÍ TU LÓGICA DE ESCRITURA ACTUAL:
-    # Asegúrate de mapear:
-    # 's0': g0, 's1': g1, 's2': g2, 's3': g3
-    # 'resultado_a': p_a, 'resultado_b': p_b
-    
-    # [Tu código de actualizar el Excel o Google Sheets aquí]
-    pa, pb, mi = calcular_puntos_hoyo(s, h)
-    g['logs'][str(h)] = {'s': s, 'pts': (pa, pb), 'mvp': mi}
-    
-    anio_int = int(datetime.strptime(g['fecha'], "%d/%m/%Y").year)
-    p_id = str(g['id'])
-    
-    nueva_fila = {
-        "id": f"{p_id}_H{h}", "partido_id": p_id, "hoyo": h, "fecha": g['fecha'], 
-        "temporada": anio_int, "resultado_a": pa, "resultado_b": pb, 
-        "p1_pts": mi['p1'], "p2_pts": mi['p2'], "p3_pts": mi['p3'], "p4_pts": mi['p4'], 
-        "s0": s[0], "s1": s[1], "s2": s[2], "s3": s[3]
-    }
-    
-    df_actual = leer_datos()
-    # Eliminar si ya existe para sobreescribir
-    df_actual = df_actual[~((df_actual['partido_id'] == p_id) & (df_actual['hoyo'] == h))]
-    df_final = pd.concat([df_actual, pd.DataFrame([nueva_fila])], ignore_index=True)
-    
-    conn.update(worksheet="historial", data=df_final)
-    st.cache_data.clear()
+        if df is not None and not df.empty:
+            # Limpiamos columnas por seguridad
+            df.columns = [str(c).strip() for c in df.columns]
+            
+            # Buscamos si ya existe el hoyo para este partido
+            mascara = (df['partido_id'].astype(str) == partido_id) & (df['hoyo'].astype(int) == int(hoyo_id))
+            
+            if mascara.any():
+                # Si existe, eliminamos la fila vieja para insertar la nueva
+                df = df[~mascara]
+            
+            # Añadimos la nueva fila
+            df_nueva = pd.DataFrame([nueva_fila], columns=df.columns)
+            df = pd.concat([df, df_nueva], ignore_index=True)
+        else:
+            # Si el archivo está vacío, creamos el DataFrame con las columnas necesarias
+            columnas = ['partido_id', 'fecha', 'hoyo', 's0', 's1', 's2', 's3', 'resultado_a', 'resultado_b']
+            df = pd.DataFrame([nueva_fila], columns=columnas)
+
+        # --- 5. ESCRITURA FINAL ---
+        # Llamas a tu función de conexión que escribe el dataframe en Google Sheets
+        # Ejemplo: conn.update(worksheet="Hoja1", data=df)
+        actualizar_base_de_datos(df) 
+        
+        # Nota: He eliminado la llamada a 'calcular_puntos_hoyo(s, h)' 
+        # porque la lógica ya está integrada aquí arriba de forma segura.
+
+    except Exception as e:
+        st.error(f"Error al guardar los datos: {e}")
 
 # --- 3. NAVEGACIÓN ---
 menu = st.sidebar.radio("Ir a:", ["Inicio", "Nueva Partida", "Estadísticas", "Admin"], 
@@ -406,15 +440,17 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         s2_val = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"in_s2_{h}_{st.session_state.refresco_id}")
         s3_val = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"in_s3_{h}_{st.session_state.refresco_id}")
 
-        # --- BLOQUE G: GUARDADO (Lógica: Empate = 0 puntos) ---
+       # --- BLOQUE G: ACCIÓN DE GUARDADO ---
         if st.button("💾 Actualizar Hoyo", type="primary", use_container_width=True, disabled=([s0_val, s1_val, s2_val, s3_val] == v_ref)):
-            # Enviamos datos a la función
-            ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
-            
-            # Forzamos recarga de Google Sheets para el marcador
-            st.cache_data.clear()
-            st.success(f"Hoyo {h} guardado")
-            st.rerun()
+    
+        # Llamamos a la función con el hoyo y los 4 valores de los inputs
+        ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
+    
+        # Limpiamos caché para que el marcador se actualice con los nuevos datos
+        st.cache_data.clear()
+    
+        st.success(f"Hoyo {h} actualizado correctamente")
+        st.rerun()
 
         # --- BLOQUE H: CIERRE ---
         st.write("---")
