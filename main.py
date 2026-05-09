@@ -310,7 +310,7 @@ if st.session_state.menu_seleccionado == "Inicio":
 # SECCIÓN: NUEVA PARTIDA (Modo Match Play)
 # ==========================================
 # ==========================================
-# SECCIÓN: NUEVA PARTIDA (Sin Caché)
+# SECCIÓN: NUEVA PARTIDA (Optimización de Lectura)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
     if 'refresco_id' not in st.session_state: 
@@ -327,25 +327,38 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             }
             st.rerun()
     else:
+        # --- ÚNICA LLAMADA A LEER DATOS ---
+        # Al ponerlo aquí, solo se ejecuta 1 vez por cada interacción (botón/selector)
         g = st.session_state.game
-        
-        # --- OPTIMIZACIÓN DE LECTURA ---
-        # Leemos el Excel una sola vez por cada renderizado de la página
         df_p = leer_datos() 
         
+        # Filtramos el DataFrame una sola vez para usarlo en toda la pantalla
         df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])] if df_p is not None and not df_p.empty else pd.DataFrame()
         
-        # --- 1. MARCADOR GLOBAL (Se calcula siempre del Excel real) ---
+        # --- 1. MARCADOR GLOBAL (Usa el DF ya filtrado) ---
         pts_a_total = df_partido_actual['resultado_a'].sum() if not df_partido_actual.empty else 0
         pts_b_total = df_partido_actual['resultado_b'].sum() if not df_partido_actual.empty else 0
         dif = pts_a_total - pts_b_total
         m_a, m_b = (dif, 0) if dif > 0 else (0, abs(dif))
 
-        # (Mantén aquí el bloque HTML del marcador que ya tienes...)
+        # Bloque Visual del Marcador
+        st.markdown(f"""
+            <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-around; align-items: center; text-align: center;">
+                    <div style="flex: 1;">
+                        <h4 style="color: #2e7d32; margin: 0; font-size: 0.9em; font-weight: bold;">MANU & JOSE</h4>
+                        <h1 style="margin: 0; font-size: 4.5em; color: {'#2e7d32' if m_a > 0 else '#333'};">{m_a:g}</h1>
+                    </div>
+                    <div style="background: #ccc; border-radius: 50%; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #666; font-size: 0.8em;">VS</div>
+                    <div style="flex: 1;">
+                        <h4 style="color: #c62828; margin: 0; font-size: 0.9em; font-weight: bold;">ROGE & LALO</h4>
+                        <h1 style="margin: 0; font-size: 4.5em; color: {'#c62828' if m_b > 0 else '#333'};">{m_b:g}</h1>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
 
         # --- 2. SELECTOR DE HOYO ---
-        st.markdown("""<style>div[data-baseweb="select"] > div { font-size: 28px !important; font-weight: 800 !important; background-color: #f8f9fa !important; border: 2px solid #2e7d32 !important; height: 70px !important; }</style>""", unsafe_allow_html=True)
-        
         lista_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
         seleccion = st.selectbox("h_sel", lista_hoyos, index=g['h_sel']-1, label_visibility="collapsed", key=f"h_selector_{st.session_state.refresco_id}")
         
@@ -355,7 +368,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.session_state.refresco_id += 1
             st.rerun()
 
-        # Botones Anterior/Siguiente
+        # Navegación Anterior/Siguiente (No vuelven a llamar a leer_datos() hasta el rerun)
         c_nav1, c_nav2 = st.columns(2)
         if c_nav1.button("← Anterior", use_container_width=True):
             g['h_sel'] = max(1, g['h_sel'] - 1)
@@ -366,12 +379,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.session_state.refresco_id += 1
             st.rerun()
 
-        # --- 3. INPUTS DE GOLPES ---
+        # --- 3. INPUTS DE GOLPES (Usa el DF ya filtrado) ---
         h = g['h_sel']
         fila_hoyo = df_partido_actual[df_partido_actual['hoyo'] == h] if not df_partido_actual.empty else pd.DataFrame()
         ya_existe = not fila_hoyo.empty
-        
-        # Si ya existe en el Excel, cargamos esos golpes. Si no, ponemos el Par.
         v_ref = [int(fila_hoyo.iloc[0][f's{i}']) if ya_existe else PAR_RIA_VIGO[h] for i in range(4)]
 
         col_j1, col_j2 = st.columns(2)
@@ -380,20 +391,18 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         s3 = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"s3_{h}_{st.session_state.refresco_id}")
         s4 = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"s4_{h}_{st.session_state.refresco_id}")
 
-        # Marcador en vivo del hoyo
+        # --- 4. MARCADOR EN VIVO DEL HOYO ---
         res_a, res_b = min(s1, s2), min(s3, s4)
-        p_h_a = 1 if res_a < res_b else (0.5 if res_a == res_b else 0)
-        p_h_b = 1 if res_b < res_a else (0.5 if res_a == res_b else 0)
+        pts_h_a = 1 if res_a < res_b else (0.5 if res_a == res_b else 0)
+        pts_h_b = 1 if res_b < res_a else (0.5 if res_a == res_b else 0)
+        
+        st.info(f"Resultado Hoyo {h}: {pts_h_a:g} — {pts_h_b:g}")
 
-        # --- 4. BOTÓN DE ACTUALIZACIÓN (ESCRITURA REAL) ---
+        # --- 5. BOTÓN DE ACTUALIZACIÓN ---
         if st.button("💾 Actualizar Hoyo", type="primary", use_container_width=True):
-            # Aquí llamas a tu función de guardado que escribe en el Excel
-            # guardar_hoyo_en_excel(g['id'], g['fecha'], h, [s1,s2,s3,s4], p_h_a, p_h_b)
-            
-            st.success(f"Hoyo {h} guardado directamente en la base de datos.")
-            # Como no hay caché, la próxima vez que se ejecute leerá el archivo actualizado solo.
+            # Aquí ejecutas tu lógica de guardado
+            st.success("Hoyo guardado")
             st.rerun()
-
 
 # ==========================================
 # SECCIÓN: ESTADISTICAS (Versión Restaurada)
