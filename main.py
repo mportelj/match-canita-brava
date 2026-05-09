@@ -312,22 +312,25 @@ if st.session_state.menu_seleccionado == "Inicio":
 elif st.session_state.menu_seleccionado == "Nueva Partida":
     st.title("🗓️ Nueva Partida")
     
-    # Quitamos el st.selectbox de partidas guardadas
-    # Dejamos solo la fecha y el botón
-    fecha_partida = st.date_input("Fecha del Encuentro:", value=pd.Timestamp.now())
+    # El componente st.date_input usa por defecto el formato local del navegador,
+    # pero podemos forzar la visualización en el éxito del registro.
+    fecha_dt = st.date_input("Fecha del Encuentro:", value=pd.Timestamp.now())
     
-    st.write("") # Espacio visual
+    # Convertimos la fecha al formato que quieres: dd/mm/aaaa
+    fecha_formateada = fecha_dt.strftime('%d/%m/%Y')
+    
+    st.write("") 
     
     if st.button("🚀 COMENZAR PARTIDO", use_container_width=True):
-        # Aquí reseteamos los hoyos para empezar de cero
-        # Suponiendo que usas un diccionario para los golpes s0, s1, etc.
+        # Reseteamos los golpes en el session_state
         for i in range(len(TODOS)):
             st.session_state[f'jugador_{i}_golpes'] = {} 
         
-        st.session_state.fecha_actual = fecha_partida.strftime('%Y/%m/%d')
+        # Guardamos en el estado con el formato dd/mm/aaaa para que así viaje a la base de datos/Excel
+        st.session_state.fecha_actual = fecha_formateada
         st.session_state.partida_iniciada = True
-        st.success(f"¡Partida creada para el {st.session_state.fecha_actual}!")
-        # Opcional: Redirigir automáticamente a la carga de puntos si tienes esa lógica
+        
+        st.success(f"¡Partida creada para el {fecha_formateada}!")
 
 # ==========================================
 # SECCIÓN: ESTADISTICAS (Versión Restaurada)
