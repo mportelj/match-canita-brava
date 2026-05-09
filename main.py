@@ -685,6 +685,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Panel de Administración")
     
+    # Aseguramos que los datos se lean siempre
     df = leer_datos()
 
     if df is None or df.empty:
@@ -696,15 +697,11 @@ elif st.session_state.menu_seleccionado == "Admin":
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-        # Usamos 'partido_id' para agrupar (más seguro que la fecha)
-        # Si no existe, creamos un grupo por fecha
         if 'partido_id' not in df.columns:
             df['partido_id'] = df['fecha'].astype(str)
         
         df['partido_id'] = df['partido_id'].astype(str)
         partidos = df.groupby('partido_id')
-        
-        # Ordenamos partidos de más reciente a más antiguo
         ids_ordenados = sorted(partidos.groups.keys(), reverse=True)
 
         # 2. RENDERIZADO DE PARTIDOS
@@ -717,7 +714,6 @@ elif st.session_state.menu_seleccionado == "Admin":
             suma_b = datos_jornada['resultado_b'].sum()
             diferencia = suma_a - suma_b
             
-            # Formateo de texto del marcador Match Play
             if diferencia > 0:
                 match_txt = f"MANU & JOSE: {int(diferencia)} Up"
             elif diferencia < 0:
@@ -730,31 +726,33 @@ elif st.session_state.menu_seleccionado == "Admin":
                 tabla_vista.columns = ['Hoyo', 'MANU', 'JOSE', 'ROGE', 'LALO']
                 st.dataframe(tabla_vista, hide_index=True, use_container_width=True)
 
-                # BOTONES DE ACCIÓN
                 c1, c2 = st.columns(2)
                 with c1:
-                    # CLAVE: El key usa p_id para evitar NameError
-                    # --- DENTRO DEL BUCLE DE PARTIDOS EN ADMIN ---
-                    
-                    if st.button(f"✏️ Editar Partido", key=f"ed_{p_id}"):
-                    # 1. Cargamos los datos para que 'Nueva Partida' sepa qué editar
+                    # --- EL BOTÓN CON LA SOLUCIÓN DEFINITIVA ---
+                    if st.button(f"✏️ Editar Partido", key=f"btn_ed_{p_id}", use_container_width=True):
+                        # 1. Seteamos los datos del juego
                         st.session_state.game = {
-                        "id": str(p_id),
-                        "fecha": f_disp,
-                        "temporada": str(datos_jornada['temporada'].iloc[0]) if 'temporada' in datos_jornada.columns else "2026",
-                        "h_sel": 1  # Empezamos en el hoyo 1
-                        }    
-    
-                        # 2. Cambiamos el nombre de la sección (idéntico al de la lista)
+                            "id": str(p_id),
+                            "fecha": f_disp,
+                            "temporada": str(datos_jornada['temporada'].iloc[0]) if 'temporada' in datos_jornada.columns else "2026",
+                            "h_sel": 1
+                        }
+                        # 2. Cambiamos el valor lógico
                         st.session_state.menu_seleccionado = "Nueva Partida"
-    
-                        # 3. Forzamos el refresco para que el menú lateral lea el nuevo índice
+                        
+                        # 3. IMPORTANTE: Cambiamos también el valor del Widget del sidebar
+                        # Esto asume que tu st.radio tiene key="nav_radio"
+                        if "nav_radio" in st.session_state:
+                            st.session_state.nav_radio = "Nueva Partida"
+                        
+                        # 4. Forzamos el salto inmediato
                         st.rerun()
                 
                 with c2:
-                    conf = st.checkbox("Confirmar borrar", key=f"ch_{p_id}")
-                    if st.button(f"🗑️ Borrar", key=f"del_{p_id}", disabled=not conf, type="primary"):
-                        st.error("Función de borrado no conectada")
+                    conf = st.checkbox("Borrar", key=f"ch_{p_id}")
+                    if st.button(f"🗑️", key=f"del_{p_id}", disabled=not conf, type="primary", use_container_width=True):
+                        st.error("No conectado")
 
     if st.button("🔄 Refrescar Panel"):
+        st.cache_data.clear()
         st.rerun()
