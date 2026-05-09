@@ -12,8 +12,14 @@ if 'menu_seleccionado' not in st.session_state:
 if 'radio_menu' not in st.session_state:
     st.session_state.radio_menu = "Inicio" # <--- ESTO EVITA EL ERROR
 
+# Inicialización de la conexión
+if 'sh' not in st.session_state:
+    st.session_state.sh = cargar_datos_golf()
+
+# Creamos una variable local para usarla fácilmente
+sh = st.session_state.sh
 # Función para conectar sin usar st.connection
-def cargar_datos_golf():
+# def cargar_datos_golf():
     # 1. Cargamos los secretos
     s = st.secrets["gsheets"]
     
