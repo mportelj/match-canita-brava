@@ -208,18 +208,16 @@ def leer_datos():
 
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
-    """
-    g0, g1 son los golpes del Equipo A (Manu y Jose)
-    g2, g3 son los golpes del Equipo B (Roge y Lalo)
-    """
-    # 1. Cálculo de resultados del hoyo (Mejor resultado de cada pareja)
+    # 1. Obtener el mejor resultado de cada pareja
     res_a = min(g0, g1)
     res_b = min(g2, g3)
     
-    # 2. Puntos Match Play (1 o 0)
-    p_a = 1 if res_a < res_b else (0 if res_a == res_b)
-    p_b = 1 if res_b < res_a else (0 if res_a == res_b)
+    # 2. Lógica Match Play: Solo suma 1 si ganas el hoyo. 
+    # Si empatan (res_a == res_b), ambos reciben 0.
+    p_a = 1 if res_a < res_b else 0
+    p_b = 1 if res_b < res_a else 0
     
+        
     # 3. AQUÍ TU LÓGICA DE ESCRITURA ACTUAL:
     # Asegúrate de mapear:
     # 's0': g0, 's1': g1, 's2': g2, 's3': g3
