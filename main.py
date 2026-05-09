@@ -250,40 +250,52 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         p_mvp = [0.0, 0.0, 0.0, 0.0]
 
-        # 2. CÁLCULO MVP: OPONENTE BATIDO (0.5 por cada uno)
+        # --- LÓGICA DE BONUS DE CALIDAD ---
+        # Para MVP: Albatros +4, Eagle +3, Birdie +1.5, Par +0.5
+        # Para MATCH: Albatros +2, Birdie +1 (según tu nueva indicación)
+        def calc_bonus_mvp(score, p):
+            dif = score - p
+            if dif <= -3: return 4.0
+            if dif == -2: return 3.0
+            if dif == -1: return 1.5
+            if dif == 0:  return 0.5
+            return 0.0
+
+        def calc_bonus_match(score, p):
+            dif = score - p
+            if dif <= -3: return 2.0 # Albatros para el Match
+            if dif == -1: return 1.0 # Birdie para el Match
+            return 0.0
+
+        # 2. CÁLCULO MVP INDIVIDUAL (Oponentes + Calidad MVP)
         for i in range(4):
             puntos_oponentes = 0
             for j in range(4):
                 if i == j: continue 
                 if golpes[i] < golpes[j]:
                     puntos_oponentes += 0.5
-            p_mvp[i] = puntos_oponentes
+            p_mvp[i] = puntos_oponentes + calc_bonus_mvp(golpes[i], par_hoyo)
 
-        # 3. CÁLCULO MVP: BONUS POR CALIDAD
-        def calc_bonus_calidad(score, p):
-            dif = score - p
-            if dif <= -3: return 4.0   # Albatros
-            if dif == -2: return 3.0   # Eagle
-            if dif == -1: return 1.5   # Birdie
-            if dif == 0:  return 0.5   # Par
-            return 0.0
-
-        for i in range(4):
-            p_mvp[i] += calc_bonus_calidad(golpes[i], par_hoyo)
-
-        # 4. MARCADOR DEL MATCH (Parejas - Col F y G) - AJUSTADO
-        # Si empatan, ambos quedan a 0. Solo suma 1 el que gana.
+        # 3. MARCADOR DEL MATCH (Parejas - Col F y G)
+        # Puntos base por ganar el hoyo (Mejor Bola)
         res_a = min(golpes[0], golpes[1])
         res_b = min(golpes[2], golpes[3])
         
-        if res_a < res_b:
-            match_a, match_b = 1.0, 0.0
-        elif res_b < res_a:
-            match_a, match_b = 0.0, 1.0
-        else:
-            match_a, match_b = 0.0, 0.0  # Empate = 0 para ambos
+        base_a = 1.0 if res_a < res_b else 0.0
+        base_b = 1.0 if res_b < res_a else 0.0
 
-        # 5. CONSTRUCCIÓN DE LA FILA
+        # Sumamos Bonus de Calidad del Match (Albatros=2, Birdie=1)
+        bonus_match_a = calc_bonus_match(golpes[0], par_hoyo) + calc_bonus_match(golpes[1], par_hoyo)
+        bonus_match_b = calc_bonus_match(golpes[2], par_hoyo) + calc_bonus_match(golpes[3], par_hoyo)
+
+        match_a = base_a + bonus_match_a
+        match_b = base_b + bonus_match_b
+
+        # Si tras sumar bonus hay empate total en el hoyo, ambos a 0 (según regla anterior)
+        if match_a == match_b:
+            match_a, match_b = 0.0, 0.0
+
+        # 4. CONSTRUCCIÓN DE LA FILA
         id_partido_busqueda = f"{float(g['id']):.1f}"
         nueva_fila = [
             f"{id_partido_busqueda}_H{hoyo_id}", 
@@ -291,14 +303,14 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
             int(hoyo_id),                        
             str(g['fecha']),                     
             str(g['temporada']),                 
-            float(match_a), float(match_b),      # Columnas F y G
-            p_mvp[0], p_mvp[1],                  # Columnas H e I
-            p_mvp[2], p_mvp[3],                  # Columnas J y K
+            float(match_a), float(match_b),      # Columnas F y G (Match + Bonus Calidad)
+            p_mvp[0], p_mvp[1],                  # Columnas H e I (Manu, Jose MVP)
+            p_mvp[2], p_mvp[3],                  # Columnas J y K (Roge, Lalo MVP)
             int(g0), int(g1),                    
             int(g2), int(g3)                     
         ]
 
-        # 6. GUARDADO EN GOOGLE SHEETS
+        # 5. GUARDADO EN GOOGLE SHEETS
         filas = hoja.get_all_values()
         header = filas[0]
         datos_restantes = [f for f in filas[1:] if not (f[1] == id_partido_busqueda and int(f[2]) == int(hoyo_id))]
@@ -309,7 +321,7 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         hoja.clear()
         hoja.update('A1', [header] + datos_restantes)
         
-        st.toast(f"✅ Hoyo {hoyo_id} guardado (Empate=0)")
+        st.toast(f"✅ Hoyo {hoyo_id} guardado con Bonus de Match")
         st.cache_data.clear()
 
     except Exception as e:
