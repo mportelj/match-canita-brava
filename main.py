@@ -488,10 +488,10 @@ with st.popover("🏁 Finalizar Partida", use_container_width=True):
             
     # Todo lo que esté DENTRO del popover lleva un nivel más de sangría
     if st.button("Confirmar Cierre y Borrar Sesión", type="primary", use_container_width=True):
-    if 'game' in st.session_state:
-        del st.session_state.game
-        st.cache_data.clear()
-        st.rerun()
+        if 'game' in st.session_state:
+            del st.session_state.game
+            st.cache_data.clear()
+            st.rerun()
                 
 # ==========================================
 # SECCIÓN: ESTADISTICAS (Versión Restaurada)
