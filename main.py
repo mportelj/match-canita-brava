@@ -515,17 +515,70 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         else:
             v_ref = [PAR_RIA_VIGO[h]] * 4
 
-        col_j1, col_j2 = st.columns(2)
-        s0_val = col_j1.number_input(TODOS[0], 1, 15, v_ref[0], key=f"in_s0_{h}_{st.session_state.refresco_id}")
-        s1_val = col_j1.number_input(TODOS[1], 1, 15, v_ref[1], key=f"in_s1_{h}_{st.session_state.refresco_id}")
-        s2_val = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"in_s2_{h}_{st.session_state.refresco_id}")
-        s3_val = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"in_s3_{h}_{st.session_state.refresco_id}")
+        # --- LÓGICA DE BLOQUEO DE BOTÓN ---
+
+        # 1. Buscamos si el hoyo actual ya existe en los datos leídos
+        hoyo_actual = st.session_state.game['h_sel']
+        partido_id_actual = f"{float(st.session_state.game['id']):.1f}"
+
+        # Filtramos el DataFrame para ver si hay datos de este hoyo
+        registro_existente = df[
+        (df['partido_id'].astype(str) == partido_id_actual) & 
+        (df['hoyo'] == hoyo_actual)
+        ]
+
+        ya_guardado = not registro_existente.empty
+        cambios_detectados = False
+
+        # Si existe, extraemos los golpes para comparar
+        if ya_guardado:
+            g_prev = [
+            int(registro_existente['s0'].iloc[0]),
+            int(registro_existente['s1'].iloc[0]),
+            int(registro_existente['s2'].iloc[0]),
+            int(registro_existente['s3'].iloc[0])
+        ]
+        else:
+            g_prev = [0, 0, 0, 0] # Si no existe, comparamos contra 0
+
+
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            v0 = st.number_input("MANU", 1, 15, value=g_prev[0] if ya_guardado else 4, key="n0")
+        with col2:
+            v1 = st.number_input("JOSE", 1, 15, value=g_prev[1] if ya_guardado else 4, key="n1")
+        with col3:
+            v2 = st.number_input("ROGE", 1, 15, value=g_prev[2] if ya_guardado else 4, key="n2")
+        with col4:
+            v3 = st.number_input("LALO", 1, 15, value=g_prev[3] if ya_guardado else 4, key="n3")
+
+        # Verificamos si los valores actuales son distintos a los guardados
+        if ya_guardado:
+            if [v0, v1, v2, v3] != g_prev:
+                cambios_detectados = True
+        else:
+        # Si no está guardado, el botón debe estar habilitado siempre que haya valores
+        cambios_detectados = True
 
         # --- BLOQUE G: ACCIÓN DE GUARDADO ---
-        if st.button("💾 Guardar Hoyo", type="primary", use_container_width=True):
-            st.toast("⏳ Iniciando guardado...", icon="⏳")
-            ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
-            st.rerun()
+        # Definimos el estado del botón
+        boton_deshabilitado = ya_guardado and not cambios_detectados
+
+        if st.button(
+            "💾 GUARDAR HOYO", 
+            use_container_width=True, 
+            type="primary",
+            disabled=boton_deshabilitado
+        ):
+        ejecutar_guardado_automatico(hoyo_actual, v0, v1, v2, v3)
+        st.rerun()
+
+        # Feedback visual para el usuario
+        if ya_guardado and not cambios_detectados:
+            st.success("✅ Este hoyo ya está guardado y los datos coinciden.")
+        elif ya_guardado and cambios_detectados:
+            st.warning("⚠️ Hay cambios detectados. Pulsa Guardar para actualizar.")
 
         # --- BLOQUE H: FINALIZAR ---
         st.write("---") 
