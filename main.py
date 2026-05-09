@@ -266,7 +266,7 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         float(p_e2), float(p_e2),            # Columnas J, K (Puntos Equipo B con Bonus)
         int(g0), int(g1),                    
         int(g2), int(g3)                     
-    ]
+        ]
 
         # 4. LEER Y FILTRAR (Aquí es donde evitamos la duplicación)
         filas = hoja.get_all_values()
