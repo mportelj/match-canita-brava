@@ -323,31 +323,38 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         st.markdown("### ⛳ Nueva Partida")
         fecha_seleccionada = st.date_input("Selecciona la fecha del partido")
 
-    if st.button("Iniciar Partido"):
-        # Extraemos el año de la fecha seleccionada para la temporada
+    if st.button("Iniciar Partido", type="primary", use_container_width=True):
+        # 1. Extraemos el año de la fecha seleccionada para la temporada
         año_temporada = str(fecha_seleccionada.year)
         fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
     
+        # 2. Inicializamos el estado del juego con los datos del combo
         st.session_state.game = {
-        "id": datetime.now().strftime("%Y%m%d%H%M%S"),
-        "fecha": fecha_formateada,
-        "temporada": año_temporada,
-        "puntos_acumulados_a": 0,
-        "puntos_acumulados_b": 0
-    }
-    st.success(f"Partida iniciada para la temporada {año_temporada}")
-            # Limpiamos caché para asegurar que al empezar no haya datos viejos
-    st.cache_data.clear()
-    st.rerun()
+            "id": datetime.now().strftime("%Y%m%d%H%M%S"),
+            "fecha": fecha_formateada,
+            "temporada": año_temporada,
+            "puntos_acumulados_a": 0,
+            "puntos_acumulados_b": 0
+        }
+        
+        # 3. Acciones post-inicio (TODO esto debe ir dentro del IF)
+        st.success(f"✅ Partida iniciada para la temporada {año_temporada}")
+        st.cache_data.clear()
+        st.rerun()
             
     else:
         # --- BLOQUE B: LECTURA ÚNICA CENTRALIZADA ---
-        g = st.session_state.game
-        
-        # Leemos los datos UNA SOLA VEZ para todo este renderizado
-        df_p = leer_datos() 
-        df_partido_actual = pd.DataFrame()
-
+        # Si ya hay un juego en curso, cargamos los datos
+        if 'game' in st.session_state:
+            g = st.session_state.game
+            
+            # Leemos los datos UNA SOLA VEZ para todo este renderizado
+            df_p = leer_datos() 
+            # Filtramos los datos que pertenezcan a este partido_id (Columna B de tu Excel)
+            if not df_p.empty:
+                df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])]
+            else:
+                df_partido_actual = pd.DataFrame()
         if df_p is not None and not df_p.empty:
             # Limpieza de nombres de columnas por si hay espacios
             df_p.columns = [str(c).strip() for c in df_p.columns]
