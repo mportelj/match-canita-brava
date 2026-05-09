@@ -262,30 +262,30 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
 
 # --- 3. NAVEGACIÓN ---
 # --- CONFIGURACIÓN DEL MENÚ LATERAL ---
-# --- CONFIGURACIÓN DEL MENÚ (Parte superior del script) ---
-# --- CONFIGURACIÓN DEL MENÚ ---
+
 opciones_menu = ["Inicio", "Nueva Partida", "Estadísticas", "Admin"]
 
-# 1. Asegurar que exista la variable en el estado
+# Verificamos que exista la variable de estado
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-# 2. Calcular el índice ANTES de dibujar el radio
+# Calculamos el índice basándonos en el estado actual
 try:
+    # Si el botón de Admin puso "Nueva Partida", el índice será 1
     indice_actual = opciones_menu.index(st.session_state.menu_seleccionado)
 except ValueError:
     indice_actual = 0
 
 with st.sidebar:
-    st.title("⛳ Match Play")
-    # El radio DEBE tener el index=indice_actual para obedecer al botón Editar
+    st.title("⛳ Menú Principal")
+    # El radio DEBE usar el 'index=indice_actual' para saltar de sección solo
     seleccion = st.radio(
         "Navegación",
         opciones_menu,
         index=indice_actual,
-        key="menu_radio_principal"
+        key="main_menu_radio"
     )
-    # Actualizamos el estado con la selección (manual o automática)
+    # Actualizamos el estado con lo que el usuario elija o lo que el botón mande
     st.session_state.menu_seleccionado = seleccion
     
 df_raw = leer_datos()
