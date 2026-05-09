@@ -735,6 +735,7 @@ elif st.session_state.menu_seleccionado == "Admin":
                 with c1:
                     # CLAVE: El key usa p_id para evitar NameError
                     # --- DENTRO DEL BUCLE DE PARTIDOS EN ADMIN ---
+                    
                     if st.button(f"✏️ Editar Partido", key=f"ed_{p_id}"):
                     # 1. Cargamos los datos para que 'Nueva Partida' sepa qué editar
                         st.session_state.game = {
