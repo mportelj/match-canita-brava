@@ -348,7 +348,7 @@ if st.session_state.menu_seleccionado == "Inicio":
     """, unsafe_allow_html=True)
    
 # ==========================================
-# SECCIÓN: NUEVA PARTIDA (OPTIMIZADA)
+# SECCIÓN: NUEVA PARTIDA (SOLUCIÓN ERROR 429)
 # ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
 
@@ -366,19 +366,23 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 'h_sel': 1, 
                 'id': datetime.now().strftime("%Y%m%d%H%M%S")
             }
-            st.cache_data.clear() # Limpiamos caché para asegurar datos frescos al empezar
+            # Limpiamos caché para asegurar que al empezar no haya datos viejos
+            st.cache_data.clear()
             st.rerun()
             
     else:
-        # --- BLOQUE B: LECTURA ÚNICA Y SEGURA (Evita Error 429) ---
+        # --- BLOQUE B: LECTURA ÚNICA CENTRALIZADA ---
         g = st.session_state.game
+        
+        # Leemos los datos UNA SOLA VEZ para todo este renderizado
         df_p = leer_datos() 
         df_partido_actual = pd.DataFrame()
 
         if df_p is not None and not df_p.empty:
-            # Limpieza de nombres de columnas
+            # Limpieza de nombres de columnas por si hay espacios
             df_p.columns = [str(c).strip() for c in df_p.columns]
             
+            # Filtramos el partido actual de forma segura
             if 'partido_id' in df_p.columns:
                 df_p['partido_id'] = df_p['partido_id'].astype(str)
                 df_partido_actual = df_p[df_p['partido_id'] == str(g['id'])]
@@ -403,7 +407,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                         <h1 style="margin:0; font-size:4.5em; color:{COLOR_B if m_b > 0 else '#333'};">{m_b:g}</h1>
                     </div>
                 </div>
-                <p style="margin-top:5px; color:#666;">{"All Square" if dif == 0 else f"{abs(dif)} Up"}</p>
+                <p style="margin-top:5px; color:#666; font-size:0.9em;">{"All Square" if dif == 0 else f"{abs(dif)} Up"}</p>
             </div>
         """, unsafe_allow_html=True)
 
@@ -418,7 +422,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.session_state.refresco_id += 1
             st.rerun()
 
-        # --- BLOQUE E: SELECTOR ---
+        # --- BLOQUE E: SELECTOR DE HOYO ---
         lista_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
         seleccion = st.selectbox("h_sel", lista_hoyos, index=g['h_sel']-1, label_visibility="collapsed", key=f"h_selector_{st.session_state.refresco_id}")
         
@@ -440,19 +444,17 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         s2_val = col_j2.number_input(TODOS[2], 1, 15, v_ref[2], key=f"in_s2_{h}_{st.session_state.refresco_id}")
         s3_val = col_j2.number_input(TODOS[3], 1, 15, v_ref[3], key=f"in_s3_{h}_{st.session_state.refresco_id}")
 
-       # --- BLOQUE G: ACCIÓN DE GUARDADO ---
+        # --- BLOQUE G: ACCIÓN DE GUARDADO ---
         if st.button("💾 Actualizar Hoyo", type="primary", use_container_width=True, disabled=([s0_val, s1_val, s2_val, s3_val] == v_ref)):
-    
-        # Llamamos a la función con el hoyo y los 4 valores de los inputs
+            # Enviamos datos a la función
             ejecutar_guardado_automatico(h, s0_val, s1_val, s2_val, s3_val)
-    
-        # Limpiamos caché para que el marcador se actualice con los nuevos datos
-        st.cache_data.clear()
-    
-        st.success(f"Hoyo {h} actualizado correctamente")
-        st.rerun()
+            
+            # MUY IMPORTANTE: Borramos caché para que al recargar lea los datos recién guardados
+            st.cache_data.clear()
+            st.success(f"Hoyo {h} guardado")
+            st.rerun()
 
-        # --- BLOQUE H: CIERRE ---
+        # --- BLOQUE H: FINALIZAR ---
         st.write("---")
         with st.popover("🏁 Finalizar Partida", use_container_width=True):
             if st.button("Confirmar Cierre", type="primary", use_container_width=True):
