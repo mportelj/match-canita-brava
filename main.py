@@ -33,28 +33,32 @@ if 'sh' not in st.session_state:
 
 # --- CONFIGURACIÓN DE NAVEGACIÓN ---
 
-# --- CONFIGURACIÓN DEL MENÚ EN EL SIDEBAR ---
+import streamlit as st
+import pandas as pd
+# ... otros imports ...
+
+
+def cb_editar_partido(p_id, fecha, temporada):
+    # Esto prepara los datos de la partida
+    st.session_state.game = {
+        "id": str(p_id),
+        "fecha": fecha,
+        "temporada": str(temporada),
+        "h_sel": 1
+    }
+    # Esto cambia el menú lateral automáticamente
+    st.session_state.nav_radio = "Nueva Partida"
+    st.session_state.menu_seleccionado = "Nueva Partida"
+
+# --- 2. EL SIDEBAR (MENÚ LATERAL) ---
 opciones_menu = ["Inicio", "Nueva Partida", "Estadísticas", "Admin"]
-
-# Si el botón de editar ya puso "Nueva Partida" en el estado, el radio lo leerá
-if 'menu_seleccionado' not in st.session_state:
-    st.session_state.menu_seleccionado = "Inicio"
-
-try:
-    indice_seccion = opciones_menu.index(st.session_state.menu_seleccionado)
-except ValueError:
-    indice_seccion = 0
 
 with st.sidebar:
     st.title("⛳ Menú Principal")
-    seleccion = st.radio(
-        "Ir a:",
-        opciones_menu,
-        index=indice_seccion,
-        key="navegacion_radio" # Esta clave debe coincidir con la del callback
-    )
-    # Sincronizamos la variable que usas en tus if/elif
+    # Es fundamental que el key sea "nav_radio"
+    seleccion = st.radio("Ir a:", opciones_menu, key="nav_radio")
     st.session_state.menu_seleccionado = seleccion
+
 
 # --- LÓGICA DE DATOS ---
 @st.cache_data(ttl=60)
@@ -425,6 +429,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         # --- RESTO DE TU CÓDIGO (Navegación, Golpes, Guardado) ---
         # Asegúrate de que los inputs usen v_ref para mostrar los golpes ya guardados
 
+        
         # --- BLOQUE D: NAVEGACIÓN ---
         c_nav1, c_nav2 = st.columns(2)
         if c_nav1.button("← Anterior", use_container_width=True):
