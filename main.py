@@ -5,25 +5,9 @@ from google.oauth2.service_account import Credentials
 import gspread
 from datetime import datetime
 
-# --- INICIALIZACIÓN GLOBAL (Al principio de tu main.py) ---
-if 'menu_seleccionado' not in st.session_state:
-    st.session_state.menu_seleccionado = "Inicio"
-
-if 'radio_menu' not in st.session_state:
-    st.session_state.radio_menu = "Inicio" # <--- ESTO EVITA EL ERROR
-
-# Inicialización de la conexión
-if 'sh' not in st.session_state:
-    st.session_state.sh = cargar_datos_golf()
-
-# Creamos una variable local para usarla fácilmente
-sh = st.session_state.sh
-# Función para conectar sin usar st.connection
-
+# 1. PRIMERO DEFINES LA FUNCIÓN
 def cargar_datos_golf():
-    # Línea 24: Asegúrate de que 's' tenga exactamente 4 espacios antes
     s = st.secrets["gsheets"]
-    
     credentials_dict = {
         "type": s["type"],
         "project_id": s["project_id"],
@@ -36,28 +20,28 @@ def cargar_datos_golf():
         "auth_provider_x509_cert_url": s["auth_provider_x509_cert_url"],
         "client_x509_cert_url": s["client_x509_cert_url"]
     }
-    
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
     client = gspread.authorize(creds)
-
+    
     url_hoja = "https://docs.google.com/spreadsheets/d/17mwvtZY-f6BWXOlDGkDdYur8l0ATvGYpbkshjv1sJAk/edit?gid=0#gid=0"
-    sh = client.open_by_url(url_hoja).sheet1 
-    
-    return sh
-    
+    return client.open_by_url(url_hoja).sheet1
+
+# 2. DESPUÉS LA LLAMAS
+if 'sh' not in st.session_state:
+    st.session_state.sh = cargar_datos_golf()
+
+sh = st.session_state.sh
+
+# --- INICIALIZACIÓN GLOBAL (Al principio de tu main.py) ---
+if 'menu_seleccionado' not in st.session_state:
+    st.session_state.menu_seleccionado = "Inicio"
+
+if 'radio_menu' not in st.session_state:
+    st.session_state.radio_menu = "Inicio" # <--- ESTO EVITA EL ERROR
+
 # Lógica de la app
 #st.title("⛳ CAÑITA BRAVA")
-
-#try:
-#    df = cargar_datos_golf()
-#   st.success("¡Datos cargados!")
-#    st.dataframe(df)
-#except Exception as e:
-#    st.error(f"Error de conexión: {e}")
-
-#=================================
-
 
 
 # --- 1. CONFIGURACIÓN ---
