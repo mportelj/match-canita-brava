@@ -18,7 +18,6 @@ def cargar_datos_golf():
     s = st.secrets["gsheets"]
     
     # 2. Construimos el diccionario de credenciales
-    # El .replace garantiza que los saltos de línea sean correctos
     credentials_dict = {
         "type": s["type"],
         "project_id": s["project_id"],
@@ -36,11 +35,13 @@ def cargar_datos_golf():
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
     client = gspread.authorize(creds)
+
+    # 4. ABRIR EL ARCHIVO (Aquí estaba el fallo)
+    # Opción A: Por URL (la que tienes en el navegador)
+    url_hoja = "https://docs.google.com/spreadsheets/d/17mwvtZY-f6BWXOlDGkDdYur8l0ATvGYpbkshjv1sJAk/edit?gid=0#gid=0"
+    sh = client.open_by_url(url_hoja).sheet1 # Abre la primera pestaña
     
-    # 4. Abrimos y leemos
-    sh = client.open_by_url(s["url"])
-    worksheet = sh.worksheet("historial")
-    return pd.DataFrame(worksheet.get_all_records())
+    return sh # IMPORTANTE: Retornamos el objeto de la hoja
 
 # Lógica de la app
 #st.title("⛳ CAÑITA BRAVA")
