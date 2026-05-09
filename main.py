@@ -309,7 +309,7 @@ if st.session_state.menu_seleccionado == "Inicio":
 # ==========================================
 # SECCIÓN: NUEVA PARTIDA (Modo Match Play)
 # ==========================================
-elif st.session_state.menu_seleccionado == "Jugar/Editar":
+elif st.session_state.menu_seleccionado == "Nueeva Partida":
     if 'refresco_id' not in st.session_state: 
         st.session_state.refresco_id = 0
 
