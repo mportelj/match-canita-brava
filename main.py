@@ -262,29 +262,25 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
 
 # --- 3. NAVEGACIÓN ---
 # --- CONFIGURACIÓN GLOBAL DE NAVEGACIÓN ---
-opciones_menu = ["Inicio", "Nueva Partida", "Estadísticas", "Admin"]
 
-# Inicializamos el estado si no existe
+opciones = ["Inicio", "Nueva Partida", "Estadísticas", "Admin"]
+
+# Si la variable no existe, la creamos
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-# FUNCIÓN CRÍTICA: Calcula el índice basándose en el estado actual
-# Si el botón Editar cambió el estado a "Nueva Partida", el índice será 1 automáticamente
+# Calculamos el índice basándonos en el estado actual
+# Esto es lo que permite que el botón de Editar mueva el selector solo
 try:
-    indice_defecto = opciones_menu.index(st.session_state.menu_seleccionado)
+    idx_actual = opciones.index(st.session_state.menu_seleccionado)
 except ValueError:
-    indice_defecto = 0
+    idx_actual = 0
 
 with st.sidebar:
-    st.title("⛳ Cañita Brava")
-    # El radio DEBE tener el parámetro index vinculado a la variable
-    seleccion = st.radio(
-        "Navegación",
-        opciones_menu,
-        index=indice_defecto,
-        key="main_nav_radio"
-    )
-    # Sincronizamos el estado
+    st.title("⛳ Menú")
+    # El radio DEBE usar el 'index=idx_actual'
+    seleccion = st.radio("Navegación", opciones, index=idx_actual, key="nav_radio")
+    # Actualizamos el estado con la selección del usuario
     st.session_state.menu_seleccionado = seleccion
     
 df_raw = leer_datos()
@@ -746,11 +742,11 @@ elif st.session_state.menu_seleccionado == "Admin":
                         "h_sel": 1  # Empezamos en el hoyo 1
                         }    
     
-                    # 2. Cambiamos el nombre de la sección (idéntico al de la lista)
-                    st.session_state.menu_seleccionado = "Nueva Partida"
+                        # 2. Cambiamos el nombre de la sección (idéntico al de la lista)
+                        st.session_state.menu_seleccionado = "Nueva Partida"
     
-                    # 3. Forzamos el refresco para que el menú lateral lea el nuevo índice
-                    st.rerun()
+                        # 3. Forzamos el refresco para que el menú lateral lea el nuevo índice
+                        st.rerun()
                 
                 with c2:
                     conf = st.checkbox("Confirmar borrar", key=f"ch_{p_id}")
