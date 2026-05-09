@@ -261,31 +261,30 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
 
 
 # --- 3. NAVEGACIÓN ---
-# --- CONFIGURACIÓN DEL MENÚ LATERAL ---
-
+# --- CONFIGURACIÓN GLOBAL DE NAVEGACIÓN ---
 opciones_menu = ["Inicio", "Nueva Partida", "Estadísticas", "Admin"]
 
-# Verificamos que exista la variable de estado
+# Inicializamos el estado si no existe
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-# Calculamos el índice basándonos en el estado actual
+# FUNCIÓN CRÍTICA: Calcula el índice basándose en el estado actual
+# Si el botón Editar cambió el estado a "Nueva Partida", el índice será 1 automáticamente
 try:
-    # Si el botón de Admin puso "Nueva Partida", el índice será 1
-    indice_actual = opciones_menu.index(st.session_state.menu_seleccionado)
+    indice_defecto = opciones_menu.index(st.session_state.menu_seleccionado)
 except ValueError:
-    indice_actual = 0
+    indice_defecto = 0
 
 with st.sidebar:
-    st.title("⛳ Menú Principal")
-    # El radio DEBE usar el 'index=indice_actual' para saltar de sección solo
+    st.title("⛳ Cañita Brava")
+    # El radio DEBE tener el parámetro index vinculado a la variable
     seleccion = st.radio(
         "Navegación",
         opciones_menu,
-        index=indice_actual,
-        key="main_menu_radio"
+        index=indice_defecto,
+        key="main_nav_radio"
     )
-    # Actualizamos el estado con lo que el usuario elija o lo que el botón mande
+    # Sincronizamos el estado
     st.session_state.menu_seleccionado = seleccion
     
 df_raw = leer_datos()
@@ -365,6 +364,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
     # --- BLOQUE A: CONFIGURACIÓN DE INICIO ---
     if 'game' not in st.session_state:
+        st.info("💡 Selecciona una fecha para empezar o ve a Admin para editar una partida existente.")
         st.markdown("### ⛳ Nueva Partida")
         fecha_seleccionada = st.date_input("Selecciona la fecha del partido")
 
@@ -496,6 +496,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     del st.session_state.game
                 st.cache_data.clear()
                 st.rerun()
+        st.subheader(f"📍 Editando: Partido {st.session_state.game['fecha']}")
 # ==========================================
 # SECCIÓN: ESTADISTICAS (Versión Restaurada)
 # ==========================================
