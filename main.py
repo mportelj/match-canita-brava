@@ -246,119 +246,104 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         g = st.session_state.game
         par_hoyo = PAR_RIA_VIGO[int(hoyo_id)]
         
-        # 1. LISTA DE GOLPES (0:Manu, 1:Jose, 2:Roge, 3:Lalo)
+        # 1. CÁLCULO DE PUNTOS (MVP y MATCH)
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         
-        # --- LÓGICA DE BONUS ---
         def calc_bonus_mvp(score, p):
             dif = score - p
-            if dif <= -3: return 4.0   # Albatros MVP
-            if dif == -2: return 3.0   # Eagle MVP
-            if dif == -1: return 1.5   # Birdie MVP
-            if dif == 0:  return 0.5   # Par MVP
+            if dif <= -3: return 4.0
+            if dif == -2: return 3.0
+            if dif == -1: return 1.5
+            if dif == 0:  return 0.5
             return 0.0
 
         def calc_bonus_match(score, p):
             dif = score - p
-            if dif <= -3: return 3.0   # Albatros MATCH
-            if dif == -2: return 2.0   # Eagle MATCH
-            if dif == -1: return 1.0   # Birdie MATCH
+            if dif <= -3: return 3.0
+            if dif == -2: return 2.0
+            if dif == -1: return 1.0
             return 0.0
 
-        # 2. CÁLCULO MVP INDIVIDUAL (H, I, J, K)
+        # MVP Individual
         p_mvp = [0.0, 0.0, 0.0, 0.0]
         for i in range(4):
-            puntos_oponentes = 0
-            for j in range(4):
-                if i == j: continue 
-                if golpes[i] < golpes[j]: puntos_oponentes += 0.5
-            p_mvp[i] = puntos_oponentes + calc_bonus_mvp(golpes[i], par_hoyo)
+            pts_oponentes = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
+            p_mvp[i] = pts_oponentes + calc_bonus_mvp(golpes[i], par_hoyo)
 
-        # 3. CÁLCULO RESULTADO MATCH (F, G)
-        # Separamos por equipos para claridad
-        equipo_a = [golpes[0], golpes[1]]
-        equipo_b = [golpes[2], golpes[3]]
+        # Match Parejas
+        res_a, res_b = min(golpes[0], golpes[1]), min(golpes[2], golpes[3])
+        peor_a, peor_b = max(golpes[0], golpes[1]), max(golpes[2], golpes[3])
         
-        # A) Puntos por Mejor Bola
-        mejor_a, mejor_b = min(equipo_a), min(equipo_b)
-        pts_mejor_a = 1.0 if mejor_a < mejor_b else 0.0
-        pts_mejor_b = 1.0 if mejor_b < mejor_a else 0.0
+        total_a = (1.0 if res_a < res_b else 0.0) + (1.0 if peor_a < peor_b else 0.0) + \
+                  calc_bonus_match(golpes[0], par_hoyo) + calc_bonus_match(golpes[1], par_hoyo)
+        total_b = (1.0 if res_b < res_a else 0.0) + (1.0 if peor_b < peor_a else 0.0) + \
+                  calc_bonus_match(golpes[2], par_hoyo) + calc_bonus_match(golpes[3], par_hoyo)
+
+        match_a = max(0.0, total_a - total_b) if total_a != total_b else 0.0
+        match_b = max(0.0, total_b - total_a) if total_a != total_b else 0.0
+
+        # 2. FORMATEO ESTRICTO (Para coincidir con tu Excel)
+        id_partido_formateado = f"{float(g['id']):.1f}"
         
-        # B) Puntos por Peor Bola (NUEVO)
-        peor_a, peor_b = max(equipo_a), max(equipo_b)
-        pts_peor_a = 1.0 if peor_a < peor_b else 0.0
-        pts_peor_b = 1.0 if peor_b < peor_a else 0.0
-
-        # C) Puntos por calidad (Bonus Match)
-        b_a = calc_bonus_match(equipo_a[0], par_hoyo) + calc_bonus_match(equipo_a[1], par_hoyo)
-        b_b = calc_bonus_match(equipo_b[0], par_hoyo) + calc_bonus_match(equipo_b[1], par_hoyo)
-
-        # D) Cálculo Bruto y Netear (Solo uno puntúa en F/G)
-        total_hoyo_a = pts_mejor_a + pts_peor_a + b_a
-        total_hoyo_b = pts_mejor_b + pts_peor_b + b_b
-
-        if total_hoyo_a > total_hoyo_b:
-            match_a = total_hoyo_a - total_hoyo_b
-            match_b = 0.0
-        elif total_hoyo_b > total_hoyo_a:
-            match_a = 0.0
-            match_b = total_hoyo_b - total_hoyo_a
+        # Formato de fecha DD/MM/YYYY
+        fecha_val = g['fecha']
+        if hasattr(fecha_val, 'strftime'):
+            fecha_str = fecha_val.strftime('%d/%m/%Y')
         else:
-            match_a, match_b = 0.0, 0.0
-
-        # 4. CONSTRUCCIÓN DE LA FILA
-        # --- 4. CONSTRUCCIÓN DE LA FILA (CORRECCIÓN DE FORMATOS) ---
-        
-        # 1. Aseguramos que el partido_id sea un string con ".0" para coincidir con los antiguos
-        try:
-            id_float = float(g['id'])
-            id_partido_formateado = f"{id_float:.1f}"
-        except:
-            id_partido_formateado = str(g['id'])
-
-        # 2. Formateamos la fecha a DD/MM/YYYY
-        # Si la fecha viene como objeto datetime, la convertimos. Si es string, la limpiamos.
-        fecha_original = g['fecha']
-        if hasattr(fecha_original, 'strftime'):
-            fecha_str = fecha_original.strftime('%d/%m/%Y')
-        else:
-            # Por si acaso viene un string de tipo "YYYY-MM-DD..."
             try:
-                from datetime import datetime
-                # Intentamos parsear el formato ISO que suele dar Streamlit si falla
-                temp_dt = pd.to_datetime(fecha_original)
-                fecha_str = temp_dt.strftime('%d/%m/%Y')
+                fecha_str = pd.to_datetime(fecha_val).strftime('%d/%m/%Y')
             except:
-                fecha_str = str(fecha_original)
+                fecha_str = str(fecha_val)
 
         nueva_fila = [
-            f"{id_partido_formateado}_H{hoyo_id}", # id único
-            id_partido_formateado,                 # partido_id (con .0)
-            int(hoyo_id),                          # hoyo
-            fecha_str,                             # fecha (DD/MM/YYYY)
-            str(g['temporada']),                   # temporada
-            float(match_a), float(match_b),        # F, G
-            p_mvp[0], p_mvp[1],                    # H, I
-            p_mvp[2], p_mvp[3],                    # J, K
-            int(g0), int(g1),                      # L, M
-            int(g2), int(g3)                       # N, O
+            f"{id_partido_formateado}_H{hoyo_id}", 
+            id_partido_formateado,                 
+            int(hoyo_id),                        
+            fecha_str,                             
+            str(g.get('temporada', '2026')),                 
+            float(match_a), float(match_b),      
+            p_mvp[0], p_mvp[1],                  
+            p_mvp[2], p_mvp[3],                  
+            int(g0), int(g1),                    
+            int(g2), int(g3)                     
         ]
 
-        # 5. GUARDADO
+        # 3. PROCESO DE GUARDADO (LECTURA -> FILTRADO -> ESCRITURA)
         filas = hoja.get_all_values()
+        if not filas:
+            st.error("No se pudo leer la hoja de Google Sheets.")
+            return
+
         header = filas[0]
-        datos_restantes = [f for f in filas[1:] if not (f[1] == id_partido_busqueda and int(f[2]) == int(hoyo_id))]
-        datos_restantes.append(nueva_fila)
-        datos_restantes.sort(key=lambda x: (str(x[1]), int(x[2])))
+        # Filtramos: mantenemos todas las filas EXCEPTO la que estamos editando
+        datos_nuevos = []
+        for f in filas[1:]:
+            if len(f) < 3: continue
+            try:
+                # Comparamos ID de partido y número de hoyo
+                f_id = f"{float(f[1]):.1f}"
+                f_hoyo = int(f[2])
+                if f_id == id_partido_formateado and f_hoyo == int(hoyo_id):
+                    continue # Saltamos la fila vieja para reemplazarla
+            except:
+                pass
+            datos_nuevos.append(f)
+
+        # Añadimos la nueva fila
+        datos_nuevos.append(nueva_fila)
         
+        # Ordenamos por ID de partido y luego por Hoyo
+        datos_nuevos.sort(key=lambda x: (str(x[1]), int(x[2])))
+
+        # ESCRIBIMOS EN LA HOJA
         hoja.clear()
-        hoja.update('A1', [header] + datos_restantes)
+        hoja.update('A1', [header] + datos_nuevos)
         
-        st.toast(f"✅ Hoyo {hoyo_id} guardado (Mejor/Peor + Bonus)")
+        st.toast(f"✅ Hoyo {hoyo_id} guardado en Google Sheets")
         st.cache_data.clear()
 
     except Exception as e:
-        st.error(f"Error al guardar: {e}")
+        st.error(f"Error crítico al guardar: {str(e)}")
 
 # --- 4. PANTALLAS ---
 # ==========================================
