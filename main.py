@@ -575,15 +575,20 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     if df_raw.empty:
         st.warning("No hay datos para procesar.")
     else:
-        # --- 1. LIMPIEZA DE DATOS (Fuerza Bruta) ---
-        # Convertimos todo a string y limpiamos posibles decimales .0 de Excel
-        df_raw['temp_str'] = df_raw['temporada'].astype(str).str.replace('.0', '', regex=False).str.strip()
-        df_raw['resultado_a'] = pd.to_numeric(df_raw['resultado_a'], errors='coerce').fillna(0)
-        df_raw['resultado_b'] = pd.to_numeric(df_raw['resultado_b'], errors='coerce').fillna(0)
+        # --- 1. NORMALIZACIÓN CRÍTICA (Basada en tu observación) ---
+        # Convertimos partido_id a número y luego a entero para eliminar el ".0"
+        df_raw['partido_id_clean'] = pd.to_numeric(df_raw['partido_id'], errors='coerce').fillna(0).astype(int)
+        
+        # Hacemos lo mismo con temporada para evitar fallos de filtro
+        df_raw['temp_clean'] = pd.to_numeric(df_raw['temporada'], errors='coerce').fillna(0).astype(int).astype(str)
+        
+        # Forzamos los resultados a números reales
+        df_raw['res_a'] = pd.to_numeric(df_raw['resultado_a'], errors='coerce').fillna(0)
+        df_raw['res_b'] = pd.to_numeric(df_raw['resultado_b'], errors='coerce').fillna(0)
         
         df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], errors='coerce')
         fechas_unicas = df_raw.sort_values('fecha_dt', ascending=False)['fecha'].unique().tolist()
-        temporadas_unicas = sorted(df_raw['temp_str'].unique().tolist(), reverse=True)
+        temporadas_unicas = sorted(df_raw['temp_clean'].unique().tolist(), reverse=True)
         opciones_fecha = {f: pd.to_datetime(f).strftime('%d/%m/%Y') for f in fechas_unicas}
 
         col1, col2 = st.columns(2)
@@ -591,49 +596,53 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             ver_acumulado = st.toggle("📂 Ver Acumulado de la Temporada", value=False)
         with col1:
             if ver_acumulado:
-                seleccion_filtro = st.selectbox("Seleccionar Temporada:", temporadas_unicas, key="st_temp_def")
+                seleccion_filtro = st.selectbox("Seleccionar Temporada:", temporadas_unicas, key="st_t_ok")
             else:
-                seleccion_filtro = st.selectbox("Seleccionar Jornada:", fechas_unicas, format_func=lambda x: opciones_fecha[x], key="st_jorn_def")
+                seleccion_filtro = st.selectbox("Seleccionar Jornada:", fechas_unicas, format_func=lambda x: opciones_fecha[x], key="st_j_ok")
 
-        # --- 2. DETERMINAR TEMPORADA ACTUAL ---
+        # --- 2. FILTRADO ---
         if ver_acumulado:
             temp_actual = str(seleccion_filtro)
-            df_stats = df_raw[df_raw['temp_str'] == temp_actual].copy()
+            df_stats = df_raw[df_raw['temp_clean'] == temp_actual].copy()
         else:
             df_stats = df_raw[df_raw['fecha'] == seleccion_filtro].copy()
-            temp_actual = str(df_stats['temp_str'].iloc[0]) if not df_stats.empty else "2026"
+            temp_actual = str(df_stats['temp_clean'].iloc[0]) if not df_stats.empty else "2026"
 
         if not df_stats.empty:
-            # --- 3. CÁLCULO DEL STATUS GLOBAL (LIGA) ---
-            # IMPORTANTE: Empezamos con los puntos de ventaja
-            v_ini = 3.5 if temp_actual == "2026" else 0.0
-            pa_liga, pb_liga = v_ini, v_ini
+            # --- 3. CÁLCULO DEL STATUS GLOBAL (Usando el ID ya normalizado) ---
+            # Ventaja inicial: Manu/Jose 3.5 - Roge/Lalo 0
+            pa_liga = 3.5 if temp_actual == "2026" else 0.0
+            pb_liga = 0.0 
             
-            # Filtramos todos los registros de la temporada seleccionada para el conteo global
-            df_t_completa = df_raw[df_raw['temp_str'] == temp_actual].copy()
-            jornadas_detectadas = df_t_completa['fecha'].unique()
+            # Buscamos toda la temporada
+            df_full_temp = df_raw[df_raw['temp_clean'] == temp_actual]
+            
+            # AGRUPAMOS POR EL ID LIMPIO (Esto corrige tu error visualizado)
+            jornadas = df_full_temp.groupby('partido_id_clean').agg({
+                'res_a': 'sum',
+                'res_b': 'sum'
+            }).reset_index()
 
-            for f in jornadas_detectadas:
-                dia = df_t_completa[df_t_completa['fecha'] == f]
-                suma_a = dia['resultado_a'].sum()
-                suma_b = dia['resultado_b'].sum()
-                
-                if suma_a > suma_b:
+            for _, row in jornadas.iterrows():
+                if row['res_a'] > row['res_b']:
                     pa_liga += 1
-                elif suma_b > suma_a:
+                elif row['res_b'] > row['res_a']:
                     pb_liga += 1
-                elif suma_a == suma_b and suma_a > 0:
+                elif row['res_a'] == row['res_b'] and row['res_a'] > 0:
                     pa_liga += 0.5
                     pb_liga += 0.5
 
-            # Resultado del Status
-            dif_l = pa_liga - pb_liga
-            if dif_l > 0: txt_status = f"MANU & JOSE {dif_l:g} UP"
-            elif dif_l < 0: txt_status = f"ROGE & LALO {abs(dif_l):g} UP"
-            else: txt_status = "ALL SQUARE (AS)"
+            # Resultado final
+            dif_global = pa_liga - pb_liga
+            if dif_global > 0:
+                txt_status = f"MANU & JOSE {dif_global:g} UP"
+            elif dif_global < 0:
+                txt_status = f"ROGE & LALO {abs(dif_global):g} UP"
+            else:
+                txt_status = "ALL SQUARE (AS)"
 
-            # Marcador de hoyos
-            h_a, h_b = df_stats['resultado_a'].sum(), df_stats['resultado_b'].sum()
+            # Marcador de hoyos de la jornada seleccionada
+            h_a, h_b = df_stats['res_a'].sum(), df_stats['res_b'].sum()
             if ver_acumulado:
                 info_h = f"Hoyos totales temporada: M&J {h_a:g} - R&L {h_b:g}"
             else:
@@ -641,6 +650,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 res_p = f"M&J {dif_h:g} UP" if dif_h > 0 else (f"R&L {abs(dif_h):g} UP" if dif_h < 0 else "AS")
                 info_h = f"Resultado Partido: <b>{res_p}</b> (Hoyos: {h_a:g}-{h_b:g})"
 
+            # --- INTERFAZ ---
+            st.markdown(f"""
+                <div style="background-color:#1E1E1E; padding:20px; border-radius:10px; border-left: 8px solid #00FF00; color:white; margin-bottom:20px;">
+                    <h2 style="margin:0; color:#00FF00;">STATUS GLOBAL: {txt_status}</h2>
+                    <p style="margin:0; opacity:0.8;">{info_h}</p>
+                </div>
+            """, unsafe_allow_html=True)
             # --- 4. RENDERIZADO ---
             st.subheader(f"📈 {f'Acumulado {temp_actual}' if ver_acumulado else f'Jornada: {opciones_fecha[seleccion_filtro]}'} ")
             st.markdown(f"<div style='background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b;'>"
