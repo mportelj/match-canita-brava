@@ -100,23 +100,21 @@ except ValueError:
 
 # --- FUNCIÓN PARA CAMBIO DE PÁGINA ---
 def cambiar_pagina():
-    # Esta función se ejecuta ANTES de que el resto del script corra
-    st.session_state.menu_seleccionado = st.session_state.selector_menu
-    # Opcional: st.cache_data.clear() SOLO si quieres que al cambiar de pestaña refresque todo
+    if "selector_menu" in st.session_state:
+        st.session_state.menu_seleccionado = st.session_state.selector_menu
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.title("⛳ Cañita Brava")
+    st.title("⛳ Canita Brava")
     
-    opciones = ["Nueva Partida", "Admin", "Estadísticas"]
+    # Añadimos "Inicio" aquí
+    opciones = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
     
-    # Buscamos el índice actual para que el selector no se mueva solo
-    if 'menu_seleccionado' not in st.session_state:
-        st.session_state.menu_seleccionado = "Nueva Partida"
-        
+    if 'menu_seleccionado' not in st.session_state or st.session_state.menu_seleccionado not in opciones:
+        st.session_state.menu_seleccionado = "Inicio"
+    
     indice_actual = opciones.index(st.session_state.menu_seleccionado)
 
-    # El secreto está en el 'on_change'
     st.selectbox(
         "Ir a:",
         opciones,
