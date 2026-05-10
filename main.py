@@ -103,28 +103,7 @@ def cambiar_pagina():
     if "selector_menu" in st.session_state:
         st.session_state.menu_seleccionado = st.session_state.selector_menu
 
-# --- SIDEBAR ---
-with st.sidebar:
-    st.title("⛳ Canita Brava")
-    
-    # Añadimos "Inicio" aquí
-    opciones = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
-    
-    if 'menu_seleccionado' not in st.session_state or st.session_state.menu_seleccionado not in opciones:
-        st.session_state.menu_seleccionado = "Inicio"
-    
-    indice_actual = opciones.index(st.session_state.menu_seleccionado)
 
-    st.selectbox(
-        "Ir a:",
-        opciones,
-        index=indice_actual,
-        key="selector_menu",
-        on_change=cambiar_pagina
-    )
-    
-    st.write("---")
-    # Si tienes el botón de "Finalizar Partida" aquí, asegúrate de que no limpie el cache globalmente
 
 # --- LÓGICA DE DATOS ---
 @st.cache_data(ttl=60)
