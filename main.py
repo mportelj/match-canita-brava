@@ -423,34 +423,25 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.rerun()
             
     else:
-        # --- BLOQUE B: LECTURA ÚNICA (CORREGIDO) ---
+        # --- BLOQUE B: LECTURA DE DATOS ---
         g = st.session_state.game
-        
         try:
             df_p = leer_datos() 
             if df_p is not None and not df_p.empty:
-                # AJUSTE 1: Limpieza profunda de nombres de columnas
-                df_p.columns = [str(c).strip().lower() for c in df_p.columns]
-                
-                # AJUSTE 2: Normalización robusta del ID
-                # Convertimos ambos a string puro para evitar problemas de .0
-                id_target = str(g['id']).split('.')[0] # Quita el .0 si existe
-                df_p['partido_id'] = df_p['partido_id'].astype(str).str.split('.').str[0]
-                
-                df_partido_actual = df_p[df_p['partido_id'] == id_target]
+                # Normalización de ID para búsqueda
+                id_target = str(g['id']).split('.')[0]
+                df_p['partido_id_str'] = df_p['partido_id'].astype(str).str.split('.').str[0]
+                df_partido_actual = df_p[df_p['partido_id_str'] == id_target]
         except Exception as e:
             st.error(f"Error al leer datos: {e}")
 
         # --- BLOQUE C: MARCADOR MATCH PLAY ---
-        # (Tu código de CSS y HTML está perfecto, se mantiene igual)
         pts_a_total = df_partido_actual['resultado_a'].sum() if not df_partido_actual.empty else 0
         pts_b_total = df_partido_actual['resultado_b'].sum() if not df_partido_actual.empty else 0
-        
         dif = pts_a_total - pts_b_total
         m_a, m_b = (dif, 0) if dif > 0 else (0, abs(dif))
 
-        # AJUSTE 3: Mostrar título de edición ARRIBA para confirmar que estamos dentro
-        st.subheader(f"📍 Editando: Partido {g['fecha']}")
+        st.subheader(f"📍 Editando: {g['fecha']}")
 
         st.markdown(f"""
             <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
@@ -469,128 +460,70 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             </div>
         """, unsafe_allow_html=True)
 
-        # --- RESTO DE TU CÓDIGO (Navegación, Golpes, Guardado) ---
-        # Asegúrate de que los inputs usen v_ref para mostrar los golpes ya guardados
-
-        
-        # --- BLOQUE D: NAVEGACIÓN ---
-        c_nav1, c_nav2 = st.columns(2)
+        # --- BLOQUE D/E: NAVEGACIÓN Y SELECTOR ---
+        c_nav1, c_nav2 = st.columns([1,1])
         if c_nav1.button("← Anterior", use_container_width=True):
             g['h_sel'] = max(1, g['h_sel'] - 1)
-            st.session_state.refresco_id += 1
             st.rerun()
         if c_nav2.button("Siguiente →", use_container_width=True):
             g['h_sel'] = min(18, g['h_sel'] + 1)
-            st.session_state.refresco_id += 1
             st.rerun()
 
-        # --- BLOQUE E: SELECTOR DE HOYO ---
         lista_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
-        seleccion = st.selectbox("h_sel", lista_hoyos, index=g['h_sel']-1, label_visibility="collapsed", key=f"h_selector_{st.session_state.refresco_id}")
+        seleccion = st.selectbox("Hoyo", lista_hoyos, index=g['h_sel']-1, key=f"h_sel_input_{g['h_sel']}")
         
         nuevo_h_id = int(seleccion.split(" ")[1])
         if nuevo_h_id != g['h_sel']:
             g['h_sel'] = nuevo_h_id
-            st.session_state.refresco_id += 1
             st.rerun()
 
-        # --- BLOQUE F: GOLPES (Carga s0 a s3) ---
-        h = g['h_sel']
+        # --- BLOQUE F: IDENTIFICACIÓN DE GOLPES GUARDADOS ---
+        h_actual = g['h_sel']
+        # Buscamos el registro del hoyo en el dataframe filtrado del partido
+        registro_hoyo = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
         
-        if not df_partido_actual.empty:
-            fila_hoyo = df_partido_actual[df_partido_actual['hoyo'].astype(int) == int(h)]
-        else:
-            fila_hoyo = pd.DataFrame()
-
-        ya_existe = not fila_hoyo.empty
-        v_ref = []
+        ya_guardado = not registro_hoyo.empty
         
-        if ya_existe:
-            v_ref = [
-                int(fila_hoyo.iloc[0]['s0']),
-                int(fila_hoyo.iloc[0]['s1']),
-                int(fila_hoyo.iloc[0]['s2']),
-                int(fila_hoyo.iloc[0]['s3'])
-            ]
-        else:
-            v_ref = [PAR_RIA_VIGO[h]] * 4
-
-        # --- LÓGICA DE BLOQUEO DE BOTÓN ---
-
-        # 1. Buscamos si el hoyo actual ya existe en los datos leídos
-        hoyo_actual = st.session_state.game['h_sel']
-        partido_id_actual = f"{float(st.session_state.game['id']):.1f}"
-
-        # Filtramos el DataFrame para ver si hay datos de este hoyo
-        registro_existente = df[
-        (df['partido_id'].astype(str) == partido_id_actual) & 
-        (df['hoyo'] == hoyo_actual)
-        ]
-
-        ya_guardado = not registro_existente.empty
-        cambios_detectados = False
-
-        # Si existe, extraemos los golpes para comparar
         if ya_guardado:
             g_prev = [
-            int(registro_existente['s0'].iloc[0]),
-            int(registro_existente['s1'].iloc[0]),
-            int(registro_existente['s2'].iloc[0]),
-            int(registro_existente['s3'].iloc[0])
-        ]
+                int(registro_hoyo.iloc[0]['s0']),
+                int(registro_hoyo.iloc[0]['s1']),
+                int(registro_hoyo.iloc[0]['s2']),
+                int(registro_hoyo.iloc[0]['s3'])
+            ]
         else:
-            g_prev = [0, 0, 0, 0] # Si no existe, comparamos contra 0
+            g_prev = [PAR_RIA_VIGO[h_actual]] * 4 # Valor por defecto (Par del hoyo)
 
-
-        
+        # --- BLOQUE G: INPUTS Y DETECCIÓN DE CAMBIOS ---
         col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            v0 = st.number_input("MANU", 1, 15, value=g_prev[0] if ya_guardado else 4, key="n0")
-        with col2:
-            v1 = st.number_input("JOSE", 1, 15, value=g_prev[1] if ya_guardado else 4, key="n1")
-        with col3:
-            v2 = st.number_input("ROGE", 1, 15, value=g_prev[2] if ya_guardado else 4, key="n2")
-        with col4:
-            v3 = st.number_input("LALO", 1, 15, value=g_prev[3] if ya_guardado else 4, key="n3")
+        with col1: v0 = st.number_input("MANU", 1, 15, value=g_prev[0], key=f"n0_{h_actual}")
+        with col2: v1 = st.number_input("JOSE", 1, 15, value=g_prev[1], key=f"n1_{h_actual}")
+        with col3: v2 = st.number_input("ROGE", 1, 15, value=g_prev[2], key=f"n2_{h_actual}")
+        with col4: v3 = st.number_input("LALO", 1, 15, value=g_prev[3], key=f"n3_{h_actual}")
 
-        # Verificamos si los valores actuales son distintos a los guardados
-        if ya_guardado:
-            if [v0, v1, v2, v3] != g_prev:
-                cambios_detectados = True
-        else:
-        # Si no está guardado, el botón debe estar habilitado siempre que haya valores
-            cambios_detectados = True
+        # Lógica de habilitación
+        cambios_detectados = [v0, v1, v2, v3] != g_prev
+        boton_disabled = ya_guardado and not cambios_detectados
 
-        # --- BLOQUE G: ACCIÓN DE GUARDADO ---
-        # Definimos el estado del botón
-        boton_deshabilitado = ya_guardado and not cambios_detectados
-
-        if st.button(
-            "💾 GUARDAR HOYO", 
-            use_container_width=True, 
-            type="primary",
-            disabled=boton_deshabilitado
-        ):
-            ejecutar_guardado_automatico(hoyo_actual, v0, v1, v2, v3)
+        if st.button("💾 GUARDAR HOYO", use_container_width=True, type="primary", disabled=boton_disabled):
+            ejecutar_guardado_automatico(h_actual, v0, v1, v2, v3)
+            st.cache_data.clear() # Forzamos recarga para que el botón se deshabilite tras guardar
             st.rerun()
 
-        # Feedback visual para el usuario
         if ya_guardado and not cambios_detectados:
-            st.success("✅ Este hoyo ya está guardado y los datos coinciden.")
+            st.success(f"✅ Hoyo {h_actual} verificado. Sin cambios.")
         elif ya_guardado and cambios_detectados:
-            st.warning("⚠️ Hay cambios detectados. Pulsa Guardar para actualizar.")
+            st.warning("⚠️ Cambios sin guardar en este hoyo.")
 
         # --- BLOQUE H: FINALIZAR ---
         st.write("---") 
-        
         with st.popover("🏁 Finalizar Partida", use_container_width=True):
-            st.warning("¿Estás seguro de que quieres cerrar la partida actual?")
-            if st.button("Confirmar Cierre y Borrar Sesión", type="primary", use_container_width=True):
+            st.warning("¿Estás seguro de que quieres cerrar la sesión actual?")
+            if st.button("Confirmar Cierre", type="primary", use_container_width=True):
                 if 'game' in st.session_state:
                     del st.session_state.game
                 st.cache_data.clear()
                 st.rerun()
-        st.subheader(f"📍 Editando: Partido {st.session_state.game['fecha']}")
 # ==========================================
 # SECCIÓN: ESTADISTICAS (Versión Restaurada)
 # ==========================================
