@@ -576,7 +576,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         st.warning("No hay datos para procesar.")
     else:
         # --- PREPARACIÓN DE DATOS ---
-        cols_n = ['resultado_a', 'resultado_b', 'hoyo', 's0', 's1', 's2', 's3', 'temporada']
+        cols_n = ['resultado_a', 'resultado_b', 'hoyo', 's0', 's1', 's2', 's3', 'temporada', 'partido_id']
         for c in cols_n:
             if c in df_raw.columns:
                 df_raw[c] = pd.to_numeric(df_raw[c], errors='coerce').fillna(0)
@@ -606,44 +606,54 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             titulo_seccion = f"Jornada: {opciones_fecha[seleccion_filtro]}"
 
         if not df_stats.empty:
-            # --- LÓGICA DE PUNTOS DE LIGA Y MARCADOR DE SELECCIÓN ---
+            # --- LÓGICA DE PUNTOS DE LIGA (CORREGIDA) ---
             ventaja = 3.5 if temp_check == "2026" else 0.0
             df_t_completa = df_raw[df_raw['temporada'].astype(str) == temp_check].copy()
-            df_t_completa['id_clean'] = df_t_completa['partido_id'].astype(str).str.split('.').str[0]
             
-            # Calculamos victorias de liga (acumulado real)
-            partidos_liga = df_t_completa.groupby('id_clean').agg({'resultado_a':'sum','resultado_b':'sum'})
+            # AGRUPACIÓN CRÍTICA: Agrupamos por FECHA y PARTIDO_ID para identificar jornadas únicas
+            # Esto evita que el AS aparezca por errores de formato en el ID
+            partidos_liga = df_t_completa.groupby(['fecha', 'partido_id']).agg({
+                'resultado_a': 'sum',
+                'resultado_b': 'sum'
+            }).reset_index()
+            
             pa_liga, pb_liga = ventaja, ventaja
+            
             for _, r in partidos_liga.iterrows():
-                if r['resultado_a'] > r['resultado_b']: pa_liga += 1
-                elif r['resultado_b'] > r['resultado_a']: pb_liga += 1
-                elif r['resultado_a'] == r['resultado_b'] and r['resultado_a'] > 0: pa_liga += 0.5; pb_liga += 0.5
+                res_a = float(r['resultado_a'])
+                res_b = float(r['resultado_b'])
+                
+                if res_a > res_b:
+                    pa_liga += 1
+                elif res_b > res_a:
+                    pb_liga += 1
+                elif res_a == res_b and res_a > 0:
+                    pa_liga += 0.5
+                    pb_liga += 0.5
 
+            # Cálculo de diferencia para Status Global
             dif_liga = pa_liga - pb_liga
-            if dif_liga > 0: txt_status = f"MANU & JOSE {dif_liga:g} UP"
-            elif dif_liga < 0: txt_status = f"ROGE & LALO {abs(dif_liga):g} UP"
-            else: txt_status = "ALL SQUARE (AS)"
+            if dif_liga > 0:
+                txt_status = f"MANU & JOSE {dif_liga:g} UP"
+            elif dif_liga < 0:
+                txt_status = f"ROGE & LALO {abs(dif_liga):g} UP"
+            else:
+                txt_status = "ALL SQUARE (AS)"
 
-            # --- MARCADOR ESPECÍFICO DE LA SELECCIÓN ---
+            # --- MARCADOR DE LA SELECCIÓN ---
             p_a_act = df_stats['resultado_a'].sum()
             p_b_act = df_stats['resultado_b'].sum()
             
             if ver_acumulado:
-                # En acumulado mostramos la suma total de hoyos de la temporada
                 txt_hoyos = f"Hoyos totales: M&J {p_a_act:g} - R&L {p_b_act:g}"
             else:
-                # En jornada individual, calculamos el resultado del MATCH de ese día
                 dif_hoyos = p_a_act - p_b_act
-                if dif_hoyos > 0:
-                    res_dia = f"MANU & JOSE {dif_hoyos:g} UP"
-                elif dif_hoyos < 0:
-                    res_dia = f"ROGE & LALO {abs(dif_hoyos):g} UP"
-                else:
-                    res_dia = "AS"
+                if dif_hoyos > 0: res_dia = f"MANU & JOSE {dif_hoyos:g} UP"
+                elif dif_hoyos < 0: res_dia = f"ROGE & LALO {abs(dif_hoyos):g} UP"
+                else: res_dia = "AS"
                 txt_hoyos = f"Resultado Partido: <b>{res_dia}</b> (Hoyos: {p_a_act:g}-{p_b_act:g})"
 
             res_info = f"<b>STATUS GLOBAL: {txt_status}</b><br><span style='color:gray;'>{txt_hoyos}</span>"
-
             # --- ESTADÍSTICAS INDIVIDUALES ---
             lista_resultados = []
             for i, jug in enumerate(TODOS):
