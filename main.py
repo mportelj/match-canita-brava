@@ -585,51 +585,51 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
         # Preparación de fechas para el selector
         # --- PREPARACIÓN DE DATOS (Dentro del bloque de Estadísticas) ---
-df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], errors='coerce')
+    df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], errors='coerce')
 
-# 1. Creamos las dos listas de opciones
-fechas_unicas = df_raw.sort_values('fecha_dt', ascending=False)['fecha'].unique().tolist()
-temporadas_unicas = sorted(df_raw['temporada'].unique().astype(str).tolist(), reverse=True)
+    # 1. Creamos las dos listas de opciones
+    fechas_unicas = df_raw.sort_values('fecha_dt', ascending=False)['fecha'].unique().tolist()
+    temporadas_unicas = sorted(df_raw['temporada'].unique().astype(str).tolist(), reverse=True)
 
-opciones_fecha = {f: pd.to_datetime(f).strftime('%d/%m/%Y') for f in fechas_unicas}
+    opciones_fecha = {f: pd.to_datetime(f).strftime('%d/%m/%Y') for f in fechas_unicas}
 
-col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2)
 
-with col2:
-    # El toggle define qué vamos a filtrar
-    ver_acumulado = st.toggle("📂 Ver Acumulado de la Temporada", value=False)
+    with col2:
+        # El toggle define qué vamos a filtrar
+        ver_acumulado = st.toggle("📂 Ver Acumulado de la Temporada", value=False)
 
-with col1:
+    with col1:
+        if ver_acumulado:
+            # Si el acumulado está activo, el combo muestra TEMPORADAS
+            seleccion_filtro = st.selectbox(
+                "Seleccionar Temporada para Acumulado:", 
+                options=temporadas_unicas,
+                key="sel_temp_stats"
+            )
+        else:
+            # Si no, muestra JORNADAS individuales
+            seleccion_filtro = st.selectbox(
+                "Seleccionar Jornada:", 
+                options=fechas_unicas, 
+                format_func=lambda x: opciones_fecha[x],
+                key="sel_jornada_stats"
+            )
+
+    # --- APLICACIÓN DEL FILTRO MAESTRO ---
     if ver_acumulado:
-        # Si el acumulado está activo, el combo muestra TEMPORADAS
-        seleccion_filtro = st.selectbox(
-            "Seleccionar Temporada para Acumulado:", 
-            options=temporadas_unicas,
-            key="sel_temp_stats"
-        )
+        # Filtramos todos los registros de la temporada seleccionada
+        df_stats = df_raw[df_raw['temporada'].astype(str) == str(seleccion_filtro)].copy()
+        f_formateada = f"Temporada {seleccion_filtro}"
+        titulo_seccion = f"Acumulado Temporada {seleccion_filtro}"
     else:
-        # Si no, muestra JORNADAS individuales
-        seleccion_filtro = st.selectbox(
-            "Seleccionar Jornada:", 
-            options=fechas_unicas, 
-            format_func=lambda x: opciones_fecha[x],
-            key="sel_jornada_stats"
-        )
+        # Filtramos solo por la fecha seleccionada
+        df_stats = df_raw[df_raw['fecha'] == seleccion_filtro].copy()
+        f_formateada = opciones_fecha[seleccion_filtro]
+        titulo_seccion = f"Jornada: {f_formateada}"
 
-# --- APLICACIÓN DEL FILTRO MAESTRO ---
-if ver_acumulado:
-    # Filtramos todos los registros de la temporada seleccionada
-    df_stats = df_raw[df_raw['temporada'].astype(str) == str(seleccion_filtro)].copy()
-    f_formateada = f"Temporada {seleccion_filtro}"
-    titulo_seccion = f"Acumulado Temporada {seleccion_filtro}"
-else:
-    # Filtramos solo por la fecha seleccionada
-    df_stats = df_raw[df_raw['fecha'] == seleccion_filtro].copy()
-    f_formateada = opciones_fecha[seleccion_filtro]
-    titulo_seccion = f"Jornada: {f_formateada}"
-
-# A partir de aquí, todos tus cálculos (puntos_a_dia, lista_resultados, etc.) 
-# usarán df_stats, que ya contiene los datos correctos según el filtro.
+    # A partir de aquí, todos tus cálculos (puntos_a_dia, lista_resultados, etc.) 
+    # usarán df_stats, que ya contiene los datos correctos según el filtro.
 
         # --- LÓGICA DE MARCADORES ---
         # Calculamos sobre df_stats (el conjunto filtrado)
