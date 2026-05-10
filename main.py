@@ -765,15 +765,21 @@ elif st.session_state.menu_seleccionado == "Admin":
         # 2. Aseguramos la existencia de la columna id_clean para agrupar
         df_admin['id_clean'] = df_admin['partido_id'].astype(str).str.split('.').str[0]
         
-        # 3. Agrupamos para el resumen de cada partido
-        partidos = df_admin.groupby('id_clean').agg({
+        # Obtenemos las temporadas disponibles para filtrar en Admin también
+        temps_admin = sorted(df_admin['temporada'].unique().tolist(), reverse=True)
+        sel_temp_admin = st.selectbox("Filtrar por temporada:", temps_admin, key="sb_admin_temp")
+        
+        # Filtramos el DF por la temporada seleccionada en este menú
+        df_filtrado = df_admin[df_admin['temporada'].astype(str) == str(sel_temp_admin)]
+
+        # Ahora agrupamos usando el DF filtrado
+        partidos = df_filtrado.groupby('id_clean').agg({
             'fecha': 'first',
             'temporada': 'first',
             'resultado_a': 'sum',
             'resultado_b': 'sum',
-            'hoyo': 'count' # Esto cuenta el número de hoyos registrados
+            'hoyo': 'count'
         }).sort_values(by='id_clean', ascending=False)
-
         st.subheader(f"Partidos Registrados ({len(partidos)})")
 
         for p_id, row in partidos.iterrows():
