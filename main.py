@@ -575,16 +575,15 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     if df_raw.empty:
         st.warning("No hay datos para procesar.")
     else:
-        # --- 1. NORMALIZACIÓN TOTAL ---
-        # Convertimos todo a números para evitar el error del .0 vs entero
+        # --- 1. NORMALIZACIÓN TOTAL DE DATOS ---
         df_raw['res_a'] = pd.to_numeric(df_raw['resultado_a'], errors='coerce').fillna(0)
         df_raw['res_b'] = pd.to_numeric(df_raw['resultado_b'], errors='coerce').fillna(0)
-        df_raw['t_num'] = pd.to_numeric(df_raw['temporada'], errors='coerce').fillna(0).astype(int)
-        df_raw['p_id_num'] = pd.to_numeric(df_raw['partido_id'], errors='coerce').fillna(0).astype(int)
+        df_raw['temp_int'] = pd.to_numeric(df_raw['temporada'], errors='coerce').fillna(0).astype(int)
+        df_raw['pid_int'] = pd.to_numeric(df_raw['partido_id'], errors='coerce').fillna(0).astype(int)
         
         df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], errors='coerce')
         fechas_unicas = df_raw.sort_values('fecha_dt', ascending=False)['fecha'].unique().tolist()
-        temporadas_unicas = sorted(df_raw['t_num'].unique().tolist(), reverse=True)
+        temporadas_unicas = sorted(df_raw['temp_int'].unique().tolist(), reverse=True)
         opciones_fecha = {f: pd.to_datetime(f).strftime('%d/%m/%Y') for f in fechas_unicas}
 
         col1, col2 = st.columns(2)
@@ -592,53 +591,38 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             ver_acumulado = st.toggle("📂 Ver Acumulado de la Temporada", value=False)
         with col1:
             if ver_acumulado:
-                seleccion_filtro = st.selectbox("Seleccionar Temporada:", temporadas_unicas, key="st_t_v3")
+                seleccion_filtro = st.selectbox("Seleccionar Temporada:", temporadas_unicas, key="st_final_t")
             else:
-                seleccion_filtro = st.selectbox("Seleccionar Jornada:", fechas_unicas, format_func=lambda x: opciones_fecha[x], key="st_j_v3")
+                seleccion_filtro = st.selectbox("Seleccionar Jornada:", fechas_unicas, format_func=lambda x: opciones_fecha[x], key="st_final_j")
 
-        # --- 2. DETERMINAR DATOS A MOSTRAR Y TEMPORADA ---
+        # --- 2. DETERMINAR TEMPORADA Y FILTRAR ---
         if ver_acumulado:
             temp_actual = int(seleccion_filtro)
-            df_stats = df_raw[df_raw['t_num'] == temp_actual].copy()
+            df_stats = df_raw[df_raw['temp_int'] == temp_actual].copy()
         else:
             df_stats = df_raw[df_raw['fecha'] == seleccion_filtro].copy()
-            temp_actual = int(df_stats['t_num'].iloc[0]) if not df_stats.empty else 2026
+            temp_actual = int(df_stats['temp_int'].iloc[0]) if not df_stats.empty else 2026
 
         if not df_stats.empty:
             # --- 3. CÁLCULO DEL STATUS GLOBAL (LIGA) ---
-            # Ventaja inicial: Manu/Jose 3.5 - Roge/Lalo 0
             pa_liga = 3.5 if temp_actual == 2026 else 0.0
             pb_liga = 0.0 
             
-            # Buscamos todos los partidos de ESTA temporada
-            df_t_completa = df_raw[df_raw['t_num'] == temp_actual]
-            
-            # Agrupamos por el ID numérico (el que viste que venía mal en el Excel)
-            partidos_encontrados = df_t_completa.groupby('p_id_num').agg({
-                'res_a': 'sum',
-                'res_b': 'sum'
-            }).reset_index()
+            df_temporada_completa = df_raw[df_raw['temp_int'] == temp_actual]
+            partidos = df_temporada_completa.groupby('pid_int').agg({'res_a':'sum', 'res_b':'sum'}).reset_index()
 
-            # Sumamos los puntos de victoria (1 o 0.5)
-            for _, p in partidos_encontrados.iterrows():
-                if p['res_a'] > p['res_b']:
-                    pa_liga += 1
-                elif p['res_b'] > p['res_a']:
-                    pb_liga += 1
-                elif p['res_a'] == p['res_b'] and p['res_a'] > 0:
-                    pa_liga += 0.5
-                    pb_liga += 0.5
+            for _, p in partidos.iterrows():
+                if p['res_a'] > 0 or p['res_b'] > 0:
+                    if p['res_a'] > p['res_b']: pa_liga += 1
+                    elif p['res_b'] > p['res_a']: pb_liga += 1
+                    elif p['res_a'] == p['res_b']: pa_liga += 0.5; pb_liga += 0.5
 
-            # Resultado Status Global
             dif_g = pa_liga - pb_liga
-            if dif_g > 0:
-                txt_status = f"MANU & JOSE {dif_g:g} UP"
-            elif dif_g < 0:
-                txt_status = f"ROGE & LALO {abs(dif_g):g} UP"
-            else:
-                txt_status = "ALL SQUARE (AS)"
+            if dif_g > 0: txt_status = f"MANU & JOSE {dif_g:g} UP"
+            elif dif_g < 0: txt_status = f"ROGE & LALO {abs(dif_g):g} UP"
+            else: txt_status = "ALL SQUARE (AS)"
 
-            # Marcador de hoyos de la selección actual
+            # Marcador de hoyos
             h_a, h_b = df_stats['res_a'].sum(), df_stats['res_b'].sum()
             if ver_acumulado:
                 info_h = f"Hoyos totales temporada: M&J {h_a:g} - R&L {h_b:g}"
@@ -647,12 +631,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 res_p = f"M&J {dif_h:g} UP" if dif_h > 0 else (f"R&L {abs(dif_h):g} UP" if dif_h < 0 else "AS")
                 info_h = f"Resultado Partido: <b>{res_p}</b> (Hoyos: {h_a:g}-{h_b:g})"
 
-           
-            # --- 4. RENDERIZADO ---
-            st.subheader(f"📈 {f'Acumulado {temp_actual}' if ver_acumulado else f'Jornada: {opciones_fecha[seleccion_filtro]}'} ")
-            st.markdown(f"<div style='background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b;'>"
-                        f"<h3 style='margin:0;'>STATUS GLOBAL: {txt_status}</h3>"
-                        f"<p style='margin:0; color: gray;'>{info_h}</p></div>", unsafe_allow_html=True)
+            # --- 4. INTERFAZ CABECERA ---
+            st.markdown(f"""
+                <div style="background-color:#1E1E1E; padding:20px; border-radius:10px; border-left: 8px solid #00FF00; color:white; margin-bottom:20px;">
+                    <h2 style="margin:0; color:#00FF00;">STATUS GLOBAL: {txt_status}</h2>
+                    <p style="margin:0; opacity:0.8; font-size:1.1em;">{info_h}</p>
+                </div>
+            """, unsafe_allow_html=True)
 
             # --- 5. ESTADÍSTICAS INDIVIDUALES ---
             lista_resultados = []
@@ -675,14 +660,16 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     scr = int(d_p['dif'].apply(cs).sum())
                     lista_resultados.append({
                         "Jugador": jug, "pm": (len(d_p)*2)-scr, "scr": scr,
-                        "e": (d_p['dif'] <= -2).sum(), "b": (d_p['dif'] == -1).sum(), 
-                        "p": (d_p['dif'] == 0).sum(), "bog": (d_p['dif'] == 1).sum(), 
-                        "db": (d_p['dif'] == 2).sum(), "tb": (d_p['dif'] >= 3).sum(), "hoyos": len(d_p)
+                        "e": int((d_p['dif'] <= -2).sum()), "b": int((d_p['dif'] == -1).sum()), 
+                        "p": int((d_p['dif'] == 0).sum()), "bog": int((d_p['dif'] == 1).sum()), 
+                        "db": int((d_p['dif'] == 2).sum()), "tb": int((d_p['dif'] >= 3).sum()), 
+                        "hoyos": len(d_p)
                     })
             
             lista_resultados = sorted(lista_resultados, key=lambda x: x['scr'], reverse=True)
 
             if lista_resultados:
+                # Tabla en pantalla
                 stats_rows = []
                 for res in lista_resultados:
                     def f_pct(v, th):
@@ -698,14 +685,37 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     })
                 st.write(pd.DataFrame(stats_rows).to_html(escape=False, index=False), unsafe_allow_html=True)
 
-                # --- 6. WHATSAPP ---
+                # --- 6. MENSAJE DE WHATSAPP COMPLETO ---
                 import urllib.parse
-                tit_w = temp_actual if ver_acumulado else opciones_fecha[seleccion_filtro]
-                whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n📊 *{tit_w}*\n🏆 *STATUS: {txt_status.upper()}*\n"
-                whatsapp_text += f"⛳ {info_h.replace('<b>','').replace('</b>','')}\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+                w_icon = "📂" if ver_acumulado else "📅"
+                tit_w = str(temp_actual) if ver_acumulado else opciones_fecha[seleccion_filtro]
+                
+                whatsapp_text = f"🍺 *CAÑITA BRAVA* 🍺\n{w_icon} *{tit_w}*\n"
+                whatsapp_text += f"🏆 *STATUS GLOBAL: {txt_status.upper()}*\n"
+                whatsapp_text += f"⛳ {info_h.replace('<b>','').replace('</b>','')}\n"
+                whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+
                 for res in lista_resultados:
                     p_m = f"+{res['pm']}" if res['pm'] > 0 else (str(res['pm']) if res['pm'] < 0 else "E")
-                    whatsapp_text += f"👤 *{res['Jugador'].upper()}*\n🏆 *{p_m}* ({res['scr']} pts)\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+                    h = res['hoyos']
+                    def w_f(v): return f"{v} ({v/h*100:.0f}%)"
+                    
+                    whatsapp_text += f"👤 *{res['Jugador'].upper()}*\n"
+                    whatsapp_text += f"🏆 Resultado: *{p_m}* ({res['scr']} pts)\n"
+                    
+                    # Detalles de golpes con iconos
+                    st_line = ""
+                    if res['e'] > 0: st_line += f"🦅 Egl: {w_f(res['e'])}\n"
+                    if res['b'] > 0: st_line += f"🐤 Bir: {w_f(res['b'])}\n"
+                    st_line += f"🅿️ Par: {w_f(res['p'])}\n"
+                    st_line += f"⚠️ Bog: {w_f(res['bog'])}\n"
+                    st_line += f"💀 D.B: {w_f(res['db'])}\n"
+                    if res['tb'] > 0: st_line += f"💣 +3B: {w_f(res['tb'])}\n"
+                    
+                    whatsapp_text += st_line
+                    whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+
+                st.write("")
                 st.link_button("📲 Enviar por WhatsApp", f"https://wa.me/?text={urllib.parse.quote(whatsapp_text)}", use_container_width=True)
 # ==========================================
 # SECCIÓN: ADMIN
