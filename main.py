@@ -30,7 +30,41 @@ def cargar_datos_golf():
 if 'sh' not in st.session_state:
     st.session_state.sh = cargar_datos_golf()
 
-
+def borrar_partido_completo(id_partido_a_borrar):
+    try:
+        hoja = st.session_state.sh
+        filas = hoja.get_all_values()
+        header = filas[0]
+        
+        # Normalizamos el ID que queremos borrar para que sea string sin .0
+        id_target = str(id_partido_a_borrar).split('.')[0]
+        
+        # Filtramos la lista: nos quedamos solo con lo que NO sea ese partido
+        nuevas_filas = [header]
+        conteo_borrados = 0
+        
+        for fila in filas[1:]:
+            if len(fila) > 1:
+                # Normalizamos el ID de la fila actual del Excel
+                id_fila = str(fila[1]).split('.')[0]
+                if id_fila == id_target:
+                    conteo_borrados += 1
+                    continue # No la incluimos (borrado)
+            nuevas_filas.append(fila)
+        
+        if conteo_borrados > 0:
+            hoja.clear()
+            hoja.update('A1', nuevas_filas)
+            st.success(f"🔥 Partido eliminado ({conteo_borrados} hoyos borrados).")
+            st.cache_data.clear()
+            return True
+        else:
+            st.error("No se encontró el partido para borrar.")
+            return False
+            
+    except Exception as e:
+        st.error(f"Error en el borrado: {e}")
+        return False
 # --- CONFIGURACIÓN DE NAVEGACIÓN ---
 
 import streamlit as st
@@ -714,72 +748,99 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Panel de Administración")
     
-    # Aseguramos que los datos se lean siempre
-    df = leer_datos()
-
-    if df is None or df.empty:
-        st.warning("No hay datos registrados en la base de datos.")
+    # 1. Cargar datos actualizados
+    df_admin = leer_datos()
+    
+    if df_admin.empty:
+        st.info("No hay partidos registrados en la base de datos.")
     else:
-        # 1. LIMPIEZA DE DATOS
-        columnas_numericas = ['resultado_a', 'resultado_b', 's0', 's1', 's2', 's3', 'hoyo']
-        for col in columnas_numericas:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-
-        if 'partido_id' not in df.columns:
-            df['partido_id'] = df['fecha'].astype(str)
+        # 2. Agrupar por partido para mostrar en la lista
+        # Normalizamos el ID para mostrarlo limpio
+        df_admin['id_clean'] = df_admin['partido_id'].astype(str).str.split('.').str[0]
         
-        df['partido_id'] = df['partido_id'].astype(str)
-        partidos = df.groupby('partido_id')
-        ids_ordenados = sorted(partidos.groups.keys(), reverse=True)
+        partidos = df_admin.groupby('id_clean').agg({
+            'fecha': 'first',
+            'temporada': 'first',
+            'hoyo': 'count'
+        }).sort_values(by='id_clean', ascending=False)
 
-        # 2. RENDERIZADO DE PARTIDOS
-        for p_id in ids_ordenados:
-            datos_jornada = partidos.get_group(p_id)
-            f_disp = datos_jornada['fecha'].iloc[0]
-            num_hoyos = len(datos_jornada['hoyo'].unique())
-            
-            suma_a = datos_jornada['resultado_a'].sum()
-            suma_b = datos_jornada['resultado_b'].sum()
-            diferencia = suma_a - suma_b
-            
-            if diferencia > 0:
-                match_txt = f"MANU & JOSE: {int(diferencia)} Up"
-            elif diferencia < 0:
-                match_txt = f"ROGE & LALO: {int(abs(diferencia))} Up"
-            else:
-                match_txt = "All Square"
+        st.subheader(f"Partidos Registrados ({len(partidos)})")
 
-            with st.expander(f"📅 {f_disp} — {num_hoyos} Hoyos — [ {match_txt} ]"):
-                tabla_vista = datos_jornada[['hoyo', 's0', 's1', 's2', 's3']].sort_values('hoyo')
-                tabla_vista.columns = ['Hoyo', 'MANU', 'JOSE', 'ROGE', 'LALO']
-                st.dataframe(tabla_vista, hide_index=True, use_container_width=True)
-
-                c1, c2 = st.columns(2)
+        for p_id, row in partidos.iterrows():
+            with st.expander(f"📅 {row['fecha']} - Temporada {row['temporada']} ({row['hoyo']} hoyos)"):
                 
-                with c1:
-                    if st.button(f"✏️ Editar Partido", key=f"btn_ed_{p_id}", use_container_width=True):
-                        # 1. Cargamos los datos del juego
+                # Filtrar hoyos de este partido
+                df_este_partido = df_admin[df_admin['id_clean'] == p_id].sort_values('hoyo')
+                
+                # Mostrar tabla resumen de golpes
+                st.dataframe(
+                    df_este_partido[['hoyo', 's0', 's1', 's2', 's3', 'resultado_a', 'resultado_b']],
+                    column_config={
+                        "hoyo": "Hoyo",
+                        "s0": "Manu", "s1": "Jose", "s2": "Roge", "s3": "Lalo",
+                        "resultado_a": "Match A", "resultado_b": "Match B"
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
+
+                col_edit, col_del = st.columns(2)
+
+                # BOTÓN EDITAR: Carga el partido en la sesión y salta a "Nueva Partida"
+                with col_edit:
+                    if st.button("📝 Editar Partido", key=f"edit_{p_id}", use_container_width=True):
                         st.session_state.game = {
-                            "id": str(p_id),
-                            "fecha": f_disp,
-                            "temporada": str(datos_jornada['temporada'].iloc[0]) if 'temporada' in datos_jornada.columns else "2026",
+                            "id": p_id,
+                            "fecha": row['fecha'],
+                            "temporada": row['temporada'],
                             "h_sel": 1
                         }
-        
-                        # 2. Cambiamos SOLO la variable de control
                         st.session_state.menu_seleccionado = "Nueva Partida"
-        
-                        # 3. Forzamos el reinicio. Al recargar, el sidebar leerá "Nueva Partida" 
-                        # y el radio se moverá al índice 1 automáticamente.
                         st.rerun()
-                
-                
-                with c2:
-                    conf = st.checkbox("Borrar", key=f"ch_{p_id}")
-                    if st.button(f"🗑️", key=f"del_{p_id}", disabled=not conf, type="primary", use_container_width=True):
-                        st.error("No conectado")
 
-    if st.button("🔄 Refrescar Panel"):
-        st.cache_data.clear()
-        st.rerun()
+                # BOTÓN BORRAR: Con doble confirmación
+                with col_del:
+                    with st.popover("🗑️ Borrar", use_container_width=True):
+                        st.error("¿Seguro? Se borrarán todos los hoyos.")
+                        confirmar = st.checkbox("Confirmar eliminación", key=f"conf_{p_id}")
+                        if confirmar:
+                            if st.button("ELIMINAR DEFINITIVAMENTE", key=f"btn_del_{p_id}", type="primary"):
+                                if borrar_partido_completo(p_id):
+                                    st.rerun()
+
+# --- FUNCIÓN DE SOPORTE PARA BORRADO (Ponla fuera del bloque Admin) ---
+def borrar_partido_completo(id_partido_a_borrar):
+    try:
+        hoja = st.session_state.sh
+        filas = hoja.get_all_values()
+        if not filas: return False
+        
+        header = filas[0]
+        id_target = str(id_partido_a_borrar).split('.')[0]
+        
+        nuevas_filas = [header]
+        borrados = 0
+        
+        for fila in filas[1:]:
+            if len(fila) > 1:
+                # Normalizamos el ID de la celda del Excel
+                id_en_fila = str(fila[1]).split('.')[0]
+                if id_en_fila == id_target:
+                    borrados += 1
+                    continue
+            nuevas_filas.append(fila)
+        
+        if borrados > 0:
+            hoja.clear()
+            # Importante: usamos el método update_batch o similar según gspread
+            hoja.update('A1', nuevas_filas)
+            st.toast(f"🔥 Se han eliminado {borrados} registros.")
+            st.cache_data.clear()
+            return True
+        else:
+            st.warning("No se encontraron hoyos para ese ID.")
+            return False
+            
+    except Exception as e:
+        st.error(f"Error al acceder a Google Sheets: {e}")
+        return False
