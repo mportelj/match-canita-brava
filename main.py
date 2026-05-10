@@ -721,99 +721,66 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Panel de Administración")
     
-    # 1. Cargar datos actualizados
     df_admin = leer_datos()
     
     if df_admin.empty:
-        st.info("No hay partidos registrados en la base de datos.")
+        st.info("No hay partidos registrados.")
     else:
-        # 2. Agrupar por partido para mostrar en la lista
-        # Normalizamos el ID para mostrarlo limpio
-        df_admin['id_clean'] = df_admin['partido_id'].astype(str).str.split('.').str[0]
-        
+        # Agrupamos para obtener el resumen de cada partido
         partidos = df_admin.groupby('id_clean').agg({
             'fecha': 'first',
             'temporada': 'first',
+            'resultado_a': 'sum',
+            'resultado_b': 'sum',
             'hoyo': 'count'
         }).sort_values(by='id_clean', ascending=False)
 
         st.subheader(f"Partidos Registrados ({len(partidos)})")
 
         for p_id, row in partidos.iterrows():
-            with st.expander(f"📅 {row['fecha']} - Temporada {row['temporada']} ({row['hoyo']} hoyos)"):
+            # Cálculo de quién gana el Match
+            puntos_a = int(row['resultado_a'])
+            puntos_b = int(row['resultado_b'])
+            
+            if puntos_a > puntos_b:
+                estado = f"🏆 MANU/JOSE +{puntos_a - puntos_b}"
+            elif puntos_b > puntos_a:
+                estado = f"🏆 ROGE/LALO +{puntos_b - puntos_a}"
+            else:
+                estado = "🤝 Empate (AS)"
+
+            # Título del expander con el resultado visual
+            with st.expander(f"📅 {row['fecha']} | {estado} ({row['hoyo']} hoyos)"):
                 
-                # Filtrar hoyos de este partido
+                # Tabla de hoyos detallada
                 df_este_partido = df_admin[df_admin['id_clean'] == p_id].sort_values('hoyo')
                 
-                # Mostrar tabla resumen de golpes
                 st.dataframe(
                     df_este_partido[['hoyo', 's0', 's1', 's2', 's3', 'resultado_a', 'resultado_b']],
                     column_config={
                         "hoyo": "Hoyo",
                         "s0": "Manu", "s1": "Jose", "s2": "Roge", "s3": "Lalo",
-                        "resultado_a": "Match A", "resultado_b": "Match B"
+                        "resultado_a": "Pts A", "resultado_b": "Pts B"
                     },
                     hide_index=True,
                     use_container_width=True
                 )
 
-                col_edit, col_del = st.columns(2)
-
-                # BOTÓN EDITAR: Carga el partido en la sesión y salta a "Nueva Partida"
-                with col_edit:
-                    if st.button("📝 Editar Partido", key=f"edit_{p_id}", use_container_width=True):
-                        st.session_state.game = {
-                            "id": p_id,
-                            "fecha": row['fecha'],
-                            "temporada": row['temporada'],
-                            "h_sel": 1
-                        }
-                        st.session_state.menu_seleccionado = "Nueva Partida"
-                        st.rerun()
-
-                # BOTÓN BORRAR: Con doble confirmación
-                with col_del:
+                # Botones de acción
+                c1, c2 = st.columns(2)
+                if c1.button("📝 Editar", key=f"ed_{p_id}", use_container_width=True):
+                    st.session_state.game = {
+                        "id": p_id,
+                        "fecha": row['fecha'],
+                        "temporada": row['temporada'],
+                        "h_sel": int(df_este_partido['hoyo'].max()) # Ir al último hoyo
+                    }
+                    st.session_state.menu_seleccionado = "Nueva Partida"
+                    st.rerun()
+                
+                with c2:
                     with st.popover("🗑️ Borrar", use_container_width=True):
-                        st.error("¿Seguro? Se borrarán todos los hoyos.")
-                        confirmar = st.checkbox("Confirmar eliminación", key=f"conf_{p_id}")
-                        if confirmar:
-                            if st.button("ELIMINAR DEFINITIVAMENTE", key=f"btn_del_{p_id}", type="primary"):
-                                if borrar_partido_completo(p_id):
-                                    st.rerun()
-
-# --- FUNCIÓN DE SOPORTE PARA BORRADO (Ponla fuera del bloque Admin) ---
-def borrar_partido_completo(id_partido_a_borrar):
-    try:
-        hoja = st.session_state.sh
-        filas = hoja.get_all_values()
-        if not filas: return False
-        
-        header = filas[0]
-        id_target = str(id_partido_a_borrar).split('.')[0]
-        
-        nuevas_filas = [header]
-        borrados = 0
-        
-        for fila in filas[1:]:
-            if len(fila) > 1:
-                # Normalizamos el ID de la celda del Excel
-                id_en_fila = str(fila[1]).split('.')[0]
-                if id_en_fila == id_target:
-                    borrados += 1
-                    continue
-            nuevas_filas.append(fila)
-        
-        if borrados > 0:
-            hoja.clear()
-            # Importante: usamos el método update_batch o similar según gspread
-            hoja.update('A1', nuevas_filas)
-            st.toast(f"🔥 Se han eliminado {borrados} registros.")
-            st.cache_data.clear()
-            return True
-        else:
-            st.warning("No se encontraron hoyos para ese ID.")
-            return False
-            
-    except Exception as e:
-        st.error(f"Error al acceder a Google Sheets: {e}")
-        return False
+                        st.warning("¿Eliminar partido completo?")
+                        if st.button("CONFIRMAR BORRADO", key=f"del_{p_id}", type="primary"):
+                            if borrar_partido_completo(p_id):
+                                st.rerun()
