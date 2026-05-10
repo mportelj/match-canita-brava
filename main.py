@@ -854,5 +854,5 @@ elif st.session_state.menu_seleccionado == "Admin":
                                 if borrar_partido_completo(p_id):
                                     st.toast("Jornada eliminada")
                                     st.rerun()
-                                else
-                                    st.error("No se pudo eliminar el partido".)
+                                    else
+                                        st.error("No se pudo eliminar el partido".)
