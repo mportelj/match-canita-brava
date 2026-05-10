@@ -337,6 +337,31 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
 
     except Exception as e:
         st.error(f"Error crítico: {str(e)}")
+# --- CÁLCULO DEL MARCADOR ACUMULADO DE LA TEMPORADA ---
+
+def calcular_marcador_acumulado(df):
+    if df.empty:
+        return 0.0, 0.0
+    
+    # 1. Sumamos los puntos ganados en el campo (de todos los partidos)
+    # Aseguramos que sean numéricos por si hay textos en el Excel
+    pts_a_campo = pd.to_numeric(df['resultado_a'], errors='coerce').sum()
+    pts_b_campo = pd.to_numeric(df['resultado_b'], errors='coerce').sum()
+    
+    # 2. REGLA ESPECIAL TEMPORADA 2026
+    # Verificamos si en los datos existe la temporada 2026
+    # Si el DataFrame tiene registros de 2026, aplicamos el bono
+    tiene_2026 = (df['temporada'].astype(str) == "2026").any()
+    
+    bono = 3.5 if tiene_2026 else 0.0
+    
+    total_a = pts_a_campo + bono
+    total_b = pts_b_campo + bono
+    
+    return total_a, total_b
+
+
+
 
 # --- 4. PANTALLAS ---
 # ==========================================
@@ -356,17 +381,27 @@ if st.session_state.menu_seleccionado == "Inicio":
     
     sel_temp = st.selectbox("Temporada:", temps)
     
-    # Lógica de puntos acumulados de la temporada
-    pa_t, pb_t = 3.5, 3.5  # Ventaja histórica inicial
-    # CAMBIO AQUÍ: Convertimos sel_temp a string para que coincida con el DF
-    if not df.empty:
-        df_t = df[df['temporada'].astype(str) == str(sel_temp)] # Forzamos string en ambos lados
-        partidos = df_t.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
-       
-        for _, r in partidos.iterrows():
-            if r['resultado_a'] > r['resultado_b']: pa_t += 1
-            elif r['resultado_b'] > r['resultado_a']: pb_t += 1
-            else: pa_t += 0.5; pb_t += 0.5
+   # --- Lógica de puntos acumulados de la temporada ---
+# Solo sumamos 3.5 si la temporada seleccionada es 2026
+if str(sel_temp) == "2026":
+    pa_t, pb_t = 3.5, 3.5
+else:
+    pa_t, pb_t = 0.0, 0.0  # Para otras temporadas empezamos de cero
+
+if not df.empty:
+    df_t = df[df['temporada'].astype(str) == str(sel_temp)]
+    # Agrupamos por partido para saber quién ganó cada jornada
+    partidos = df_t.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
+    
+    for _, r in partidos.iterrows():
+        # Si un equipo ganó más hoyos en la jornada, suma 1 punto al Match de la temporada
+        if r['resultado_a'] > r['resultado_b']: 
+            pa_t += 1
+        elif r['resultado_b'] > r['resultado_a']: 
+            pb_t += 1
+        else: 
+            # Si empataron la jornada, medio punto para cada uno
+            pa_t += 0.5; pb_t += 0.5
             
     # Diseño de tarjeta de marcador de temporada
     st.markdown(f"""
