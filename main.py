@@ -724,7 +724,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         if not ver_acumulado and res_match_dia:
             st.markdown(res_match_dia, unsafe_allow_html=True)
             #st.info(f"**{lider_info}**")
-        #st.info(f"Temporada: {texto_marcador_global}")
+        st.info(f"Temporada: {texto_marcador_global}")
 
         if lista_resultados:
             # (Aquí va tu código de la tabla stats_rows que ya tenías)
