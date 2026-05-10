@@ -575,7 +575,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     if df_raw.empty:
         st.warning("No hay datos para procesar.")
     else:
-        # --- 1. LIMPIEZA DE DATOS ---
+        # --- 1. LIMPIEZA Y PREPARACIÓN DE DATOS ---
         def limpiar_valor(v):
             return str(v).split('.')[0].strip()
 
@@ -586,7 +586,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], errors='coerce')
         fechas_unicas = df_raw.sort_values('fecha_dt', ascending=False)['fecha'].unique().tolist()
         temporadas_unicas = sorted(df_raw['t_limpia'].unique().tolist(), reverse=True)
-        opciones_fecha = {f: pd.to_datetime(f).strftime('%d/%m/%Y') for f in fechas_unicas}
+
+        # --- NUEVO: DICCIONARIO PARA EL SELECTOR CON CONTEO DE HOYOS ---
+        opciones_fecha = {}
+        for f in fechas_unicas:
+            num_hoyos = len(df_raw[df_raw['fecha'] == f])
+            fecha_fmt = pd.to_datetime(f).strftime('%d/%m/%Y')
+            opciones_fecha[f] = f"{fecha_fmt} ({num_hoyos} hoyos)"
 
         col1, col2 = st.columns(2)
         with col2:
@@ -595,7 +601,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             if ver_acumulado:
                 seleccion_filtro = st.selectbox("Seleccionar Temporada:", temporadas_unicas, key="st_final_clean")
             else:
-                seleccion_filtro = st.selectbox("Seleccionar Jornada:", fechas_unicas, format_func=lambda x: opciones_fecha[x], key="st_jorn_clean")
+                seleccion_filtro = st.selectbox(
+                    "Seleccionar Jornada:", 
+                    fechas_unicas, 
+                    format_func=lambda x: opciones_fecha[x], 
+                    key="st_jorn_clean"
+                )
 
         # --- 2. FILTRADO ---
         if ver_acumulado:
@@ -606,7 +617,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             temp_actual = df_stats['t_limpia'].iloc[0] if not df_stats.empty else "2026"
 
         if not df_stats.empty:
-            # --- 3. MARCADOR (DISEÑO SUAVE) ---
+            # --- 3. MARCADOR DISCRETO ---
             h_a, h_b = df_stats['res_a'].sum(), df_stats['res_b'].sum()
             
             if ver_acumulado:
@@ -614,9 +625,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 sub_marcador = f"Acumulado: M&J {h_a:g} - R&L {h_b:g}"
             else:
                 dif_h = h_a - h_b
-                if dif_h > 0: res_p = f"M&J {dif_h:g} UP"
-                elif dif_h < 0: res_p = f"R&L {abs(dif_h):g} UP"
-                else: res_p = "ALL SQUARE (AS)"
+                res_p = f"M&J {dif_h:g} UP" if dif_h > 0 else (f"R&L {abs(dif_h):g} UP" if dif_h < 0 else "AS")
                 titulo_marcador = f"Resultado: {res_p}"
                 sub_marcador = f"Hoyos ganados: {h_a:g} vs {h_b:g}"
 
@@ -627,7 +636,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- 4. ESTADÍSTICAS JUGADORES ---
+            # --- 4. ESTADÍSTICAS JUGADORES (Nombres completos y Centrado) ---
             lista_resultados = []
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
@@ -644,7 +653,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         return 0
                     scr = int(d_p['dif'].apply(cs).sum())
                     lista_resultados.append({
-                        "Jugador": jug, # Nombre completo siempre
+                        "Jugador": jug, 
                         "pm": (len(d_p)*2)-scr, "scr": scr,
                         "e": int((d_p['dif'] <= -2).sum()), "b": int((d_p['dif'] == -1).sum()), 
                         "p": int((d_p['dif'] == 0).sum()), "bog": int((d_p['dif'] == 1).sum()), 
@@ -664,19 +673,14 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         "Jugador": f"<b>{res['Jugador']}</b>",
                         "+/-": f"<span style='color:red;'>+{res['pm']}</span>" if res['pm'] > 0 else (f"<span>{res['pm']}</span>" if res['pm'] < 0 else "E"),
                         "Scratch": f"<b>{res['scr']}</b>",
-                        "Eagle": f_pct(res['e'], res['hoyos']), 
-                        "Birdie": f_pct(res['b'], res['hoyos']), 
-                        "Par": f_pct(res['p'], res['hoyos']), 
-                        "Bogey": f_pct(res['bog'], res['hoyos']), 
-                        "D.Bogey": f_pct(res['db'], res['hoyos']), 
-                        "3+ Bogey": f_pct(res['tb'], res['hoyos'])
+                        "Eagle": f_pct(res['e'], res['hoyos']), "Birdie": f_pct(res['b'], res['hoyos']), 
+                        "Par": f_pct(res['p'], res['hoyos']), "Bogey": f_pct(res['bog'], res['hoyos']), 
+                        "D.Bogey": f_pct(res['db'], res['hoyos']), "3+ Bogey": f_pct(res['tb'], res['hoyos'])
                     })
                 
-                # Convertir a HTML con centrado total
                 df_html = pd.DataFrame(stats_rows).to_html(escape=False, index=False)
                 df_html = df_html.replace('<td>', '<td style="text-align: center; vertical-align: middle; padding: 10px;">')
                 df_html = df_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
-                
                 st.write(df_html, unsafe_allow_html=True)
 
                 # --- 5. WHATSAPP ---
