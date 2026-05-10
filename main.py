@@ -123,29 +123,25 @@ def cambiar_pagina():
 @st.cache_data(ttl=60)
 def leer_datos():
     try:
-        if 'sh' not in st.session_state: return pd.DataFrame()
         hoja = st.session_state.sh
         filas = hoja.get_all_values()
         if len(filas) > 1:
             df_raw = pd.DataFrame(filas[1:], columns=filas[0])
             
-            # --- LIMPIEZA DE FECHAS ---
-            # Intentamos convertir a datetime y luego a texto dd/mm/aaaa
-            # Si ya es texto, lo dejamos bonito
-            df_raw['fecha'] = pd.to_datetime(df_raw['fecha'], errors='ignore')
-            # Si el formato viene como yyyy-mm-dd (de pandas), lo pasamos a dd/mm/yyyy
-            try:
-                df_raw['fecha'] = df_raw['fecha'].dt.strftime('%d/%m/%Y')
-            except:
-                pass # Si falla es porque ya es un string manual
-
-            # Normalización de IDs (quitar el .0)
+            # --- FORZAR FORMATO DE FECHA dd/mm/aaaa ---
+            # Intentamos convertir la columna a datetime indicando que el día va primero
+            df_raw['fecha'] = pd.to_datetime(df_raw['fecha'], errors='coerce', dayfirst=True)
+            
+            # Ahora la convertimos a texto con el formato exacto que quieres
+            # Si la conversión falla (NaT), mantenemos el valor original como string
+            df_raw['fecha'] = df_raw['fecha'].dt.strftime('%d/%m/%Y').fillna(df_raw['fecha'])
+            
+            # Normalización de ID (quitar el .0)
             df_raw['partido_id'] = df_raw['partido_id'].astype(str).str.split('.').str[0]
             
             return df_raw
         return pd.DataFrame()
     except Exception as e:
-        st.error(f"Error: {e}")
         return pd.DataFrame()
         
 df_raw = leer_datos()
