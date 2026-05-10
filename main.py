@@ -606,15 +606,15 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             titulo_seccion = f"Jornada: {opciones_fecha[seleccion_filtro]}"
 
         if not df_stats.empty:
-            # --- LÓGICA DE PUNTOS DE LIGA ---
+            # --- LÓGICA DE PUNTOS DE LIGA Y MARCADOR DE SELECCIÓN ---
             ventaja = 3.5 if temp_check == "2026" else 0.0
             df_t_completa = df_raw[df_raw['temporada'].astype(str) == temp_check].copy()
             df_t_completa['id_clean'] = df_t_completa['partido_id'].astype(str).str.split('.').str[0]
             
-            partidos = df_t_completa.groupby('id_clean').agg({'resultado_a':'sum','resultado_b':'sum'})
+            # Calculamos victorias de liga (acumulado real)
+            partidos_liga = df_t_completa.groupby('id_clean').agg({'resultado_a':'sum','resultado_b':'sum'})
             pa_liga, pb_liga = ventaja, ventaja
-            
-            for _, r in partidos.iterrows():
+            for _, r in partidos_liga.iterrows():
                 if r['resultado_a'] > r['resultado_b']: pa_liga += 1
                 elif r['resultado_b'] > r['resultado_a']: pb_liga += 1
                 elif r['resultado_a'] == r['resultado_b'] and r['resultado_a'] > 0: pa_liga += 0.5; pb_liga += 0.5
@@ -624,9 +624,25 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             elif dif_liga < 0: txt_status = f"ROGE & LALO {abs(dif_liga):g} UP"
             else: txt_status = "ALL SQUARE (AS)"
 
+            # --- MARCADOR ESPECÍFICO DE LA SELECCIÓN ---
             p_a_act = df_stats['resultado_a'].sum()
             p_b_act = df_stats['resultado_b'].sum()
-            res_info = f"<b>{txt_status}</b> | <span style='color:gray;'>Hoyos: M&J {p_a_act:g} - R&L {p_b_act:g}</span>"
+            
+            if ver_acumulado:
+                # En acumulado mostramos la suma total de hoyos de la temporada
+                txt_hoyos = f"Hoyos totales: M&J {p_a_act:g} - R&L {p_b_act:g}"
+            else:
+                # En jornada individual, calculamos el resultado del MATCH de ese día
+                dif_hoyos = p_a_act - p_b_act
+                if dif_hoyos > 0:
+                    res_dia = f"MANU & JOSE {dif_hoyos:g} UP"
+                elif dif_hoyos < 0:
+                    res_dia = f"ROGE & LALO {abs(dif_hoyos):g} UP"
+                else:
+                    res_dia = "AS"
+                txt_hoyos = f"Resultado Partido: <b>{res_dia}</b> (Hoyos: {p_a_act:g}-{p_b_act:g})"
+
+            res_info = f"<b>STATUS GLOBAL: {txt_status}</b><br><span style='color:gray;'>{txt_hoyos}</span>"
 
             # --- ESTADÍSTICAS INDIVIDUALES ---
             lista_resultados = []
