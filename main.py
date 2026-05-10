@@ -606,24 +606,24 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             temp_actual = df_stats['t_limpia'].iloc[0] if not df_stats.empty else "2026"
 
         if not df_stats.empty:
-            # --- 3. MARCADOR DE HOYOS (Cabecera Principal) ---
+            # --- 3. MARCADOR (DISEÑO SUAVE) ---
             h_a, h_b = df_stats['res_a'].sum(), df_stats['res_b'].sum()
             
             if ver_acumulado:
-                titulo_marcador = f"Acumulado Hoyos Temporada {temp_actual}"
-                sub_marcador = f"MANU & JOSE {h_a:g} - ROGE & LALO {h_b:g}"
+                titulo_marcador = f"Temporada {temp_actual}"
+                sub_marcador = f"Acumulado: M&J {h_a:g} - R&L {h_b:g}"
             else:
                 dif_h = h_a - h_b
-                if dif_h > 0: res_p = f"MANU & JOSE {dif_h:g} UP"
-                elif dif_h < 0: res_p = f"ROGE & LALO {abs(dif_h):g} UP"
+                if dif_h > 0: res_p = f"M&J {dif_h:g} UP"
+                elif dif_h < 0: res_p = f"R&L {abs(dif_h):g} UP"
                 else: res_p = "ALL SQUARE (AS)"
-                titulo_marcador = f"Resultado Partido: {res_p}"
-                sub_marcador = f"Hoyos: {h_a:g} - {h_b:g}"
+                titulo_marcador = f"Resultado: {res_p}"
+                sub_marcador = f"Hoyos ganados: {h_a:g} vs {h_b:g}"
 
             st.markdown(f"""
-                <div style="background-color:#1E1E1E; padding:20px; border-radius:15px; border-left: 8px solid #3498db; color:white; margin-bottom:25px;">
-                    <h2 style="margin:0; color:#3498db;">{titulo_marcador}</h2>
-                    <p style="margin:0; opacity:0.8; font-size:1.2em;">{sub_marcador}</p>
+                <div style="padding:10px; border-bottom: 2px solid #f0f2f6; margin-bottom:20px;">
+                    <h3 style="margin:0; color:#555;">{titulo_marcador}</h3>
+                    <p style="margin:0; color:gray;">{sub_marcador}</p>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -644,7 +644,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         return 0
                     scr = int(d_p['dif'].apply(cs).sum())
                     lista_resultados.append({
-                        "Jugador": jug, "pm": (len(d_p)*2)-scr, "scr": scr,
+                        "Jugador": jug, # Nombre completo siempre
+                        "pm": (len(d_p)*2)-scr, "scr": scr,
                         "e": int((d_p['dif'] <= -2).sum()), "b": int((d_p['dif'] == -1).sum()), 
                         "p": int((d_p['dif'] == 0).sum()), "bog": int((d_p['dif'] == 1).sum()), 
                         "db": int((d_p['dif'] == 2).sum()), "tb": int((d_p['dif'] >= 3).sum()), "hoyos": len(d_p)
@@ -658,17 +659,27 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     def f_pct(v, th):
                         p = (v/th*100) if th > 0 else 0
                         return f"<b>{v}</b><br><span style='color:gray; font-size:0.8em;'>{p:.0f}%</span>"
+                    
                     stats_rows.append({
-                        "Jugador": res['Jugador'],
-                        "+/-": f"<b style='color:red;'>+{res['pm']}</b>" if res['pm'] > 0 else (f"<b>{res['pm']}</b>" if res['pm'] < 0 else "<b>E</b>"),
+                        "Jugador": f"<b>{res['Jugador']}</b>",
+                        "+/-": f"<span style='color:red;'>+{res['pm']}</span>" if res['pm'] > 0 else (f"<span>{res['pm']}</span>" if res['pm'] < 0 else "E"),
                         "Scratch": f"<b>{res['scr']}</b>",
-                        "Eagle": f_pct(res['e'], res['hoyos']), "Birdie": f_pct(res['b'], res['hoyos']), 
-                        "Par": f_pct(res['p'], res['hoyos']), "Bogey": f_pct(res['bog'], res['hoyos']), 
-                        "D.Bogey": f_pct(res['db'], res['hoyos']), "3+ Bogey": f_pct(res['tb'], res['hoyos'])
+                        "Eagle": f_pct(res['e'], res['hoyos']), 
+                        "Birdie": f_pct(res['b'], res['hoyos']), 
+                        "Par": f_pct(res['p'], res['hoyos']), 
+                        "Bogey": f_pct(res['bog'], res['hoyos']), 
+                        "D.Bogey": f_pct(res['db'], res['hoyos']), 
+                        "3+ Bogey": f_pct(res['tb'], res['hoyos'])
                     })
-                st.write(pd.DataFrame(stats_rows).to_html(escape=False, index=False), unsafe_allow_html=True)
+                
+                # Convertir a HTML con centrado total
+                df_html = pd.DataFrame(stats_rows).to_html(escape=False, index=False)
+                df_html = df_html.replace('<td>', '<td style="text-align: center; vertical-align: middle; padding: 10px;">')
+                df_html = df_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
+                
+                st.write(df_html, unsafe_allow_html=True)
 
-                # --- 5. WHATSAPP COMPLETO ---
+                # --- 5. WHATSAPP ---
                 import urllib.parse
                 w_icon = "📂" if ver_acumulado else "📅"
                 tit_w = temp_actual if ver_acumulado else opciones_fecha[seleccion_filtro]
