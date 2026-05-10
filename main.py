@@ -3,7 +3,6 @@ import pandas as pd
 from google.oauth2.service_account import Credentials
 import gspread
 from datetime import datetime
-from streamlit_datepicker import datepicker
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
@@ -124,25 +123,24 @@ def cambiar_pagina():
 @st.cache_data(ttl=60)
 def leer_datos():
     try:
+        if 'sh' not in st.session_state: return pd.DataFrame()
         hoja = st.session_state.sh
         filas = hoja.get_all_values()
         if len(filas) > 1:
             df_raw = pd.DataFrame(filas[1:], columns=filas[0])
             
             # --- FORZAR FORMATO DE FECHA dd/mm/aaaa ---
-            # Intentamos convertir la columna a datetime indicando que el día va primero
+            # 1. Convertimos a datetime (dayfirst=True para evitar formato USA)
             df_raw['fecha'] = pd.to_datetime(df_raw['fecha'], errors='coerce', dayfirst=True)
-            
-            # Ahora la convertimos a texto con el formato exacto que quieres
-            # Si la conversión falla (NaT), mantenemos el valor original como string
-            df_raw['fecha'] = df_raw['fecha'].dt.strftime('%d/%m/%Y').fillna(df_raw['fecha'])
+            # 2. Lo pasamos a texto limpio dd/mm/aaaa
+            df_raw['fecha'] = df_raw['fecha'].dt.strftime('%d/%m/%Y')
             
             # Normalización de ID (quitar el .0)
             df_raw['partido_id'] = df_raw['partido_id'].astype(str).str.split('.').str[0]
             
             return df_raw
         return pd.DataFrame()
-    except Exception as e:
+    except:
         return pd.DataFrame()
         
 df_raw = leer_datos()
@@ -408,7 +406,9 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
 if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
-
+    if not df.empty:
+        # Aquí también saldrá en formato dd/mm/aaaa
+        st.write(f"Último partido registrado: {df['fecha'].iloc[-1]}")
     
     # Definimos la temporada actual
     anio_actual = 2026
