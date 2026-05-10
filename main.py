@@ -463,10 +463,12 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         st.info("💡 Selecciona una fecha para empezar o ve a Admin para editar una partida existente.")
         st.markdown("### ⛳ Nueva Partida")
         fecha_seleccionada = st.date_input("Selecciona la fecha del partido")
+        fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
+        st.write("Fecha seleccionada:", fecha_formateada)
 
         if st.button("Iniciar Partido", type="primary", use_container_width=True):
             año_temporada = str(fecha_seleccionada.year)
-            fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
+            #fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
         
             st.session_state.game = {
                 "id": datetime.now().strftime("%Y%m%d%H%M%S"),
