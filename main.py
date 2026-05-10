@@ -98,17 +98,35 @@ try:
 except ValueError:
     idx_actual = 0
 
-with st.sidebar:
-    st.title("⛳ Menú Principal")
-    # USAMOS index=idx_actual y QUITAMOS el key del radio para evitar conflictos
-    seleccion = st.radio(
-        "Ir a:", 
-        opciones_menu, 
-        index=idx_actual
-    )
-    # Actualizamos la variable con la selección manual del usuario
-    st.session_state.menu_seleccionado = seleccion
+# --- FUNCIÓN PARA CAMBIO DE PÁGINA ---
+def cambiar_pagina():
+    # Esta función se ejecuta ANTES de que el resto del script corra
+    st.session_state.menu_seleccionado = st.session_state.selector_menu
+    # Opcional: st.cache_data.clear() SOLO si quieres que al cambiar de pestaña refresque todo
 
+# --- SIDEBAR ---
+with st.sidebar:
+    st.title("⛳ Cañita Brava")
+    
+    opciones = ["Nueva Partida", "Admin", "Estadísticas"]
+    
+    # Buscamos el índice actual para que el selector no se mueva solo
+    if 'menu_seleccionado' not in st.session_state:
+        st.session_state.menu_seleccionado = "Nueva Partida"
+        
+    indice_actual = opciones.index(st.session_state.menu_seleccionado)
+
+    # El secreto está en el 'on_change'
+    st.selectbox(
+        "Ir a:",
+        opciones,
+        index=indice_actual,
+        key="selector_menu",
+        on_change=cambiar_pagina
+    )
+    
+    st.write("---")
+    # Si tienes el botón de "Finalizar Partida" aquí, asegúrate de que no limpie el cache globalmente
 
 # --- LÓGICA DE DATOS ---
 @st.cache_data(ttl=60)
