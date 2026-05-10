@@ -470,7 +470,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         
         if st.button("Iniciar Partido", type="primary", use_container_width=True):
             año_temporada = str(fecha_seleccionada.year)
-            #fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
+            fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
         
             st.session_state.game = {
                 "id": datetime.now().strftime("%Y%m%d%H%M%S"),
