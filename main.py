@@ -67,11 +67,6 @@ def borrar_partido_completo(id_partido_a_borrar):
         return False
 # --- CONFIGURACIÓN DE NAVEGACIÓN ---
 
-import streamlit as st
-import pandas as pd
-# ... otros imports ...
-
-
 def cb_editar_partido(p_id, fecha, temporada):
     # Esto prepara los datos de la partida
     st.session_state.game = {
@@ -229,69 +224,7 @@ def actualizar_o_insertar_hoyo(datos):
     st.cache_data.clear()
 
 # --- 2. FUNCIONES DE DATOS ---
-@st.cache_data(ttl=0)  # ttl=0 asegura que si hay cambios, los intente leer frescos
 
-@st.cache_data(ttl=60) # Mantiene los datos en memoria 1 minuto
-def leer_datos():
-    """
-    Lee la base de datos completa desde Google Sheets.
-    Mapea todas las columnas: id, partido_id, hoyo, fecha, temporada, etc.
-    """
-    try:
-        # 1. Configuración de conexión (usando lo que ya funciona)
-        s = st.secrets["gsheets"]
-        credentials_dict = {
-            "type": s["type"],
-            "project_id": s["project_id"],
-            "private_key_id": s["private_key_id"],
-            "private_key": s["private_key"].replace("\\n", "\n"),
-            "client_email": s["client_email"],
-            "client_id": s["client_id"],
-            "auth_uri": s["auth_uri"],
-            "token_uri": s["token_uri"],
-            "auth_provider_x509_cert_url": s["auth_provider_x509_cert_url"],
-            "client_x509_cert_url": s["client_x509_cert_url"]
-        }
-        
-        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
-        client = gspread.authorize(creds)
-        
-        # 2. Abrir la hoja y leer
-        sh = client.open_by_url(s["url"])
-        worksheet = sh.worksheet("historial")
-        data = worksheet.get_all_records()
-        df = pd.DataFrame(data)
-        
-        if df.empty:
-            return pd.DataFrame(columns=['id', 'partido_id', 'hoyo', 'fecha', 'temporada', 's0', 's1', 's2', 's3'])
-
-        # 3. Limpieza de nombres de columnas (quitar espacios y minúsculas)
-        df.columns = [str(c).strip().lower() for c in df.columns]
-        
-        # 4. MAPEO COMPLETO SEGÚN TU LISTA
-        # Esto asegura que aunque el Excel tenga nombres algo distintos, Python use estos:
-        columnas_ordenadas = [
-            'id', 'partido_id', 'hoyo', 'fecha', 'temporada', 
-            'resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 
-            'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3'
-        ]
-        
-        # Mapeamos dinámicamente por posición para evitar errores si cambias un nombre en el Excel
-        mapeo = {df.columns[i]: columnas_ordenadas[i] for i in range(len(columnas_ordenadas)) if i < len(df.columns)}
-        df = df.rename(columns=mapeo)
-
-        # 5. Conversiones de tipo necesarias
-        df['hoyo'] = pd.to_numeric(df['hoyo'], errors='coerce')
-        df['temporada'] = df['temporada'].astype(str) # Para que el filtro de temporada no falle
-        df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
-        
-        return df
-
-    except Exception as e:
-        st.error(f"Error al leer la base de datos: {e}")
-        # Devolvemos estructura mínima en caso de error para que no rompa la línea 239
-        return pd.DataFrame(columns=['fecha', 'hoyo', 'temporada', 's0', 's1', 's2', 's3'])
 
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
