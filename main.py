@@ -575,15 +575,15 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     if df_raw.empty:
         st.warning("No hay datos para procesar.")
     else:
-        # --- 1. NORMALIZACIÓN TOTAL ---
-        # Convertimos temporada a entero y luego a string para evitar el ".0"
-        df_raw['temporada_clean'] = pd.to_numeric(df_raw['temporada'], errors='coerce').fillna(0).astype(int).astype(str)
+        # --- 1. LIMPIEZA DE DATOS (Fuerza Bruta) ---
+        # Convertimos todo a string y limpiamos posibles decimales .0 de Excel
+        df_raw['temp_str'] = df_raw['temporada'].astype(str).str.replace('.0', '', regex=False).str.strip()
         df_raw['resultado_a'] = pd.to_numeric(df_raw['resultado_a'], errors='coerce').fillna(0)
         df_raw['resultado_b'] = pd.to_numeric(df_raw['resultado_b'], errors='coerce').fillna(0)
         
         df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], errors='coerce')
         fechas_unicas = df_raw.sort_values('fecha_dt', ascending=False)['fecha'].unique().tolist()
-        temporadas_unicas = sorted(df_raw['temporada_clean'].unique().tolist(), reverse=True)
+        temporadas_unicas = sorted(df_raw['temp_str'].unique().tolist(), reverse=True)
         opciones_fecha = {f: pd.to_datetime(f).strftime('%d/%m/%Y') for f in fechas_unicas}
 
         col1, col2 = st.columns(2)
@@ -591,42 +591,42 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             ver_acumulado = st.toggle("📂 Ver Acumulado de la Temporada", value=False)
         with col1:
             if ver_acumulado:
-                seleccion_filtro = st.selectbox("Seleccionar Temporada:", temporadas_unicas, key="st_temp_f")
+                seleccion_filtro = st.selectbox("Seleccionar Temporada:", temporadas_unicas, key="st_temp_def")
             else:
-                seleccion_filtro = st.selectbox("Seleccionar Jornada:", fechas_unicas, format_func=lambda x: opciones_fecha[x], key="st_jorn_f")
+                seleccion_filtro = st.selectbox("Seleccionar Jornada:", fechas_unicas, format_func=lambda x: opciones_fecha[x], key="st_jorn_def")
 
-        # --- 2. DETERMINAR TEMPORADA ---
+        # --- 2. DETERMINAR TEMPORADA ACTUAL ---
         if ver_acumulado:
             temp_actual = str(seleccion_filtro)
-            df_stats = df_raw[df_raw['temporada_clean'] == temp_actual].copy()
+            df_stats = df_raw[df_raw['temp_str'] == temp_actual].copy()
         else:
             df_stats = df_raw[df_raw['fecha'] == seleccion_filtro].copy()
-            temp_actual = str(df_stats['temporada_clean'].iloc[0]) if not df_stats.empty else "2026"
+            temp_actual = str(df_stats['temp_str'].iloc[0]) if not df_stats.empty else "2026"
 
         if not df_stats.empty:
-            # --- 3. CÁLCULO MANUAL DEL STATUS GLOBAL ---
-            # Forzamos ventaja 3.5 solo si es 2026
-            pa_liga = 3.5 if temp_actual == "2026" else 0.0
-            pb_liga = 3.5 if temp_actual == "2026" else 0.0
+            # --- 3. CÁLCULO DEL STATUS GLOBAL (LIGA) ---
+            # IMPORTANTE: Empezamos con los puntos de ventaja
+            v_ini = 3.5 if temp_actual == "2026" else 0.0
+            pa_liga, pb_liga = v_ini, v_ini
             
-            # Buscamos TODAS las jornadas de esa temporada en el Excel original
-            df_temporada = df_raw[df_raw['temporada_clean'] == temp_actual]
-            todas_las_fechas = df_temporada['fecha'].unique()
+            # Filtramos todos los registros de la temporada seleccionada para el conteo global
+            df_t_completa = df_raw[df_raw['temp_str'] == temp_actual].copy()
+            jornadas_detectadas = df_t_completa['fecha'].unique()
 
-            for f in todas_las_fechas:
-                datos_dia = df_temporada[df_temporada['fecha'] == f]
-                s_a = datos_dia['resultado_a'].sum()
-                s_b = datos_dia['resultado_b'].sum()
+            for f in jornadas_detectadas:
+                dia = df_t_completa[df_t_completa['fecha'] == f]
+                suma_a = dia['resultado_a'].sum()
+                suma_b = dia['resultado_b'].sum()
                 
-                if s_a > s_b:
+                if suma_a > suma_b:
                     pa_liga += 1
-                elif s_b > s_a:
+                elif suma_b > suma_a:
                     pb_liga += 1
-                elif s_a == s_b and s_a > 0:
+                elif suma_a == suma_b and suma_a > 0:
                     pa_liga += 0.5
                     pb_liga += 0.5
 
-            # Resultado Status Global
+            # Resultado del Status
             dif_l = pa_liga - pb_liga
             if dif_l > 0: txt_status = f"MANU & JOSE {dif_l:g} UP"
             elif dif_l < 0: txt_status = f"ROGE & LALO {abs(dif_l):g} UP"
@@ -643,9 +643,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
             # --- 4. RENDERIZADO ---
             st.subheader(f"📈 {f'Acumulado {temp_actual}' if ver_acumulado else f'Jornada: {opciones_fecha[seleccion_filtro]}'} ")
-            st.markdown(f"<b>STATUS GLOBAL: {txt_status}</b><br><span style='color:gray;'>{info_h}</span>", unsafe_allow_html=True)
+            st.markdown(f"<div style='background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b;'>"
+                        f"<h3 style='margin:0;'>STATUS GLOBAL: {txt_status}</h3>"
+                        f"<p style='margin:0; color: gray;'>{info_h}</p></div>", unsafe_allow_html=True)
 
-            # --- 5. ESTADÍSTICAS JUGADORES ---
+            # --- 5. ESTADÍSTICAS INDIVIDUALES ---
             lista_resultados = []
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
@@ -696,11 +698,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 whatsapp_text += f"⛳ {info_h.replace('<b>','').replace('</b>','')}\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
                 for res in lista_resultados:
                     p_m = f"+{res['pm']}" if res['pm'] > 0 else (str(res['pm']) if res['pm'] < 0 else "E")
-                    whatsapp_text += f"👤 *{res['Jugador'].upper()}*\n🏆 *{p_m}* ({res['scr']} pts)\n"
-                    whatsapp_text += f"🅿️P:{res['p']} ({res['p']/res['hoyos']*100:.0f}%) ⚠️B:{res['bog']} ({res['bog']/res['hoyos']*100:.0f}%)\n"
-                    whatsapp_text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+                    whatsapp_text += f"👤 *{res['Jugador'].upper()}*\n🏆 *{p_m}* ({res['scr']} pts)\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
                 st.link_button("📲 Enviar por WhatsApp", f"https://wa.me/?text={urllib.parse.quote(whatsapp_text)}", use_container_width=True)
-        
 # ==========================================
 # SECCIÓN: ADMIN
 # ==========================================
