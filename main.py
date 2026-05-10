@@ -85,31 +85,23 @@ def cb_editar_partido(p_id, fecha, temporada):
     st.session_state.menu_seleccionado = "Nueva Partida"
 
 # --- 2. EL SIDEBAR (MENÚ LATERAL) ---
-# --- 4. SIDEBAR CON MENÚ TIPO LISTA ---
+# --- 4. SIDEBAR (MENÚ COMO LISTA DE BOTONES) ---
 with st.sidebar:
     st.markdown("# ⛳ Cañita Brava")
     st.write("---")
     
-    # Inicializamos la variable de navegación si no existe
+    # Inicialización segura del menú
+    opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
     if 'menu_seleccionado' not in st.session_state:
         st.session_state.menu_seleccionado = "Inicio"
 
-    # Definimos la lista de opciones
-    opciones = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
-    
-    # Creamos un botón por cada opción (Estilo Lista)
-    for opcion in opciones:
-        # Si la opción es la actual, el botón se ve resaltado (primary)
-        es_activa = st.session_state.menu_seleccionado == opcion
-        if st.sidebar.button(
-            opcion, 
-            key=f"btn_{opcion}", 
-            use_container_width=True, 
-            type="primary" if es_activa else "secondary"
-        ):
+    # Renderizar lista de botones
+    for opcion in opciones_menu:
+        # Resaltar el botón de la pestaña activa
+        estilo = "primary" if st.session_state.menu_seleccionado == opcion else "secondary"
+        if st.button(opcion, use_container_width=True, type=estilo):
             st.session_state.menu_seleccionado = opcion
             st.rerun()
-
 # Inicializamos la variable si no existe
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
