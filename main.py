@@ -593,8 +593,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         marcador_global_a = df_raw['resultado_a'].sum()
         marcador_global_b = df_raw['resultado_b'].sum()
         
-        st.metric("Total Equipo A", marcador_global_a)
-        st.metric("Total Equipo B", marcador_global_b)
+        #st.metric("Total Equipo A", marcador_global_a)
+        #st.metric("Total Equipo B", marcador_global_b)
     
     if df_raw is not None and not df_raw.empty:
         # --- PREPARACIÓN DE FECHAS ---
