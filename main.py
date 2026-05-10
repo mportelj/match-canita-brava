@@ -855,5 +855,5 @@ elif st.session_state.menu_seleccionado == "Admin":
                                     st.toast("Jornada eliminada")
                                     st.rerun()
                                 else:
-                                    st.error("No se pudo eliminar el partido".)
+                                    st.error("No se pudo eliminar el partido.")
                                     
