@@ -581,6 +581,15 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas y Clasificación")
     
     df_raw = leer_datos()
+    if df.empty:
+        st.warning("No hay datos para procesar.")
+    else:
+        # Evitamos NameError inicializando variables de marcador
+        marcador_global_a = df['resultado_a'].sum()
+        marcador_global_b = df['resultado_b'].sum()
+        
+        st.metric("Total Equipo A", marcador_global_a)
+        st.metric("Total Equipo B", marcador_global_b)
     
     if df_raw is not None and not df_raw.empty:
         # --- PREPARACIÓN DE FECHAS ---
