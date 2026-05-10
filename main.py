@@ -250,7 +250,7 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         g = st.session_state.game
         par_hoyo = PAR_RIA_VIGO[int(hoyo_id)]
         
-        # 1. CÁLCULO DE PUNTOS (MVP y MATCH)
+        # 1. CÁLCULO DE PUNTOS (Manteniendo tus fórmulas)
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         
         def calc_bonus_mvp(score, p):
@@ -268,13 +268,11 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
             if dif == -1: return 1.0
             return 0.0
 
-        # MVP Individual
-        p_mvp = [0.0, 0.0, 0.0, 0.0]
+        p_mvp = [0.0] * 4
         for i in range(4):
             pts_oponentes = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
-            p_mvp[i] = pts_oponentes + calc_bonus_mvp(golpes[i], par_hoyo)
+            p_mvp[i] = float(pts_oponentes + calc_bonus_mvp(golpes[i], par_hoyo))
 
-        # Match Parejas
         res_a, res_b = min(golpes[0], golpes[1]), min(golpes[2], golpes[3])
         peor_a, peor_b = max(golpes[0], golpes[1]), max(golpes[2], golpes[3])
         
@@ -283,71 +281,62 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         total_b = (1.0 if res_b < res_a else 0.0) + (1.0 if peor_b < peor_a else 0.0) + \
                   calc_bonus_match(golpes[2], par_hoyo) + calc_bonus_match(golpes[3], par_hoyo)
 
-        match_a = max(0.0, total_a - total_b) if total_a != total_b else 0.0
-        match_b = max(0.0, total_b - total_a) if total_a != total_b else 0.0
+        match_a = float(max(0.0, total_a - total_b)) if total_a != total_b else 0.0
+        match_b = float(max(0.0, total_b - total_a)) if total_a != total_b else 0.0
 
-        # 2. FORMATEO ESTRICTO (Para coincidir con tu Excel)
-        id_partido_formateado = f"{float(g['id']):.1f}"
+        # 2. PROCESAMIENTO DE IDENTIFICADORES Y FECHA
+        # ID limpio: Si es "20240510.0", lo dejamos como "20240510" (texto para el ID compuesto)
+        id_partido_puro = str(g['id']).split('.')[0]
         
-        # Formato de fecha DD/MM/YYYY
-        fecha_val = g['fecha']
-        if hasattr(fecha_val, 'strftime'):
-            fecha_str = fecha_val.strftime('%d/%m/%Y')
-        else:
-            try:
-                fecha_str = pd.to_datetime(fecha_val).strftime('%d/%m/%Y')
-            except:
-                fecha_str = str(fecha_val)
+        # Fecha blindada a dd/mm/yyyy
+        try:
+            fecha_str = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
+        except:
+            fecha_str = str(g['fecha'])
 
+        # 3. CONSTRUCCIÓN DE FILA CON TIPOS NATIVOS (Sin f-strings para números)
         nueva_fila = [
-            f"{id_partido_formateado}_H{hoyo_id}", 
-            id_partido_formateado,                 
-            int(hoyo_id),                        
-            fecha_str,                             
-            str(g.get('temporada', '2026')),                 
-            float(match_a), float(match_b),      
-            p_mvp[0], p_mvp[1],                  
-            p_mvp[2], p_mvp[3],                  
-            int(g0), int(g1),                    
-            int(g2), int(g3)                     
+            f"{id_partido_puro}_H{hoyo_id}", # Clave única (Texto)
+            int(id_partido_puro),           # ID Partido (Número ENTERO)
+            int(hoyo_id),                   # Hoyo (Número ENTERO)
+            fecha_str,                      # Fecha (Texto dd/mm/aaaa)
+            int(g.get('temporada', 2026)),  # Temporada (Número ENTERO)
+            match_a, match_b,               # Match (Número con decimales)
+            p_mvp[0], p_mvp[1],             # MVP (Número con decimales)
+            p_mvp[2], p_mvp[3],             # MVP (Número con decimales)
+            int(g0), int(g1),               # Golpes (Número ENTERO)
+            int(g2), int(g3)                # Golpes (Número ENTERO)
         ]
 
-        # 3. PROCESO DE GUARDADO (LECTURA -> FILTRADO -> ESCRITURA)
+        # 4. ACTUALIZACIÓN EN GOOGLE SHEETS
         filas = hoja.get_all_values()
-        if not filas:
-            st.error("No se pudo leer la hoja de Google Sheets.")
-            return
-
-        header = filas[0]
-        # Filtramos: mantenemos todas las filas EXCEPTO la que estamos editando
+        header = filas[0] if filas else []
+        
+        # Reemplazar si ya existe el hoyo
         datos_nuevos = []
         for f in filas[1:]:
-            if len(f) < 3: continue
-            try:
-                # Comparamos ID de partido y número de hoyo
-                f_id = f"{float(f[1]):.1f}"
-                f_hoyo = int(f[2])
-                if f_id == id_partido_formateado and f_hoyo == int(hoyo_id):
-                    continue # Saltamos la fila vieja para reemplazarla
-            except:
-                pass
+            if len(f) > 2:
+                # Comparamos como strings limpios para evitar fallos de .0
+                f_id = str(f[1]).split('.')[0]
+                f_hoyo = str(f[2])
+                if f_id == id_partido_puro and f_hoyo == str(hoyo_id):
+                    continue
             datos_nuevos.append(f)
 
-        # Añadimos la nueva fila
         datos_nuevos.append(nueva_fila)
-        
-        # Ordenamos por ID de partido y luego por Hoyo
+        # Ordenamos por ID y luego por Hoyo
         datos_nuevos.sort(key=lambda x: (str(x[1]), int(x[2])))
 
-        # ESCRIBIMOS EN LA HOJA
+        # ESCRITURA FINAL
         hoja.clear()
-        hoja.update('A1', [header] + datos_nuevos)
+        # IMPORTANTE: USER_ENTERED permite que Google Sheets interprete los tipos
+        hoja.update('A1', [header] + datos_nuevos, value_input_option='USER_ENTERED')
         
-        st.toast(f"✅ Hoyo {hoyo_id} guardado en Google Sheets")
+        st.toast(f"✅ Hoyo {hoyo_id} guardado correctamente")
         st.cache_data.clear()
 
     except Exception as e:
-        st.error(f"Error crítico al guardar: {str(e)}")
+        st.error(f"Error crítico: {str(e)}")
 
 # --- 4. PANTALLAS ---
 # ==========================================
