@@ -575,19 +575,14 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     if df_raw.empty:
         st.warning("No hay datos para procesar.")
     else:
-        # --- 1. LIMPIEZA RADICAL DE DATOS ---
-        # Creamos columnas auxiliares limpias de TODO (espacios, puntos, tipos)
+        # --- 1. LIMPIEZA DE DATOS ---
         def limpiar_valor(v):
             return str(v).split('.')[0].strip()
 
         df_raw['t_limpia'] = df_raw['temporada'].apply(limpiar_valor)
-        df_raw['pid_limpio'] = df_raw['partido_id'].apply(limpiar_valor)
-        
-        # Aseguramos que los resultados sean números
         df_raw['res_a'] = pd.to_numeric(df_raw['resultado_a'], errors='coerce').fillna(0)
         df_raw['res_b'] = pd.to_numeric(df_raw['resultado_b'], errors='coerce').fillna(0)
         
-        # Fechas para los selectores
         df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], errors='coerce')
         fechas_unicas = df_raw.sort_values('fecha_dt', ascending=False)['fecha'].unique().tolist()
         temporadas_unicas = sorted(df_raw['t_limpia'].unique().tolist(), reverse=True)
@@ -598,9 +593,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             ver_acumulado = st.toggle("📂 Ver Acumulado de la Temporada", value=False)
         with col1:
             if ver_acumulado:
-                seleccion_filtro = st.selectbox("Seleccionar Temporada:", temporadas_unicas, key="st_final_gold")
+                seleccion_filtro = st.selectbox("Seleccionar Temporada:", temporadas_unicas, key="st_final_clean")
             else:
-                seleccion_filtro = st.selectbox("Seleccionar Jornada:", fechas_unicas, format_func=lambda x: opciones_fecha[x], key="st_jorn_gold")
+                seleccion_filtro = st.selectbox("Seleccionar Jornada:", fechas_unicas, format_func=lambda x: opciones_fecha[x], key="st_jorn_clean")
 
         # --- 2. FILTRADO ---
         if ver_acumulado:
@@ -611,55 +606,28 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             temp_actual = df_stats['t_limpia'].iloc[0] if not df_stats.empty else "2026"
 
         if not df_stats.empty:
-            # --- 3. CÁLCULO DEL STATUS GLOBAL (SISTEMA DE SEGURIDAD) ---
-            # Ventaja 2026: Manu/Jose 3.5 - Roge/Lalo 0.0
-            p_m_j = 3.5 if temp_actual == "2026" else 0.0
-            p_r_l = 0.0
-            
-            # Filtramos todos los registros que pertenezcan a la temporada
-            df_temp = df_raw[df_raw['t_limpia'] == temp_actual]
-            
-            # Agrupamos por el ID de partido limpio
-            partidos_en_tabla = df_temp.groupby('pid_limpio').agg({'res_a':'sum', 'res_b':'sum'}).reset_index()
-
-            for _, fila in partidos_en_tabla.iterrows():
-                # Solo procesamos si el partido tiene algún hoyo jugado
-                if (fila['res_a'] + fila['res_b']) > 0:
-                    if fila['res_a'] > fila['res_b']:
-                        p_m_j += 1
-                    elif fila['res_b'] > fila['res_a']:
-                        p_r_l += 1
-                    else:
-                        p_m_j += 0.5
-                        p_r_l += 0.5
-
-            # Resultado Status Global
-            dif_final = p_m_j - p_r_l
-            if dif_final > 0:
-                txt_status = f"MANU & JOSE {dif_final:g} UP"
-            elif dif_final < 0:
-                txt_status = f"ROGE & LALO {abs(dif_final):g} UP"
-            else:
-                txt_status = "ALL SQUARE (AS)"
-
-            # Marcador Hoyos
+            # --- 3. MARCADOR DE HOYOS (Cabecera Principal) ---
             h_a, h_b = df_stats['res_a'].sum(), df_stats['res_b'].sum()
+            
             if ver_acumulado:
-                info_h = f"Hoyos totales temporada: M&J {h_a:g} - R&L {h_b:g}"
+                titulo_marcador = f"Acumulado Hoyos Temporada {temp_actual}"
+                sub_marcador = f"M&J {h_a:g} - R&L {h_b:g}"
             else:
                 dif_h = h_a - h_b
-                res_p = f"M&J {dif_h:g} UP" if dif_h > 0 else (f"R&L {abs(dif_h):g} UP" if dif_h < 0 else "AS")
-                info_h = f"Resultado Partido: <b>{res_p}</b> (Hoyos: {h_a:g}-{h_b:g})"
+                if dif_h > 0: res_p = f"MANU & JOSE {dif_h:g} UP"
+                elif dif_h < 0: res_p = f"ROGE & LALO {abs(dif_h):g} UP"
+                else: res_p = "ALL SQUARE (AS)"
+                titulo_marcador = f"Resultado Partido: {res_p}"
+                sub_marcador = f"Hoyos: {h_a:g} - {h_b:g}"
 
-            # --- 4. DISEÑO ---
             st.markdown(f"""
-                <div style="background-color:#111; padding:20px; border-radius:15px; border-left: 10px solid #2ecc71; color:white; margin-bottom:25px;">
-                    <h1 style="margin:0; color:#2ecc71; font-size: 2em;">STATUS GLOBAL: {txt_status}</h1>
-                    <p style="margin:0; opacity:0.7; font-size: 1.2em;">{info_h}</p>
+                <div style="background-color:#1E1E1E; padding:20px; border-radius:15px; border-left: 8px solid #3498db; color:white; margin-bottom:25px;">
+                    <h2 style="margin:0; color:#3498db;">{titulo_marcador}</h2>
+                    <p style="margin:0; opacity:0.8; font-size:1.2em;">{sub_marcador}</p>
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- 5. ESTADÍSTICAS JUGADORES ---
+            # --- 4. ESTADÍSTICAS JUGADORES ---
             lista_resultados = []
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
@@ -685,7 +653,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             lista_resultados = sorted(lista_resultados, key=lambda x: x['scr'], reverse=True)
 
             if lista_resultados:
-                # Tabla en pantalla
                 stats_rows = []
                 for res in lista_resultados:
                     def f_pct(v, th):
@@ -701,14 +668,14 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     })
                 st.write(pd.DataFrame(stats_rows).to_html(escape=False, index=False), unsafe_allow_html=True)
 
-                # --- 6. WHATSAPP COMPLETO ---
+                # --- 5. WHATSAPP COMPLETO ---
                 import urllib.parse
                 w_icon = "📂" if ver_acumulado else "📅"
                 tit_w = temp_actual if ver_acumulado else opciones_fecha[seleccion_filtro]
                 
                 txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n{w_icon} *{tit_w}*\n"
-                txt_wa += f"🏆 *STATUS: {txt_status.upper()}*\n"
-                txt_wa += f"⛳ {info_h.replace('<b>','').replace('</b>','')}\n"
+                txt_wa += f"🏆 *{titulo_marcador.upper()}*\n"
+                txt_wa += f"⛳ {sub_marcador}\n"
                 txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
 
                 for res in lista_resultados:
@@ -718,13 +685,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                     txt_wa += f"👤 *{res['Jugador'].upper()}*\n"
                     txt_wa += f"🏆 *{p_m}* ({res['scr']} pts)\n"
-                    
                     s_l = ""
                     if res['e'] > 0: s_l += f"🦅 Egl: {wf(res['e'])}\n"
                     if res['b'] > 0: s_l += f"🐤 Bir: {wf(res['b'])}\n"
                     s_l += f"🅿️ Par: {wf(res['p'])}\n⚠️ Bog: {wf(res['bog'])}\n💀 D.B: {wf(res['db'])}\n"
                     if res['tb'] > 0: s_l += f"💣 +3B: {wf(res['tb'])}\n"
-                    
                     txt_wa += s_l + "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
 
                 st.write("")
