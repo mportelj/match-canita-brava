@@ -3,6 +3,7 @@ import pandas as pd
 from google.oauth2.service_account import Credentials
 import gspread
 from datetime import datetime
+from streamlit_datepicker import datepicker
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
@@ -466,6 +467,12 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
         st.write("Fecha seleccionada:", fecha_formateada)
 
+        fecha = datepicker(
+            "Selecciona la fecha del partido",
+            date_format="DD/MM/YYYY"
+        )
+
+        
         if st.button("Iniciar Partido", type="primary", use_container_width=True):
             año_temporada = str(fecha_seleccionada.year)
             #fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
