@@ -756,7 +756,7 @@ elif st.session_state.menu_seleccionado == "Admin":
 
             # 4. INTERFAZ: Título con Fecha, Resultado y Hoyos Jugados
             # Ejemplo: 📅 10/05/2026 | 🏆 MANU/JOSE +2 (18 hoyos)
-            titulo_expander = f"📅 {row['fecha']}  |  {marcador}  ({num_hoyos} hoyos)"
+            titulo_expander = f"📅 {row['fecha']}  |  {marcador}  |  ({num_hoyos} hoyos)"
             
             with st.expander(titulo_expander):
                 
