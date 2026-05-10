@@ -409,10 +409,12 @@ if st.session_state.menu_seleccionado == "Inicio":
                     # Empate en la jornada
                     pa_t += 0.5; pb_t += 0.5
             
-    # Diseño de tarjeta de marcador de temporada
+    # 5. Diseño de la tarjeta (CORREGIDO con st.session_state)
     st.markdown(f"""
         <div style="border: 2px solid #ccc; border-radius: 15px; padding: 20px; text-align: center; background: #f9f9f9; margin-top: 10px; box-shadow: 2px 2px 10px rgba(0,0,0,0.1);">
-            <h3 style="margin: 0; color: #555; text-transform: uppercase; letter-spacing: 2px;">MATCH {sel_temp}</h3>
+            <h3 style="margin: 0; color: #555; text-transform: uppercase; letter-spacing: 2px;">
+                MATCH {st.session_state.sel_temp}
+            </h3>
             <div style="display: flex; justify-content: space-around; align-items: center; margin-top: 15px;">
                 <div style="flex: 1;">
                     <h2 style="color: {COLOR_A}; margin: 0; font-size: 1.2em;">{EQUIPO_A_NOMBRES}</h2>
