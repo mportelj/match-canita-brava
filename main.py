@@ -123,15 +123,31 @@ def cambiar_pagina():
 @st.cache_data(ttl=60)
 def leer_datos():
     try:
-        sh = st.session_state.sh
-        data = sh.get_all_records()
-        df = pd.DataFrame(data)
-        if df.empty: return pd.DataFrame()
-        df.columns = [str(c).strip().lower() for c in df.columns]
-        return df
-    except:
-        return pd.DataFrame()
+        if 'sh' not in st.session_state: return pd.DataFrame()
+        hoja = st.session_state.sh
+        filas = hoja.get_all_values()
+        if len(filas) > 1:
+            df_raw = pd.DataFrame(filas[1:], columns=filas[0])
+            
+            # --- LIMPIEZA DE FECHAS ---
+            # Intentamos convertir a datetime y luego a texto dd/mm/aaaa
+            # Si ya es texto, lo dejamos bonito
+            df_raw['fecha'] = pd.to_datetime(df_raw['fecha'], errors='ignore')
+            # Si el formato viene como yyyy-mm-dd (de pandas), lo pasamos a dd/mm/yyyy
+            try:
+                df_raw['fecha'] = df_raw['fecha'].dt.strftime('%d/%m/%Y')
+            except:
+                pass # Si falla es porque ya es un string manual
 
+            # Normalización de IDs (quitar el .0)
+            df_raw['partido_id'] = df_raw['partido_id'].astype(str).str.split('.').str[0]
+            
+            return df_raw
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error: {e}")
+        return pd.DataFrame()
+        
 df_raw = leer_datos()
 
 
