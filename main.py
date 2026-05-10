@@ -376,30 +376,28 @@ if st.session_state.menu_seleccionado == "Inicio":
     
     # Definimos la temporada actual
     # Obtenemos el año actual automáticamente
-anio_actual = datetime.now().year
+    anio_actual = datetime.now().year
 
 # 2. Obtenemos las temporadas disponibles
-    temps = sorted(df['temporada'].unique().tolist(), reverse=True) if not df.empty else [anio_actual]
+    if not df.empty:
+        temps = sorted(df['temporada'].unique().tolist(), reverse=True)
+    else:
+        temps = [str(anio_actual)]
+    
     if str(anio_actual) not in [str(t) for t in temps]:
         temps.insert(0, str(anio_actual))
     
-    # 3. Creamos el selectbox usando KEY. 
-    # Esto guarda automáticamente el valor en st.session_state.sel_temp
+    # 3. Selector de temporada (el valor se guarda en st.session_state.sel_temp)
     st.selectbox("Temporada:", temps, key="sel_temp")
     
-    # 4. Lógica de puntos acumulados de la temporada
-    # Inicializamos puntos según la regla de 2026
-    if str(st.session_state.sel_temp) == "2026":
-        pa_t, pb_t = 3.5, 3.5  # Ventaja histórica
-    else:
-        pa_t, pb_t = 0.0, 0.0
+    # 4. Lógica de puntos acumulados
+    pa_t, pb_t = (3.5, 3.5) if str(st.session_state.sel_temp) == "2026" else (0.0, 0.0)
         
     if not df.empty:
-        # Filtramos usando la variable del session_state
         df_t = df[df['temporada'].astype(str) == str(st.session_state.sel_temp)]
         
         if not df_t.empty:
-            # Agrupamos por partido_id para ver quién ganó cada jornada
+            # Agrupamos por partido_id (que ya limpiamos en leer_datos)
             partidos = df_t.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
             
             for _, r in partidos.iterrows():
@@ -407,7 +405,8 @@ anio_actual = datetime.now().year
                     pa_t += 1
                 elif r['resultado_b'] > r['resultado_a']: 
                     pb_t += 1
-                elif r['resultado_a'] == r['resultado_b'] and (r['resultado_a'] > 0 or r['resultado_b'] > 0):
+                else:
+                    # Empate en la jornada
                     pa_t += 0.5; pb_t += 0.5
             
     # Diseño de tarjeta de marcador de temporada
