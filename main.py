@@ -721,32 +721,32 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Panel de Administración")
     
-    # 1. Cargamos datos
+    # 1. Cargamos datos actualizados
     df_admin = leer_datos()
     
     if df_admin.empty:
-        st.info("No hay partidos registrados.")
+        st.info("No hay partidos registrados en la base de datos.")
     else:
-        # --- SOLUCIÓN AL KEYERROR: Creamos la columna id_clean aquí mismo ---
+        # 2. Aseguramos la existencia de la columna id_clean para agrupar
         df_admin['id_clean'] = df_admin['partido_id'].astype(str).str.split('.').str[0]
         
-        # 2. Agrupamos para el resumen (Con nombres y totales)
+        # 3. Agrupamos para el resumen de cada partido
         partidos = df_admin.groupby('id_clean').agg({
             'fecha': 'first',
             'temporada': 'first',
             'resultado_a': 'sum',
             'resultado_b': 'sum',
-            'hoyo': 'count'
+            'hoyo': 'count' # Esto cuenta el número de hoyos registrados
         }).sort_values(by='id_clean', ascending=False)
 
         st.subheader(f"Partidos Registrados ({len(partidos)})")
 
         for p_id, row in partidos.iterrows():
-            # Cálculos de marcador para el título
+            # Cálculos de marcador
             pts_a = float(row['resultado_a'])
             pts_b = float(row['resultado_b'])
+            num_hoyos = int(row['hoyo']) # Variable para el número de hoyos
             
-            # Formateamos el mensaje de quién gana
             if pts_a > pts_b:
                 marcador = f"🏆 MANU/JOSE +{int(pts_a - pts_b)}"
             elif pts_b > pts_a:
@@ -754,23 +754,27 @@ elif st.session_state.menu_seleccionado == "Admin":
             else:
                 marcador = "🤝 Empate (AS)"
 
-            # 3. INTERFAZ: Expander con nombres y resultado
-            with st.expander(f"📅 {row['fecha']}  |  {marcador}"):
+            # 4. INTERFAZ: Título con Fecha, Resultado y Hoyos Jugados
+            # Ejemplo: 📅 10/05/2026 | 🏆 MANU/JOSE +2 (18 hoyos)
+            titulo_expander = f"📅 {row['fecha']}  |  {marcador}  ({num_hoyos} hoyos)"
+            
+            with st.expander(titulo_expander):
                 
-                # Datos específicos de este partido
+                # Datos específicos de este partido para la tabla
                 df_partido = df_admin[df_admin['id_clean'] == p_id].sort_values('hoyo')
                 
-                # Resumen rápido
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Hoyos jugados", int(row['hoyo']))
-                c2.metric("MANU & JOSE", int(pts_a))
-                c3.metric("ROGE & LALO", int(pts_b))
+                # Fila de métricas resumen
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Hoyos", f"{num_hoyos}/18")
+                m2.metric("MANU & JOSE", int(pts_a))
+                m3.metric("ROGE & LALO", int(pts_b))
+                m4.metric("Diferencia", int(abs(pts_a - pts_b)))
 
-                # Tabla detallada con nombres en las columnas
+                # Tabla detallada con nombres de jugadores
                 st.dataframe(
                     df_partido[['hoyo', 's0', 's1', 's2', 's3', 'resultado_a', 'resultado_b']],
                     column_config={
-                        "hoyo": "Hoyo",
+                        "hoyo": "H",
                         "s0": "Manu", "s1": "Jose", 
                         "s2": "Roge", "s3": "Lalo",
                         "resultado_a": "Match A", "resultado_b": "Match B"
@@ -781,19 +785,22 @@ elif st.session_state.menu_seleccionado == "Admin":
 
                 # Botones de gestión
                 col_ed, col_bor = st.columns(2)
-                if col_ed.button("📝 Editar Jornada", key=f"ed_{p_id}", use_container_width=True):
+                
+                # BOTÓN EDITAR: Carga el partido y salta a Nueva Partida
+                if col_ed.button("📝 Seguir/Editar Partido", key=f"ed_{p_id}", use_container_width=True):
                     st.session_state.game = {
                         "id": p_id,
                         "fecha": row['fecha'],
                         "temporada": row['temporada'],
-                        "h_sel": int(df_partido['hoyo'].max())
+                        "h_sel": int(df_partido['hoyo'].max()) # Te sitúa en el último hoyo jugado
                     }
                     st.session_state.menu_seleccionado = "Nueva Partida"
                     st.rerun()
 
+                # BOTÓN BORRAR con popover de seguridad
                 with col_bor:
-                    with st.popover("🗑️ Borrar Todo", use_container_width=True):
-                        st.error("¿Seguro que quieres borrar este partido?")
-                        if st.button("SÍ, ELIMINAR", key=f"btn_del_{p_id}", type="primary"):
+                    with st.popover("🗑️ Borrar Jornada", use_container_width=True):
+                        st.error("¿Seguro? Se eliminarán todos los registros de este día.")
+                        if st.button("ELIMINAR DEFINITIVAMENTE", key=f"btn_del_{p_id}", type="primary"):
                             if borrar_partido_completo(p_id):
                                 st.rerun()
