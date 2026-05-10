@@ -628,8 +628,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             # --- NUEVO FORMATO DE MARCADOR DE JORNADA ---
             # res_match_dia = f"<b style='color=green';>+MANU & JOSE: {p_a_d}</b>  vs  <b style='color=red';>+ROGE & LALO: {p_b_d}</b>   - {status_global}"
             res_match_dia = (
-                f"<b style='color: green;'>Marcador hoyos: MANU & JOSE: {p_a_d}</b>   vs   "
-                f"<b style='color: red;'> ROGE & LALO: {p_b_d}</b>    |  <b style>{status_global}</b>"
+                f"<b  <b style>{status_global}</b>  |  style='color: green;'>Marcador hoyos: MANU & JOSE: {p_a_d}</b>   vs   "
+                f"<b style='color: red;'> ROGE & LALO: {p_b_d}</b> "
             )
             #st.markdown(res_match_dia, unsafe_allow_html=True)
 
