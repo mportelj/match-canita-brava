@@ -117,28 +117,32 @@ def cambiar_pagina():
 # --- LÓGICA DE DATOS ---
 @st.cache_data(ttl=60)
 def leer_datos():
-    try:
-        if 'sh' not in st.session_state: return pd.DataFrame()
-        hoja = st.session_state.sh
-        filas = hoja.get_all_values()
-        if len(filas) > 1:
-            df_raw = pd.DataFrame(filas[1:], columns=filas[0])
-            
-            # --- FORZAR FORMATO DE FECHA dd/mm/aaaa ---
-            # 1. Convertimos a datetime (dayfirst=True para evitar formato USA)
-            df_raw['fecha'] = pd.to_datetime(df_raw['fecha'], errors='coerce', dayfirst=True)
-            # 2. Lo pasamos a texto limpio dd/mm/aaaa
-            df_raw['fecha'] = df_raw['fecha'].dt.strftime('%d/%m/%Y')
-            
-            # Normalización de ID (quitar el .0)
-            df_raw['partido_id'] = df_raw['partido_id'].astype(str).str.split('.').str[0]
-            
-            return df_raw
-        return pd.DataFrame()
-    except:
-        return pd.DataFrame()
+    # ... (código previo para obtener 'filas') ...
+    if len(filas) > 1:
+        df_raw = pd.DataFrame(filas[1:], columns=filas[0])
         
-df_raw = leer_datos()
+        # --- CONVERSIÓN A NÚMERO ---
+        # Definimos las columnas que queremos como números
+        cols_a_numero = ['resultado_a', 'resultado_b', 'hoyo', 's0', 's1', 's2', 's3', 
+                         'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts']
+        
+        for col in cols_a_numero:
+            if col in df_raw.columns:
+                # 1. Reemplazamos la coma por punto para que Python entienda el decimal
+                df_raw[col] = df_raw[col].astype(str).str.replace(',', '.')
+                # 2. Convertimos a número (si hay error, pone 0)
+                df_raw[col] = pd.to_numeric(df_raw[col], errors='coerce').fillna(0)
+        
+        # --- LIMPIEZA DE IDs (Para evitar el .0 que se ve en tu imagen) ---
+        df_raw['partido_id'] = df_raw['partido_id'].astype(str).str.split('.').str[0]
+        
+        # --- UNIFICAR FECHA A dd/mm/aaaa ---
+        df_raw['fecha'] = pd.to_datetime(df_raw['fecha'], errors='coerce', dayfirst=True)
+        df_raw['fecha'] = df_raw['fecha'].dt.strftime('%d/%m/%Y')
+        
+        return df_raw
+        
+#df_raw = leer_datos()
 
 
 # --- 1. CONFIGURACIÓN CORREGIDA DEL CAMPO ---
