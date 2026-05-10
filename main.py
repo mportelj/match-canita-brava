@@ -611,7 +611,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             
             if ver_acumulado:
                 titulo_marcador = f"Acumulado Hoyos Temporada {temp_actual}"
-                sub_marcador = f"M&J {h_a:g} - R&L {h_b:g}"
+                sub_marcador = f"MANU & JOSE {h_a:g} - ROGE & LALO {h_b:g}"
             else:
                 dif_h = h_a - h_b
                 if dif_h > 0: res_p = f"MANU & JOSE {dif_h:g} UP"
