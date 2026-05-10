@@ -629,20 +629,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             # res_match_dia = f"<b style='color=green';>+MANU & JOSE: {p_a_d}</b>  vs  <b style='color=red';>+ROGE & LALO: {p_b_d}</b>   - {status_global}"
             res_match_dia = (
                 f"<b style='color: green;'>Marcador hoyos: MANU & JOSE: {p_a_d}</b>  vs  "
-                f"<b style='color: red;'>ROGE & LALO: {p_b_d}</b>   - <p><b style>{status_global}</b></p>"
+                f"<b style='color: red;'>ROGE & LALO: {p_b_d}</b>   - <b style>{status_global}</b>"
             )
-            st.markdown(res_match_dia, unsafe_allow_html=True)
+            #st.markdown(res_match_dia, unsafe_allow_html=True)
 
             puntos_a_dia = pd.to_numeric(df_stats['resultado_a'], errors='coerce').sum()
             puntos_b_dia = pd.to_numeric(df_stats['resultado_b'], errors='coerce').sum()
             dif_dia = puntos_a_dia - puntos_b_dia
-            
-            #if dif_dia > 0:
-            #    res_match_dia = f"Manu & Jose +{dif_dia}"
-            #elif dif_dia < 0:
-            #    res_match_dia = f"Roge & Lalo +{abs(dif_dia)}"
-            #else:
-            #    res_match_dia = "Empate (AS)"
             n_hoyos_info = len(df_stats['hoyo'].unique())
 
         # --- CÁLCULOS DE JUGADORES ---
@@ -729,8 +722,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         # --- RENDERIZADO APP ---
         st.subheader(f"📈 {titulo_seccion} ({n_hoyos_info} hoyos)")
         if not ver_acumulado and res_match_dia:
-            st.markdown(f"**{res_match_dia}**")
-            st.info(f"**{lider_info}**")
+            st.markdown(res_match_dia, unsafe_allow_html=True)
+            #st.info(f"**{lider_info}**")
         #st.info(f"Temporada: {texto_marcador_global}")
 
         if lista_resultados:
