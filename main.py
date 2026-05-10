@@ -375,18 +375,27 @@ if st.session_state.menu_seleccionado == "Inicio":
         st.write(f"Último partido registrado: {df['fecha'].iloc[-1]}")
     
     # Definimos la temporada actual
-    anio_actual = 2026
-    temps = sorted(df['temporada'].unique().tolist(), reverse=True) if not df.empty else [anio_actual]
-    if anio_actual not in temps: temps.insert(0, anio_actual)
-    
-    sel_temp = st.selectbox("Temporada:", temps)
-    
-   # --- Lógica de puntos acumulados de la temporada ---
-# Solo sumamos 3.5 si la temporada seleccionada es 2026
-if str(sel_temp) == "2026":
-    pa_t, pb_t = 3.5, 3.5
+    # Obtenemos el año actual automáticamente
+anio_actual = datetime.now().year
+
+# Obtenemos las temporadas del DF o usamos el año actual si está vacío
+temps = sorted(df['temporada'].unique().tolist(), reverse=True) if not df.empty else [anio_actual]
+
+# Si el año actual no está en la lista de temporadas del Excel, lo añadimos al principio
+if anio_actual not in [int(t) for t in temps]:
+    temps.insert(0, anio_actual)
+
+# Selector de temporada con llave para session_state
+st.selectbox("Temporada:", temps, key="sel_temp")
+
+# Recuperamos la selección (usamos el session_state para evitar NameError en Admin)
+sel_temp_activa = st.session_state.sel_temp
+
+# Lógica de puntos acumulados
+if str(sel_temp_activa) == "2026":
+    pa_t, pb_t = 3.5, 3.5  # Ventaja inicial solo para 2026
 else:
-    pa_t, pb_t = 0.0, 0.0  # Para otras temporadas empezamos de cero
+    pa_t, pb_t = 0.0, 0.0  # Otras temporadas empiezan de 0
 
 if not df.empty:
     df_t = df[df['temporada'].astype(str) == str(sel_temp)]
