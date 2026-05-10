@@ -848,16 +848,11 @@ elif st.session_state.menu_seleccionado == "Admin":
 
                 # BOTÓN BORRAR con popover de seguridad
                 with col_bor:
-    # Usamos el popover para la confirmación
-    with st.popover("🗑️ Borrar Jornada", use_container_width=True):
-        st.error("¿Seguro? Se eliminarán todos los registros de este día.")
-        
-        # Al hacer clic en este botón, ejecutamos la función y luego RECARGAMOS
-        if st.button("ELIMINAR DEFINITIVAMENTE", key=f"btn_del_{p_id}", type="primary"):
-            resultado = borrar_partido_completo(p_id)
-            if resultado:
-                st.success("Partido eliminado.")
-                # ESTA LÍNEA ES CLAVE: Limpia el estado y cierra el popover
-                st.rerun() 
-            else:
-                st.error("No se pudo eliminar el partido.")
+                        with st.popover("🗑️ Borrar Jornada", use_container_width=True):
+                            st.error("¿Seguro? Se eliminarán todos los registros de este día.")
+                            if st.button("ELIMINAR DEFINITIVAMENTE", key=f"btn_del_{p_id}", type="primary"):
+                                if borrar_partido_completo(p_id):
+                                    st.toast("Jornada eliminada")
+                                    st.rerun()
+                                else
+                                    st.error("No se pudo eliminar el partido".)
