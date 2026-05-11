@@ -622,12 +622,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             
             if ver_acumulado:
                 titulo_marcador = f"Temporada {temp_actual}"
-                sub_marcador = f"Acumulado: M&J {h_a:g} - R&L {h_b:g}"
+                sub_marcador = f"Acumulado: Manu&Jose {h_a:g} - Roge&Lalo {h_b:g}"
             else:
                 dif_h = h_a - h_b
                 res_p = f"M&J {dif_h:g} UP" if dif_h > 0 else (f"R&L {abs(dif_h):g} UP" if dif_h < 0 else "AS")
                 titulo_marcador = f"Resultado: {res_p}"
-                sub_marcador = f"Hoyos ganados: {h_a:g} vs {h_b:g}"
+                sub_marcador = f"Marcador hoyos: {h_a:g} vs {h_b:g}"
 
             st.markdown(f"""
                 <div style="padding:10px; border-bottom: 2px solid #f0f2f6; margin-bottom:20px;">
