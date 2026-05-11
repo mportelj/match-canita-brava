@@ -625,7 +625,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 sub_marcador = f"Acumulado: Manu&Jose {h_a:g} - Roge&Lalo {h_b:g}"
             else:
                 dif_h = h_a - h_b
-                res_p = f"M&J {dif_h:g} UP" if dif_h > 0 else (f"R&L {abs(dif_h):g} UP" if dif_h < 0 else "AS")
+                res_p = f"Manu&Jose {dif_h:g} UP" if dif_h > 0 else (f"Roge&Lalo {abs(dif_h):g} UP" if dif_h < 0 else "AS")
                 titulo_marcador = f"Resultado: {res_p}"
                 sub_marcador = f"Marcador hoyos: {h_a:g} vs {h_b:g}"
 
