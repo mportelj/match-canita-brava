@@ -566,6 +566,8 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.cache_data.clear()
                 st.rerun()
 
+#ESTADUSTICAS ==============
+
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas y Clasificación")
     
@@ -583,7 +585,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         
         # Limpieza de puntos MVP (p1=Manu, p2=Jose, p3=Roge, p4=Lalo)
         for i in range(1, 5):
-            df_raw[f'p{i}_ptos'] = pd.to_numeric(df_raw[f'p{i}_ptos'], errors='coerce').fillna(0)
+            df_raw[f'p{i}_ptos'] = pd.to_numeric(df_raw[f'p{i}_pts'], errors='coerce').fillna(0)
         
         df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], errors='coerce')
         fechas_unicas = df_raw.sort_values('fecha_dt', ascending=False)['fecha'].unique().tolist()
