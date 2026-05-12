@@ -708,6 +708,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 df_mvp_html = df_mvp_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
                 st.write(df_mvp_html, unsafe_allow_html=True)
 
+                # ... (Todo el código anterior de filtrado y tablas se mantiene igual hasta llegar al bloque de WhatsApp) ...
+
                 # --- 6. WHATSAPP DETALLADO ---
                 import urllib.parse
                 w_icon = "📂" if ver_acumulado else "📅"
@@ -715,26 +717,33 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 
                 txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n{w_icon} *{tit_w}*\n"
                 txt_wa += f"🏆 *{titulo_marcador.upper()}*\n"
-                txt_wa += f"⛳ {sub_marcador}\n\n"
+                txt_wa += f"⛳ {sub_marcador}\n"
+                txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
                 
-                txt_wa += "⭐ *MVP RANKING* ⭐\n"
+                # SECCIÓN: CLASIFICACIÓN MVP EN WHATSAPP
+                txt_wa += "⭐ *CLASIFICACIÓN MVP* ⭐\n"
+                lista_mvp = sorted(lista_resultados, key=lambda x: x['pts_mvp'], reverse=True)
                 for i, res in enumerate(lista_mvp):
-                    med = ["🥇","🥈","🥉",""][i] if i < 4 else ""
-                    txt_wa += f"{med}{res['Jugador']}: {res['pts_mvp']:.1f} pts\n"
+                    med = ["🥇","🥈","🥉"," "][i] if i < 4 else " "
+                    txt_wa += f"{med} {i+1}º {res['Jugador']}: *{res['pts_mvp']:.1f} pts*\n"
                 txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
 
+                # SECCIÓN: DETALLE INDIVIDUAL
+                txt_wa += "📊 *ESTADÍSTICAS INDIVIDUALES*\n\n"
                 for res in lista_resultados:
                     p_m = f"+{res['pm']}" if res['pm'] > 0 else (str(res['pm']) if res['pm'] < 0 else "E")
                     h = res['hoyos']
                     def wf(v): return f"{v} ({v/h*100:.0f}%)"
                     
                     txt_wa += f"👤 *{res['Jugador'].upper()}*\n"
-                    txt_wa += f"🏆 *{p_m}* ({res['scr']} pts)\n"
+                    txt_wa += f"🏆 *{p_m}* ({res['scr']} pts scratch)\n"
                     
                     s_l = ""
                     if res['e'] > 0: s_l += f"🦅 Egl: {wf(res['e'])}\n"
                     if res['b'] > 0: s_l += f"🐤 Bir: {wf(res['b'])}\n"
-                    s_l += f"🅿️ Par: {wf(res['p'])}\n⚠️ Bog: {wf(res['bog'])}\n💀 D.B: {wf(res['db'])}\n"
+                    s_l += f"🅿️ Par: {wf(res['p'])}\n"
+                    s_l += f"⚠️ Bog: {wf(res['bog'])}\n"
+                    s_l += f"💀 D.B: {wf(res['db'])}\n"
                     if res['tb'] > 0: s_l += f"💣 +3B: {wf(res['tb'])}\n"
                     
                     txt_wa += s_l + "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
