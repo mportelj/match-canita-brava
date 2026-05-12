@@ -566,8 +566,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.cache_data.clear()
                 st.rerun()
 
-### ESTADISTICAS ==============================
-
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas y Clasificación")
     
@@ -583,11 +581,14 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         df_raw['res_a'] = pd.to_numeric(df_raw['resultado_a'], errors='coerce').fillna(0)
         df_raw['res_b'] = pd.to_numeric(df_raw['resultado_b'], errors='coerce').fillna(0)
         
+        # Limpieza de puntos MVP (p1=Manu, p2=Jose, p3=Roge, p4=Lalo)
+        for i in range(1, 5):
+            df_raw[f'p{i}_ptos'] = pd.to_numeric(df_raw[f'p{i}_ptos'], errors='coerce').fillna(0)
+        
         df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], errors='coerce')
         fechas_unicas = df_raw.sort_values('fecha_dt', ascending=False)['fecha'].unique().tolist()
         temporadas_unicas = sorted(df_raw['t_limpia'].unique().tolist(), reverse=True)
 
-        # --- NUEVO: DICCIONARIO PARA EL SELECTOR CON CONTEO DE HOYOS ---
         opciones_fecha = {}
         for f in fechas_unicas:
             num_hoyos = len(df_raw[df_raw['fecha'] == f])
@@ -601,12 +602,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             if ver_acumulado:
                 seleccion_filtro = st.selectbox("Seleccionar Temporada:", temporadas_unicas, key="st_final_clean")
             else:
-                seleccion_filtro = st.selectbox(
-                    "Seleccionar Jornada:", 
-                    fechas_unicas, 
-                    format_func=lambda x: opciones_fecha[x], 
-                    key="st_jorn_clean"
-                )
+                seleccion_filtro = st.selectbox("Seleccionar Jornada:", fechas_unicas, format_func=lambda x: opciones_fecha[x], key="st_jorn_clean")
 
         # --- 2. FILTRADO ---
         if ver_acumulado:
@@ -619,7 +615,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         if not df_stats.empty:
             # --- 3. MARCADOR DISCRETO ---
             h_a, h_b = df_stats['res_a'].sum(), df_stats['res_b'].sum()
-            
             if ver_acumulado:
                 titulo_marcador = f"Temporada {temp_actual}"
                 sub_marcador = f"Acumulado: Manu&Jose {h_a:g} - Roge&Lalo {h_b:g}"
@@ -636,25 +631,35 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- 4. ESTADÍSTICAS JUGADORES (Nombres completos y Centrado) ---
+            # --- 4. ESTADÍSTICAS JUGADORES ---
             lista_resultados = []
+            # Mapeo de índices de TODOS hacia columnas de puntos p1-p4
+            # Asumiendo TODOS = ["Manu", "Jose", "Roge", "Lalo"]
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
+                col_mvp = f'p{i+1}_ptos' # p1 para Manu, p2 para Jose...
+                
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
                 d_p = df_stats[df_stats[col_s] > 0].copy()
+                
                 if not d_p.empty:
                     d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
                     d_p['dif'] = d_p[col_s] - d_p['par_h']
+                    
                     def cs(d):
                         if d <= -2: return 4
                         if d == -1: return 3
                         if d == 0:  return 2
                         if d == 1:  return 1
                         return 0
+                    
                     scr = int(d_p['dif'].apply(cs).sum())
+                    # Los puntos MVP se suman solo una vez por jornada (agrupamos por fecha)
+                    pts_mvp_total = df_stats.groupby('fecha')[col_mvp].first().sum()
+
                     lista_resultados.append({
                         "Jugador": jug, 
-                        "pm": (len(d_p)*2)-scr, "scr": scr,
+                        "pm": (len(d_p)*2)-scr, "scr": scr, "pts_mvp": pts_mvp_total,
                         "e": int((d_p['dif'] <= -2).sum()), "b": int((d_p['dif'] == -1).sum()), 
                         "p": int((d_p['dif'] == 0).sum()), "bog": int((d_p['dif'] == 1).sum()), 
                         "db": int((d_p['dif'] == 2).sum()), "tb": int((d_p['dif'] >= 3).sum()), "hoyos": len(d_p)
@@ -683,7 +688,26 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 df_html = df_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
                 st.write(df_html, unsafe_allow_html=True)
 
-                # --- 5. WHATSAPP ---
+                # --- 5. CLASIFICACIÓN MVP (Basada en campos p1_ptos, etc.) ---
+                st.write("")
+                st.subheader("🏆 Clasificación MVP")
+                
+                lista_mvp = sorted(lista_resultados, key=lambda x: x['pts_mvp'], reverse=True)
+                mvp_rows = []
+                for i, res in enumerate(lista_mvp):
+                    medalla = ["🥇 ", "🥈 ", "🥉 ", ""][i] if i < 4 else ""
+                    mvp_rows.append({
+                        "Pos": f"{medalla}{i+1}º",
+                        "Jugador": res['Jugador'],
+                        "Puntos MVP": f"<b>{res['pts_mvp']:g}</b>"
+                    })
+                
+                df_mvp_html = pd.DataFrame(mvp_rows).to_html(escape=False, index=False)
+                df_mvp_html = df_mvp_html.replace('<td>', '<td style="text-align: center; padding: 8px;">')
+                df_mvp_html = df_mvp_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
+                st.write(df_mvp_html, unsafe_allow_html=True)
+
+                # --- 6. WHATSAPP ---
                 import urllib.parse
                 w_icon = "📂" if ver_acumulado else "📅"
                 tit_w = temp_actual if ver_acumulado else opciones_fecha[seleccion_filtro]
@@ -691,6 +715,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n{w_icon} *{tit_w}*\n"
                 txt_wa += f"🏆 *{titulo_marcador.upper()}*\n"
                 txt_wa += f"⛳ {sub_marcador}\n"
+                
+                # Resumen MVP en WhatsApp
+                txt_wa += "\n⭐ *MVP RANKING* ⭐\n"
+                for i, res in enumerate(lista_mvp):
+                    med = ["🥇","🥈","🥉",""][i] if i < 4 else ""
+                    txt_wa += f"{med}{res['Jugador']}: {res['pts_mvp']:g} pts\n"
+                
                 txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
 
                 for res in lista_resultados:
@@ -709,7 +740,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
                 st.write("")
                 st.link_button("📲 Enviar por WhatsApp", f"https://wa.me/?text={urllib.parse.quote(txt_wa)}", use_container_width=True)
-# ==========================================
+
 # SECCIÓN: ADMIN
 # ==========================================
 
