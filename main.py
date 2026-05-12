@@ -633,17 +633,18 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 </div>
             """, unsafe_allow_html=True)
 
+           
+            
             # --- 4. ESTADÍSTICAS JUGADORES ---
+
             lista_resultados = []
-            # Mapeo de índices de TODOS hacia columnas de puntos p1-p4
-            # Asumiendo TODOS = ["Manu", "Jose", "Roge", "Lalo"]
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
-                col_mvp = f'p{i+1}_ptos' # p1 para Manu, p2 para Jose...
-                
+                col_mvp = f'p{i+1}_pts' 
+    
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
                 d_p = df_stats[df_stats[col_s] > 0].copy()
-                
+    
                 if not d_p.empty:
                     d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
                     d_p['dif'] = d_p[col_s] - d_p['par_h']
@@ -654,10 +655,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         if d == 0:  return 2
                         if d == 1:  return 1
                         return 0
-                    
                     scr = int(d_p['dif'].apply(cs).sum())
-                    # Los puntos MVP se suman solo una vez por jornada (agrupamos por fecha)
-                    pts_mvp_total = df_stats.groupby('fecha')[col_mvp].first().sum()
+                    pts_mvp_total = df_stats[col_mvp].sum() 
 
                     lista_resultados.append({
                         "Jugador": jug, 
