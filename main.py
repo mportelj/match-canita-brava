@@ -583,10 +583,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         df_raw['res_a'] = pd.to_numeric(df_raw['resultado_a'], errors='coerce').fillna(0)
         df_raw['res_b'] = pd.to_numeric(df_raw['resultado_b'], errors='coerce').fillna(0)
         
-        # Limpieza de puntos MVP (p1=Manu, p2=Jose, p3=Roge, p4=Lalo)
+        # Limpiar columnas MVP (p1_pts a p4_pts)
         for i in range(1, 5):
-            df_raw[f'p{i}_ptos'] = pd.to_numeric(df_raw[f'p{i}_pts'], errors='coerce').fillna(0)
-        
+            c_pts = f'p{i}_pts'
+            df_raw[c_pts] = pd.to_numeric(df_raw.get(c_pts, 0), errors='coerce').fillna(0)
+
         df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], errors='coerce')
         fechas_unicas = df_raw.sort_values('fecha_dt', ascending=False)['fecha'].unique().tolist()
         temporadas_unicas = sorted(df_raw['t_limpia'].unique().tolist(), reverse=True)
@@ -602,9 +603,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             ver_acumulado = st.toggle("📂 Ver Acumulado de la Temporada", value=False)
         with col1:
             if ver_acumulado:
-                seleccion_filtro = st.selectbox("Seleccionar Temporada:", temporadas_unicas, key="st_final_clean")
+                seleccion_filtro = st.selectbox("Seleccionar Temporada:", temporadas_unicas, key="st_v_final_t")
             else:
-                seleccion_filtro = st.selectbox("Seleccionar Jornada:", fechas_unicas, format_func=lambda x: opciones_fecha[x], key="st_jorn_clean")
+                seleccion_filtro = st.selectbox("Seleccionar Jornada:", fechas_unicas, format_func=lambda x: opciones_fecha[x], key="st_v_final_j")
 
         # --- 2. FILTRADO ---
         if ver_acumulado:
@@ -633,18 +634,15 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 </div>
             """, unsafe_allow_html=True)
 
-           
-            
             # --- 4. ESTADÍSTICAS JUGADORES ---
-
             lista_resultados = []
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
-                col_mvp = f'p{i+1}_pts' 
-    
+                col_mvp = f'p{i+1}_pts'
+                
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
                 d_p = df_stats[df_stats[col_s] > 0].copy()
-    
+                
                 if not d_p.empty:
                     d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
                     d_p['dif'] = d_p[col_s] - d_p['par_h']
@@ -655,8 +653,10 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         if d == 0:  return 2
                         if d == 1:  return 1
                         return 0
+                    
                     scr = int(d_p['dif'].apply(cs).sum())
-                    pts_mvp_total = df_stats[col_mvp].sum() 
+                    # SUMA MVP: Suma todos los registros de la columna para ese jugador en el filtro
+                    pts_mvp_total = float(df_stats[col_mvp].sum())
 
                     lista_resultados.append({
                         "Jugador": jug, 
@@ -669,6 +669,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             lista_resultados = sorted(lista_resultados, key=lambda x: x['scr'], reverse=True)
 
             if lista_resultados:
+                # TABLA PRINCIPAL
                 stats_rows = []
                 for res in lista_resultados:
                     def f_pct(v, th):
@@ -689,10 +690,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 df_html = df_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
                 st.write(df_html, unsafe_allow_html=True)
 
-                # --- 5. CLASIFICACIÓN MVP (Basada en campos p1_ptos, etc.) ---
+                # --- 5. CLASIFICACIÓN MVP ---
                 st.write("")
                 st.subheader("🏆 Clasificación MVP")
-                
                 lista_mvp = sorted(lista_resultados, key=lambda x: x['pts_mvp'], reverse=True)
                 mvp_rows = []
                 for i, res in enumerate(lista_mvp):
@@ -700,7 +700,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     mvp_rows.append({
                         "Pos": f"{medalla}{i+1}º",
                         "Jugador": res['Jugador'],
-                        "Puntos MVP": f"<b>{res['pts_mvp']:g}</b>"
+                        "Puntos MVP": f"<b>{res['pts_mvp']:.1f}</b>"
                     })
                 
                 df_mvp_html = pd.DataFrame(mvp_rows).to_html(escape=False, index=False)
@@ -708,21 +708,19 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 df_mvp_html = df_mvp_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
                 st.write(df_mvp_html, unsafe_allow_html=True)
 
-                # --- 6. WHATSAPP ---
+                # --- 6. WHATSAPP DETALLADO ---
                 import urllib.parse
                 w_icon = "📂" if ver_acumulado else "📅"
                 tit_w = temp_actual if ver_acumulado else opciones_fecha[seleccion_filtro]
                 
                 txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n{w_icon} *{tit_w}*\n"
                 txt_wa += f"🏆 *{titulo_marcador.upper()}*\n"
-                txt_wa += f"⛳ {sub_marcador}\n"
+                txt_wa += f"⛳ {sub_marcador}\n\n"
                 
-                # Resumen MVP en WhatsApp
-                txt_wa += "\n⭐ *MVP RANKING* ⭐\n"
+                txt_wa += "⭐ *MVP RANKING* ⭐\n"
                 for i, res in enumerate(lista_mvp):
                     med = ["🥇","🥈","🥉",""][i] if i < 4 else ""
-                    txt_wa += f"{med}{res['Jugador']}: {res['pts_mvp']:g} pts\n"
-                
+                    txt_wa += f"{med}{res['Jugador']}: {res['pts_mvp']:.1f} pts\n"
                 txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
 
                 for res in lista_resultados:
@@ -732,11 +730,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                     txt_wa += f"👤 *{res['Jugador'].upper()}*\n"
                     txt_wa += f"🏆 *{p_m}* ({res['scr']} pts)\n"
+                    
                     s_l = ""
                     if res['e'] > 0: s_l += f"🦅 Egl: {wf(res['e'])}\n"
                     if res['b'] > 0: s_l += f"🐤 Bir: {wf(res['b'])}\n"
                     s_l += f"🅿️ Par: {wf(res['p'])}\n⚠️ Bog: {wf(res['bog'])}\n💀 D.B: {wf(res['db'])}\n"
                     if res['tb'] > 0: s_l += f"💣 +3B: {wf(res['tb'])}\n"
+                    
                     txt_wa += s_l + "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
 
                 st.write("")
