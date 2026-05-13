@@ -440,9 +440,9 @@ if st.session_state.menu_seleccionado == "Inicio":
    
 # ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
-        st.title("⛳ Partida") # Título actualizado
+        st.title("⛳ Partida")
 
-        # --- BLOQUE 0: INICIALIZACIÓN DE SEGURIDAD ---
+        # --- BLOQUE 0: INICIALIZACIÓN ---
         if 'refresco_id' not in st.session_state: 
             st.session_state.refresco_id = 0
         
@@ -451,12 +451,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
         # --- BLOQUE A: CONFIGURACIÓN DE INICIO ---
         game_activo = st.session_state.get('game')
-        
         if not game_activo or not isinstance(game_activo, dict) or 'id' not in game_activo:
-            st.info("💡 Selecciona una fecha para empezar o ve a Admin para editar una partida existente.")
+            st.info("💡 Selecciona una fecha para empezar.")
             st.markdown("### ⛳ Nueva Partida")
-            fecha_nueva = st.date_input("Selecciona la fecha del partido", key="fecha_nueva_p")
-            
+            fecha_nueva = st.date_input("Fecha del partido", key="fecha_nueva_p")
             if st.button("Iniciar Partido", type="primary", use_container_width=True):
                 st.session_state.game = {
                     "id": datetime.now().strftime("%Y%m%d%H%M%S"),
@@ -467,7 +465,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.cache_data.clear()
                 st.rerun()
         
-        # --- BLOQUE B: EDICIÓN DE PARTIDA ACTIVA ---
+        # --- BLOQUE B: EDICIÓN ACTIVA ---
         else:
             g = st.session_state.game
             try:
@@ -476,45 +474,45 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     id_target = str(g['id']).split('.')[0]
                     df_p['partido_id_str'] = df_p['partido_id'].astype(str).str.split('.').str[0]
                     df_partido_actual = df_p[df_p['partido_id_str'] == id_target]
-            except Exception:
-                pass
+            except Exception as e:
+                st.error(f"Error al leer datos: {e}")
 
-            # MARCADOR GENERAL DE LA PARTIDA (Match Play Global)
-            pts_a = df_partido_actual['resultado_a'].sum() if not df_partido_actual.empty else 0
-            pts_b = df_partido_actual['resultado_b'].sum() if not df_partido_actual.empty else 0
-            dif = pts_a - pts_b
-            m_a, m_b = (dif, 0) if dif > 0 else (0, abs(dif))
+            # MARCADOR GENERAL (Match Play acumulado)
+            m_global_a = df_partido_actual['resultado_a'].sum() if not df_partido_actual.empty else 0
+            m_global_b = df_partido_actual['resultado_b'].sum() if not df_partido_actual.empty else 0
+            dif_global = m_global_a - m_global_b
+            disp_a, disp_b = (dif_global, 0) if dif_global > 0 else (0, abs(dif_global))
 
-            st.subheader(f"📍 Editando: {g.get('fecha', 'S/F')}")
+            st.subheader(f"📍 {g.get('fecha', 'S/F')}")
 
-            # Marcador Visual HTML (General)
+            # Marcador Visual HTML
             st.markdown(f"""
                 <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
                     <div style="display: flex; justify-content: space-around; align-items: center;">
                         <div style="flex: 1;">
                             <p style="margin:0; font-size:0.8em; color:#2e7d32; font-weight:bold;">{EQUIPO_A_NOMBRES}</p>
-                            <h1 style="margin:0; font-size:4.5em; color:{COLOR_A if m_a > 0 else '#333'};">{m_a:g}</h1>
+                            <h1 style="margin:0; font-size:4.5em; color:{COLOR_A if disp_a > 0 else '#333'};">{disp_a:g}</h1>
                         </div>
                         <div style="background:#ccc; border-radius:50%; width:40px; height:40px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#666;">VS</div>
                         <div style="flex: 1;">
                             <p style="margin:0; font-size:0.8em; color:#c62828; font-weight:bold;">{EQUIPO_B_NOMBRES}</p>
-                            <h1 style="margin:0; font-size:4.5em; color:{COLOR_B if m_b > 0 else '#333'};">{m_b:g}</h1>
+                            <h1 style="margin:0; font-size:4.5em; color:{COLOR_B if disp_b > 0 else '#333'};">{disp_b:g}</h1>
                         </div>
                     </div>
-                    <p style="margin-top:5px; color:#666; font-size:0.9em;">{"All Square" if dif == 0 else f"{abs(dif)} Up"}</p>
+                    <p style="margin-top:5px; color:#666; font-size:0.9em;">{"All Square" if dif_global == 0 else f"{abs(dif_global)} Up"}</p>
                 </div>
             """, unsafe_allow_html=True)
 
-            # Navegación
-            c1, c2 = st.columns(2)
-            if c1.button("← Anterior", use_container_width=True):
+            # Navegación rápida de hoyos
+            c_nav1, c_nav2 = st.columns(2)
+            if c_nav1.button("← Anterior", use_container_width=True):
                 st.session_state.game['h_sel'] = max(1, g['h_sel'] - 1)
                 st.rerun()
-            if c2.button("Siguiente →", use_container_width=True):
+            if c_nav2.button("Siguiente →", use_container_width=True):
                 st.session_state.game['h_sel'] = min(18, g['h_sel'] + 1)
                 st.rerun()
 
-            # --- SELECCIÓN DE HOYO ---
+            # --- SELECTOR DE HOYO ---
             st.markdown("---")
             with st.container():
                 st.info("### ⛳ Selección de Hoyo")
@@ -522,56 +520,64 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     "Hoyo actual:", 
                     options=list(range(1, 19)), 
                     index=int(g.get('h_sel', 1)) - 1,
-                    key=f"sb_hoyo_fix_{g.get('id', 'temp')}"
+                    key=f"sb_hoyo_vfinal_{g.get('id', 'temp')}"
                 )
                 st.session_state.game['h_sel'] = h_actual
 
-            # --- LÓGICA DE GOLPES DEL HOYO ACTUAL ---
-            g_prev = [0, 0, 0, 0]
+            # --- LECTURA DE GOLPES DEL HOYO ---
+            golpes_actuales = [0, 0, 0, 0]
             if not df_partido_actual.empty and 'hoyo' in df_partido_actual.columns:
-                reg = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
-                if not reg.empty:
-                    g_prev = [
-                        int(reg.iloc[0]['s0']), int(reg.iloc[0]['s1']),
-                        int(reg.iloc[0]['s2']), int(reg.iloc[0]['s3'])
+                registro_hoyo = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
+                if not registro_hoyo.empty:
+                    golpes_actuales = [
+                        int(registro_hoyo.iloc[0]['s0']), int(registro_hoyo.iloc[0]['s1']),
+                        int(registro_hoyo.iloc[0]['s2']), int(registro_hoyo.iloc[0]['s3'])
                     ]
 
-            # --- MARCADOR EXCLUSIVO DEL HOYO (CORREGIDO) ---
+            # --- MARCADOR DEL HOYO (Solo golpes de este hoyo) ---
             par_h = PAR_RIA_VIGO.get(h_actual, 4)
-            if any(v > 0 for v in g_prev):
-                # Comparamos solo los golpes de este hoyo
-                golpes_equipo_a = g_prev[0] + g_prev[1]
-                golpes_equipo_b = g_prev[2] + g_prev[3]
+            if any(v > 0 for v in golpes_actuales):
+                suma_a = golpes_actuales[0] + golpes_actuales[1]
+                suma_b = golpes_actuales[2] + golpes_actuales[3]
                 
-                if golpes_equipo_a < golpes_equipo_b:
-                    st.success(f"🟢 **Manu & Jose ganan el hoyo** ({golpes_equipo_a} vs {golpes_equipo_b})")
-                elif golpes_equipo_b < golpes_equipo_a:
-                    st.error(f"🔴 **Roge & Lalo ganan el hoyo** ({golpes_equipo_b} vs {golpes_equipo_a})")
+                if suma_a < suma_b:
+                    st.success(f"🟢 **Manu & Jose ganan el hoyo** ({suma_a} vs {suma_b})")
+                elif suma_b < suma_a:
+                    st.error(f"🔴 **Roge & Lalo ganan el hoyo** ({suma_b} vs {suma_a})")
                 else:
-                    st.warning(f"⚪ **Hoyo empatado** ({golpes_equipo_a} iguales)")
+                    st.warning(f"⚪ **Hoyo empatado** ({suma_a} iguales)")
             else:
                 st.info(f"⏳ **Hoyo {h_actual} (Par {par_h}) pendiente**")
 
-            # Inputs y Guardado
+            # --- INPUTS 2x2 ---
             st.markdown("---")
             col1, col2 = st.columns(2); col3, col4 = st.columns(2)
-            v0 = col1.number_input("MANU", 1, 15, value=g_prev[0] if g_prev[0]>0 else par_h, key=f"v0_{h_actual}")
-            v1 = col2.number_input("JOSE", 1, 15, value=g_prev[1] if g_prev[1]>0 else par_h, key=f"v1_{h_actual}")
-            v2 = col3.number_input("ROGE", 1, 15, value=g_prev[2] if g_prev[2]>0 else par_h, key=f"v2_{h_actual}")
-            v3 = col4.number_input("LALO", 1, 15, value=g_prev[3] if g_prev[3]>0 else par_h, key=f"v3_{h_actual}")
+            v0 = col1.number_input("MANU", 1, 15, value=golpes_actuales[0] if golpes_actuales[0]>0 else par_h, key=f"v0_{h_actual}")
+            v1 = col2.number_input("JOSE", 1, 15, value=golpes_actuales[1] if golpes_actuales[1]>0 else par_h, key=f"v1_{h_actual}")
+            v2 = col3.number_input("ROGE", 1, 15, value=golpes_actuales[2] if golpes_actuales[2]>0 else par_h, key=f"v2_{h_actual}")
+            v3 = col4.number_input("LALO", 1, 15, value=golpes_actuales[3] if golpes_actuales[3]>0 else par_h, key=f"v3_{h_actual}")
 
-            if [v0, v1, v2, v3] != g_prev:
+            # --- LÓGICA DE GUARDADO ---
+            if [v0, v1, v2, v3] != golpes_actuales:
                 if st.button("💾 GUARDAR RESULTADOS", use_container_width=True, type="primary"):
+                    # Calculamos el punto Match Play para este hoyo antes de guardar
+                    res_a = 1 if (v0 + v1) < (v2 + v3) else 0
+                    res_b = 1 if (v2 + v3) < (v0 + v1) else 0
+                    
+                    # Llamamos a tu función de guardado (asegúrate de que acepte estos parámetros)
                     ejecutar_guardado_automatico(h_actual, v0, v1, v2, v3)
+                    
                     st.cache_data.clear()
                     st.rerun()
 
-            # Popover Finalizar
+            # --- FINALIZAR ---
             st.write("---") 
             with st.popover("🏁 Finalizar Partida", use_container_width=True):
                 st.warning("¿Cerrar la sesión actual?")
                 if st.button("Confirmar Cierre", type="primary", use_container_width=True):
                     st.session_state.game = None
+                    if 'game' in st.session_state:
+                        del st.session_state.game
                     st.cache_data.clear()
                     st.rerun()
                 
