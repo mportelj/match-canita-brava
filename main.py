@@ -90,16 +90,23 @@ def cb_editar_partido(p_id, fecha, temporada):
 
 # --- 2. EL SIDEBAR (MENÚ LATERAL) ---
 # --- 4. SIDEBAR (CORREGIDO) ---
+# --- 4. SIDEBAR (RESETEADO Y CORREGIDO) ---
 with st.sidebar:
     st.markdown("# ⛳ Cañita Brava")
     st.write("---")
     
     opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
     
-    # Si la variable no existe, la inicializamos
+    # Inicializamos la variable si no existe
     if 'menu_seleccionado' not in st.session_state:
         st.session_state.menu_seleccionado = "Inicio"
 
+    # IMPORTANTE: El radio usa la variable directamente como KEY
+    st.radio(
+        "Navegación",
+        opciones_menu,
+        key="menu_seleccionado" # Al llamarse igual que nuestra variable, se vinculan
+    )
     # Buscamos el índice actual para que el radio refleje cambios externos
     try:
         index_actual = opciones_menu.index(st.session_state.menu_seleccionado)
