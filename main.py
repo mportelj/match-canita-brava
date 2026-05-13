@@ -540,25 +540,52 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             g_prev = [PAR_RIA_VIGO[h_actual]] * 4 # Valor por defecto (Par del hoyo)
 
         # --- RESALTADO DEL HOYO Y MARCADOR DEL HOYO ---
+    # --- BLOQUE: SELECTOR DE HOYO Y MARCADOR ---
         st.markdown("---")
+        
+        # Resaltamos el selector con una caja de color
+        with st.container():
+            st.info(f"### ⛳ Configuración del Hoyo")
+            h_actual = st.selectbox(
+                "Seleccionar Hoyo:", 
+                options=list(range(1, 19)), 
+                index=st.session_state.game.get('h_sel', 1) - 1,
+                key="sb_hoyo_actual"
+            )
+            st.session_state.game['h_sel'] = h_actual
+
+        # --- LÓGICA DEL MARCADOR DEL HOYO ---
+        g_prev = obtener_golpes_hoyo(h_actual)
         par_hoyo = PAR_RIA_VIGO.get(h_actual, 0)
-    
-        # Calculamos el marcador específico de este hoyo
+
         if any(g > 0 for g in g_prev):
             puntos_a = g_prev[0] + g_prev[1]
             puntos_b = g_prev[2] + g_prev[3]
-        if puntos_a < puntos_b:
-            status_hoyo = "🟢 Manu & Jose ganan el hoyo"
+            
+            if puntos_a < puntos_b:
+                status_hoyo = f"🟢 **Manu & Jose ganan** ({puntos_a} vs {puntos_b})"
+                color_box = "success"
             elif puntos_b < puntos_a:
-                status_hoyo = "🔴 Roge & Lalo ganan el hoyo"
+                status_hoyo = f"🔴 **Roge & Lalo ganan** ({puntos_b} vs {puntos_a})"
+                color_box = "error"
             else:
-            status_hoyo = "⚪ Hoyo empatado (AS)"
+                status_hoyo = f"⚪ **Hoyo empatado (AS)** ({puntos_a} iguales)"
+                color_box = "warning"
         else:
-        status_hoyo = "⏳ Pendiente de jugar"
+            status_hoyo = "⏳ **Pendiente de jugar**"
+            color_box = "info"
 
-        # Resaltado visual del selector y datos del hoyo
-        st.info(f"### ⛳ HOYO {h_actual} (Par {par_hoyo})")
-        st.write(f"**Estado actual:** {status_hoyo}")
+        # Mostramos el marcador resaltado
+        st.markdown(f"**Resultado del Hoyo {h_actual} (Par {par_hoyo}):**")
+        if color_box == "success": st.success(status_hoyo)
+        elif color_box == "error": st.error(status_hoyo)
+        elif color_box == "warning": st.warning(status_hoyo)
+        else: st.info(status_hoyo)
+
+        st.markdown("---")
+
+        # --- INPUTS DE GOLPES (2x2 para móvil) ---
+        # (Aquí continuas con tus columnas col1, col2...)
 
         # --- INPUTS DE GOLPES (Optimizado para móvil 2x2) ---
         col1, col2 = st.columns(2)
