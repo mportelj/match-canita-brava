@@ -449,15 +449,19 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     df_p = pd.DataFrame()
     df_partido_actual = pd.DataFrame()
 
-    # --- BLOQUE A: CONFIGURACIÓN DE INICIO (Si no hay partida activa) ---
-    if 'game' not in st.session_state or st.session_state.game is None:
-        st.info("💡 Selecciona una fecha para empezar o ve a Admin para editar una partida existente.")
-        st.markdown("### ⛳ Nueva Partida")
-        fecha_seleccionada = st.date_input("Selecciona la fecha del partido", key="fecha_nueva_p")
+    # --- BLOQUE A: CONFIGURACIÓN DE INICIO ---
+    # Cambiamos la condición: solo entra si NO hay game O si el game está vacío
+    if 'game' not in st.session_state or not st.session_state.game or 'id' not in st.session_state.game:
+        st.info("💡 Introduce la fecha para comenzar una nueva jornada.")
+        st.markdown("### 📅 Datos de la Jornada")
+        
+        # Usamos una key fija para que no se resetee al tocar el calendario
+        fecha_seleccionada = st.date_input("Selecciona la fecha del partido", key="fecha_selector_nueva")
         fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
         
-        if st.button("Iniciar Partido", type="primary", use_container_width=True):
+        if st.button("🚀 Iniciar Nueva Partida", type="primary", use_container_width=True):
             año_temporada = str(fecha_seleccionada.year)
+            # Creamos el diccionario de juego
             st.session_state.game = {
                 "id": datetime.now().strftime("%Y%m%d%H%M%S"),
                 "fecha": fecha_formateada,
@@ -466,6 +470,14 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             }
             st.cache_data.clear()
             st.rerun()
+            
+        st.write("---")
+        st.caption("Si quieres editar una partida antigua, ve a la sección 'Admin'.")
+
+    else:
+        # --- AQUÍ VA EL RESTO DEL CÓDIGO DE EDICIÓN (Bloque B en adelante) ---
+        g = st.session_state.game
+        # ... (el código que ya tienes para leer datos y mostrar el marcador)
             
     else:
         # --- BLOQUE B: SEGURIDAD Y LECTURA ---
