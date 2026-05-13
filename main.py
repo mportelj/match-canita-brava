@@ -541,21 +541,23 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
         # --- RESALTADO DEL HOYO Y MARCADOR DEL HOYO ---
     # --- BLOQUE: SELECTOR DE HOYO Y MARCADOR ---
+        # --- BLOQUE: SELECTOR DE HOYO RESALTADO ---
         st.markdown("---")
         
-        # Resaltamos el selector con una caja de color
+        # Caja informativa para resaltar el selector
         with st.container():
-            st.info(f"### ⛳ Configuración del Hoyo")
+            st.info("### ⛳ Selección de Hoyo")
             h_actual = st.selectbox(
-                "Seleccionar Hoyo:", 
+                "Elige el hoyo a anotar:", 
                 options=list(range(1, 19)), 
                 index=st.session_state.game.get('h_sel', 1) - 1,
                 key="sb_hoyo_actual"
             )
             st.session_state.game['h_sel'] = h_actual
 
-        # --- LÓGICA DEL MARCADOR DEL HOYO ---
-        g_prev = obtener_golpes_hoyo(h_actual)
+        # --- LÓGICA DEL MARCADOR DEL HOYO (Corregida) ---
+        # Usamos el nombre correcto de tu función: leer_golpes_hoyo
+        g_prev = leer_golpes_hoyo(h_actual) 
         par_hoyo = PAR_RIA_VIGO.get(h_actual, 0)
 
         if any(g > 0 for g in g_prev):
@@ -563,49 +565,35 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             puntos_b = g_prev[2] + g_prev[3]
             
             if puntos_a < puntos_b:
-                status_hoyo = f"🟢 **Manu & Jose ganan** ({puntos_a} vs {puntos_b})"
-                color_box = "success"
+                status_hoyo = f"🟢 **Manu & Jose ganan el hoyo** ({puntos_a} vs {puntos_b})"
+                st.success(status_hoyo)
             elif puntos_b < puntos_a:
-                status_hoyo = f"🔴 **Roge & Lalo ganan** ({puntos_b} vs {puntos_a})"
-                color_box = "error"
+                status_hoyo = f"🔴 **Roge & Lalo ganan el hoyo** ({puntos_b} vs {puntos_a})"
+                st.error(status_hoyo)
             else:
                 status_hoyo = f"⚪ **Hoyo empatado (AS)** ({puntos_a} iguales)"
-                color_box = "warning"
+                st.warning(status_hoyo)
         else:
-            status_hoyo = "⏳ **Pendiente de jugar**"
-            color_box = "info"
-
-        # Mostramos el marcador resaltado
-        st.markdown(f"**Resultado del Hoyo {h_actual} (Par {par_hoyo}):**")
-        if color_box == "success": st.success(status_hoyo)
-        elif color_box == "error": st.error(status_hoyo)
-        elif color_box == "warning": st.warning(status_hoyo)
-        else: st.info(status_hoyo)
+            st.info(f"⏳ **Hoyo {h_actual} (Par {par_hoyo}) pendiente de jugar**")
 
         st.markdown("---")
 
-        # --- INPUTS DE GOLPES (2x2 para móvil) ---
-        # (Aquí continuas con tus columnas col1, col2...)
-
-        # --- INPUTS DE GOLPES (Optimizado para móvil 2x2) ---
+        # --- INPUTS DE GOLPES (Optimizado 2x2 para móvil) ---
         col1, col2 = st.columns(2)
         col3, col4 = st.columns(2)
-    
-        with col1: v0 = st.number_input(f"MANU", 1, 15, value=g_prev[0] if g_prev[0]>0 else par_hoyo, key=f"n0_{h_actual}")
-        with col2: v1 = st.number_input(f"JOSE", 1, 15, value=g_prev[1] if g_prev[1]>0 else par_hoyo, key=f"n1_{h_actual}")
-        with col3: v2 = st.number_input(f"ROGE", 1, 15, value=g_prev[2] if g_prev[2]>0 else par_hoyo, key=f"n2_{h_actual}")
-        with col4: v3 = st.number_input(f"LALO", 1, 15, value=g_prev[3] if g_prev[3]>0 else par_hoyo, key=f"n3_{h_actual}")
+        
+        # Si no hay datos previos, sugerimos el PAR del hoyo para facilitar la entrada
+        v0 = col1.number_input("MANU", 1, 15, value=g_prev[0] if g_prev[0]>0 else par_hoyo, key=f"n0_{h_actual}")
+        v1 = col2.number_input("JOSE", 1, 15, value=g_prev[1] if g_prev[1]>0 else par_hoyo, key=f"n1_{h_actual}")
+        v2 = col3.number_input("ROGE", 1, 15, value=g_prev[2] if g_prev[2]>0 else par_hoyo, key=f"n2_{h_actual}")
+        v3 = col4.number_input("LALO", 1, 15, value=g_prev[3] if g_prev[3]>0 else par_hoyo, key=f"n3_{h_actual}")
 
-        # Lógica de guardado
-        cambios = [v0, v1, v2, v3] != g_prev
-        if cambios:
+        # Comprobar si hay cambios para mostrar botón de guardado
+        if [v0, v1, v2, v3] != g_prev:
             if st.button("💾 GUARDAR RESULTADOS", use_container_width=True, type="primary"):
                 ejecutar_guardado_automatico(h_actual, v0, v1, v2, v3)
                 st.cache_data.clear()
                 st.rerun()
-        elif all(g > 0 for g in g_prev):
-            st.success("✅ Resultados guardados correctamente")
-
 
         # --- BLOQUE H: FINALIZAR ---
         st.write("---") 
