@@ -31,11 +31,9 @@ def cargar_datos_golf():
 if 'sh' not in st.session_state:
     st.session_state.sh = cargar_datos_golf()
 
-# Inicializar navegación
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-# Inicializar datos de partida
 if 'game' not in st.session_state:
     st.session_state.game = {"h_sel": 1}
 
@@ -89,8 +87,6 @@ def cb_editar_partido(p_id, fecha, temporada):
     st.session_state.menu_seleccionado = "Nueva Partida"
 
 # --- 2. EL SIDEBAR (MENÚ LATERAL) ---
-# --- 4. SIDEBAR (CORREGIDO) ---
-# --- 4. SIDEBAR (RESETEADO Y CORREGIDO) ---
 # --- 4. SIDEBAR DEFINITIVO ---
 with st.sidebar:
     st.markdown("# ⛳ Cañita Brava")
@@ -98,16 +94,11 @@ with st.sidebar:
     
     opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
     
-    # 1. Aseguramos que la variable exista antes de crear el radio
-    if 'menu_seleccionado' not in st.session_state:
-        st.session_state.menu_seleccionado = "Inicio"
-
-    # 2. EL TRUCO: Definimos una función que se ejecute CADA VEZ que toques el menú
+    # Función para sincronizar el radio con la variable de control
     def on_menu_change():
-        # Sincroniza la selección del radio con nuestra variable de control
         st.session_state.menu_seleccionado = st.session_state.nav_key
 
-    # 3. UN SOLO RADIO con una KEY propia para el widget
+    # Un solo radio que controla todo
     st.radio(
         "Navegación",
         opciones_menu,
