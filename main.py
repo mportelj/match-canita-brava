@@ -440,7 +440,7 @@ if st.session_state.menu_seleccionado == "Inicio":
    
 # ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
-        st.title("⛳ Nueva Partida / Hoyo a Hoyo")
+        st.title("⛳ Partida") # Título actualizado
 
         # --- BLOQUE 0: INICIALIZACIÓN DE SEGURIDAD ---
         if 'refresco_id' not in st.session_state: 
@@ -449,8 +449,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         df_p = pd.DataFrame()
         df_partido_actual = pd.DataFrame()
 
-        # --- BLOQUE A: CONFIGURACIÓN DE INICIO (Si no hay partida activa) ---
-        # Comprobación robusta: ¿Existe el diccionario y tiene contenido?
+        # --- BLOQUE A: CONFIGURACIÓN DE INICIO ---
         game_activo = st.session_state.get('game')
         
         if not game_activo or not isinstance(game_activo, dict) or 'id' not in game_activo:
@@ -463,17 +462,14 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     "id": datetime.now().strftime("%Y%m%d%H%M%S"),
                     "fecha": fecha_nueva.strftime("%d/%m/%Y"),
                     "temporada": str(fecha_nueva.year),
-                    "h_sel": 1,
-                    "refresco_id": 0 # Lo añadimos dentro para mayor seguridad
+                    "h_sel": 1
                 }
                 st.cache_data.clear()
                 st.rerun()
         
         # --- BLOQUE B: EDICIÓN DE PARTIDA ACTIVA ---
         else:
-            # Usamos una referencia local segura
             g = st.session_state.game
-            
             try:
                 df_p = leer_datos() 
                 if df_p is not None and not df_p.empty:
@@ -481,9 +477,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     df_p['partido_id_str'] = df_p['partido_id'].astype(str).str.split('.').str[0]
                     df_partido_actual = df_p[df_p['partido_id_str'] == id_target]
             except Exception:
-                pass # Silenciamos errores de lectura inicial
+                pass
 
-            # Marcador Match Play General
+            # MARCADOR GENERAL DE LA PARTIDA (Match Play Global)
             pts_a = df_partido_actual['resultado_a'].sum() if not df_partido_actual.empty else 0
             pts_b = df_partido_actual['resultado_b'].sum() if not df_partido_actual.empty else 0
             dif = pts_a - pts_b
@@ -491,7 +487,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             st.subheader(f"📍 Editando: {g.get('fecha', 'S/F')}")
 
-            # Marcador Visual HTML
+            # Marcador Visual HTML (General)
             st.markdown(f"""
                 <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
                     <div style="display: flex; justify-content: space-around; align-items: center;">
@@ -518,33 +514,41 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.session_state.game['h_sel'] = min(18, g['h_sel'] + 1)
                 st.rerun()
 
-            # --- SELECTOR DE HOYO (FIX KEYERROR) ---
+            # --- SELECCIÓN DE HOYO ---
             st.markdown("---")
             with st.container():
                 st.info("### ⛳ Selección de Hoyo")
-                # Usamos una clave que no dependa de variables que puedan borrarse
                 h_actual = st.selectbox(
                     "Hoyo actual:", 
                     options=list(range(1, 19)), 
                     index=int(g.get('h_sel', 1)) - 1,
-                    key=f"sb_hoyo_fix_{g.get('id', 'temp')}" 
+                    key=f"sb_hoyo_fix_{g.get('id', 'temp')}"
                 )
                 st.session_state.game['h_sel'] = h_actual
 
-            # Lógica de identificación de golpes
+            # --- LÓGICA DE GOLPES DEL HOYO ACTUAL ---
             g_prev = [0, 0, 0, 0]
             if not df_partido_actual.empty and 'hoyo' in df_partido_actual.columns:
                 reg = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
                 if not reg.empty:
-                    g_prev = [int(reg.iloc[0]['s0']), int(reg.iloc[0]['s1']), int(reg.iloc[0]['s2']), int(reg.iloc[0]['s3'])]
+                    g_prev = [
+                        int(reg.iloc[0]['s0']), int(reg.iloc[0]['s1']),
+                        int(reg.iloc[0]['s2']), int(reg.iloc[0]['s3'])
+                    ]
 
-            # Estado del hoyo
+            # --- MARCADOR EXCLUSIVO DEL HOYO (CORREGIDO) ---
             par_h = PAR_RIA_VIGO.get(h_actual, 4)
             if any(v > 0 for v in g_prev):
-                pa, pb = (g_prev[0] + g_prev[1]), (g_prev[2] + g_prev[3])
-                if pa < pb: st.success(f"🟢 **Manu & Jose ganan el hoyo** ({pa} vs {pb})")
-                elif pb < pa: st.error(f"🔴 **Roge & Lalo ganan el hoyo** ({pb} vs {pa})")
-                else: st.warning(f"⚪ **Hoyo empatado** ({pa} iguales)")
+                # Comparamos solo los golpes de este hoyo
+                golpes_equipo_a = g_prev[0] + g_prev[1]
+                golpes_equipo_b = g_prev[2] + g_prev[3]
+                
+                if golpes_equipo_a < golpes_equipo_b:
+                    st.success(f"🟢 **Manu & Jose ganan el hoyo** ({golpes_equipo_a} vs {golpes_equipo_b})")
+                elif golpes_equipo_b < golpes_equipo_a:
+                    st.error(f"🔴 **Roge & Lalo ganan el hoyo** ({golpes_equipo_b} vs {golpes_equipo_a})")
+                else:
+                    st.warning(f"⚪ **Hoyo empatado** ({golpes_equipo_a} iguales)")
             else:
                 st.info(f"⏳ **Hoyo {h_actual} (Par {par_h}) pendiente**")
 
@@ -562,14 +566,12 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.cache_data.clear()
                     st.rerun()
 
-            # Botón Finalizar Seguro
+            # Popover Finalizar
             st.write("---") 
             with st.popover("🏁 Finalizar Partida", use_container_width=True):
                 st.warning("¿Cerrar la sesión actual?")
                 if st.button("Confirmar Cierre", type="primary", use_container_width=True):
-                    st.session_state.game = None # Primero a None
-                    if 'game' in st.session_state:
-                        del st.session_state.game # Luego borramos
+                    st.session_state.game = None
                     st.cache_data.clear()
                     st.rerun()
                 
