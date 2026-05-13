@@ -94,17 +94,21 @@ with st.sidebar:
     
     opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
     
-    # Función para sincronizar el radio con la variable de control
-    def on_menu_change():
-        st.session_state.menu_seleccionado = st.session_state.nav_key
+    # Inicializamos la variable de navegación si no existe
+    if 'menu_seleccionado' not in st.session_state:
+        st.session_state.menu_seleccionado = "Inicio"
 
-    # Un solo radio que controla todo
+    # Función para sincronizar el radio con el estado global
+    def actualizar_navegacion():
+        st.session_state.menu_seleccionado = st.session_state.nav_radio
+
+    # Un solo radio con una clave (key) persistente
     st.radio(
         "Navegación",
         opciones_menu,
         index=opciones_menu.index(st.session_state.menu_seleccionado),
-        key="nav_key",
-        on_change=on_menu_change
+        key="nav_radio",
+        on_change=actualizar_navegacion
     )
 
 # Inicializamos la variable si no existe
