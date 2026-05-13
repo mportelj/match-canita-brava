@@ -91,41 +91,30 @@ def cb_editar_partido(p_id, fecha, temporada):
 # --- 2. EL SIDEBAR (MENÚ LATERAL) ---
 # --- 4. SIDEBAR (CORREGIDO) ---
 # --- 4. SIDEBAR (RESETEADO Y CORREGIDO) ---
+# --- 4. SIDEBAR DEFINITIVO ---
 with st.sidebar:
     st.markdown("# ⛳ Cañita Brava")
     st.write("---")
     
     opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
     
-    # Inicializamos la variable si no existe
+    # 1. Aseguramos que la variable exista antes de crear el radio
     if 'menu_seleccionado' not in st.session_state:
         st.session_state.menu_seleccionado = "Inicio"
 
-    # IMPORTANTE: El radio usa la variable directamente como KEY
+    # 2. EL TRUCO: Definimos una función que se ejecute CADA VEZ que toques el menú
+    def on_menu_change():
+        # Sincroniza la selección del radio con nuestra variable de control
+        st.session_state.menu_seleccionado = st.session_state.nav_key
+
+    # 3. UN SOLO RADIO con una KEY propia para el widget
     st.radio(
         "Navegación",
         opciones_menu,
-        key="menu_seleccionado" # Al llamarse igual que nuestra variable, se vinculan
+        index=opciones_menu.index(st.session_state.menu_seleccionado),
+        key="nav_key",
+        on_change=on_menu_change
     )
-    # Buscamos el índice actual para que el radio refleje cambios externos
-    try:
-        index_actual = opciones_menu.index(st.session_state.menu_seleccionado)
-    except ValueError:
-        index_actual = 0
-
-    # Usamos un radio con KEY. Esto permite que si cambiamos el estado 
-    # desde el botón "Editar", el sidebar se entere.
-    seleccion = st.radio(
-        "Navegación",
-        opciones_menu,
-        index=index_actual,
-        key="nav_radio_main"
-    )
-
-    # Si el usuario hace clic en el sidebar, actualizamos el estado global
-    if seleccion != st.session_state.menu_seleccionado:
-        st.session_state.menu_seleccionado = seleccion
-        st.rerun()
 
 # Inicializamos la variable si no existe
 if 'menu_seleccionado' not in st.session_state:
