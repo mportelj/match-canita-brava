@@ -477,7 +477,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             except Exception as e:
                 st.error(f"Error al leer datos: {e}")
 
-            # MARCADOR GENERAL (Acumulado de toda la partida)
+            # MARCADOR GENERAL
             pts_a_total = df_partido_actual['resultado_a'].sum() if not df_partido_actual.empty else 0
             pts_b_total = df_partido_actual['resultado_b'].sum() if not df_partido_actual.empty else 0
             dif_global = pts_a_total - pts_b_total
@@ -485,7 +485,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             st.subheader(f"📍 {g.get('fecha', 'S/F')}")
 
-            # Marcador Visual HTML (Grande)
+            # Marcador Visual HTML
             st.markdown(f"""
                 <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
                     <div style="display: flex; justify-content: space-around; align-items: center;">
@@ -512,45 +512,46 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.session_state.game['h_sel'] = min(18, g['h_sel'] + 1)
                 st.rerun()
 
-            # --- SELECTOR DE HOYO ---
+            # --- SELECCIÓN DE HOYO ---
             st.markdown("---")
-            with st.container():
-                st.info("### ⛳ Selección de Hoyo")
-                h_actual = st.selectbox(
-                    "Hoyo actual:", 
-                    options=list(range(1, 19)), 
-                    index=int(g.get('h_sel', 1)) - 1,
-                    key=f"sb_hoyo_vfinal_{g.get('id', 'temp')}"
-                )
-                st.session_state.game['h_sel'] = h_actual
+            h_actual = st.selectbox(
+                "Seleccionar Hoyo:", 
+                options=list(range(1, 19)), 
+                index=int(g.get('h_sel', 1)) - 1,
+                key=f"sb_hoyo_vfinal_{g.get('id', 'temp')}"
+            )
+            st.session_state.game['h_sel'] = h_actual
 
-            # --- LÓGICA DE MARCADOR DEL HOYO ACTUAL ---
+            # --- COMPROBACIÓN DE DATOS EXISTENTES ---
             g_prev = [0, 0, 0, 0]
+            ya_tiene_datos = False
             res_hoyo_a, res_hoyo_b = 0, 0
             
             if not df_partido_actual.empty and 'hoyo' in df_partido_actual.columns:
                 reg = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
                 if not reg.empty:
-                    # Recuperamos los golpes para los inputs
-                    g_prev = [int(reg.iloc[0]['s0']), int(reg.iloc[0]['s1']), int(reg.iloc[0]['s2']), int(reg.iloc[0]['s3'])]
-                    # Recuperamos los resultados específicos del hoyo
-                    res_hoyo_a = int(reg.iloc[0]['resultado_a'])
-                    res_hoyo_b = int(reg.iloc[0]['resultado_b'])
+                    # Si la fila existe y al menos un jugador tiene golpes > 0
+                    if reg.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
+                        ya_tiene_datos = True
+                        g_prev = [int(reg.iloc[0]['s0']), int(reg.iloc[0]['s1']), int(reg.iloc[0]['s2']), int(reg.iloc[0]['s3'])]
+                        res_hoyo_a = int(reg.iloc[0]['resultado_a'])
+                        res_hoyo_b = int(reg.iloc[0]['resultado_b'])
 
-            # --- VISUALIZACIÓN DEL ESTADO DEL HOYO ---
-            par_h = PAR_RIA_VIGO.get(h_actual, 4)
-            if any(v > 0 for v in g_prev):
+            # --- INDICADOR DE ESTADO DEL HOYO ---
+            if ya_tiene_datos:
+                st.success(f"✅ **Hoyo {h_actual} Guardado**")
                 if res_hoyo_a > res_hoyo_b:
-                    st.success(f"🟢 **Manu & Jose ganan el hoyo** (1 Up)")
+                    st.markdown("🏆 *Resultado: Ganan Manu & Jose*")
                 elif res_hoyo_b > res_hoyo_a:
-                    st.error(f"🔴 **Roge & Lalo ganan el hoyo** (1 Up)")
+                    st.markdown("🏆 *Resultado: Ganan Roge & Lalo*")
                 else:
-                    st.warning(f"⚪ **Hoyo empatado (AS)**")
+                    st.markdown("🤝 *Resultado: Empate (AS)*")
             else:
-                st.info(f"⏳ **Hoyo {h_actual} (Par {par_h}) pendiente**")
+                st.warning(f"⚠️ **Hoyo {h_actual} SIN DATOS**")
 
             # --- INPUTS 2x2 ---
             st.markdown("---")
+            par_h = PAR_RIA_VIGO.get(h_actual, 4)
             col1, col2 = st.columns(2); col3, col4 = st.columns(2)
             v0 = col1.number_input("MANU", 1, 15, value=g_prev[0] if g_prev[0]>0 else par_h, key=f"v0_{h_actual}")
             v1 = col2.number_input("JOSE", 1, 15, value=g_prev[1] if g_prev[1]>0 else par_h, key=f"v1_{h_actual}")
@@ -558,7 +559,8 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             v3 = col4.number_input("LALO", 1, 15, value=g_prev[3] if g_prev[3]>0 else par_h, key=f"v3_{h_actual}")
 
             if [v0, v1, v2, v3] != g_prev:
-                if st.button("💾 GUARDAR RESULTADOS", use_container_width=True, type="primary"):
+                btn_label = "💾 ACTUALIZAR DATOS" if ya_tiene_datos else "💾 GUARDAR RESULTADOS"
+                if st.button(btn_label, use_container_width=True, type="primary"):
                     ejecutar_guardado_automatico(h_actual, v0, v1, v2, v3)
                     st.cache_data.clear()
                     st.rerun()
