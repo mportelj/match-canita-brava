@@ -27,8 +27,17 @@ def cargar_datos_golf():
     client = gspread.authorize(creds)
     return client.open_by_url(s["url"]).sheet1
 
+# --- 3. INICIALIZACIÓN DE ESTADOS (ESTO EVITA EL ERROR DE LINEA 100) ---
 if 'sh' not in st.session_state:
     st.session_state.sh = cargar_datos_golf()
+
+# Inicializar navegación
+if 'menu_seleccionado' not in st.session_state:
+    st.session_state.menu_seleccionado = "Inicio"
+
+# Inicializar datos de partida
+if 'game' not in st.session_state:
+    st.session_state.game = {"h_sel": 1}
 
 def borrar_partido_completo(id_partido_a_borrar):
     try:
