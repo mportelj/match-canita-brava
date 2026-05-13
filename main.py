@@ -439,8 +439,6 @@ if st.session_state.menu_seleccionado == "Inicio":
     """, unsafe_allow_html=True)
    
 # ==========================================
-# SECCIÓN: NUEVA PARTIDA 
-# ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
 
     # --- BLOQUE 0: INICIALIZACIÓN ---
@@ -458,11 +456,8 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
         st.write("Fecha seleccionada:", fecha_formateada)
 
-        
         if st.button("Iniciar Partido", type="primary", use_container_width=True):
             año_temporada = str(fecha_seleccionada.year)
-            fecha_formateada = fecha_seleccionada.strftime("%d/%m/%Y")
-        
             st.session_state.game = {
                 "id": datetime.now().strftime("%Y%m%d%H%M%S"),
                 "fecha": fecha_formateada,
@@ -478,14 +473,13 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         try:
             df_p = leer_datos() 
             if df_p is not None and not df_p.empty:
-                # Normalización de ID para búsqueda
                 id_target = str(g['id']).split('.')[0]
                 df_p['partido_id_str'] = df_p['partido_id'].astype(str).str.split('.').str[0]
                 df_partido_actual = df_p[df_p['partido_id_str'] == id_target]
         except Exception as e:
             st.error(f"Error al leer datos: {e}")
 
-        # --- BLOQUE C: MARCADOR MATCH PLAY ---
+        # --- BLOQUE C: MARCADOR MATCH PLAY GENERAL ---
         pts_a_total = df_partido_actual['resultado_a'].sum() if not df_partido_actual.empty else 0
         pts_b_total = df_partido_actual['resultado_b'].sum() if not df_partido_actual.empty else 0
         dif = pts_a_total - pts_b_total
@@ -510,74 +504,52 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             </div>
         """, unsafe_allow_html=True)
 
-        # --- BLOQUE D/E: NAVEGACIÓN Y SELECTOR ---
+        # --- BLOQUE D/E: NAVEGACIÓN ---
         c_nav1, c_nav2 = st.columns([1,1])
         if c_nav1.button("← Anterior", use_container_width=True):
-            g['h_sel'] = max(1, g['h_sel'] - 1)
+            st.session_state.game['h_sel'] = max(1, g['h_sel'] - 1)
             st.rerun()
         if c_nav2.button("Siguiente →", use_container_width=True):
-            g['h_sel'] = min(18, g['h_sel'] + 1)
+            st.session_state.game['h_sel'] = min(18, g['h_sel'] + 1)
             st.rerun()
 
-        lista_hoyos = [f"Hoyo {i} (Par {PAR_RIA_VIGO[i]})" for i in range(1, 19)]
-        seleccion = st.selectbox("Hoyo", lista_hoyos, index=g['h_sel']-1, key=f"h_sel_input_{g['h_sel']}")
-        
-        nuevo_h_id = int(seleccion.split(" ")[1])
-        if nuevo_h_id != g['h_sel']:
-            g['h_sel'] = nuevo_h_id
-            st.rerun()
+        # --- SELECTOR DE HOYO RESALTADO (UNIFICADO) ---
+        st.markdown("---")
+        with st.container():
+            st.info("### ⛳ Selección de Hoyo")
+            h_actual = st.selectbox(
+                "Hoyo actual:", 
+                options=list(range(1, 19)), 
+                index=st.session_state.game['h_sel'] - 1,
+                key=f"sb_hoyo_actual_{st.session_state.game['h_sel']}" # Key dinámica para evitar duplicados
+            )
+            st.session_state.game['h_sel'] = h_actual
 
-        # --- BLOQUE F: IDENTIFICACIÓN DE GOLPES GUARDADOS ---
-        h_actual = g['h_sel']
-        # Buscamos el registro del hoyo en el dataframe filtrado del partido
+        # --- LÓGICA DE IDENTIFICACIÓN DE GOLPES (Corregida) ---
         registro_hoyo = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
-        
         ya_guardado = not registro_hoyo.empty
         
         if ya_guardado:
             g_prev = [
-                int(registro_hoyo.iloc[0]['s0']),
-                int(registro_hoyo.iloc[0]['s1']),
-                int(registro_hoyo.iloc[0]['s2']),
-                int(registro_hoyo.iloc[0]['s3'])
+                int(registro_hoyo.iloc[0]['s0']), int(registro_hoyo.iloc[0]['s1']),
+                int(registro_hoyo.iloc[0]['s2']), int(registro_hoyo.iloc[0]['s3'])
             ]
         else:
-            g_prev = [PAR_RIA_VIGO[h_actual]] * 4 # Valor por defecto (Par del hoyo)
+            par_h = PAR_RIA_VIGO.get(h_actual, 4)
+            g_prev = [0, 0, 0, 0] # Usamos 0 para detectar que no hay datos
 
-        # --- RESALTADO DEL HOYO Y MARCADOR DEL HOYO ---
-    # --- BLOQUE: SELECTOR DE HOYO Y MARCADOR ---
-        # --- BLOQUE: SELECTOR DE HOYO RESALTADO ---
-        st.markdown("---")
-        
-        # Caja informativa para resaltar el selector
-        with st.container():
-            st.info("### ⛳ Selección de Hoyo")
-            h_actual = st.selectbox(
-                "Elige el hoyo a anotar:", 
-                options=list(range(1, 19)), 
-                index=st.session_state.game.get('h_sel', 1) - 1,
-                key="sb_hoyo_actual"
-            )
-            st.session_state.game['h_sel'] = h_actual
-
-        # --- LÓGICA DEL MARCADOR DEL HOYO (Corregida) ---
-        # Usamos el nombre correcto de tu función: leer_golpes_hoyo
-        g_prev = leer_golpes_hoyo(h_actual) 
+        # --- MARCADOR ESPECÍFICO DEL HOYO ---
         par_hoyo = PAR_RIA_VIGO.get(h_actual, 0)
-
         if any(g > 0 for g in g_prev):
             puntos_a = g_prev[0] + g_prev[1]
             puntos_b = g_prev[2] + g_prev[3]
             
             if puntos_a < puntos_b:
-                status_hoyo = f"🟢 **Manu & Jose ganan el hoyo** ({puntos_a} vs {puntos_b})"
-                st.success(status_hoyo)
+                st.success(f"🟢 **Manu & Jose ganan el hoyo** ({puntos_a} vs {puntos_b})")
             elif puntos_b < puntos_a:
-                status_hoyo = f"🔴 **Roge & Lalo ganan el hoyo** ({puntos_b} vs {puntos_a})"
-                st.error(status_hoyo)
+                st.error(f"🔴 **Roge & Lalo ganan el hoyo** ({puntos_b} vs {puntos_a})")
             else:
-                status_hoyo = f"⚪ **Hoyo empatado (AS)** ({puntos_a} iguales)"
-                st.warning(status_hoyo)
+                st.warning(f"⚪ **Hoyo empatado (AS)** ({puntos_a} iguales)")
         else:
             st.info(f"⏳ **Hoyo {h_actual} (Par {par_hoyo}) pendiente de jugar**")
 
@@ -587,7 +559,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         col1, col2 = st.columns(2)
         col3, col4 = st.columns(2)
         
-        # Si no hay datos previos, sugerimos el PAR del hoyo para facilitar la entrada
+        # Si no hay datos (0), sugerimos el PAR
         v0 = col1.number_input("MANU", 1, 15, value=g_prev[0] if g_prev[0]>0 else par_hoyo, key=f"n0_{h_actual}")
         v1 = col2.number_input("JOSE", 1, 15, value=g_prev[1] if g_prev[1]>0 else par_hoyo, key=f"n1_{h_actual}")
         v2 = col3.number_input("ROGE", 1, 15, value=g_prev[2] if g_prev[2]>0 else par_hoyo, key=f"n2_{h_actual}")
