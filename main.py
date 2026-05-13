@@ -89,23 +89,33 @@ def cb_editar_partido(p_id, fecha, temporada):
     st.session_state.menu_seleccionado = "Nueva Partida"
 
 # --- 2. EL SIDEBAR (MENÚ LATERAL) ---
-# --- 4. SIDEBAR (MENÚ CORREGIDO PARA MÓVIL) ---
+# --- 4. SIDEBAR (CORREGIDO) ---
 with st.sidebar:
     st.markdown("# ⛳ Cañita Brava")
     st.write("---")
     
     opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
     
-    # Usamos un selectbox o radio con KEY fija. 
-    # Esto asegura que al refrescar en el móvil, Streamlit recuerde dónde estábamos.
+    # Si la variable no existe, la inicializamos
+    if 'menu_seleccionado' not in st.session_state:
+        st.session_state.menu_seleccionado = "Inicio"
+
+    # Buscamos el índice actual para que el radio refleje cambios externos
+    try:
+        index_actual = opciones_menu.index(st.session_state.menu_seleccionado)
+    except ValueError:
+        index_actual = 0
+
+    # Usamos un radio con KEY. Esto permite que si cambiamos el estado 
+    # desde el botón "Editar", el sidebar se entere.
     seleccion = st.radio(
-        "Navegación", 
-        opciones_menu, 
-        key="nav_menu", 
-        index=opciones_menu.index(st.session_state.get('menu_seleccionado', 'Inicio'))
+        "Navegación",
+        opciones_menu,
+        index=index_actual,
+        key="nav_radio_main"
     )
-    
-    # Sincronizamos la selección con el estado global
+
+    # Si el usuario hace clic en el sidebar, actualizamos el estado global
     if seleccion != st.session_state.menu_seleccionado:
         st.session_state.menu_seleccionado = seleccion
         st.rerun()
