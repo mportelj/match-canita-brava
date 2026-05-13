@@ -539,26 +539,46 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         else:
             g_prev = [PAR_RIA_VIGO[h_actual]] * 4 # Valor por defecto (Par del hoyo)
 
-        # --- BLOQUE G: INPUTS Y DETECCIÓN DE CAMBIOS ---
-        col1, col2, col3, col4 = st.columns(4)
-        with col1: v0 = st.number_input("MANU", 1, 15, value=g_prev[0], key=f"n0_{h_actual}")
-        with col2: v1 = st.number_input("JOSE", 1, 15, value=g_prev[1], key=f"n1_{h_actual}")
-        with col3: v2 = st.number_input("ROGE", 1, 15, value=g_prev[2], key=f"n2_{h_actual}")
-        with col4: v3 = st.number_input("LALO", 1, 15, value=g_prev[3], key=f"n3_{h_actual}")
+        # --- RESALTADO DEL HOYO Y MARCADOR DEL HOYO ---
+        st.markdown("---")
+        par_hoyo = PAR_RIA_VIGO.get(h_actual, 0)
+    
+        # Calculamos el marcador específico de este hoyo
+        if any(g > 0 for g in g_prev):
+            puntos_a = g_prev[0] + g_prev[1]
+            puntos_b = g_prev[2] + g_prev[3]
+        if puntos_a < puntos_b:
+            status_hoyo = "🟢 Manu & Jose ganan el hoyo"
+            elif puntos_b < puntos_a:
+                status_hoyo = "🔴 Roge & Lalo ganan el hoyo"
+            else:
+            status_hoyo = "⚪ Hoyo empatado (AS)"
+        else:
+        status_hoyo = "⏳ Pendiente de jugar"
 
-        # Lógica de habilitación
-        cambios_detectados = [v0, v1, v2, v3] != g_prev
-        boton_disabled = ya_guardado and not cambios_detectados
+        # Resaltado visual del selector y datos del hoyo
+        st.info(f"### ⛳ HOYO {h_actual} (Par {par_hoyo})")
+        st.write(f"**Estado actual:** {status_hoyo}")
 
-        if st.button("💾 GUARDAR HOYO", use_container_width=True, type="primary", disabled=boton_disabled):
-            ejecutar_guardado_automatico(h_actual, v0, v1, v2, v3)
-            st.cache_data.clear() # Forzamos recarga para que el botón se deshabilite tras guardar
-            st.rerun()
+        # --- INPUTS DE GOLPES (Optimizado para móvil 2x2) ---
+        col1, col2 = st.columns(2)
+        col3, col4 = st.columns(2)
+    
+        with col1: v0 = st.number_input(f"MANU", 1, 15, value=g_prev[0] if g_prev[0]>0 else par_hoyo, key=f"n0_{h_actual}")
+        with col2: v1 = st.number_input(f"JOSE", 1, 15, value=g_prev[1] if g_prev[1]>0 else par_hoyo, key=f"n1_{h_actual}")
+        with col3: v2 = st.number_input(f"ROGE", 1, 15, value=g_prev[2] if g_prev[2]>0 else par_hoyo, key=f"n2_{h_actual}")
+        with col4: v3 = st.number_input(f"LALO", 1, 15, value=g_prev[3] if g_prev[3]>0 else par_hoyo, key=f"n3_{h_actual}")
 
-        if ya_guardado and not cambios_detectados:
-            st.success(f"✅ Hoyo {h_actual} verificado. Sin cambios.")
-        elif ya_guardado and cambios_detectados:
-            st.warning("⚠️ Cambios sin guardar en este hoyo.")
+        # Lógica de guardado
+        cambios = [v0, v1, v2, v3] != g_prev
+        if cambios:
+            if st.button("💾 GUARDAR RESULTADOS", use_container_width=True, type="primary"):
+                ejecutar_guardado_automatico(h_actual, v0, v1, v2, v3)
+                st.cache_data.clear()
+                st.rerun()
+        elif all(g > 0 for g in g_prev):
+            st.success("✅ Resultados guardados correctamente")
+
 
         # --- BLOQUE H: FINALIZAR ---
         st.write("---") 
