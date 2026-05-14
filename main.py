@@ -604,7 +604,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 if st.button("Confirmar Cierre", type="primary", use_container_width=True):
                     st.session_state.game = None
                     st.rerun()
-                
 #ESTADUSTICAS ==============
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
