@@ -570,39 +570,33 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.rerun()
 
             # --- SECCIÓN MVP (LECTURA DIRECTA Y SUMA FILTRADA) ---
+           # --- SECCIÓN MVP (CORREGIDA PARA SUMA EXACTA) ---
             st.write("---")
             with st.expander("🏆 CLASIFICACIÓN MVP"):
                 nombres = ["MANU", "JOSE", "ROGE", "LALO"]
                 
-                # 1. Desglose del hoyo seleccionado (Visualización inmediata)
-                st.markdown(f"**🌟 Puntos Hoyo {h_actual}:**")
+                # 1. Puntos del hoyo actual (Metric)
                 cols = st.columns(4)
                 for i in range(4):
-                    # p1_pts corresponde a MANU, p2_pts a JOSE, etc.
                     val_hoyo = pts_hoyo_actual[i] if ya_datos else 0.0
                     cols[i].metric(nombres[i], f"{val_hoyo:.1f}")
 
-                # 2. Ranking Acumulado (Suma estricta de la jornada actual)
+                # 2. Ranking Acumulado Total de la Jornada
                 if not df_partido_actual.empty:
-                    st.markdown("**📊 Acumulado Jornada:**")
+                    st.markdown("**📊 Acumulado Real de la Jornada:**")
                     
-                    # Agrupamos por hoyo para evitar duplicados si los hubiera y sumamos
-                    # p1_pts -> Jugador 1, p2_pts -> Jugador 2...
                     totales_partido = []
                     for i in range(1, 5):
                         campo = f'p{i}_pts'
-                        # Convertimos a numérico, llenamos vacíos con 0 y sumamos
+                        # Aseguramos que los datos sean numéricos y sumamos sobre el dataframe filtrado de hoy
                         suma_jugador = pd.to_numeric(df_partido_actual[campo], errors='coerce').fillna(0).sum()
                         totales_partido.append(suma_jugador)
                     
-                    # Crear ranking ordenado de mayor a menor
                     ranking = sorted(zip(nombres, totales_partido), key=lambda x: x[1], reverse=True)
-                    
                     for jug, pts in ranking:
                         st.write(f"- {jug}: **{pts:.1f} pts**")
                 else:
-                    st.write("No hay datos acumulados para esta jornada.")
-
+                    st.info("No hay datos registrados para calcular el acumulado.")
             # --- CIERRE DE SESIÓN ---
             st.write("---")
             with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
