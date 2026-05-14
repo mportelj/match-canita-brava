@@ -583,14 +583,20 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 # Ranking Acumulado del partido actual
                 if not df_partido_actual.empty:
                     st.markdown("**📊 Acumulado Partida:**")
+                    
+                    # Usamos .fillna(0) para evitar que los NaN rompan el formato :.1f
                     totales_partido = [
-                        df_partido_actual['p1_pts'].sum(), df_partido_actual['p2_pts'].sum(),
-                        df_partido_actual['p3_pts'].sum(), df_partido_actual['p4_pts'].sum()
+                        df_partido_actual['p1_pts'].fillna(0).sum(), 
+                        df_partido_actual['p2_pts'].fillna(0).sum(),
+                        df_partido_actual['p3_pts'].fillna(0).sum(), 
+                        df_partido_actual['p4_pts'].fillna(0).sum()
                     ]
                     
                     ranking = sorted(zip(nombres, totales_partido), key=lambda x: x[1], reverse=True)
                     for jug, pts in ranking:
-                        st.write(f"- {jug}: **{pts:.1f} pts**")
+                        # Aseguramos que pts sea float por si acaso
+                        val_pts = float(pts)
+                        st.write(f"- {jug}: **{val_pts:.1f} pts**")
 
             # --- CIERRE DE SESIÓN ---
             st.write("---")
