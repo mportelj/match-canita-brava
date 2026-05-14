@@ -440,14 +440,14 @@ if st.session_state.menu_seleccionado == "Inicio":
    
 # ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
-        # --- BLOQUE 0: INICIALIZACIÓN ---
+        # --- BLOQUE 0: INICIALIZACIÓN DE ESTADO ---
         if 'refresco_id' not in st.session_state: 
             st.session_state.refresco_id = 0
         
         df_p = pd.DataFrame()
         df_partido_actual = pd.DataFrame()
 
-        # --- BLOQUE A: CONFIGURACIÓN DE INICIO ---
+        # --- BLOQUE A: CONFIGURACIÓN DE INICIO (SI NO HAY PARTIDO) ---
         game_activo = st.session_state.get('game')
         if not game_activo or not isinstance(game_activo, dict) or 'id' not in game_activo:
             st.title("⛳ Nueva Partida")
@@ -463,37 +463,41 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.cache_data.clear()
                 st.rerun()
         
-        # --- BLOQUE B: EDICIÓN ACTIVA ---
+        # --- BLOQUE B: EDICIÓN DE PARTIDO ACTIVO ---
         else:
             g = st.session_state.game
+            # Eliminación de márgenes superiores para ganar espacio en móvil
             st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
             st.title(f"⛳ {g.get('fecha', 'S/F')}")
 
+            # Lectura segura de datos
             try:
                 df_p = leer_datos() 
                 if df_p is not None and not df_p.empty:
+                    # Normalización de ID para evitar errores de tipo float/str
                     id_target = str(g['id']).split('.')[0]
                     df_p['partido_id_str'] = df_p['partido_id'].astype(str).str.split('.').str[0]
                     df_partido_actual = df_p[df_p['partido_id_str'] == id_target]
             except Exception as e:
-                st.error(f"Error al leer base de datos: {e}")
+                st.error(f"Error crítico al leer base de datos: {e}")
 
-            # MARCADOR GENERAL ACUMULADO
+            # Cálculo de Marcador General (Acumulado de la sesión)
             pts_a_total = df_partido_actual['resultado_a'].sum() if not df_partido_actual.empty else 0
             pts_b_total = df_partido_actual['resultado_b'].sum() if not df_partido_actual.empty else 0
             dif_global = pts_a_total - pts_b_total
             m_a, m_b = (dif_global, 0) if dif_global > 0 else (0, abs(dif_global))
 
-            # CSS
+            # Inyección de CSS para elementos gigantes
             st.markdown("""
                 <style>
                     div[data-testid="stNumberInput"] label { font-size: 1.3rem !important; font-weight: bold !important; color: #2e7d32; }
                     div[data-testid="stNumberInput"] input { font-size: 2.2rem !important; height: 75px !important; }
                     .stButton button { height: 70px !important; font-size: 1.4rem !important; font-weight: bold !important; }
+                    div[data-baseweb="select"] { font-size: 1.5rem !important; }
                 </style>
             """, unsafe_allow_html=True)
 
-            # Marcador Principal HTML
+            # Renderizado del Marcador Visual
             st.markdown(f"""
                 <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 10px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
                     <div style="display: flex; justify-content: space-around; align-items: center;">
@@ -504,7 +508,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 </div>
             """, unsafe_allow_html=True)
 
-            # NAVEGACIÓN
+            # --- NAVEGACIÓN ---
             h_actual = st.selectbox("📍 HOYO", options=list(range(1, 19)), index=int(st.session_state.game['h_sel']) - 1, key=f"sb_h_{st.session_state.refresco_id}")
             st.session_state.game['h_sel'] = h_actual
 
@@ -518,8 +522,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.session_state.refresco_id += 1
                 st.rerun()
 
-            # --- LÓGICA DE DATOS DEL HOYO ---
+            # --- EXTRACCIÓN DE DATOS ESPECÍFICOS DEL HOYO ---
             g_prev = [0, 0, 0, 0]
+            pts_hoyo_actual = [0.0, 0.0, 0.0, 0.0]
             ya_datos = False
             res_a, res_b = 0, 0
             
@@ -528,15 +533,18 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 if not reg.empty and reg.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
                     ya_datos = True
                     g_prev = [int(reg.iloc[0][f's{i}']) for i in range(4)]
-                    # Obtenemos los puntos Match Play ya calculados en la DB
                     res_a = int(reg.iloc[0]['resultado_a'])
                     res_b = int(reg.iloc[0]['resultado_b'])
+                    # Lectura directa de puntos oficiales calculados en DB
+                    pts_hoyo_actual = [
+                        float(reg.iloc[0]['p1_pts']), float(reg.iloc[0]['p2_pts']),
+                        float(reg.iloc[0]['p3_pts']), float(reg.iloc[0]['p4_pts'])
+                    ]
 
-            # --- MARCADOR DEL HOYO (CORREGIDO: DIFERENCIA DE RESULTADOS) ---
+            # --- ESTADO DEL HOYO (Marcador de hoyo por diferencia de resultados) ---
             par_h = PAR_RIA_VIGO.get(h_actual, 4)
             if ya_datos:
                 dif_h = res_a - res_b
-                # Formato solicitado: Equipo UP (puntosA - puntosB)
                 if dif_h > 0:
                     st.success(f"✅ Manu & Jose {abs(dif_h)} UP ({res_a} - {res_b})")
                 elif dif_h < 0:
@@ -544,9 +552,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 else:
                     st.warning(f"✅ Hoyo Empatado AS ({res_a} - {res_b})")
             else:
-                st.info(f"⏳ Hoyo {h_actual} (Par {par_h}) sin datos")
+                st.info(f"⏳ Hoyo {h_actual} (Par {par_h}) sin datos guardados")
 
-            # --- INPUTS ---
+            # --- ENTRADA DE GOLPES ---
             st.markdown("---")
             c1, c2 = st.columns(2); c3, c4 = st.columns(2)
             v0 = c1.number_input("MANU", 1, 15, value=g_prev[0] if g_prev[0]>0 else par_h, key=f"v0_{h_actual}_{st.session_state.refresco_id}")
@@ -554,49 +562,40 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             v2 = c3.number_input("ROGE", 1, 15, value=g_prev[2] if g_prev[2]>0 else par_h, key=f"v2_{h_actual}_{st.session_state.refresco_id}")
             v3 = c4.number_input("LALO", 1, 15, value=g_prev[3] if g_prev[3]>0 else par_h, key=f"v3_{h_actual}_{st.session_state.refresco_id}")
 
+            # Botón de Guardado con limpieza de caché
             if [v0, v1, v2, v3] != g_prev:
                 if st.button("💾 GUARDAR HOYO", use_container_width=True, type="primary"):
                     ejecutar_guardado_automatico(h_actual, v0, v1, v2, v3)
                     st.cache_data.clear()
                     st.rerun()
 
-            # --- SECCIÓN MVP (PUNTOS ESPECIALES) ---
+            # --- SECCIÓN MVP (Basado en campos oficiales p_pts) ---
             st.write("---")
             with st.expander("🏆 CLASIFICACIÓN MVP"):
-                def calcular_mvp(golpes, par):
-                    if sum(golpes) == 0: return [0.0]*4
-                    p = [0.0]*4
-                    # Gana hoyo: 1.5 repartido entre los mejores golpes individuales
-                    val_min = min(golpes)
-                    ganan = [i for i, x in enumerate(golpes) if x == val_min]
-                    for idx in ganan: p[idx] += (1.5 / len(ganan))
-                    # Bonus: Birdie +1.5, Par +0.5
-                    for i, g in enumerate(golpes):
-                        if g < par: p[i] += 1.5
-                        elif g == par: p[i] += 0.5
-                    return p
-
                 nombres = ["MANU", "JOSE", "ROGE", "LALO"]
-                p_h = calcular_mvp([v0, v1, v2, v3], par_h)
+                
+                # Desglose del hoyo seleccionado
                 st.markdown(f"**🌟 Puntos Hoyo {h_actual}:**")
                 cols = st.columns(4)
                 for i in range(4):
-                    cols[i].metric(nombres[i], f"{p_h[i]:.1f}")
+                    cols[i].metric(nombres[i], f"{pts_hoyo_actual[i]:.1f}")
 
+                # Ranking Acumulado del partido actual
                 if not df_partido_actual.empty:
                     st.markdown("**📊 Acumulado Partida:**")
-                    totales = [0.0]*4
-                    for _, r in df_partido_actual.iterrows():
-                        pts_r = calcular_mvp([r['s0'], r['s1'], r['s2'], r['s3']], PAR_RIA_VIGO.get(int(r['hoyo']), 4))
-                        for i in range(4): totales[i] += pts_r[i]
+                    totales_partido = [
+                        df_partido_actual['p1_pts'].sum(), df_partido_actual['p2_pts'].sum(),
+                        df_partido_actual['p3_pts'].sum(), df_partido_actual['p4_pts'].sum()
+                    ]
                     
-                    ranking = sorted(zip(nombres, totales), key=lambda x: x[1], reverse=True)
+                    ranking = sorted(zip(nombres, totales_partido), key=lambda x: x[1], reverse=True)
                     for jug, pts in ranking:
                         st.write(f"- {jug}: **{pts:.1f} pts**")
 
-            # --- FINALIZAR ---
+            # --- CIERRE DE SESIÓN ---
             st.write("---")
             with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
+                st.warning("Esto cerrará la edición del partido actual.")
                 if st.button("Confirmar Cierre", type="primary", use_container_width=True):
                     st.session_state.game = None
                     st.cache_data.clear()
