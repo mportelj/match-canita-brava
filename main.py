@@ -455,7 +455,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.info("💡 Selecciona una fecha para empezar.")
             st.markdown("### ⛳ Nueva Partida")
             fecha_nueva = st.date_input("Fecha del partido", key="fecha_nueva_p")
-            if st.button("Iniciar Partido", type="primary", use_container_width=True):
+            if st.button("🚀 INICIAR PARTIDO", type="primary", use_container_width=True):
                 st.session_state.game = {
                     "id": datetime.now().strftime("%Y%m%d%H%M%S"),
                     "fecha": fecha_nueva.strftime("%d/%m/%Y"),
@@ -484,102 +484,119 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             dif_global = pts_a_total - pts_b_total
             m_a, m_b = (dif_global, 0) if dif_global > 0 else (0, abs(dif_global))
 
-            st.subheader(f"📍 {g.get('fecha', 'S/F')}")
+            # CSS PARA INTERFAZ GIGANTE (Móvil)
+            st.markdown("""
+                <style>
+                    div[data-testid="stNumberInput"] label { font-size: 1.3rem !important; font-weight: bold !important; color: #2e7d32; }
+                    div[data-testid="stNumberInput"] input { font-size: 2rem !important; height: 70px !important; }
+                    .stButton button { height: 70px !important; font-size: 1.4rem !important; font-weight: bold !important; }
+                    div[data-baseweb="select"] > div { height: 60px !important; font-size: 1.5rem !important; }
+                </style>
+            """, unsafe_allow_html=True)
 
             # Marcador Visual HTML
             st.markdown(f"""
                 <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
                     <div style="display: flex; justify-content: space-around; align-items: center;">
-                        <div style="flex: 1;">
-                            <p style="margin:0; font-size:0.8em; color:#2e7d32; font-weight:bold;">{EQUIPO_A_NOMBRES}</p>
-                            <h1 style="margin:0; font-size:4.5em; color:{COLOR_A if m_a > 0 else '#333'};">{m_a:g}</h1>
-                        </div>
+                        <div style="flex: 1;"><p style="margin:0; font-size:1em; font-weight:bold;">MANU & JOSE</p><h1 style="margin:0; font-size:4.5em; color:{COLOR_A if m_a > 0 else '#333'};">{m_a:g}</h1></div>
                         <div style="background:#ccc; border-radius:50%; width:40px; height:40px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#666;">VS</div>
-                        <div style="flex: 1;">
-                            <p style="margin:0; font-size:0.8em; color:#c62828; font-weight:bold;">{EQUIPO_B_NOMBRES}</p>
-                            <h1 style="margin:0; font-size:4.5em; color:{COLOR_B if m_b > 0 else '#333'};">{m_b:g}</h1>
-                        </div>
+                        <div style="flex: 1;"><p style="margin:0; font-size:1em; font-weight:bold;">ROGE & LALO</p><h1 style="margin:0; font-size:4.5em; color:{COLOR_B if m_b > 0 else '#333'};">{m_b:g}</h1></div>
                     </div>
-                    <p style="margin-top:5px; color:#666; font-size:0.9em;">{"All Square" if dif_global == 0 else f"{abs(dif_global)} Up"}</p>
+                    <p style="margin-top:5px; color:#666; font-size:1.1em;">{"All Square" if dif_global == 0 else f"{abs(dif_global)} Up"}</p>
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- NAVEGACIÓN RÁPIDA ---
+            # NAVEGACIÓN RÁPIDA GIGANTE
             c_nav1, c_nav2 = st.columns(2)
-            if c_nav1.button("← Anterior", use_container_width=True):
+            if c_nav1.button("⬅️ ANTERIOR", use_container_width=True):
                 st.session_state.game['h_sel'] = max(1, int(st.session_state.game['h_sel']) - 1)
                 st.session_state.refresco_id += 1
                 st.rerun()
-            if c_nav2.button("Siguiente →", use_container_width=True):
+            if c_nav2.button("SIGUIENTE ➡️", use_container_width=True):
                 st.session_state.game['h_sel'] = min(18, int(st.session_state.game['h_sel']) + 1)
                 st.session_state.refresco_id += 1
                 st.rerun()
 
-            # --- SELECTOR DE HOYO (DINÁMICO CON REFRESCO) ---
+            # --- SELECTOR DE HOYO ---
             st.markdown("---")
             h_actual = st.selectbox(
-                "Seleccionar Hoyo:", 
+                "📍 SELECCIONAR HOYO", 
                 options=list(range(1, 19)), 
                 index=int(st.session_state.game['h_sel']) - 1,
-                key=f"sb_hoyo_ref_{st.session_state.refresco_id}"
+                key=f"sb_hoyo_gigante_{st.session_state.refresco_id}"
             )
             st.session_state.game['h_sel'] = h_actual
 
-            # --- COMPROBACIÓN DE DATOS EXISTENTES EN ESTE HOYO ---
+            # --- LECTURA DE GOLPES ---
             g_prev = [0, 0, 0, 0]
-            ya_tiene_datos = False
-            res_hoyo_a, res_hoyo_b = 0, 0
-            
+            ya_datos = False
             if not df_partido_actual.empty and 'hoyo' in df_partido_actual.columns:
                 reg = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
                 if not reg.empty:
-                    # Verificamos si hay golpes anotados
                     golpes_fila = reg.iloc[0][['s0', 's1', 's2', 's3']].fillna(0).values
                     if sum(golpes_fila) > 0:
-                        ya_tiene_datos = True
+                        ya_datos = True
                         g_prev = [int(x) for x in golpes_fila]
-                        res_hoyo_a = int(reg.iloc[0]['resultado_a'])
-                        res_hoyo_b = int(reg.iloc[0]['resultado_b'])
 
-            # --- INDICADOR VISUAL DEL HOYO ---
-            if ya_tiene_datos:
-                if res_hoyo_a > res_hoyo_b:
-                    st.success(f"✅ **Hoyo {h_actual} Guardado: Ganan Manu & Jose**")
-                elif res_hoyo_b > res_hoyo_a:
-                    st.error(f"✅ **Hoyo {h_actual} Guardado: Ganan Roge & Lalo**")
-                else:
-                    st.warning(f"✅ **Hoyo {h_actual} Guardado: Empate (AS)**")
-            else:
-                st.info(f"⚠️ **Hoyo {h_actual} sin datos registrados**")
-
-            # --- INPUTS DE GOLPES ---
-            st.markdown("---")
+            # --- MARCADOR DEL HOYO CON DIFERENCIA ---
             par_h = PAR_RIA_VIGO.get(h_actual, 4)
-            col1, col2 = st.columns(2); col3, col4 = st.columns(2)
-            
-            # Usamos el refresco_id en las keys de los inputs para que se limpien al navegar
-            v0 = col1.number_input("MANU", 1, 15, value=g_prev[0] if g_prev[0]>0 else par_h, key=f"v0_{h_actual}_{st.session_state.refresco_id}")
-            v1 = col2.number_input("JOSE", 1, 15, value=g_prev[1] if g_prev[1]>0 else par_h, key=f"v1_{h_actual}_{st.session_state.refresco_id}")
-            v2 = col3.number_input("ROGE", 1, 15, value=g_prev[2] if g_prev[2]>0 else par_h, key=f"v2_{h_actual}_{st.session_state.refresco_id}")
-            v3 = col4.number_input("LALO", 1, 15, value=g_prev[3] if g_prev[3]>0 else par_h, key=f"v3_{h_actual}_{st.session_state.refresco_id}")
+            if ya_datos:
+                suma_a = g_prev[0] + g_prev[1]
+                suma_b = g_prev[2] + g_prev[3]
+                dif_h = abs(suma_a - suma_b)
+                
+                if suma_a < suma_b:
+                    st.success(f"🟢 **MANU & JOSE ganan por {dif_h}** ({suma_a} vs {suma_b})")
+                elif suma_b < suma_a:
+                    st.error(f"🔴 **ROGE & LALO ganan por {dif_h}** ({suma_b} vs {suma_a})")
+                else:
+                    st.warning(f"⚪ **Hoyo Empatado (AS)** ({suma_a} iguales)")
+            else:
+                st.info(f"⏳ Hoyo {h_actual} (Par {par_h}) pendiente")
 
-            # --- BOTÓN DE GUARDADO ---
+            # --- INPUTS DE GOLPES GIGANTES ---
+            st.markdown("---")
+            c1, c2 = st.columns(2); c3, c4 = st.columns(2)
+            v0 = c1.number_input("MANU", 1, 15, value=g_prev[0] if g_prev[0]>0 else par_h, key=f"v0_{h_actual}_{st.session_state.refresco_id}")
+            v1 = c2.number_input("JOSE", 1, 15, value=g_prev[1] if g_prev[1]>0 else par_h, key=f"v1_{h_actual}_{st.session_state.refresco_id}")
+            v2 = c3.number_input("ROGE", 1, 15, value=g_prev[2] if g_prev[2]>0 else par_h, key=f"v2_{h_actual}_{st.session_state.refresco_id}")
+            v3 = c4.number_input("LALO", 1, 15, value=g_prev[3] if g_prev[3]>0 else par_h, key=f"v3_{h_actual}_{st.session_state.refresco_id}")
+
             if [v0, v1, v2, v3] != g_prev:
-                label_btn = "💾 ACTUALIZAR HOYO" if ya_tiene_datos else "💾 GUARDAR HOYO"
+                label_btn = "💾 ACTUALIZAR HOYO" if ya_datos else "💾 GUARDAR HOYO"
                 if st.button(label_btn, use_container_width=True, type="primary"):
-                    # Llamada a tu función de guardado
                     ejecutar_guardado_automatico(h_actual, v0, v1, v2, v3)
                     st.cache_data.clear()
                     st.rerun()
 
-            # --- FINALIZAR PARTIDA ---
+            # --- SECCIÓN MVP ---
+            st.write("---")
+            with st.expander("🏆 VER CLASIFICACIÓN MVP (BRUTO)"):
+                if ya_datos:
+                    jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
+                    golpes_h = [v0, v1, v2, v3]
+                    mejor_h = jugadores[golpes_h.index(min(golpes_h))]
+                    st.markdown(f"🌟 **MVP del Hoyo {h_actual}:** {mejor_h} ({min(golpes_h)} golpes)")
+                
+                if not df_partido_actual.empty:
+                    st.markdown("**📊 Acumulado de la Partida:**")
+                    totales = {
+                        "MANU": df_partido_actual['s0'].sum(),
+                        "JOSE": df_partido_actual['s1'].sum(),
+                        "ROGE": df_partido_actual['s2'].sum(),
+                        "LALO": df_partido_actual['s3'].sum()
+                    }
+                    # Ordenar de menos a más golpes
+                    for jug, pts in sorted(totales.items(), key=lambda x: x[1]):
+                        st.write(f"- {jug}: **{int(pts)}** golpes")
+
+            # --- FINALIZAR ---
             st.write("---") 
-            with st.popover("🏁 Finalizar Partida", use_container_width=True):
-                st.warning("¿Cerrar la sesión actual?")
+            with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
+                st.warning("¿Seguro que quieres cerrar la sesión de hoy?")
                 if st.button("Confirmar Cierre", type="primary", use_container_width=True):
                     st.session_state.game = None
-                    if 'game' in st.session_state:
-                        del st.session_state.game
+                    if 'game' in st.session_state: del st.session_state.game
                     st.cache_data.clear()
                     st.rerun()
                 
