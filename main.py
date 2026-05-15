@@ -476,24 +476,25 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             try:
                 df_p = leer_datos() 
                 if df_p is not None and not df_p.empty:
-                    # Normalizamos el ID de la sesión (quitando decimales si los hay)
+                    # FUNCIÓN VITAL: Convierte "15,5" (string) en 15.5 (float) para que la suma sea real
+                    def corregir_puntos(serie):
+                        return pd.to_numeric(serie.astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+
+                    # Normalizamos el ID de la sesión
                     id_sesion = str(int(float(g['id'])))
                     
-                    # Normalizamos la columna de la base de datos para que coincida 100%
                     def normalizar_id(val):
-                        try:
-                            return str(int(float(val)))
-                        except:
-                            return ""
+                        try: return str(int(float(val)))
+                        except: return ""
                     
                     df_p['partido_id_str'] = df_p['partido_id'].apply(normalizar_id)
                     
-                    # Creamos el dataset exclusivo de la jornada de hoy
+                    # Dataset exclusivo de la JORNADA (Partido actual)
                     df_partido_actual = df_p[df_p['partido_id_str'] == id_sesion].copy()
                     
-                    # Filtramos por temporada actual para el acumulado histórico
-                    temp_actual = g.get('temporada', str(datetime.now().year))
-                    df_temporada = df_p[df_p['temporada'].astype(str) == temp_actual].copy()
+                    # Dataset exclusivo de la TEMPORADA (Suma todas las filas del año, ej: 2026)
+                    temp_objetivo = str(g.get('temporada', '2026'))
+                    df_temporada = df_p[df_p['temporada'].astype(str) == temp_objetivo].copy()
             except Exception as e:
                 st.error(f"Error al conectar con la base de datos: {e}")
 
@@ -517,6 +518,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             """, unsafe_allow_html=True)
 
             # 4. RENDERIZADO DEL MARCADOR VISUAL (HTML)
+            # Nota: Usamos las constantes COLOR_A y COLOR_B que deben estar definidas al inicio del script
             st.markdown(f"""
                 <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 10px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
                     <div style="display: flex; justify-content: space-around; align-items: center;">
@@ -537,11 +539,11 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.session_state.game['h_sel'] = h_actual
 
             col_nav_1, col_nav_2 = st.columns(2)
-            if col_nav_1.button("⬅️ ANTERIOR", key="btn_ant", use_container_width=True):
+            if col_nav_1.button("⬅️ ANTERIOR", use_container_width=True):
                 st.session_state.game['h_sel'] = max(1, int(st.session_state.game['h_sel']) - 1)
                 st.session_state.refresco_id += 1
                 st.rerun()
-            if col_nav_2.button("SIGUIENTE ➡️", key="btn_sig", use_container_width=True):
+            if col_nav_2.button("SIGUIENTE ➡️", use_container_width=True):
                 st.session_state.game['h_sel'] = min(18, int(st.session_state.game['h_sel']) + 1)
                 st.session_state.refresco_id += 1
                 st.rerun()
@@ -555,14 +557,16 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             if not df_partido_actual.empty:
                 registro_hoyo = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
                 if not registro_hoyo.empty:
-                    # Comprobamos si hay golpes grabados (suma de s0 a s3 > 0)
                     if registro_hoyo.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
                         hay_datos_hoyo = True
                         golpes_anteriores = [int(registro_hoyo.iloc[0][f's{i}']) for i in range(4)]
                         res_hoyo_a = int(registro_hoyo.iloc[0]['resultado_a'])
                         res_hoyo_b = int(registro_hoyo.iloc[0]['resultado_b'])
-                        # Puntos MVP del hoyo (p1_pts...p4_pts)
-                        puntos_mvp_hoyo = [float(registro_hoyo.iloc[0][f'p{i}_pts']) for i in range(1, 5)]
+                        # Convertimos los puntos del hoyo actual para el metric
+                        for i in range(1, 5):
+                            val_raw = str(registro_hoyo.iloc[0][f'p{i}_pts']).replace(',', '.')
+                            try: puntos_mvp_hoyo[i-1] = float(val_raw)
+                            except: puntos_mvp_hoyo[i-1] = 0.0
 
             # 7. MARCADOR DEL HOYO (Basado en resultado_a y resultado_b)
             par_del_hoyo = PAR_RIA_VIGO.get(h_actual, 4)
@@ -594,11 +598,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.cache_data.clear()
                     st.rerun()
 
-            # 9. SECCIÓN MVP (DESGLOSE, JORNADA Y TEMPORADA CORREGIDO)
+            # 9. SECCIÓN MVP (ESTA VEZ SIN OLVIDOS Y CON SUMA DE COMAS)
             st.write("---")
             with st.expander("🏆 CLASIFICACIÓN MVP"):
-                # Mapeo de columnas para iterar con seguridad
-                col_pts = ["p1_pts", "p2_pts", "p3_pts", "p4_pts"]
                 nombres_jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
                 
                 # Desglose de puntos obtenidos SOLO en este hoyo
@@ -607,44 +609,42 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 for i in range(4):
                     cols_mvp[i].metric(nombres_jugadores[i], f"{puntos_mvp_hoyo[i]:.1f}")
 
-                # --- 9.1 ACUMULADO JORNADA (Cálculo exacto) ---
-                st.markdown("**📊 Acumulado Total Jornada:**")
+                # --- 9.1 ACUMULADO TOTAL JORNADA ---
                 if not df_partido_actual.empty:
-                    totales_jornada = []
-                    for col in col_pts:
-                        # Convertimos a numérico, los errores se vuelven NaN y luego 0
-                        suma_j = pd.to_numeric(df_partido_actual[col], errors='coerce').fillna(0).sum()
-                        totales_jornada.append(suma_j)
+                    st.markdown("**📊 Acumulado Total Jornada:**")
+                    lista_totales = []
+                    for i in range(1, 5):
+                        # Aquí corregimos el problema de la coma para que sume 15.5
+                        serie_limpia = corregir_puntos(df_partido_actual[f'p{i}_pts'])
+                        lista_totales.append(serie_limpia.sum())
                     
-                    # Emparejamos nombre con su suma y ordenamos de mayor a menor
-                    ranking_j = sorted(zip(nombres_jugadores, totales_jornada), key=lambda x: x[1], reverse=True)
-                    
-                    for nombre, pts in ranking_j:
-                        st.write(f"- {nombre}: **{pts:.1f} pts**")
-                
+                    ranking_final = sorted(zip(nombres_jugadores, lista_totales), key=lambda x: x[1], reverse=True)
+                    for nombre, puntos_totales in ranking_final:
+                        st.write(f"- {nombre}: **{float(puntos_totales):.1f} pts**")
+                else:
+                    st.caption("No hay datos suficientes para la jornada.")
+
                 st.write("---")
 
-                # --- 9.2 ACUMULADO TEMPORADA (Suma de todas las partidas del 2026) ---
-                st.markdown(f"**🌟 Ranking Temporada {g.get('temporada')}:**")
+                # --- 9.2 ACUMULADO TEMPORADA (Suma todas las filas del año) ---
                 if not df_temporada.empty:
-                    totales_temporada = []
-                    for col in col_pts:
-                        suma_t = pd.to_numeric(df_temporada[col], errors='coerce').fillna(0).sum()
-                        totales_temporada.append(suma_t)
+                    st.markdown(f"**🌟 Total Temporada {g.get('temporada')}:**")
+                    lista_temporada = []
+                    for i in range(1, 5):
+                        serie_t_limpia = corregir_puntos(df_temporada[f'p{i}_pts'])
+                        lista_temporada.append(serie_t_limpia.sum())
                     
-                    ranking_t = sorted(zip(nombres_jugadores, totales_temporada), key=lambda x: x[1], reverse=True)
-                    
-                    # Mostramos tabla limpia
-                    df_ranking_final = pd.DataFrame(ranking_t, columns=["Jugador", "Puntos Totales"])
-                    st.table(df_ranking_final)
+                    ranking_t = sorted(zip(nombres_jugadores, lista_temporada), key=lambda x: x[1], reverse=True)
+                    df_res_t = pd.DataFrame(ranking_t, columns=["Jugador", "Puntos Totales"])
+                    st.table(df_res_t)
                 else:
-                    st.caption("No hay datos de otras partidas en esta temporada.")
-                    
+                    st.caption("No hay más partidos registrados esta temporada.")
+
             # 10. FINALIZAR PARTIDA
             st.write("---")
             with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
                 st.warning("⚠️ Esta acción cerrará la sesión actual.")
-                if st.button("Confirmar y Salir", type="primary", use_container_width=True, key="btn_finalizar"):
+                if st.button("Confirmar y Salir", type="primary", use_container_width=True, key="fin_final"):
                     st.session_state.game = None
                     st.cache_data.clear()
                     st.rerun()
