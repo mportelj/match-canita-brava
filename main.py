@@ -594,9 +594,11 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.cache_data.clear()
                     st.rerun()
 
-            # 9. SECCIÓN MVP (DESGLOSE, JORNADA Y TEMPORADA)
+            # 9. SECCIÓN MVP (DESGLOSE, JORNADA Y TEMPORADA CORREGIDO)
             st.write("---")
             with st.expander("🏆 CLASIFICACIÓN MVP"):
+                # Mapeo de columnas para iterar con seguridad
+                col_pts = ["p1_pts", "p2_pts", "p3_pts", "p4_pts"]
                 nombres_jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
                 
                 # Desglose de puntos obtenidos SOLO en este hoyo
@@ -605,35 +607,39 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 for i in range(4):
                     cols_mvp[i].metric(nombres_jugadores[i], f"{puntos_mvp_hoyo[i]:.1f}")
 
-                # --- 9.1 ACUMULADO JORNADA ---
+                # --- 9.1 ACUMULADO JORNADA (Cálculo exacto) ---
                 st.markdown("**📊 Acumulado Total Jornada:**")
                 if not df_partido_actual.empty:
-                    lista_totales_jornada = []
-                    for i in range(1, 5):
-                        puntos_serie = pd.to_numeric(df_partido_actual[f'p{i}_pts'], errors='coerce').fillna(0)
-                        lista_totales_jornada.append(puntos_serie.sum())
+                    totales_jornada = []
+                    for col in col_pts:
+                        # Convertimos a numérico, los errores se vuelven NaN y luego 0
+                        suma_j = pd.to_numeric(df_partido_actual[col], errors='coerce').fillna(0).sum()
+                        totales_jornada.append(suma_j)
                     
-                    ranking_jornada = sorted(zip(nombres_jugadores, lista_totales_jornada), key=lambda x: x[1], reverse=True)
-                    for nombre, pts in ranking_jornada:
-                        st.write(f"- {nombre}: **{float(pts):.1f} pts**")
+                    # Emparejamos nombre con su suma y ordenamos de mayor a menor
+                    ranking_j = sorted(zip(nombres_jugadores, totales_jornada), key=lambda x: x[1], reverse=True)
+                    
+                    for nombre, pts in ranking_j:
+                        st.write(f"- {nombre}: **{pts:.1f} pts**")
                 
                 st.write("---")
 
-                # --- 9.2 ACUMULADO TEMPORADA ---
+                # --- 9.2 ACUMULADO TEMPORADA (Suma de todas las partidas del 2026) ---
                 st.markdown(f"**🌟 Ranking Temporada {g.get('temporada')}:**")
                 if not df_temporada.empty:
-                    lista_totales_temporada = []
-                    for i in range(1, 5):
-                        puntos_serie_t = pd.to_numeric(df_temporada[f'p{i}_pts'], errors='coerce').fillna(0)
-                        lista_totales_temporada.append(puntos_serie_t.sum())
+                    totales_temporada = []
+                    for col in col_pts:
+                        suma_t = pd.to_numeric(df_temporada[col], errors='coerce').fillna(0).sum()
+                        totales_temporada.append(suma_t)
                     
-                    ranking_temporada = sorted(zip(nombres_jugadores, lista_totales_temporada), key=lambda x: x[1], reverse=True)
+                    ranking_t = sorted(zip(nombres_jugadores, totales_temporada), key=lambda x: x[1], reverse=True)
                     
-                    df_ranking_t = pd.DataFrame(ranking_temporada, columns=["Jugador", "Puntos Totales"])
-                    st.table(df_ranking_t)
+                    # Mostramos tabla limpia
+                    df_ranking_final = pd.DataFrame(ranking_t, columns=["Jugador", "Puntos Totales"])
+                    st.table(df_ranking_final)
                 else:
-                    st.caption("No hay datos de temporada acumulados.")
-
+                    st.caption("No hay datos de otras partidas en esta temporada.")
+                    
             # 10. FINALIZAR PARTIDA
             st.write("---")
             with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
