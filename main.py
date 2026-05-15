@@ -124,75 +124,56 @@ def cambiar_pagina():
 
 
 # --- LÓGICA DE DATOS ---
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=600)
 def leer_datos():
     try:
-        # 1. Verificamos que la conexión existe
         if 'sh' not in st.session_state:
+            st.session_state.sh = cargar_datos_golf()
+        
+        hoja = st.session_state.sh
+        datos = hoja.get_all_values()
+        
+        if len(datos) <= 1:
             return pd.DataFrame()
             
-        hoja = st.session_state.sh
-        filas = hoja.get_all_values() # Aquí obtenemos los datos
+        df_raw = pd.DataFrame(datos[1:], columns=datos[0])
         
-        # 2. Verificamos que 'filas' tenga contenido antes de usar len()
-        if filas and len(filas) > 1:
-            df_raw = pd.DataFrame(filas[1:], columns=filas[0])
+        if not df_raw.empty:
+            # --- LIMPIEZA Y CONVERSIÓN DE TIPOS ESTRICTA ---
             
-            # --- LIMPIEZA Y CONVERSIÓN DE TIPOS DEFINIDOS ---
-                        
-            # --- LIMPIEZA DE FECHAS (dd/mm/aaaa) ---
-            df_raw['fecha'] = pd.to_datetime(df_raw['fecha'], errors='coerce', dayfirst=True)
-            df_raw['fecha'] = df_raw['fecha'].dt.strftime('%d/%m/%Y')
-            
-            # --- LIMPIEZA DE ID (Quitar el .0) ---
-            df_raw['partido_id'] = df_raw['partido_id'].astype(str).str.split('.').str[0]
-            
-            #if not df_raw.empty:
-            # 1. Asegurar que los puntos MVP sean numéricos (FLOAT)
+            # 1. Puntos MVP: Deben ser decimales (float)
+            # Reemplazamos coma por punto, quitamos espacios y forzamos número
             cols_mvp = ['p1_pts', 'p2_pts', 'p3_pts', 'p4_pts']
             for col in cols_mvp:
                 if col in df_raw.columns:
-                    # Forzamos conversión: Texto -> Punto decimal -> Float
                     df_raw[col] = pd.to_numeric(
                         df_raw[col].astype(str).str.replace(',', '.').str.strip(), 
                         errors='coerce'
                     ).fillna(0.0)
 
-            # 2. Asegurar que los golpes y resultados sean ENTEROS
-            cols_int = ['resultado_a', 'resultado_b', 's0', 's1', 's2', 's3', 'hoyo']
+            # 2. Resultados y Golpes: Deben ser enteros (int)
+            cols_int = [
+                'resultado_a', 'resultado_b', 
+                's0', 's1', 's2', 's3', 
+                'hoyo', 'temporada', 'partido_id'
+            ]
             for col in cols_int:
                 if col in df_raw.columns:
-                    df_raw[col] = pd.to_numeric(df_raw[col], errors='coerce').fillna(0).astype(int)
-        
-        return df_raw
-            # 1. Asegurar que los puntos MVP sean numéricos (FLOAT)
-            cols_mvp = ['p1_pts', 'p2_pts', 'p3_pts', 'p4_pts']
-            for col in cols_mvp:
-                if col in df_raw.columns:
-                    # Forzamos conversión: Texto -> Punto decimal -> Float
+                    # Primero a numérico por si hay texto, luego a entero
                     df_raw[col] = pd.to_numeric(
                         df_raw[col].astype(str).str.replace(',', '.').str.strip(), 
                         errors='coerce'
-                    ).fillna(0.0)
+                    ).fillna(0).astype(int)
+            
+            # 3. Fecha: Aseguramos que sea string limpio
+            if 'fecha' in df_raw.columns:
+                df_raw['fecha'] = df_raw['fecha'].astype(str).str.strip()
 
-            # 2. Asegurar que los golpes y resultados sean ENTEROS
-            cols_int = ['resultado_a', 'resultado_b', 's0', 's1', 's2', 's3', 'hoyo']
-            for col in cols_int:
-                if col in df_raw.columns:
-                    df_raw[col] = pd.to_numeric(df_raw[col], errors='coerce').fillna(0).astype(int)
-        
         return df_raw
-        
-        return pd.DataFrame()
-        
+
     except Exception as e:
-        # Si algo falla, mostramos el error pero devolvemos un DF vacío para no romper la app
-        st.error(f"Error cargando datos: {e}")
+        st.error(f"Error al leer la base de datos: {e}")
         return pd.DataFrame()
-        
-#df_raw = leer_datos()
-
-
 # --- 1. CONFIGURACIÓN CORREGIDA DEL CAMPO ---
 PAR_RIA_VIGO = {
     1: 4, 2: 5, 3: 3, 4: 4, 5: 4, 6: 5, 7: 3, 8: 4, 9: 4,
@@ -575,33 +556,23 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.session_state.refresco_id += 1
                 st.rerun()
 
-  
             # 6. OBTENCIÓN DE DATOS DEL HOYO ESPECÍFICO
             golpes_anteriores = [0, 0, 0, 0]
-            puntos_mvp_hoyo = [0.0, 0.0, 0.0, 0.0] # Inicializamos por defecto
+            puntos_mvp_hoyo = [0.0, 0.0, 0.0, 0.0]
             hay_datos_hoyo = False
-            res_hoyo_a, res_hoyo_b = 0, 0
             
             if not df_partido_actual.empty:
-                # Filtramos el registro del hoyo seleccionado
-                df_h = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
-                
-                if not df_h.empty:
-                    # Comprobamos si hay golpes grabados (suma de s0 a s3 > 0)
-                    if df_h.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
+                reg = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
+                if not reg.empty:
+                    # Verificamos si hay golpes reales (evitar hoyos vacíos)
+                    if reg.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
                         hay_datos_hoyo = True
-                        golpes_anteriores = [int(df_h.iloc[0][f's{i}']) for i in range(4)]
-                        res_hoyo_a = int(df_h.iloc[0]['resultado_a'])
-                        res_hoyo_b = int(df_h.iloc[0]['resultado_b'])
+                        golpes_anteriores = [int(reg.iloc[0][f's{i}']) for i in range(4)]
                         
-                        # Extraemos los puntos MVP asegurando tipo float
-                        puntos_mvp_hoyo = []
+                        # LEER PUNTOS MVP ASEGURANDO 0.5 Y NO 1.0
                         for i in range(1, 5):
-                            val_raw = str(df_h.iloc[0][f'p{i}_pts']).replace(',', '.')
-                            try:
-                                puntos_mvp_hoyo.append(float(val_raw))
-                            except:
-                                puntos_mvp_hoyo.append(0.0)
+                            val = str(reg.iloc[0][f'p{i}_pts']).replace(',', '.')
+                            puntos_mvp_hoyo[i-1] = float(val)
                                 
             # 7. MARCADOR DEL HOYO (Basado en resultado_a y resultado_b)
             par_del_hoyo = PAR_RIA_VIGO.get(h_actual, 4)
