@@ -264,16 +264,16 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         g = st.session_state.game
         par_hoyo = PAR_RIA_VIGO[int(hoyo_id)]
         
-        # 1. CÁLCULO DE PUNTOS (Lógica de bonus y MVP)
+        # 1. CÁLCULO DE PUNTOS (Lógica Corregida)
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         
         def calc_bonus_mvp(score, p):
             dif = score - p
-            if dif <= -3: return 4.0
-            if dif == -2: return 3.0
-            if dif == -1: return 1.5
-            if dif == 0:  return 0.5
-            return 0.0
+            if dif <= -3: return 4.0   # Albatros o mejor
+            if dif == -2: return 3.0   # Eagle
+            if dif == -1: return 1.5   # Birdie
+            if dif == 0:  return 0.5   # Par
+            return 0.0                 # Bogey o peor
 
         def calc_bonus_match(score, p):
             dif = score - p
@@ -284,9 +284,16 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
 
         p_mvp = [0.0] * 4
         for i in range(4):
-            pts_oponentes = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
-            p_mvp[i] = float(pts_oponentes + calc_bonus_mvp(golpes[i], par_hoyo))
+            # A. Puntos por ganar a otros jugadores (0.5 por cada uno)
+            puntos_vs_jugadores = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
+            
+            # B. Puntos por resultado vs Par
+            puntos_vs_par = calc_bonus_mvp(golpes[i], par_hoyo)
+            
+            # C. Suma total del hoyo para el jugador
+            p_mvp[i] = float(puntos_vs_jugadores + puntos_vs_par)
 
+        # 2. CÁLCULO DE MATCH PLAY (Igual que antes)
         res_a, res_b = min(golpes[0], golpes[1]), min(golpes[2], golpes[3])
         peor_a, peor_b = max(golpes[0], golpes[1]), max(golpes[2], golpes[3])
         
@@ -295,45 +302,39 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         total_b = (1.0 if res_b < res_a else 0.0) + (1.0 if peor_b < peor_a else 0.0) + \
                   calc_bonus_match(golpes[2], par_hoyo) + calc_bonus_match(golpes[3], par_hoyo)
 
-        # Resultados del Match (resultado_a y resultado_b) convertidos a ENTEROS
         match_a = int(max(0, total_a - total_b)) if total_a != total_b else 0
         match_b = int(max(0, total_b - total_a)) if total_a != total_b else 0
 
-        # 2. PROCESAMIENTO DE IDENTIFICADORES Y FECHA
+        # 3. PROCESAMIENTO DE IDENTIFICADORES Y FECHA
         id_partido_puro = str(g['id']).split('.')[0]
-        
         try:
             fecha_str = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
         except:
             fecha_str = str(g['fecha'])
 
-        # 3. CONSTRUCCIÓN DE FILA CON TIPOS NATIVOS FORZADOS
-        # Definición: resultado_a/b (int), p_pts (float 1 decimal), s_golpes (int)
+        # 4. CONSTRUCCIÓN DE FILA
         nueva_fila = [
-            f"{id_partido_puro}_H{hoyo_id}",     # 0: Clave única (Texto)
-            int(id_partido_puro),               # 1: partido_id (Entero)
-            int(hoyo_id),                       # 2: hoyo (Entero)
-            fecha_str,                          # 3: fecha (Texto)
-            int(g.get('temporada', 2026)),      # 4: temporada (Entero)
-            int(match_a),                       # 5: resultado_a (Entero)
-            int(match_b),                       # 6: resultado_b (Entero)
-            round(float(p_mvp[0]), 1),          # 7: p1_pts (Decimal)
-            round(float(p_mvp[1]), 1),          # 8: p2_pts (Decimal)
-            round(float(p_mvp[2]), 1),          # 9: p3_pts (Decimal)
-            round(float(p_mvp[3]), 1),          # 10: p4_pts (Decimal)
-            int(g0), int(g1),                   # 11, 12: s0, s1 (Entero)
-            int(g2), int(g3)                    # 13, 14: s2, s3 (Entero)
+            f"{id_partido_puro}_H{hoyo_id}",     # Clave única
+            int(id_partido_puro),               # partido_id
+            int(hoyo_id),                       # hoyo
+            fecha_str,                          # fecha
+            int(g.get('temporada', 2026)),      # temporada
+            int(match_a),                       # resultado_a
+            int(match_b),                       # resultado_b
+            round(float(p_mvp[0]), 1),          # p1_pts (MANU)
+            round(float(p_mvp[1]), 1),          # p2_pts (JOSE)
+            round(float(p_mvp[2]), 1),          # p3_pts (ROGE)
+            round(float(p_mvp[3]), 1),          # p4_pts (LALO)
+            int(g0), int(g1),                   # s0, s1
+            int(g2), int(g3)                    # s2, s3
         ]
 
-        # 4. ACTUALIZACIÓN EN GOOGLE SHEETS
+        # 5. ACTUALIZACIÓN EN GOOGLE SHEETS
         filas = hoja.get_all_values()
         header = filas[0] if filas else []
-        
-        # Filtrar registros para evitar duplicados del mismo hoyo en la misma sesión
         datos_nuevos = []
         for f in filas[1:]:
             if len(f) > 2:
-                # Normalizamos IDs para la comparación
                 f_id = str(f[1]).split('.')[0]
                 f_hoyo = str(f[2])
                 if f_id == id_partido_puro and f_hoyo == str(hoyo_id):
@@ -341,16 +342,12 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
             datos_nuevos.append(f)
 
         datos_nuevos.append(nueva_fila)
-        
-        # Ordenar por ID de partido y luego por número de hoyo
         datos_nuevos.sort(key=lambda x: (str(x[1]), int(x[2])))
 
-        # 5. ESCRITURA FINAL
         hoja.clear()
-        # El uso de 'USER_ENTERED' es vital para que Sheets reconozca los tipos int y float
         hoja.update('A1', [header] + datos_nuevos, value_input_option='USER_ENTERED')
         
-        st.toast(f"✅ Hoyo {hoyo_id} guardado correctamente")
+        st.toast(f"✅ Hoyo {hoyo_id} guardado: M:{p_mvp[0]} J:{p_mvp[1]} R:{p_mvp[2]} L:{p_mvp[3]}")
         st.cache_data.clear()
 
     except Exception as e:
