@@ -518,26 +518,46 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 val_par_hoyo = 4 # Valor de seguridad
 
             # --- LÓGICA DE GOLPES POR DEFECTO ---
+            # --- 1. DETERMINAR SI EL HOYO TIENE DATOS ---
             df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
+            hay_datos_hoyo = not df_hoyo_actual.empty
 
-            if not df_hoyo_actual.empty:
-                # Si ya se guardó, leemos lo que hay en s0, s1, s2, s3
-                g_def = [
-                    int(df_hoyo_actual['s0'].iloc[0]),
-                    int(df_hoyo_actual['s1'].iloc[0]),
-                    int(df_hoyo_actual['s2'].iloc[0]),
-                    int(df_hoyo_actual['s3'].iloc[0])
-                ]
-            else:
-                # SI EL HOYO ES NUEVO, ASIGNAMOS EL PAR
-                g_def = [val_par_hoyo] * 4
+            # --- 2. ASIGNAR VALORES POR DEFECTO (EL PAR) ---
+            try:
+                val_par_hoyo = int(PAR_RIA_VIGO[int(h_actual)])
+            except:
+                val_par_hoyo = 4  # Valor de seguridad si falla la lista
 
-            # --- INPUTS (La key con h_actual es la que fuerza el cambio) ---
+            # Inicializamos la lista con el par por defecto
+            golpes_anteriores = [val_par_hoyo] * 4
+
+            # --- 3. SI HAY DATOS, SOBRESCRIBIMOS CON LO GUARDADO ---
+            if hay_datos_hoyo:
+                   try:
+                    golpes_anteriores = [
+                        int(df_hoyo_actual['s0'].iloc[0]),
+                        int(df_hoyo_actual['s1'].iloc[0]),
+                        int(df_hoyo_actual['s2'].iloc[0]),
+                        int(df_hoyo_actual['s3'].iloc[0])
+                    ]
+                except (KeyError, IndexError):
+                    # Si fallan las columnas s0-s3, mantenemos el par
+                    pass
+
+            # --- 4. RENDERIZAR INPUTS EN LA APP ---
+            st.markdown(f"### ⛳ Hoyo {h_actual} (Par {val_par_hoyo})")
             cols_g = st.columns(4)
-            s0 = cols_g[0].number_input("MANU", min_value=1, value=g_def[0], key=f"input_s0_h{h_actual}")
-            s1 = cols_g[1].number_input("JOSE", min_value=1, value=g_def[1], key=f"input_s1_h{h_actual}")
-            s2 = cols_g[2].number_input("ROGE", min_value=1, value=g_def[2], key=f"input_s2_h{h_actual}")
-            s3 = cols_g[3].number_input("LALO", min_value=1, value=g_def[3], key=f"input_s3_h{h_actual}")
+
+            # La clave (key) DEBE incluir el hoyo para que cambie el valor al navegar
+            s0 = cols_g[0].number_input("MANU", min_value=1, value=golpes_anteriores[0], key=f"s0_h{h_actual}")
+            s1 = cols_g[1].number_input("JOSE", min_value=1, value=golpes_anteriores[1], key=f"s1_h{h_actual}")
+            s2 = cols_g[2].number_input("ROGE", min_value=1, value=golpes_anteriores[2], key=f"s2_h{h_actual}")
+            s3 = cols_g[3].number_input("LALO", min_value=1, value=golpes_anteriores[3], key=f"s3_h{h_actual}")
+
+            # --- 5. BOTÓN DE GUARDADO ---
+            if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True):
+                ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
+                st.rerun()
             
             # INICIALIZACIÓN CRÍTICA (Para evitar el NameError en la línea 580)
             res_hoyo_a = 0 
