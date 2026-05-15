@@ -267,62 +267,50 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         hoja = st.session_state.sh
         g = st.session_state.game
         par_hoyo = int(PAR_RIA_VIGO[int(hoyo_id)])
-        
-        # 1. Aseguramos que los golpes sean una lista limpia de enteros
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         
-        # 2. CÁLCULO MVP ATÓMICO
+        # --- CÁLCULO MVP MATEMÁTICO ---
         p_mvp = [0.0, 0.0, 0.0, 0.0]
-        
         for i in range(4):
-            # A. PUNTOS VICTORIA: Solo si mi golpe es ESTRICTAMENTE MENOR que el del otro
-            # Si todos hacen 4, (4 < 4) siempre será FALSO. Sumará 0.0.
+            # 1. VICTORIA: 0.5 solo si mi golpe es MENOR (<) que el del rival
+            # Si todos hacen 4: (4 < 4) es FALSO -> Suma 0
             puntos_victoria = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
             
-            # B. PUNTOS PAR: Basado exclusivamente en mi resultado contra el campo
+            # 2. PAR: 0.5 si igualas el par, o más si haces birdie/eagle
             puntos_par = 0.0
             dif = golpes[i] - par_hoyo
+            if dif == 0:    puntos_par = 0.5 # PAR
+            elif dif == -1: puntos_par = 1.5 # BIRDIE
+            elif dif == -2: puntos_par = 3.0 # EAGLE
+            elif dif <= -3: puntos_par = 4.0 # ALBATROS
             
-            if dif == 0:    puntos_par = 0.5  # PAR
-            elif dif == -1: puntos_par = 1.5  # BIRDIE
-            elif dif == -2: puntos_par = 3.0  # EAGLE
-            elif dif <= -3: puntos_par = 4.0  # ALBATROS
-            # Si es Bogey o más (+1, +2...), puntos_par es 0.0
-            
-            # C. RESULTADO FINAL (0.0 + 0.5 = 0.5)
             p_mvp[i] = float(puntos_victoria + puntos_par)
 
-        # 3. PREPARACIÓN DE FILA
-        id_partido = str(g['id']).split('.')[0]
-        fecha_str = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
-
+        # --- GUARDADO EN GOOGLE SHEETS ---
+        id_p = str(g['id']).split('.')[0]
+        fecha = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
+        
+        # Asegúrate de que este orden de columnas es el de tu Excel
         nueva_fila = [
-            f"{id_partido}_H{hoyo_id}", int(id_partido), int(hoyo_id),
-            fecha_str, int(g.get('temporada', 2026)), 0, 0, # Match Play
-            p_mvp[0], p_mvp[1], p_mvp[2], p_mvp[3], # Puntos MVP (Aquí se guarda el 0.5)
-            golpes[0], golpes[1], golpes[2], golpes[3] # Columnas s0 a s3
+            f"{id_p}_H{hoyo_id}", int(id_p), int(hoyo_id), fecha, 
+            int(g.get('temporada', 2026)), 0, 0, # Match Play
+            p_mvp[0], p_mvp[1], p_mvp[2], p_mvp[3], # Puntos MVP
+            golpes[0], golpes[1], golpes[2], golpes[3]  # s0, s1, s2, s3
         ]
 
-        # 4. LIMPIEZA DE DUPLICADOS EN GOOGLE SHEETS
-        # Esto evita que un 0.5 nuevo se sume a un 0.5 viejo en la hoja
+        # Limpiar fila previa del mismo hoyo para evitar duplicados
         filas = hoja.get_all_values()
         header = filas[0]
-        # Filtramos para ELIMINAR cualquier registro previo de este mismo hoyo y partido
-        datos_sin_este_hoyo = [
-            f for f in filas[1:] 
-            if not (str(f[1]).split('.')[0] == id_partido and str(f[2]) == str(hoyo_id))
-        ]
-        datos_sin_este_hoyo.append(nueva_fila)
+        datos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_p and str(f[2]) == str(hoyo_id))]
+        datos.append(nueva_fila)
         
-        # Sobrescribimos la hoja entera para asegurar limpieza
         hoja.clear()
-        hoja.update('A1', [header] + datos_sin_este_hoyo, value_input_option='USER_ENTERED')
-        
+        hoja.update('A1', [header] + datos, value_input_option='USER_ENTERED')
         st.cache_data.clear()
-        st.success(f"✅ Guardado Hoyo {hoyo_id}: {p_mvp}")
-
+        st.success(f"Guardado Hoyo {hoyo_id}")
+        
     except Exception as e:
-        st.error(f"Error crítico en el cálculo o guardado: {e}")
+        st.error(f"Error: {e}")
         
 # --- CÁLCULO DEL MARCADOR ACUMULADO DE LA TEMPORADA ---
 
@@ -523,28 +511,33 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             # 6. OBTENCIÓN DE DATOS DEL HOYO ESPECÍFICO (CORREGIDO)
            # --- OBTENER GOLPES (COLUMNAS s0, s1, s2, s3) ---
             # --- LÓGICA DE OBTENCIÓN DE DATOS DEL HOYO ---
+            # --- OBTENER EL PAR DEL HOYO ACTUAL ---
+            try:
+                val_par_hoyo = int(PAR_RIA_VIGO[int(h_actual)])
+            except:
+                val_par_hoyo = 4 # Valor de seguridad
+
+            # --- LÓGICA DE GOLPES POR DEFECTO ---
             df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
 
-            # Definimos la variable que te está dando el NameError
-            hay_datos_hoyo = not df_hoyo_actual.empty
-
-            if hay_datos_hoyo:
-                try:
-                    # Si hay datos, cargamos lo que hay en s0, s1, s2, s3
-                       golpes_anteriores = [
-                        int(df_hoyo_actual['s0'].iloc[0]),
-                        int(df_hoyo_actual['s1'].iloc[0]),
-                        int(df_hoyo_actual['s2'].iloc[0]),
-                         int(df_hoyo_actual['s3'].iloc[0])
-                    ]
-                except KeyError:
-                    # Si las columnas no se llaman s0...s3 en tu Sheets, usamos el Par
-                    par_val = int(PAR_RIA_VIGO[h_actual])
-                    golpes_anteriores = [par_val] * 4
+            if not df_hoyo_actual.empty:
+                # Si ya se guardó, leemos lo que hay en s0, s1, s2, s3
+                g_def = [
+                    int(df_hoyo_actual['s0'].iloc[0]),
+                    int(df_hoyo_actual['s1'].iloc[0]),
+                    int(df_hoyo_actual['s2'].iloc[0]),
+                    int(df_hoyo_actual['s3'].iloc[0])
+                ]
             else:
-                # SI EL HOYO ES NUEVO, ASIGNAMOS EL PAR POR DEFECTO
-                par_val = int(PAR_RIA_VIGO[h_actual])
-                golpes_anteriores = [par_val] * 4
+                # SI EL HOYO ES NUEVO, ASIGNAMOS EL PAR
+                g_def = [val_par_hoyo] * 4
+
+            # --- INPUTS (La key con h_actual es la que fuerza el cambio) ---
+            cols_g = st.columns(4)
+            s0 = cols_g[0].number_input("MANU", min_value=1, value=g_def[0], key=f"input_s0_h{h_actual}")
+            s1 = cols_g[1].number_input("JOSE", min_value=1, value=g_def[1], key=f"input_s1_h{h_actual}")
+            s2 = cols_g[2].number_input("ROGE", min_value=1, value=g_def[2], key=f"input_s2_h{h_actual}")
+            s3 = cols_g[3].number_input("LALO", min_value=1, value=g_def[3], key=f"input_s3_h{h_actual}")
             
             # INICIALIZACIÓN CRÍTICA (Para evitar el NameError en la línea 580)
             res_hoyo_a = 0 
