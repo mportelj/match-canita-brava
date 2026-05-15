@@ -37,6 +37,9 @@ if 'menu_seleccionado' not in st.session_state:
 if 'game' not in st.session_state:
     st.session_state.game = {"h_sel": 1}
 
+if 'nav_radio' not in st.session_state:
+    st.session_state.nav_radio = "Inicio" # O el valor por defecto que tengas
+
 def borrar_partido_completo(id_partido_a_borrar):
     try:
         hoja = st.session_state.sh
@@ -216,10 +219,10 @@ if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
 def cambiar_menu():
-    # Usamos .get() para que si no existe, devuelva "Inicio" en lugar de dar error
-    nuevo_menu = st.session_state.get('radio_menu', 'Inicio')
-    st.session_state.menu_seleccionado = nuevo_menu
-
+    # Solo intentamos asignar si la clave existe en el estado de la sesión
+    if "nav_radio" in st.session_state:
+        st.session_state.menu_seleccionado = st.session_state.nav_radio
+        
 def actualizar_o_insertar_hoyo(datos):
     """
     datos: [fecha, hoyo, s0, s1, s2, s3]
