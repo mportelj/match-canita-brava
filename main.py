@@ -262,74 +262,67 @@ def actualizar_o_insertar_hoyo(datos):
 
 # --- 2. FUNCIONES DE DATOS ---
 
-
-
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     try:
         hoja = st.session_state.sh
         g = st.session_state.game
         par_hoyo = int(PAR_RIA_VIGO[int(hoyo_id)])
         
-        # Convertimos los golpes a una lista de enteros
+        # 1. Aseguramos que los golpes sean una lista limpia de enteros
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         
-        # ==========================================
-        # CÁLCULO MVP DEFINITIVO
-        # ==========================================
+        # 2. CÁLCULO MVP ATÓMICO
         p_mvp = [0.0, 0.0, 0.0, 0.0]
         
         for i in range(4):
-            # A. PUNTOS POR SUPERAR RIVALES (0.5 por cada uno)
-            # Solo se suma si mi golpe es MENOR que el del rival.
-            # Si empatamos (4 < 4), da FALSO y suma 0.0.
-            puntos_victoria = 0.0
-            for j in range(4):
-                if i != j:
-                    if golpes[i] < golpes[j]:
-                        puntos_victoria += 0.5
+            # A. PUNTOS VICTORIA: Solo si mi golpe es ESTRICTAMENTE MENOR que el del otro
+            # Si todos hacen 4, (4 < 4) siempre será FALSO. Sumará 0.0.
+            puntos_victoria = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
             
-            # B. PUNTOS POR CUMPLIR EL PAR (0.5 fijo si haces el par)
+            # B. PUNTOS PAR: Basado exclusivamente en mi resultado contra el campo
             puntos_par = 0.0
             dif = golpes[i] - par_hoyo
             
-            if dif == 0:    puntos_par = 0.5 # PAR exacto
-            elif dif == -1: puntos_par = 1.5 # Birdie
-            elif dif == -2: puntos_par = 3.0 # Eagle
-            elif dif <= -3: puntos_par = 4.0 # Albatros
-            # Si haces Bogey (+1) o más, puntos_par se queda en 0.0
+            if dif == 0:    puntos_par = 0.5  # PAR
+            elif dif == -1: puntos_par = 1.5  # BIRDIE
+            elif dif == -2: puntos_par = 3.0  # EAGLE
+            elif dif <= -3: puntos_par = 4.0  # ALBATROS
+            # Si es Bogey o más (+1, +2...), puntos_par es 0.0
             
-            # C. SUMA TOTAL (Si todos hacen par: 0.0 victoria + 0.5 par = 0.5)
+            # C. RESULTADO FINAL (0.0 + 0.5 = 0.5)
             p_mvp[i] = float(puntos_victoria + puntos_par)
 
-        # ==========================================
-        # PREPARACIÓN DE FILA Y ENVÍO A SHEETS
-        # ==========================================
+        # 3. PREPARACIÓN DE FILA
         id_partido = str(g['id']).split('.')[0]
         fecha_str = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
 
         nueva_fila = [
             f"{id_partido}_H{hoyo_id}", int(id_partido), int(hoyo_id),
-            fecha_str, int(g.get('temporada', 2026)), 0, 0, # Match Play (m_a, m_b)
-            p_mvp[0], p_mvp[1], p_mvp[2], p_mvp[3], # Columnas de puntos MVP
-            golpes[0], golpes[1], golpes[2], golpes[3]  # Columnas s0, s1, s2, s3
+            fecha_str, int(g.get('temporada', 2026)), 0, 0, # Match Play
+            p_mvp[0], p_mvp[1], p_mvp[2], p_mvp[3], # Puntos MVP (Aquí se guarda el 0.5)
+            golpes[0], golpes[1], golpes[2], golpes[3] # Columnas s0 a s3
         ]
 
-        # Actualización de la hoja
+        # 4. LIMPIEZA DE DUPLICADOS EN GOOGLE SHEETS
+        # Esto evita que un 0.5 nuevo se sume a un 0.5 viejo en la hoja
         filas = hoja.get_all_values()
         header = filas[0]
-        # Filtramos para no duplicar el hoyo si ya existía
-        datos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_partido and str(f[2]) == str(hoyo_id))]
-        datos.append(nueva_fila)
-        datos.sort(key=lambda x: (str(x[1]), int(x[2])))
-
+        # Filtramos para ELIMINAR cualquier registro previo de este mismo hoyo y partido
+        datos_sin_este_hoyo = [
+            f for f in filas[1:] 
+            if not (str(f[1]).split('.')[0] == id_partido and str(f[2]) == str(hoyo_id))
+        ]
+        datos_sin_este_hoyo.append(nueva_fila)
+        
+        # Sobrescribimos la hoja entera para asegurar limpieza
         hoja.clear()
-        hoja.update('A1', [header] + datos, value_input_option='USER_ENTERED')
+        hoja.update('A1', [header] + datos_sin_este_hoyo, value_input_option='USER_ENTERED')
         
         st.cache_data.clear()
-        st.success(f"✅ Hoyo {hoyo_id} guardado. MVP: {p_mvp}")
+        st.success(f"✅ Guardado Hoyo {hoyo_id}: {p_mvp}")
 
     except Exception as e:
-        st.error(f"Error en el cálculo: {e}")
+        st.error(f"Error crítico en el cálculo o guardado: {e}")
         
 # --- CÁLCULO DEL MARCADOR ACUMULADO DE LA TEMPORADA ---
 
