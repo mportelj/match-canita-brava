@@ -555,10 +555,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             # 6. OBTENCIÓN DE DATOS DEL HOYO ESPECÍFICO
             golpes_anteriores = [0, 0, 0, 0]
             # Puntos MVP del hoyo (Asegurando conversión de texto/coma a decimal)
-                        puntos_mvp_hoyo = []
-                        for i in range(1, 5):
-                            val = str(registro_hoyo.iloc[0][f'p{i}_pts']).replace(',', '.')
-                            puntos_mvp_hoyo.append(float(val))
+            puntos_mvp_hoyo = []
+            for i in range(1, 5):
+                val = str(registro_hoyo.iloc[0][f'p{i}_pts']).replace(',', '.')
+                puntos_mvp_hoyo.append(float(val))
             hay_datos_hoyo = False
             res_hoyo_a, res_hoyo_b = 0, 0
             
