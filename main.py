@@ -266,39 +266,43 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         g = st.session_state.game
         par_hoyo = PAR_RIA_VIGO[int(hoyo_id)]
         
-        # Convertimos entradas a enteros (Aseguramos que no hay strings)
+        # 1. Aseguramos que los golpes sean ENTEROS puros
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         
         # ==========================================
-        # 1. CÁLCULO MVP (REGLAS ESTRICTAS)
+        # CÁLCULO MVP REESCRITO DESDE CERO
         # ==========================================
         p_mvp = [0.0, 0.0, 0.0, 0.0]
         
         for i in range(4):
-            # A. Puntos por ganar a otros (0.5 cada uno)
-            # Solo si mis golpes son MENORES que los del oponente
-            vs_otros = 0.0
+            # A. Puntos por ganar a otros (0.5 por cada oponente con MÁS golpes que yo)
+            puntos_victoria = 0.0
+            mi_score = golpes[i]
+            
             for j in range(4):
-                if i != j:
-                    if golpes[i] < golpes[j]:
-                        vs_otros += 0.5
+                if i != j: # No compararse con uno mismo
+                    oponente_score = golpes[j]
+                    # REGLA ORO: Solo sumas si tu score es ESTRICTAMENTE MENOR
+                    if mi_score < oponente_score:
+                        puntos_victoria += 0.5
             
-            # B. Puntos por resultado vs Par
-            dif = golpes[i] - par_hoyo
-            vs_par = 0.0
-            if dif <= -3: vs_par = 4.0   # Albatros
-            elif dif == -2: vs_par = 3.0 # Eagle
-            elif dif == -1: vs_par = 1.5 # Birdie
-            elif dif == 0:  vs_par = 0.5 # Par
-            # Bogey o peor (+1, +2...) queda en 0.0
+            # B. Puntos por cumplimiento del Par
+            # Birdie o mejor: 1.5 | Par: 0.5 | Bogey o peor: 0.0
+            puntos_par = 0.0
+            diferencia_vs_par = mi_score - par_hoyo
             
-            # Suma final MVP para este jugador
-            p_mvp[i] = float(vs_otros + vs_par)
+            if diferencia_vs_par <= -3: puntos_par = 4.0   # Albatros
+            elif diferencia_vs_par == -2: puntos_par = 3.0 # Eagle
+            elif diferencia_vs_par == -1: puntos_par = 1.5 # Birdie
+            elif diferencia_vs_par == 0:  puntos_par = 0.5 # Par
+            
+            # C. Asignación final (Suma de victoria + cumplimiento de par)
+            p_mvp[i] = float(puntos_victoria + puntos_par)
 
         # ==========================================
-        # 2. CÁLCULO MATCH PLAY (EQUIPOS)
+        # LÓGICA MATCH PLAY (EQUIPOS) - Sin cambios
         # ==========================================
-        def bonus_m(score, p):
+        def calc_bonus_match(score, p):
             d = score - p
             if d <= -3: return 3.0
             if d == -2: return 2.0
@@ -309,16 +313,15 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         peor_a, peor_b = max(golpes[0], golpes[1]), max(golpes[2], golpes[3])
         
         t_a = (1.0 if res_a < res_b else 0.0) + (1.0 if peor_a < peor_b else 0.0) + \
-              bonus_m(golpes[0], par_hoyo) + bonus_m(golpes[1], par_hoyo)
+              calc_bonus_match(golpes[0], par_hoyo) + calc_bonus_match(golpes[1], par_hoyo)
         t_b = (1.0 if res_b < res_a else 0.0) + (1.0 if peor_b < peor_a else 0.0) + \
-              bonus_m(golpes[2], par_hoyo) + bonus_m(golpes[3], par_hoyo)
+              calc_bonus_match(golpes[2], par_hoyo) + calc_bonus_match(golpes[3], par_hoyo)
 
-        # Resultado neto del hoyo para el equipo
         match_a = int(max(0, t_a - t_b)) if t_a != t_b else 0
         match_b = int(max(0, t_b - t_a)) if t_a != t_b else 0
 
         # ==========================================
-        # 3. PREPARACIÓN Y ENVÍO A GOOGLE SHEETS
+        # GUARDADO EN GOOGLE SHEETS
         # ==========================================
         id_partido_puro = str(g['id']).split('.')[0]
         try:
@@ -326,7 +329,6 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         except:
             fecha_str = str(g['fecha'])
 
-        # Creamos la fila asegurando tipos de datos exactos
         nueva_fila = [
             f"{id_partido_puro}_H{hoyo_id}",
             int(id_partido_puro),
@@ -343,22 +345,21 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
             int(golpes[2]), int(golpes[3])
         ]
 
-        # Actualizar hoja
         filas = hoja.get_all_values()
         header = filas[0]
-        # Filtrar para no duplicar el hoyo
-        datos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_partido_puro and str(f[2]) == str(hoyo_id))]
-        datos.append(nueva_fila)
-        datos.sort(key=lambda x: (str(x[1]), int(x[2])))
+        # Filtrar registros antiguos
+        datos_nuevos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_partido_puro and str(f[2]) == str(hoyo_id))]
+        datos_nuevos.append(nueva_fila)
+        datos_nuevos.sort(key=lambda x: (str(x[1]), int(x[2])))
 
         hoja.clear()
-        hoja.update('A1', [header] + datos, value_input_option='USER_ENTERED')
+        hoja.update('A1', [header] + datos_nuevos, value_input_option='USER_ENTERED')
         
-        st.toast(f"✅ Guardado Hoyo {hoyo_id}: M:{p_mvp[0]} J:{p_mvp[1]} R:{p_mvp[2]} L:{p_mvp[3]}")
+        st.toast(f"✅ Hoyo {hoyo_id} guardado correctamente")
         st.cache_data.clear()
 
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error crítico: {str(e)}")
         
 # --- CÁLCULO DEL MARCADOR ACUMULADO DE LA TEMPORADA ---
 
