@@ -513,24 +513,27 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             # 6. OBTENCIÓN DE DATOS DEL HOYO ESPECÍFICO (CORREGIDO)
            # --- OBTENER GOLPES (COLUMNAS s0, s1, s2, s3) ---
+            # --- LÓGICA DE OBTENCIÓN DE DATOS DEL HOYO ---
             df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
 
-            if not df_hoyo_actual.empty:
+            # Definimos la variable que te está dando el NameError
+            hay_datos_hoyo = not df_hoyo_actual.empty
+
+            if hay_datos_hoyo:
                 try:
-                    # Actualizamos a tus nombres de columna reales: s0, s1, s2, s3
-                    golpes_anteriores = [
+                    # Si hay datos, cargamos lo que hay en s0, s1, s2, s3
+                       golpes_anteriores = [
                         int(df_hoyo_actual['s0'].iloc[0]),
                         int(df_hoyo_actual['s1'].iloc[0]),
                         int(df_hoyo_actual['s2'].iloc[0]),
-                        int(df_hoyo_actual['s3'].iloc[0])
+                         int(df_hoyo_actual['s3'].iloc[0])
                     ]
-                except KeyError as e:
-                     # Si fallara alguna columna, ponemos el par por defecto y avisamos
-                    st.error(f"Error de columnas: No se encontró {e} en el Excel.")
+                except KeyError:
+                    # Si las columnas no se llaman s0...s3 en tu Sheets, usamos el Par
                     par_val = int(PAR_RIA_VIGO[h_actual])
                     golpes_anteriores = [par_val] * 4
             else:
-                # SI EL HOYO ES NUEVO (VACÍO), ASIGNAMOS EL PAR AUTOMÁTICAMENTE
+                # SI EL HOYO ES NUEVO, ASIGNAMOS EL PAR POR DEFECTO
                 par_val = int(PAR_RIA_VIGO[h_actual])
                 golpes_anteriores = [par_val] * 4
             
