@@ -267,25 +267,29 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         # Convertimos entradas a enteros
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         
-        # --- LÓGICA MVP (0.5 por cada jugador superado + Bonus por Par) ---
+        # --- LÓGICA MVP (ESTRICTAMENTE 0.5 POR JUGADOR SUPERADO + BONUS PAR) ---
         p_mvp = [0.0, 0.0, 0.0, 0.0]
         for i in range(4):
-            # A. Puntos por ganar a otros: 0.5 solo si mi score es MENOR
+            # 1. Puntos por ganar a otros
             puntos_vs_otros = 0.0
             for j in range(4):
-                if i != j:
-                    if golpes[i] < golpes[j]: # Solo si le ganas. Empate = 0
-                        puntos_vs_otros += 0.5
+                if i == j: 
+                    continue # No se compara consigo mismo
+                
+                # REGLA: 0.5 solo si mis golpes son MENORES que los del otro
+                if golpes[i] < golpes[j]:
+                    puntos_vs_otros += 0.5
             
-            # B. Puntos por resultado vs Par
+            # 2. Puntos por resultado vs Par
             dif = golpes[i] - par_hoyo
             puntos_vs_par = 0.0
             if dif <= -3: puntos_vs_par = 4.0   # Albatros
             elif dif == -2: puntos_vs_par = 3.0 # Eagle
             elif dif == -1: puntos_vs_par = 1.5 # Birdie
             elif dif == 0:  puntos_vs_par = 0.5 # Par
-            # Bogey o peor = 0.0
+            # Bogey o peor no suma nada (0.0)
             
+            # Suma total para el jugador i
             p_mvp[i] = float(puntos_vs_otros + puntos_vs_par)
 
         # --- LÓGICA MATCH PLAY (Se mantiene igual) ---
