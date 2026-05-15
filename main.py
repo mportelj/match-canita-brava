@@ -219,10 +219,10 @@ if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
 def cambiar_menu():
-    # Usamos .get() para evitar el AttributeError si nav_radio aún no existe
-    nuevo_menu = st.session_state.get("nav_radio")
-    if nuevo_menu:
-        st.session_state.menu_seleccionado = nuevo_menu
+    # Usamos .get() para que si 'nav_radio' no existe, devuelva None en lugar de dar error
+    seleccion = st.session_state.get("nav_radio")
+    if seleccion:
+        st.session_state.menu_seleccionado = seleccion
 
 def actualizar_o_insertar_hoyo(datos):
     """
