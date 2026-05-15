@@ -590,35 +590,43 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.cache_data.clear()
                     st.rerun()
 
-            # 9. SECCIÓN MVP
+           # 9. SECCIÓN MVP (CORREGIDA PARA EVITAR REPETICIONES)
             st.write("---")
-            # --- 9. SECCIÓN MVP (Visualización en pantalla) ---
-            with st.expander("🏆 CLASIFICACIÓN MVP"):
-                nombres_jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
+            st.subheader("🏆 CLASIFICACIÓN MVP")
+            
+            if not df_partido_actual.empty:
+                # IMPORTANTE: Eliminamos posibles duplicados del mismo hoyo antes de sumar
+                # Nos quedamos solo con la última entrada de cada hoyo
+                df_mvp_limpio = df_partido_actual.sort_values('hoyo').drop_duplicates('hoyo', keep='last')
+                
+                # --- 9.1 Puntos del Hoyo Actual ---
                 st.markdown(f"**🌟 Puntos Hoyo {h_actual}:**")
                 cols_mvp = st.columns(4)
-    
-            for i in range(4):
-                # Forzamos que el valor visual sea exactamente el que calculamos
-                valor_mvp = puntos_mvp_hoyo[i]
-                cols_mvp[i].metric(nombres_jugadores[i], f"{valor_mvp:.1f}")
+                nombres = ["MANU", "JOSE", "ROGE", "LALO"]
+                for i in range(4):
+                    # Buscamos el valor en el DataFrame limpio
+                    val_hoyo = df_mvp_limpio[df_mvp_limpio['hoyo'].astype(int) == h_actual]
+                    pts_hoyo = float(val_hoyo[f'p{i+1}_pts'].iloc[0]) if not val_hoyo.empty else 0.0
+                    cols_mvp[i].metric(nombres[i], f"{pts_hoyo:.1f}")
 
-                # --- 9.1 ACUMULADO TOTAL JORNADA ---
-                if not df_partido_actual.empty:
-                    st.markdown("**📊 Acumulado Total Jornada:**")
-                    lista_totales = []
-                    for i in range(1, 5):
-                        # Forzamos conversión de la columna a numérico (Float)
-                        col_mvp = f'p{i}_pts'
-                        serie_pts = pd.to_numeric(
-                            df_partido_actual[col_mvp].astype(str).str.replace(',', '.'), 
-                            errors='coerce'
-                        ).fillna(0)
-                        lista_totales.append(serie_pts.sum())
-                    
-                    ranking_final = sorted(zip(nombres_jugadores, lista_totales), key=lambda x: x[1], reverse=True)
-                    for nombre, pts in ranking_final:
-                        st.write(f"- {nombre}: **{pts:.1f} pts**")
+                # --- 9.2 Acumulado Total Jornada ---
+                st.markdown("**📊 Acumulado Total Jornada:**")
+                totales = []
+                for i in range(1, 5):
+                    col = f'p{i}_pts'
+                    # Sumamos sobre el DataFrame sin duplicados
+                    total_jugador = df_mvp_limpio[col].sum()
+                    totales.append(total_jugador)
+                
+                ranking = sorted(zip(nombres, totales), key=lambda x: x[1], reverse=True)
+                
+                # Usamos columnas para que el acumulado no ocupe tanto espacio vertical
+                cols_rank = st.columns(len(ranking))
+                for idx, (nombre, pts) in enumerate(ranking):
+                    cols_rank[idx].write(f"**{nombre}**")
+                    cols_rank[idx].write(f"{pts:.1f} pts")
+            else:
+                st.info("Introduce datos en el hoyo para ver el MVP.")
 
             # 10. FINALIZAR PARTIDA
             st.write("---")
