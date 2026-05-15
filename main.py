@@ -219,9 +219,12 @@ if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
 def cambiar_menu():
-    # Solo intentamos asignar si la clave existe en el estado de la sesión
+    # Solo intentamos asignar si la clave 'nav_radio' existe en el estado actual
     if "nav_radio" in st.session_state:
         st.session_state.menu_seleccionado = st.session_state.nav_radio
+    else:
+        # Si no existe, evitamos el crash asignando un valor por defecto
+        st.session_state.menu_seleccionado = "Inicio"
 
 def actualizar_o_insertar_hoyo(datos):
     """
