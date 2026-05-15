@@ -268,26 +268,33 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     try:
         hoja = st.session_state.sh
         g = st.session_state.game
-        par = int(PAR_RIA_VIGO[int(hoyo_id)])
+        par_hoyo = int(PAR_RIA_VIGO[int(hoyo_id)])
         
-        # Golpes como lista de enteros
-        s = [int(g0), int(g1), int(g2), int(g3)]
+        # Aseguramos enteros
+        golpes = [int(g0), int(g1), int(g2), int(g3)]
         
-        # --- CÁLCULO MVP (Lógica plana) ---
         p_mvp = [0.0, 0.0, 0.0, 0.0]
         for i in range(4):
-            # 1. Puntos por ganar a otros (0.5 por cada uno si haces MENOS golpes)
-            # Ejemplo: si todos hacéis 4, esta suma dará 0.0 siempre.
-            puntos_victoria = sum(0.5 for j in range(4) if i != j and s[i] < s[j])
+            # A. VICTORIA: Solo 0.5 si mi golpe es estrictamente MENOR (<) que el del otro
+            puntos_victoria = 0.0
+            for j in range(4):
+                if i != j:
+                    if golpes[i] < golpes[j]:
+                        puntos_victoria += 0.5
             
-            # 2. Puntos por Par (0.5 si score == par, 1.5 si birdie...)
+            # B. PAR: Solo 0.5 si es igual al par (y bonus si es mejor)
             puntos_par = 0.0
-            if s[i] == par: puntos_par = 0.5
-            elif s[i] == par - 1: puntos_par = 1.5
-            elif s[i] == par - 2: puntos_par = 3.0
-            elif s[i] <= par - 3: puntos_par = 4.0
+            dif = golpes[i] - par_hoyo
+            if dif == 0: puntos_par = 0.5
+            elif dif == -1: puntos_par = 1.5
+            elif dif == -2: puntos_par = 3.0
+            elif dif <= -3: puntos_par = 4.0
             
             p_mvp[i] = float(puntos_victoria + puntos_par)
+
+        # ... (resto del código de Match Play igual) ...
+        # IMPORTANTE: Al guardar, asegúrate de que p_mvp va como float
+        # y usa value_input_option='USER_ENTERED'
 
         # --- CÁLCULO MATCH PLAY (Equipos) ---
         def bonus_m(golpe, p):
@@ -590,43 +597,37 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.cache_data.clear()
                     st.rerun()
 
-           # 9. SECCIÓN MVP (CORREGIDA PARA EVITAR REPETICIONES)
+          # 9. SECCIÓN MVP (CON BOTÓN Y CÁLCULO LIMPIO)
             st.write("---")
-            st.subheader("🏆 CLASIFICACIÓN MVP")
             
-            if not df_partido_actual.empty:
-                # IMPORTANTE: Eliminamos posibles duplicados del mismo hoyo antes de sumar
-                # Nos quedamos solo con la última entrada de cada hoyo
-                df_mvp_limpio = df_partido_actual.sort_values('hoyo').drop_duplicates('hoyo', keep='last')
-                
-                # --- 9.1 Puntos del Hoyo Actual ---
-                st.markdown(f"**🌟 Puntos Hoyo {h_actual}:**")
-                cols_mvp = st.columns(4)
-                nombres = ["MANU", "JOSE", "ROGE", "LALO"]
-                for i in range(4):
-                    # Buscamos el valor en el DataFrame limpio
-                    val_hoyo = df_mvp_limpio[df_mvp_limpio['hoyo'].astype(int) == h_actual]
-                    pts_hoyo = float(val_hoyo[f'p{i+1}_pts'].iloc[0]) if not val_hoyo.empty else 0.0
-                    cols_mvp[i].metric(nombres[i], f"{pts_hoyo:.1f}")
+            # Usamos un checkbox con apariencia de botón o un expander
+            if st.checkbox("📊 Ver Clasificación MVP"):
+                if not df_partido_actual.empty:
+                    # Limpiamos duplicados por si acaso
+                    df_mvp = df_partido_actual.sort_values('hoyo').drop_duplicates('hoyo', keep='last')
+                    
+                    nombres = ["MANU", "JOSE", "ROGE", "LALO"]
+                    
+                    # Mostrar puntos del hoyo actual
+                    st.write(f"**🌟 Puntos Hoyo {h_actual}**")
+                    c1, c2, c3, c4 = st.columns(4)
+                    for i, col_obj in enumerate([c1, c2, c3, c4]):
+                        # Buscamos el valor real guardado
+                        h_reg = df_mvp[df_mvp['hoyo'].astype(int) == h_actual]
+                        val = float(h_reg[f'p{i+1}_pts'].iloc[0]) if not h_reg.empty else 0.0
+                        col_obj.metric(nombres[i], f"{val:.1f}")
 
-                # --- 9.2 Acumulado Total Jornada ---
-                st.markdown("**📊 Acumulado Total Jornada:**")
-                totales = []
-                for i in range(1, 5):
-                    col = f'p{i}_pts'
-                    # Sumamos sobre el DataFrame sin duplicados
-                    total_jugador = df_mvp_limpio[col].sum()
-                    totales.append(total_jugador)
-                
-                ranking = sorted(zip(nombres, totales), key=lambda x: x[1], reverse=True)
-                
-                # Usamos columnas para que el acumulado no ocupe tanto espacio vertical
-                cols_rank = st.columns(len(ranking))
-                for idx, (nombre, pts) in enumerate(ranking):
-                    cols_rank[idx].write(f"**{nombre}**")
-                    cols_rank[idx].write(f"{pts:.1f} pts")
-            else:
-                st.info("Introduce datos en el hoyo para ver el MVP.")
+                    # Mostrar Acumulado
+                    st.write("**🏆 Acumulado Jornada**")
+                    totales = []
+                    for i in range(1, 5):
+                        totales.append(df_mvp[f'p{i}_pts'].sum())
+                    
+                    ranking = sorted(zip(nombres, totales), key=lambda x: x[1], reverse=True)
+                    cols_r = st.columns(4)
+                    for idx, (nom, pts) in enumerate(ranking):
+                        cols_r[idx].write(f"**{nom}**")
+                        cols_r[idx].write(f"{pts:.1f}")
 
             # 10. FINALIZAR PARTIDA
             st.write("---")
