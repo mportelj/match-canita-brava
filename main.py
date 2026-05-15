@@ -138,21 +138,8 @@ def leer_datos():
         if filas and len(filas) > 1:
             df_raw = pd.DataFrame(filas[1:], columns=filas[0])
             
-            # --- LIMPIEZA Y CONVERSIÓN A NÚMERO ---
             # --- LIMPIEZA Y CONVERSIÓN DE TIPOS DEFINIDOS ---
-            
-            # 1. Columnas de Enteros
-            cols_enteros = ['resultado_a', 'resultado_b', 'hoyo', 's0', 's1', 's2', 's3', 'temporada']
-            for col in cols_enteros:
-                if col in df_raw.columns:
-                    df_raw[col] = pd.to_numeric(df_raw[col].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).astype(int)
-            
-            # 2. Columnas de Decimales (Puntos MVP)
-            cols_decimales = ['p1_pts', 'p2_pts', 'p3_pts', 'p4_pts']
-            for col in cols_decimales:
-                if col in df_raw.columns:
-                    df_raw[col] = pd.to_numeric(df_raw[col].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
-            
+                        
             # --- LIMPIEZA DE FECHAS (dd/mm/aaaa) ---
             df_raw['fecha'] = pd.to_datetime(df_raw['fecha'], errors='coerce', dayfirst=True)
             df_raw['fecha'] = df_raw['fecha'].dt.strftime('%d/%m/%Y')
@@ -160,7 +147,24 @@ def leer_datos():
             # --- LIMPIEZA DE ID (Quitar el .0) ---
             df_raw['partido_id'] = df_raw['partido_id'].astype(str).str.split('.').str[0]
             
-            return df_raw
+            if not df_raw.empty:
+            # 1. Asegurar que los puntos MVP sean numéricos (FLOAT)
+            cols_mvp = ['p1_pts', 'p2_pts', 'p3_pts', 'p4_pts']
+            for col in cols_mvp:
+                if col in df_raw.columns:
+                    # Forzamos conversión: Texto -> Punto decimal -> Float
+                    df_raw[col] = pd.to_numeric(
+                        df_raw[col].astype(str).str.replace(',', '.').str.strip(), 
+                        errors='coerce'
+                    ).fillna(0.0)
+
+            # 2. Asegurar que los golpes y resultados sean ENTEROS
+            cols_int = ['resultado_a', 'resultado_b', 's0', 's1', 's2', 's3', 'hoyo']
+            for col in cols_int:
+                if col in df_raw.columns:
+                    df_raw[col] = pd.to_numeric(df_raw[col], errors='coerce').fillna(0).astype(int)
+        
+        return df_raw
         
         return pd.DataFrame()
         
