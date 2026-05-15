@@ -219,7 +219,7 @@ if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
 def cambiar_menu():
-    # .get() devuelve None si la clave no existe, evitando el AttributeError
+    # Usamos .get() para evitar el AttributeError
     seleccion = st.session_state.get("nav_radio")
     if seleccion:
         st.session_state.menu_seleccionado = seleccion
@@ -595,21 +595,15 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             #v2 = fil_2_col_1.number_input("ROGE", 1, 15, value=golpes_anteriores[2] if golpes_anteriores[2]>0 else par_del_hoyo, key=f"in_v2_{h_actual}")
             #v3 = fil_2_col_2.number_input("LALO", 1, 15, value=golpes_anteriores[3] if golpes_anteriores[3]>0 else par_del_hoyo, key=f"in_v3_{h_actual}")
 
-           # --- ENTRADA DE GOLPES (CORREGIDA) ---
-            cols_golpes = st.columns(4)
-            with cols_golpes[0]:
-                # Si golpes_anteriores es 0, usará 1 para evitar el error
-                s0 = st.number_input("MANU", min_value=1, max_value=20, value=max(1, golpes_anteriores[0]), key="input_s0")
-            with cols_golpes[1]:
-                s1 = st.number_input("JOSE", min_value=1, max_value=20, value=max(1, golpes_anteriores[1]), key="input_s1")
-            with cols_golpes[2]:
-                s2 = st.number_input("ROGE", min_value=1, max_value=20, value=max(1, golpes_anteriores[2]), key="input_s2")
-            with cols_golpes[3]:
-                s3 = st.number_input("LALO", min_value=1, max_value=20, value=max(1, golpes_anteriores[3]), key="input_s3")
+          # --- ENTRADA DE GOLPES ---
+            # Usamos max(1, ...) para que si no hay datos (0), el mínimo sea 1
+            s0 = st.number_input("MANU", min_value=1, value=max(1, golpes_anteriores[0]), key="input_s0")
+            s1 = st.number_input("JOSE", min_value=1, value=max(1, golpes_anteriores[1]), key="input_s1")
+            s2 = st.number_input("ROGE", min_value=1, value=max(1, golpes_anteriores[2]), key="input_s2")
+            s3 = st.number_input("LALO", min_value=1, value=max(1, golpes_anteriores[3]), key="input_s3")
 
-            # --- BOTÓN DE GUARDADO ---
             if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True):
-                # Ahora s0, s1, s2 y s3 ya están definidos arriba por los number_input
+                # Pasamos las variables definidas justo arriba
                 ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
                 st.rerun()
                 
