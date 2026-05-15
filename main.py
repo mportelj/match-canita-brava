@@ -542,7 +542,22 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.rerun()
 
             # 6. OBTENCIÓN DE DATOS DEL HOYO ESPECÍFICO (CORREGIDO)
-            golpes_anteriores = [0, 0, 0, 0]
+            # --- OBTENER GOLPES POR DEFECTO ---
+            # Buscamos si ya existen datos para este hoyo en el DataFrame
+            df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
+
+            if not df_hoyo_actual.empty:
+            # Si ya hay datos guardados, los usamos
+                golpes_anteriores = [
+                    int(df_hoyo_actual['p1_golpes'].iloc[0]),
+                    int(df_hoyo_actual['p2_golpes'].iloc[0]),
+                    int(df_hoyo_actual['p3_golpes'].iloc[0]),
+                    int(df_hoyo_actual['p4_golpes'].iloc[0])
+                ]
+            else:
+                # SI EL HOYO ESTÁ VACÍO, ASIGNAMOS EL PAR POR DEFECTO
+                par_del_hoyo = int(PAR_RIA_VIGO[h_actual])
+                golpes_anteriores = [par_del_hoyo, par_del_hoyo, par_del_hoyo, par_del_hoyo]
             puntos_mvp_hoyo = [0.0, 0.0, 0.0, 0.0]
             hay_datos_hoyo = False
             
