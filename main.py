@@ -540,9 +540,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                         int(df_hoyo_actual['s2'].iloc[0]),
                         int(df_hoyo_actual['s3'].iloc[0])
                     ]
-                except (KeyError, IndexError):
-                    # Si fallan las columnas s0-s3, mantenemos el par
-                    pass
+                    except (KeyError, IndexError):
+                        # Si fallan las columnas s0-s3, mantenemos el par
+                        pass
 
             # --- 4. RENDERIZAR INPUTS EN LA APP ---
             st.markdown(f"### ⛳ Hoyo {h_actual} (Par {val_par_hoyo})")
