@@ -519,42 +519,42 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             # --- LÓGICA DE GOLPES POR DEFECTO ---
             # --- 1. DETERMINAR SI EL HOYO TIENE DATOS ---
+            # --- 1. DATOS DEL HOYO Y VALORES POR DEFECTO ---
             df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
             hay_datos_hoyo = not df_hoyo_actual.empty
 
-            # --- 2. ASIGNAR VALORES POR DEFECTO (EL PAR) ---
             try:
                 val_par_hoyo = int(PAR_RIA_VIGO[int(h_actual)])
             except:
-                val_par_hoyo = 4  # Valor de seguridad si falla la lista
+                val_par_hoyo = 4
 
-            # Inicializamos la lista con el par por defecto
+            # Inicializamos siempre con el Par
             golpes_anteriores = [val_par_hoyo] * 4
 
-            # --- 3. SI HAY DATOS, SOBRESCRIBIMOS CON LO GUARDADO ---
+            # --- 2. CARGAR DATOS SI EXISTEN ---
             if hay_datos_hoyo:
-                   try:
+                try:
                     golpes_anteriores = [
                         int(df_hoyo_actual['s0'].iloc[0]),
                         int(df_hoyo_actual['s1'].iloc[0]),
                         int(df_hoyo_actual['s2'].iloc[0]),
                         int(df_hoyo_actual['s3'].iloc[0])
                     ]
-                    except (KeyError, IndexError):
-                        # Si fallan las columnas s0-s3, mantenemos el par
-                        pass
+                except (KeyError, IndexError):
+                    # Si las columnas no existen, mantenemos el Par definido arriba
+                    pass
 
-            # --- 4. RENDERIZAR INPUTS EN LA APP ---
+            # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
             st.markdown(f"### ⛳ Hoyo {h_actual} (Par {val_par_hoyo})")
             cols_g = st.columns(4)
 
-            # La clave (key) DEBE incluir el hoyo para que cambie el valor al navegar
+            # La key dinámica 'h{h_actual}' asegura que los valores cambien al moverte de hoyo
             s0 = cols_g[0].number_input("MANU", min_value=1, value=golpes_anteriores[0], key=f"s0_h{h_actual}")
             s1 = cols_g[1].number_input("JOSE", min_value=1, value=golpes_anteriores[1], key=f"s1_h{h_actual}")
             s2 = cols_g[2].number_input("ROGE", min_value=1, value=golpes_anteriores[2], key=f"s2_h{h_actual}")
             s3 = cols_g[3].number_input("LALO", min_value=1, value=golpes_anteriores[3], key=f"s3_h{h_actual}")
-
-            # --- 5. BOTÓN DE GUARDADO ---
+    
+            # --- 4. BOTÓN DE GUARDADO ---
             if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True):
                 ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
                 st.rerun()
