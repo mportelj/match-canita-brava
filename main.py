@@ -513,26 +513,26 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             # 6. OBTENCIÓN DE DATOS DEL HOYO ESPECÍFICO (CORREGIDO)
            # --- OBTENER GOLPES (COLUMNAS s0, s1, s2, s3) ---
-df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
+            df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
 
-if not df_hoyo_actual.empty:
-    try:
-        # Actualizamos a tus nombres de columna reales: s0, s1, s2, s3
-        golpes_anteriores = [
-            int(df_hoyo_actual['s0'].iloc[0]),
-            int(df_hoyo_actual['s1'].iloc[0]),
-            int(df_hoyo_actual['s2'].iloc[0]),
-            int(df_hoyo_actual['s3'].iloc[0])
-        ]
-    except KeyError as e:
-        # Si fallara alguna columna, ponemos el par por defecto y avisamos
-        st.error(f"Error de columnas: No se encontró {e} en el Excel.")
-        par_val = int(PAR_RIA_VIGO[h_actual])
-        golpes_anteriores = [par_val] * 4
-else:
-    # SI EL HOYO ES NUEVO (VACÍO), ASIGNAMOS EL PAR AUTOMÁTICAMENTE
-    par_val = int(PAR_RIA_VIGO[h_actual])
-    golpes_anteriores = [par_val] * 4
+            if not df_hoyo_actual.empty:
+                try:
+                    # Actualizamos a tus nombres de columna reales: s0, s1, s2, s3
+                    golpes_anteriores = [
+                        int(df_hoyo_actual['s0'].iloc[0]),
+                        int(df_hoyo_actual['s1'].iloc[0]),
+                        int(df_hoyo_actual['s2'].iloc[0]),
+                        int(df_hoyo_actual['s3'].iloc[0])
+                    ]
+                except KeyError as e:
+                     # Si fallara alguna columna, ponemos el par por defecto y avisamos
+                    st.error(f"Error de columnas: No se encontró {e} en el Excel.")
+                    par_val = int(PAR_RIA_VIGO[h_actual])
+                    golpes_anteriores = [par_val] * 4
+            else:
+                # SI EL HOYO ES NUEVO (VACÍO), ASIGNAMOS EL PAR AUTOMÁTICAMENTE
+                par_val = int(PAR_RIA_VIGO[h_actual])
+                golpes_anteriores = [par_val] * 4
             
             # INICIALIZACIÓN CRÍTICA (Para evitar el NameError en la línea 580)
             res_hoyo_a = 0 
