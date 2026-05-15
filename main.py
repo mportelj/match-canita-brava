@@ -139,14 +139,19 @@ def leer_datos():
             df_raw = pd.DataFrame(filas[1:], columns=filas[0])
             
             # --- LIMPIEZA Y CONVERSIÓN A NÚMERO ---
-            # Columnas que deben ser números sí o sí
-            cols_numericas = ['resultado_a', 'resultado_b', 'hoyo', 's0', 's1', 's2', 's3']
+            # --- LIMPIEZA Y CONVERSIÓN DE TIPOS DEFINIDOS ---
             
-            for col in cols_numericas:
+            # 1. Columnas de Enteros
+            cols_enteros = ['resultado_a', 'resultado_b', 'hoyo', 's0', 's1', 's2', 's3', 'temporada']
+            for col in cols_enteros:
                 if col in df_raw.columns:
-                    # Convertimos a string, quitamos comas por puntos y forzamos a número
-                    df_raw[col] = df_raw[col].astype(str).str.replace(',', '.')
-                    df_raw[col] = pd.to_numeric(df_raw[col], errors='coerce').fillna(0)
+                    df_raw[col] = pd.to_numeric(df_raw[col].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).astype(int)
+            
+            # 2. Columnas de Decimales (Puntos MVP)
+            cols_decimales = ['p1_pts', 'p2_pts', 'p3_pts', 'p4_pts']
+            for col in cols_decimales:
+                if col in df_raw.columns:
+                    df_raw[col] = pd.to_numeric(df_raw[col].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
             
             # --- LIMPIEZA DE FECHAS (dd/mm/aaaa) ---
             df_raw['fecha'] = pd.to_datetime(df_raw['fecha'], errors='coerce', dayfirst=True)
@@ -259,7 +264,7 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         g = st.session_state.game
         par_hoyo = PAR_RIA_VIGO[int(hoyo_id)]
         
-        # 1. CÁLCULO DE PUNTOS (Manteniendo tus fórmulas)
+        # 1. CÁLCULO DE PUNTOS (Lógica de bonus y MVP)
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         
         def calc_bonus_mvp(score, p):
@@ -290,42 +295,45 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         total_b = (1.0 if res_b < res_a else 0.0) + (1.0 if peor_b < peor_a else 0.0) + \
                   calc_bonus_match(golpes[2], par_hoyo) + calc_bonus_match(golpes[3], par_hoyo)
 
-        match_a = float(max(0.0, total_a - total_b)) if total_a != total_b else 0.0
-        match_b = float(max(0.0, total_b - total_a)) if total_a != total_b else 0.0
+        # Resultados del Match (resultado_a y resultado_b) convertidos a ENTEROS
+        match_a = int(max(0, total_a - total_b)) if total_a != total_b else 0
+        match_b = int(max(0, total_b - total_a)) if total_a != total_b else 0
 
         # 2. PROCESAMIENTO DE IDENTIFICADORES Y FECHA
-        # ID limpio: Si es "20240510.0", lo dejamos como "20240510" (texto para el ID compuesto)
         id_partido_puro = str(g['id']).split('.')[0]
         
-        # Fecha blindada a dd/mm/yyyy
         try:
             fecha_str = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
         except:
             fecha_str = str(g['fecha'])
 
-        # 3. CONSTRUCCIÓN DE FILA CON TIPOS NATIVOS (Sin f-strings para números)
+        # 3. CONSTRUCCIÓN DE FILA CON TIPOS NATIVOS FORZADOS
+        # Definición: resultado_a/b (int), p_pts (float 1 decimal), s_golpes (int)
         nueva_fila = [
-            f"{id_partido_puro}_H{hoyo_id}", # Clave única (Texto)
-            int(id_partido_puro),           # ID Partido (Número ENTERO)
-            int(hoyo_id),                   # Hoyo (Número ENTERO)
-            fecha_str,                      # Fecha (Texto dd/mm/aaaa)
-            int(g.get('temporada', 2026)),  # Temporada (Número ENTERO)
-            match_a, match_b,               # Match (Número con decimales)
-            p_mvp[0], p_mvp[1],             # MVP (Número con decimales)
-            p_mvp[2], p_mvp[3],             # MVP (Número con decimales)
-            int(g0), int(g1),               # Golpes (Número ENTERO)
-            int(g2), int(g3)                # Golpes (Número ENTERO)
+            f"{id_partido_puro}_H{hoyo_id}",     # 0: Clave única (Texto)
+            int(id_partido_puro),               # 1: partido_id (Entero)
+            int(hoyo_id),                       # 2: hoyo (Entero)
+            fecha_str,                          # 3: fecha (Texto)
+            int(g.get('temporada', 2026)),      # 4: temporada (Entero)
+            int(match_a),                       # 5: resultado_a (Entero)
+            int(match_b),                       # 6: resultado_b (Entero)
+            round(float(p_mvp[0]), 1),          # 7: p1_pts (Decimal)
+            round(float(p_mvp[1]), 1),          # 8: p2_pts (Decimal)
+            round(float(p_mvp[2]), 1),          # 9: p3_pts (Decimal)
+            round(float(p_mvp[3]), 1),          # 10: p4_pts (Decimal)
+            int(g0), int(g1),                   # 11, 12: s0, s1 (Entero)
+            int(g2), int(g3)                    # 13, 14: s2, s3 (Entero)
         ]
 
         # 4. ACTUALIZACIÓN EN GOOGLE SHEETS
         filas = hoja.get_all_values()
         header = filas[0] if filas else []
         
-        # Reemplazar si ya existe el hoyo
+        # Filtrar registros para evitar duplicados del mismo hoyo en la misma sesión
         datos_nuevos = []
         for f in filas[1:]:
             if len(f) > 2:
-                # Comparamos como strings limpios para evitar fallos de .0
+                # Normalizamos IDs para la comparación
                 f_id = str(f[1]).split('.')[0]
                 f_hoyo = str(f[2])
                 if f_id == id_partido_puro and f_hoyo == str(hoyo_id):
@@ -333,19 +341,21 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
             datos_nuevos.append(f)
 
         datos_nuevos.append(nueva_fila)
-        # Ordenamos por ID y luego por Hoyo
+        
+        # Ordenar por ID de partido y luego por número de hoyo
         datos_nuevos.sort(key=lambda x: (str(x[1]), int(x[2])))
 
-        # ESCRITURA FINAL
+        # 5. ESCRITURA FINAL
         hoja.clear()
-        # IMPORTANTE: USER_ENTERED permite que Google Sheets interprete los tipos
+        # El uso de 'USER_ENTERED' es vital para que Sheets reconozca los tipos int y float
         hoja.update('A1', [header] + datos_nuevos, value_input_option='USER_ENTERED')
         
         st.toast(f"✅ Hoyo {hoyo_id} guardado correctamente")
         st.cache_data.clear()
 
     except Exception as e:
-        st.error(f"Error crítico: {str(e)}")
+        st.error(f"Error crítico al guardar: {str(e)}")
+        
 # --- CÁLCULO DEL MARCADOR ACUMULADO DE LA TEMPORADA ---
 
 def calcular_marcador_acumulado(df):
@@ -544,7 +554,11 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             # 6. OBTENCIÓN DE DATOS DEL HOYO ESPECÍFICO
             golpes_anteriores = [0, 0, 0, 0]
-            puntos_mvp_hoyo = [0.0, 0.0, 0.0, 0.0]
+            # Puntos MVP del hoyo (Asegurando conversión de texto/coma a decimal)
+                        puntos_mvp_hoyo = []
+                        for i in range(1, 5):
+                            val = str(registro_hoyo.iloc[0][f'p{i}_pts']).replace(',', '.')
+                            puntos_mvp_hoyo.append(float(val))
             hay_datos_hoyo = False
             res_hoyo_a, res_hoyo_b = 0, 0
             
