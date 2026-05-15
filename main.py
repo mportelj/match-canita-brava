@@ -268,89 +268,70 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     try:
         hoja = st.session_state.sh
         g = st.session_state.game
+        par = int(PAR_RIA_VIGO[int(hoyo_id)])
         
-        # ASEGURAMOS QUE EL PAR SEA ENTERO
-        par_hoyo = int(PAR_RIA_VIGO[int(hoyo_id)])
+        # Golpes como lista de enteros
+        s = [int(g0), int(g1), int(g2), int(g3)]
         
-        # ASEGURAMOS QUE LOS GOLPES SEAN ENTEROS
-        golpes = [int(g0), int(g1), int(g2), int(g3)]
-        
-        # ==========================================
-        # CÁLCULO MVP (BLINDADO)
-        # ==========================================
+        # --- CÁLCULO MVP (Lógica plana) ---
         p_mvp = [0.0, 0.0, 0.0, 0.0]
-        
         for i in range(4):
-            # A. Puntos vs Otros: Solo sumamos si MI score es MENOR que el del otro
-            puntos_victoria = 0.0
-            for j in range(4):
-                if i != j:
-                    # Comparación estricta de enteros: 4 < 4 es FALSO
-                    if golpes[i] < golpes[j]:
-                        puntos_victoria += 0.5
+            # 1. Puntos por ganar a otros (0.5 por cada uno si haces MENOS golpes)
+            # Ejemplo: si todos hacéis 4, esta suma dará 0.0 siempre.
+            puntos_victoria = sum(0.5 for j in range(4) if i != j and s[i] < s[j])
             
-            # B. Puntos vs Par: Basado en la diferencia exacta
-            dif = golpes[i] - par_hoyo
+            # 2. Puntos por Par (0.5 si score == par, 1.5 si birdie...)
             puntos_par = 0.0
+            if s[i] == par: puntos_par = 0.5
+            elif s[i] == par - 1: puntos_par = 1.5
+            elif s[i] == par - 2: puntos_par = 3.0
+            elif s[i] <= par - 3: puntos_par = 4.0
             
-            if dif <= -3:   puntos_par = 4.0 # Albatros
-            elif dif == -2: puntos_par = 3.0 # Eagle
-            elif dif == -1: puntos_par = 1.5 # Birdie
-            elif dif == 0:  puntos_par = 0.5 # PAR
-            # Bogey o peor (+1, +2...) queda en 0.0
-            
-            # C. Suma final (0.0 de victoria + 0.5 de par = 0.5)
             p_mvp[i] = float(puntos_victoria + puntos_par)
 
-        # ==========================================
-        # LÓGICA MATCH PLAY (RESULTADO EQUIPOS)
-        # ==========================================
-        def bonus_match(s, p):
-            d = s - p
+        # --- CÁLCULO MATCH PLAY (Equipos) ---
+        def bonus_m(golpe, p):
+            d = golpe - p
             if d <= -3: return 3.0
             if d == -2: return 2.0
             if d == -1: return 1.0
             return 0.0
 
-        res_a, res_b = min(golpes[0], golpes[1]), min(golpes[2], golpes[3])
-        peor_a, peor_b = max(golpes[0], golpes[1]), max(golpes[2], golpes[3])
+        res_a, res_b = min(s[0], s[1]), min(s[2], s[3])
+        peor_a, peor_b = max(s[0], s[1]), max(s[2], s[3])
         
-        t_a = (1.0 if res_a < res_b else 0.0) + (1.0 if peor_a < peor_b else 0.0) + \
-              bonus_match(golpes[0], par_hoyo) + bonus_match(golpes[1], par_hoyo)
-        t_b = (1.0 if res_b < res_a else 0.0) + (1.0 if peor_b < peor_a else 0.0) + \
-              bonus_match(golpes[2], par_hoyo) + bonus_match(golpes[3], par_hoyo)
+        t_a = (1.0 if res_a < res_b else 0.0) + (1.0 if peor_a < peor_b else 0.0) + bonus_m(s[0], par) + bonus_m(s[1], par)
+        t_b = (1.0 if res_b < res_a else 0.0) + (1.0 if peor_b < peor_a else 0.0) + bonus_m(s[2], par) + bonus_m(s[3], par)
 
         match_a = int(max(0, t_a - t_b)) if t_a != t_b else 0
         match_b = int(max(0, t_b - t_a)) if t_a != t_b else 0
 
-        # ==========================================
-        # PREPARACIÓN DE FILA Y GUARDADO
-        # ==========================================
-        id_partido_puro = str(g['id']).split('.')[0]
-        fecha_str = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
-
+        # --- GUARDADO ---
+        id_partido = str(g['id']).split('.')[0]
+        fecha = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
+        
         nueva_fila = [
-            f"{id_partido_puro}_H{hoyo_id}", int(id_partido_puro), int(hoyo_id),
-            fecha_str, int(g.get('temporada', 2026)), match_a, match_b,
-            round(p_mvp[0], 1), round(p_mvp[1], 1), round(p_mvp[2], 1), round(p_mvp[3], 1),
-            golpes[0], golpes[1], golpes[2], golpes[3]
+            f"{id_partido}_H{hoyo_id}", int(id_partido), int(hoyo_id),
+            fecha, int(g.get('temporada', 2026)), match_a, match_b,
+            p_mvp[0], p_mvp[1], p_mvp[2], p_mvp[3],
+            s[0], s[1], s[2], s[3]
         ]
 
         filas = hoja.get_all_values()
         header = filas[0]
-        # Eliminamos registros previos del mismo hoyo para evitar basura
-        datos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_partido_puro and str(f[2]) == str(hoyo_id))]
+        # Limpiar datos viejos de este hoyo
+        datos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_partido and str(f[2]) == str(hoyo_id))]
         datos.append(nueva_fila)
         datos.sort(key=lambda x: (str(x[1]), int(x[2])))
 
         hoja.clear()
         hoja.update('A1', [header] + datos, value_input_option='USER_ENTERED')
         
-        st.toast(f"✅ Hoyo {hoyo_id} guardado: MVP {p_mvp}")
+        st.toast(f"✅ Hoyo {hoyo_id} guardado con éxito")
         st.cache_data.clear()
 
     except Exception as e:
-        st.error(f"Error crítico en el cálculo: {e}")
+        st.error(f"Error: {e}")
         
 # --- CÁLCULO DEL MARCADOR ACUMULADO DE LA TEMPORADA ---
 
@@ -611,12 +592,16 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             # 9. SECCIÓN MVP
             st.write("---")
+            # --- 9. SECCIÓN MVP (Visualización en pantalla) ---
             with st.expander("🏆 CLASIFICACIÓN MVP"):
                 nombres_jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
                 st.markdown(f"**🌟 Puntos Hoyo {h_actual}:**")
                 cols_mvp = st.columns(4)
-                for i in range(4):
-                    cols_mvp[i].metric(nombres_jugadores[i], f"{puntos_mvp_hoyo[i]:.1f}")
+    
+            for i in range(4):
+                # Forzamos que el valor visual sea exactamente el que calculamos
+                valor_mvp = puntos_mvp_hoyo[i]
+                cols_mvp[i].metric(nombres_jugadores[i], f"{valor_mvp:.1f}")
 
                 # --- 9.1 ACUMULADO TOTAL JORNADA ---
                 if not df_partido_actual.empty:
