@@ -219,7 +219,7 @@ if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
 def cambiar_menu():
-    # Usamos .get() para evitar el AttributeError
+    # Usamos .get() que es seguro: si no existe 'nav_radio', devuelve None
     seleccion = st.session_state.get("nav_radio")
     if seleccion:
         st.session_state.menu_seleccionado = seleccion
@@ -280,27 +280,27 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         
         # --- LÓGICA MVP DENTRO DE LA FUNCIÓN DE GUARDADO ---
         # --- CÁLCULO MVP MATEMÁTICAMENTE PURO ---
+        # --- CÁLCULO MVP REVISADO ---
         p_mvp = [0.0, 0.0, 0.0, 0.0]
         for i in range(4):
-            # A. VICTORIA (0.5 por cada rival superado)
-            # Solo se suma si mi score es MENOR (<) que el del otro. 
-            # 4 < 4 es FALSO, por lo que sumará 0.
+            # A. Puntos por ganar a otros (0.5 por cada rival con MÁS golpes que yo)
+            # REGLA: Si yo hago 4 y el otro hace 4, (4 < 4) es FALSO -> Suma 0.
             puntos_victoria = 0.0
             for j in range(4):
                 if i != j:
                     if int(golpes[i]) < int(golpes[j]):
                         puntos_victoria += 0.5
             
-            # B. CUMPLIMIENTO DEL PAR (0.5 si igualas el par)
+            # B. Puntos por Par (0.5 si igualas el par del hoyo)
             puntos_par = 0.0
             diferencia = int(golpes[i]) - par_hoyo
             
-            if diferencia == 0:    puntos_par = 0.5
-            elif diferencia == -1: puntos_par = 1.5
-            elif diferencia == -2: puntos_par = 3.0
-            elif diferencia <= -3: puntos_par = 4.0
+            if diferencia == 0:    puntos_par = 0.5 # PAR
+            elif diferencia == -1: puntos_par = 1.5 # Birdie
+            elif diferencia == -2: puntos_par = 3.0 # Eagle
+            elif diferencia <= -3: puntos_par = 4.0 # Albatros
             
-            # Resultado para el jugador i: 0.0 (victoria) + 0.5 (par) = 0.5
+            # C. Suma Final: 0.0 (victoria) + 0.5 (par) = 0.5 EXACTOS
             p_mvp[i] = float(puntos_victoria + puntos_par)
 
         # 4. CÁLCULO MATCH PLAY (Equipos)
