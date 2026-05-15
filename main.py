@@ -267,14 +267,14 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         # Convertimos entradas a enteros
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         
-        # --- LÓGICA MVP CORREGIDA ---
+        # --- LÓGICA MVP (0.5 por cada jugador superado + Bonus por Par) ---
         p_mvp = [0.0, 0.0, 0.0, 0.0]
         for i in range(4):
-            # A. Puntos por ganar a otros (0.5 por cada jugador con MÁS golpes que tú)
+            # A. Puntos por ganar a otros: 0.5 solo si mi score es MENOR
             puntos_vs_otros = 0.0
             for j in range(4):
                 if i != j:
-                    if golpes[i] < golpes[j]:
+                    if golpes[i] < golpes[j]: # Solo si le ganas. Empate = 0
                         puntos_vs_otros += 0.5
             
             # B. Puntos por resultado vs Par
@@ -284,11 +284,11 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
             elif dif == -2: puntos_vs_par = 3.0 # Eagle
             elif dif == -1: puntos_vs_par = 1.5 # Birdie
             elif dif == 0:  puntos_vs_par = 0.5 # Par
-            # Bogey o más (+1, +2...) se queda en 0.0
+            # Bogey o peor = 0.0
             
             p_mvp[i] = float(puntos_vs_otros + puntos_vs_par)
 
-        # --- LÓGICA MATCH PLAY ---
+        # --- LÓGICA MATCH PLAY (Se mantiene igual) ---
         def calc_bonus_match(score, p):
             d = score - p
             if d <= -3: return 3.0
@@ -307,7 +307,7 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         match_a = int(max(0, total_a - total_b)) if total_a != total_b else 0
         match_b = int(max(0, total_b - total_a)) if total_a != total_b else 0
 
-        # --- PREPARACIÓN DE FILA ---
+        # --- PREPARACIÓN DE FILA PARA GOOGLE SHEETS ---
         id_partido_puro = str(g['id']).split('.')[0]
         try:
             fecha_str = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
@@ -333,6 +333,7 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         # --- GUARDADO ---
         filas = hoja.get_all_values()
         header = filas[0] if filas else []
+        # Eliminamos el registro antiguo del hoyo si existe
         datos_nuevos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_partido_puro and str(f[2]) == str(hoyo_id))]
         datos_nuevos.append(nueva_fila)
         datos_nuevos.sort(key=lambda x: (str(x[1]), int(x[2])))
@@ -340,11 +341,11 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         hoja.clear()
         hoja.update('A1', [header] + datos_nuevos, value_input_option='USER_ENTERED')
         
-        st.toast(f"✅ Guardado Hoyo {hoyo_id}")
+        st.toast(f"✅ Guardado Hoyo {hoyo_id}: {p_mvp}")
         st.cache_data.clear()
 
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error en guardado: {e}")
         
 # --- CÁLCULO DEL MARCADOR ACUMULADO DE LA TEMPORADA ---
 
