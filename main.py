@@ -447,6 +447,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         # Inicializamos DataFrames vacíos para evitar errores de referencia
         df_p = pd.DataFrame()
         df_partido_actual = pd.DataFrame()
+        df_temporada = pd.DataFrame()
 
         # --- BLOQUE A: CONFIGURACIÓN DE INICIO (PANTALLA DE BIENVENIDA) ---
         game_activo = st.session_state.get('game')
@@ -489,11 +490,14 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     
                     # Creamos el dataset exclusivo de la jornada de hoy
                     df_partido_actual = df_p[df_p['partido_id_str'] == id_sesion].copy()
+                    
+                    # Filtramos por temporada actual para el acumulado histórico
+                    temp_actual = g.get('temporada', str(datetime.now().year))
+                    df_temporada = df_p[df_p['temporada'].astype(str) == temp_actual].copy()
             except Exception as e:
                 st.error(f"Error al conectar con la base de datos: {e}")
 
             # 2. CÁLCULO DE MARCADOR GLOBAL (MATCH PLAY)
-            # Sumamos los hoyos ganados por cada equipo en la jornada
             puntos_equipo_a = 0
             puntos_equipo_b = 0
             if not df_partido_actual.empty:
@@ -533,11 +537,11 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.session_state.game['h_sel'] = h_actual
 
             col_nav_1, col_nav_2 = st.columns(2)
-            if col_nav_1.button("⬅️ ANTERIOR", use_container_width=True):
+            if col_nav_1.button("⬅️ ANTERIOR", key="btn_ant", use_container_width=True):
                 st.session_state.game['h_sel'] = max(1, int(st.session_state.game['h_sel']) - 1)
                 st.session_state.refresco_id += 1
                 st.rerun()
-            if col_nav_2.button("SIGUIENTE ➡️", use_container_width=True):
+            if col_nav_2.button("SIGUIENTE ➡️", key="btn_sig", use_container_width=True):
                 st.session_state.game['h_sel'] = min(18, int(st.session_state.game['h_sel']) + 1)
                 st.session_state.refresco_id += 1
                 st.rerun()
@@ -557,7 +561,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                         golpes_anteriores = [int(registro_hoyo.iloc[0][f's{i}']) for i in range(4)]
                         res_hoyo_a = int(registro_hoyo.iloc[0]['resultado_a'])
                         res_hoyo_b = int(registro_hoyo.iloc[0]['resultado_b'])
-                        # Puntos MVP del hoyo (campos oficiales p1_pts...p4_pts)
+                        # Puntos MVP del hoyo (p1_pts...p4_pts)
                         puntos_mvp_hoyo = [float(registro_hoyo.iloc[0][f'p{i}_pts']) for i in range(1, 5)]
 
             # 7. MARCADOR DEL HOYO (Basado en resultado_a y resultado_b)
@@ -590,7 +594,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.cache_data.clear()
                     st.rerun()
 
-            # 9. SECCIÓN MVP (DESGLOSE Y ACUMULADO REAL)
+            # 9. SECCIÓN MVP (DESGLOSE, JORNADA Y TEMPORADA)
             st.write("---")
             with st.expander("🏆 CLASIFICACIÓN MVP"):
                 nombres_jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
@@ -601,34 +605,43 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 for i in range(4):
                     cols_mvp[i].metric(nombres_jugadores[i], f"{puntos_mvp_hoyo[i]:.1f}")
 
-                # Ranking Acumulado de toda la jornada (Suma de p1_pts...p4_pts)
+                # --- 9.1 ACUMULADO JORNADA ---
+                st.markdown("**📊 Acumulado Total Jornada:**")
                 if not df_partido_actual.empty:
-                    st.markdown("**📊 Acumulado Total Jornada:**")
-                    
-                    lista_totales = []
+                    lista_totales_jornada = []
                     for i in range(1, 5):
-                        columna_puntos = f'p{i}_pts'
-                        # Forzamos conversión numérica para evitar errores de tipo "String" o "NaN"
-                        puntos_serie = pd.to_numeric(df_partido_actual[columna_puntos], errors='coerce').fillna(0)
-                        lista_totales.append(puntos_serie.sum())
+                        puntos_serie = pd.to_numeric(df_partido_actual[f'p{i}_pts'], errors='coerce').fillna(0)
+                        lista_totales_jornada.append(puntos_serie.sum())
                     
-                    # Generamos el ranking ordenado
-                    ranking_final = sorted(zip(nombres_jugadores, lista_totales), key=lambda x: x[1], reverse=True)
+                    ranking_jornada = sorted(zip(nombres_jugadores, lista_totales_jornada), key=lambda x: x[1], reverse=True)
+                    for nombre, pts in ranking_jornada:
+                        st.write(f"- {nombre}: **{float(pts):.1f} pts**")
+                
+                st.write("---")
+
+                # --- 9.2 ACUMULADO TEMPORADA ---
+                st.markdown(f"**🌟 Ranking Temporada {g.get('temporada')}:**")
+                if not df_temporada.empty:
+                    lista_totales_temporada = []
+                    for i in range(1, 5):
+                        puntos_serie_t = pd.to_numeric(df_temporada[f'p{i}_pts'], errors='coerce').fillna(0)
+                        lista_totales_temporada.append(puntos_serie_t.sum())
                     
-                    for nombre, puntos_totales in ranking_final:
-                        st.write(f"- {nombre}: **{float(puntos_totales):.1f} pts**")
+                    ranking_temporada = sorted(zip(nombres_jugadores, lista_totales_temporada), key=lambda x: x[1], reverse=True)
+                    
+                    df_ranking_t = pd.DataFrame(ranking_temporada, columns=["Jugador", "Puntos Totales"])
+                    st.table(df_ranking_t)
                 else:
-                    st.caption("No hay datos suficientes para calcular el acumulado.")
+                    st.caption("No hay datos de temporada acumulados.")
 
             # 10. FINALIZAR PARTIDA
             st.write("---")
             with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
                 st.warning("⚠️ Esta acción cerrará la sesión actual.")
-                if st.button("Confirmar y Salir", type="primary", use_container_width=True):
+                if st.button("Confirmar y Salir", type="primary", use_container_width=True, key="btn_finalizar"):
                     st.session_state.game = None
                     st.cache_data.clear()
                     st.rerun()
-
 #ESTADUSTICAS ==============
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
