@@ -219,12 +219,10 @@ if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
 def cambiar_menu():
-    # Solo intentamos asignar si la clave 'nav_radio' existe en el estado actual
-    if "nav_radio" in st.session_state:
-        st.session_state.menu_seleccionado = st.session_state.nav_radio
-    else:
-        # Si no existe, evitamos el crash asignando un valor por defecto
-        st.session_state.menu_seleccionado = "Inicio"
+    # Usamos .get() para evitar el AttributeError si nav_radio aún no existe
+    nuevo_menu = st.session_state.get("nav_radio")
+    if nuevo_menu:
+        st.session_state.menu_seleccionado = nuevo_menu
 
 def actualizar_o_insertar_hoyo(datos):
     """
@@ -272,100 +270,68 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         g = st.session_state.game
         par_hoyo = PAR_RIA_VIGO[int(hoyo_id)]
         
-        # 1. Aseguramos que los golpes sean ENTEROS puros
+        # 1. Convertir a enteros para asegurar comparación numérica
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         
-        # ==========================================
-        # CÁLCULO MVP REESCRITO DESDE CERO
-        # ==========================================
+        # 2. CÁLCULO MVP
         p_mvp = [0.0, 0.0, 0.0, 0.0]
-        
         for i in range(4):
-            # A. Puntos por ganar a otros (0.5 por cada oponente con MÁS golpes que yo)
+            # A. Puntos por ganar a otros (0.5 por cada uno)
             puntos_victoria = 0.0
-            mi_score = golpes[i]
-            
             for j in range(4):
-                if i != j: # No compararse con uno mismo
-                    oponente_score = golpes[j]
-                    # REGLA ORO: Solo sumas si tu score es ESTRICTAMENTE MENOR
-                    if mi_score < oponente_score:
+                if i != j:
+                    # REGLA: Solo sumas si tu golpe es MEJOR (MENOR)
+                    # Si empatas (4 vs 4), esto da Falso y sumas 0
+                    if golpes[i] < golpes[j]:
                         puntos_victoria += 0.5
             
-            # B. Puntos por cumplimiento del Par
-            # Birdie o mejor: 1.5 | Par: 0.5 | Bogey o peor: 0.0
+            # B. Puntos por resultado vs Par
+            dif = golpes[i] - par_hoyo
             puntos_par = 0.0
-            diferencia_vs_par = mi_score - par_hoyo
+            if dif <= -3: puntos_par = 4.0   # Albatros
+            elif dif == -2: puntos_par = 3.0 # Eagle
+            elif dif == -1: puntos_par = 1.5 # Birdie
+            elif dif == 0:  puntos_par = 0.5 # Par
             
-            if diferencia_vs_par <= -3: puntos_par = 4.0   # Albatros
-            elif diferencia_vs_par == -2: puntos_par = 3.0 # Eagle
-            elif diferencia_vs_par == -1: puntos_par = 1.5 # Birdie
-            elif diferencia_vs_par == 0:  puntos_par = 0.5 # Par
-            
-            # C. Asignación final (Suma de victoria + cumplimiento de par)
             p_mvp[i] = float(puntos_victoria + puntos_par)
 
-        # ==========================================
-        # LÓGICA MATCH PLAY (EQUIPOS) - Sin cambios
-        # ==========================================
-        def calc_bonus_match(score, p):
-            d = score - p
-            if d <= -3: return 3.0
-            if d == -2: return 2.0
-            if d == -1: return 1.0
-            return 0.0
+        # 3. LÓGICA MATCH (Sigue igual)
+        def b_m(s, p):
+            d = s - p
+            return 3.0 if d <= -3 else 2.0 if d == -2 else 1.0 if d == -1 else 0.0
 
         res_a, res_b = min(golpes[0], golpes[1]), min(golpes[2], golpes[3])
         peor_a, peor_b = max(golpes[0], golpes[1]), max(golpes[2], golpes[3])
-        
-        t_a = (1.0 if res_a < res_b else 0.0) + (1.0 if peor_a < peor_b else 0.0) + \
-              calc_bonus_match(golpes[0], par_hoyo) + calc_bonus_match(golpes[1], par_hoyo)
-        t_b = (1.0 if res_b < res_a else 0.0) + (1.0 if peor_b < peor_a else 0.0) + \
-              calc_bonus_match(golpes[2], par_hoyo) + calc_bonus_match(golpes[3], par_hoyo)
-
+        t_a = (1.0 if res_a < res_b else 0.0) + (1.0 if peor_a < peor_b else 0.0) + b_m(golpes[0], par_hoyo) + b_m(golpes[1], par_hoyo)
+        t_b = (1.0 if res_b < res_a else 0.0) + (1.0 if peor_b < peor_a else 0.0) + b_m(golpes[2], par_hoyo) + b_m(golpes[3], par_hoyo)
         match_a = int(max(0, t_a - t_b)) if t_a != t_b else 0
         match_b = int(max(0, t_b - t_a)) if t_a != t_b else 0
 
-        # ==========================================
-        # GUARDADO EN GOOGLE SHEETS
-        # ==========================================
+        # 4. GUARDADO
         id_partido_puro = str(g['id']).split('.')[0]
-        try:
-            fecha_str = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
-        except:
-            fecha_str = str(g['fecha'])
-
+        fecha_str = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
+        
         nueva_fila = [
-            f"{id_partido_puro}_H{hoyo_id}",
-            int(id_partido_puro),
-            int(hoyo_id),
-            fecha_str,
-            int(g.get('temporada', 2026)),
-            int(match_a),
-            int(match_b),
-            round(p_mvp[0], 1), # MANU
-            round(p_mvp[1], 1), # JOSE
-            round(p_mvp[2], 1), # ROGE
-            round(p_mvp[3], 1), # LALO
-            int(golpes[0]), int(golpes[1]),
-            int(golpes[2]), int(golpes[3])
+            f"{id_partido_puro}_H{hoyo_id}", int(id_partido_puro), int(hoyo_id),
+            fecha_str, int(g.get('temporada', 2026)), match_a, match_b,
+            round(p_mvp[0], 1), round(p_mvp[1], 1), round(p_mvp[2], 1), round(p_mvp[3], 1),
+            golpes[0], golpes[1], golpes[2], golpes[3]
         ]
 
         filas = hoja.get_all_values()
         header = filas[0]
-        # Filtrar registros antiguos
-        datos_nuevos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_partido_puro and str(f[2]) == str(hoyo_id))]
-        datos_nuevos.append(nueva_fila)
-        datos_nuevos.sort(key=lambda x: (str(x[1]), int(x[2])))
+        # Filtrar para no duplicar
+        datos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_partido_puro and str(f[2]) == str(hoyo_id))]
+        datos.append(nueva_fila)
+        datos.sort(key=lambda x: (str(x[1]), int(x[2])))
 
         hoja.clear()
-        hoja.update('A1', [header] + datos_nuevos, value_input_option='USER_ENTERED')
-        
-        st.toast(f"✅ Hoyo {hoyo_id} guardado correctamente")
+        hoja.update('A1', [header] + datos, value_input_option='USER_ENTERED')
+        st.toast(f"✅ Hoyo {hoyo_id} guardado")
         st.cache_data.clear()
 
     except Exception as e:
-        st.error(f"Error crítico: {str(e)}")
+        st.error(f"Error: {e}")
         
 # --- CÁLCULO DEL MARCADOR ACUMULADO DE LA TEMPORADA ---
 
