@@ -278,21 +278,25 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         # 2. Convertir golpes a enteros
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         
-        # 3. CÁLCULO MVP (Regla: 0.5 si es Par, +0.5 por cada rival superado)
+        # --- LÓGICA MVP DENTRO DE LA FUNCIÓN DE GUARDADO ---
         p_mvp = [0.0, 0.0, 0.0, 0.0]
         for i in range(4):
-            # Victoria: Solo si mi golpe es estrictamente MENOR (<) que el del otro
-            pts_victoria = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
-            
-            # Par: 0.5 si igual, más bonus si es mejor
-            pts_par = 0.0
+            # 1. Puntos por ganar a otros: 
+            # Solo sumamos si mis golpes son MENORES que los del oponente.
+            # Si ambos hacéis 4, (4 < 4) es Falso -> 0 puntos.
+            victoria_rivales = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
+    
+            # 2. Puntos por Par:
+            # Si haces los mismos golpes que el par -> 0.5.
+            puntos_par = 0.0
             dif = golpes[i] - par_hoyo
-            if dif == 0: pts_par = 0.5
-            elif dif == -1: pts_par = 1.5
-            elif dif == -2: pts_par = 3.0
-            elif dif <= -3: pts_par = 4.0
-            
-            p_mvp[i] = float(pts_victoria + pts_par)
+            if dif == 0:    puntos_par = 0.5
+            elif dif == -1: puntos_par = 1.5 # Birdie
+            elif dif == -2: puntos_par = 3.0 # Eagle
+            elif dif <= -3: puntos_par = 4.0 # Albatros
+    
+            # 3. Suma final: 0.0 (empate) + 0.5 (par) = 0.5
+            p_mvp[i] = float(victoria_rivales + puntos_par)
 
         # 4. CÁLCULO MATCH PLAY (Equipos)
         def bonus_m(s, p):
@@ -586,16 +590,17 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             #v2 = fil_2_col_1.number_input("ROGE", 1, 15, value=golpes_anteriores[2] if golpes_anteriores[2]>0 else par_del_hoyo, key=f"in_v2_{h_actual}")
             #v3 = fil_2_col_2.number_input("LALO", 1, 15, value=golpes_anteriores[3] if golpes_anteriores[3]>0 else par_del_hoyo, key=f"in_v3_{h_actual}")
 
-           # --- ENTRADA DE GOLPES ---
+           # --- ENTRADA DE GOLPES (CORREGIDA) ---
             cols_golpes = st.columns(4)
             with cols_golpes[0]:
-                s0 = st.number_input("MANU", min_value=1, max_value=20, value=golpes_anteriores[0], key="input_s0")
+                # Si golpes_anteriores es 0, usará 1 para evitar el error
+                s0 = st.number_input("MANU", min_value=1, max_value=20, value=max(1, golpes_anteriores[0]), key="input_s0")
             with cols_golpes[1]:
-                s1 = st.number_input("JOSE", min_value=1, max_value=20, value=golpes_anteriores[1], key="input_s1")
+                s1 = st.number_input("JOSE", min_value=1, max_value=20, value=max(1, golpes_anteriores[1]), key="input_s1")
             with cols_golpes[2]:
-                s2 = st.number_input("ROGE", min_value=1, max_value=20, value=golpes_anteriores[2], key="input_s2")
+                s2 = st.number_input("ROGE", min_value=1, max_value=20, value=max(1, golpes_anteriores[2]), key="input_s2")
             with cols_golpes[3]:
-                s3 = st.number_input("LALO", min_value=1, max_value=20, value=golpes_anteriores[3], key="input_s3")
+                s3 = st.number_input("LALO", min_value=1, max_value=20, value=max(1, golpes_anteriores[3]), key="input_s3")
 
             # --- BOTÓN DE GUARDADO ---
             if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True):
