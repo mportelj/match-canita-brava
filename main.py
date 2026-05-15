@@ -556,23 +556,36 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.session_state.refresco_id += 1
                 st.rerun()
 
-            # 6. OBTENCIÓN DE DATOS DEL HOYO ESPECÍFICO
+            # 6. OBTENCIÓN DE DATOS DEL HOYO ESPECÍFICO (CORREGIDO)
             golpes_anteriores = [0, 0, 0, 0]
             puntos_mvp_hoyo = [0.0, 0.0, 0.0, 0.0]
             hay_datos_hoyo = False
             
+            # INICIALIZACIÓN CRÍTICA (Para evitar el NameError en la línea 580)
+            res_hoyo_a = 0 
+            res_hoyo_b = 0
+            
             if not df_partido_actual.empty:
+                # Usamos el DataFrame ya limpio por la nueva función leer_datos()
                 reg = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
+                
                 if not reg.empty:
-                    # Verificamos si hay golpes reales (evitar hoyos vacíos)
+                    # Verificamos si hay golpes reales grabados
                     if reg.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
                         hay_datos_hoyo = True
                         golpes_anteriores = [int(reg.iloc[0][f's{i}']) for i in range(4)]
                         
-                        # LEER PUNTOS MVP ASEGURANDO 0.5 Y NO 1.0
-                        for i in range(1, 5):
-                            val = str(reg.iloc[0][f'p{i}_pts']).replace(',', '.')
-                            puntos_mvp_hoyo[i-1] = float(val)
+                        # Asignamos los valores que causaban el error
+                        res_hoyo_a = int(reg.iloc[0]['resultado_a'])
+                        res_hoyo_b = int(reg.iloc[0]['resultado_b'])
+                        
+                        # Extraemos los puntos MVP (ahora ya vienen como float de leer_datos)
+                        puntos_mvp_hoyo = [
+                            float(reg.iloc[0]['p1_pts']),
+                            float(reg.iloc[0]['p2_pts']),
+                            float(reg.iloc[0]['p3_pts']),
+                            float(reg.iloc[0]['p4_pts'])
+                        ]
                                 
             # 7. MARCADOR DEL HOYO (Basado en resultado_a y resultado_b)
             par_del_hoyo = PAR_RIA_VIGO.get(h_actual, 4)
