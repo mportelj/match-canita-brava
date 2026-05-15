@@ -608,8 +608,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             #s2 = st.number_input("ROGE", min_value=1, value=max(1, golpes_anteriores[2]), key="input_s2")
             #s3 = st.number_input("LALO", min_value=1, value=max(1, golpes_anteriores[3]), key="input_s3")
 
-            if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True):
-                # Pasamos las variables definidas justo arriba
+            # --- 4. BOTÓN DE GUARDADO (CON KEY ÚNICA) ---
+            # Al añadir f"btn_{h_actual}", cada hoyo tendrá su propio ID de botón
+            if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, key=f"btn_guardar_h{h_actual}"):
                 ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
                 st.rerun()
                 
