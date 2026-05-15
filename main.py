@@ -578,13 +578,13 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             # 8. INPUTS GIGANTES PARA ENTRADA DE RESULTADOS
             st.markdown("---")
-            fil_1_col_1, fil_1_col_2 = st.columns(2)
-            fil_2_col_1, fil_2_col_2 = st.columns(2)
+            #fil_1_col_1, fil_1_col_2 = st.columns(2)
+            #fil_2_col_1, fil_2_col_2 = st.columns(2)
             
-            v0 = fil_1_col_1.number_input("MANU", 1, 15, value=golpes_anteriores[0] if golpes_anteriores[0]>0 else par_del_hoyo, key=f"in_v0_{h_actual}")
-            v1 = fil_1_col_2.number_input("JOSE", 1, 15, value=golpes_anteriores[1] if golpes_anteriores[1]>0 else par_del_hoyo, key=f"in_v1_{h_actual}")
-            v2 = fil_2_col_1.number_input("ROGE", 1, 15, value=golpes_anteriores[2] if golpes_anteriores[2]>0 else par_del_hoyo, key=f"in_v2_{h_actual}")
-            v3 = fil_2_col_2.number_input("LALO", 1, 15, value=golpes_anteriores[3] if golpes_anteriores[3]>0 else par_del_hoyo, key=f"in_v3_{h_actual}")
+            #v0 = fil_1_col_1.number_input("MANU", 1, 15, value=golpes_anteriores[0] if golpes_anteriores[0]>0 else par_del_hoyo, key=f"in_v0_{h_actual}")
+            #v1 = fil_1_col_2.number_input("JOSE", 1, 15, value=golpes_anteriores[1] if golpes_anteriores[1]>0 else par_del_hoyo, key=f"in_v1_{h_actual}")
+            #v2 = fil_2_col_1.number_input("ROGE", 1, 15, value=golpes_anteriores[2] if golpes_anteriores[2]>0 else par_del_hoyo, key=f"in_v2_{h_actual}")
+            #v3 = fil_2_col_2.number_input("LALO", 1, 15, value=golpes_anteriores[3] if golpes_anteriores[3]>0 else par_del_hoyo, key=f"in_v3_{h_actual}")
 
            # --- ENTRADA DE GOLPES ---
             cols_golpes = st.columns(4)
