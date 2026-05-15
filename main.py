@@ -542,7 +542,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.session_state.refresco_id += 1
                 st.rerun()
 
-            # 6. OBTENCIÓN DE DATOS DEL HOYO ESPECÍFICO
+            # 6. OBTENCIÓN DE DATOS DEL HOYO ESPECÍFICO (CORREGIDO)
             golpes_anteriores = [0, 0, 0, 0]
             puntos_mvp_hoyo = [0.0, 0.0, 0.0, 0.0]
             hay_datos_hoyo = False
@@ -551,18 +551,19 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             if not df_partido_actual.empty:
                 registro_hoyo = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
                 if not registro_hoyo.empty:
-                    # Comprobamos si hay golpes grabados (suma de s0 a s3 > 0)
+                    # Si hay golpes grabados (suma de s0 a s3 > 0)
                     if registro_hoyo.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
                         hay_datos_hoyo = True
                         golpes_anteriores = [int(registro_hoyo.iloc[0][f's{i}']) for i in range(4)]
                         res_hoyo_a = int(registro_hoyo.iloc[0]['resultado_a'])
                         res_hoyo_b = int(registro_hoyo.iloc[0]['resultado_b'])
-                        # Puntos MVP del hoyo (campos oficiales p1_pts...p4_pts)
-                        # Corregimos posible lectura de comas
+                        # Limpieza inmediata de decimales para el hoyo seleccionado
                         for i in range(1, 5):
-                            val_raw = str(registro_hoyo.iloc[0][f'p{i}_pts']).replace(',', '.')
-                            puntos_mvp_hoyo[i-1] = float(val_raw) if val_raw != 'nan' else 0.0
-
+                            val_raw = str(registro_hoyo.iloc[0][f'p{i}_pts']).replace(',', '.').strip()
+                            try:
+                                puntos_mvp_hoyo[i-1] = float(val_raw)
+                            except:
+                                puntos_mvp_hoyo[i-1] = 0.0
             # 7. MARCADOR DEL HOYO (Basado en resultado_a y resultado_b)
             par_del_hoyo = PAR_RIA_VIGO.get(h_actual, 4)
             if hay_datos_hoyo:
@@ -593,35 +594,37 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.cache_data.clear()
                     st.rerun()
 
-           # 9. SECCIÓN MVP (DESGLOSE Y ACUMULADO REAL - CORREGIDO 12/05)
+           # 9. SECCIÓN MVP (SUMA MATEMÁTICA CORREGIDA)
             st.write("---")
             with st.expander("🏆 CLASIFICACIÓN MVP"):
                 nombres_jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
                 
-                # Desglose de puntos obtenidos SOLO en este hoyo
+                # Desglose Puntos Hoyo Actual
                 st.markdown(f"**🌟 Puntos Hoyo {h_actual}:**")
                 cols_mvp = st.columns(4)
                 for i in range(4):
                     cols_mvp[i].metric(nombres_jugadores[i], f"{puntos_mvp_hoyo[i]:.1f}")
 
-                # --- 9.1 ACUMULADO TOTAL JORNADA (CORRECCIÓN DECIMALES) ---
+                # --- 9.1 TOTAL JORNADA (Suma todos los hoyos de este partido) ---
                 if not df_partido_actual.empty:
                     st.markdown("**📊 Acumulado Total Jornada:**")
                     lista_totales = []
                     for i in range(1, 5):
-                        # Esta línea es la que arregla el fallo del 12/05:
-                        # Convierte "15,5" a 15.5 antes de sumar
-                        serie_limpia = pd.to_numeric(df_partido_actual[f'p{i}_pts'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                        col_name = f'p{i}_pts'
+                        # LIMPIEZA TOTAL: String -> Quitar espacios -> Cambiar coma -> Forzar Número -> Sumar
+                        serie_limpia = pd.to_numeric(
+                            df_partido_actual[col_name].astype(str).str.strip().str.replace(',', '.'), 
+                            errors='coerce'
+                        ).fillna(0)
                         lista_totales.append(serie_limpia.sum())
                     
-                    ranking_final = sorted(zip(nombres_jugadores, lista_totales), key=lambda x: x[1], reverse=True)
-                    for nombre, puntos_totales in ranking_final:
-                        st.write(f"- {nombre}: **{float(puntos_totales):.1f} pts**")
+                    ranking_jornada = sorted(zip(nombres_jugadores, lista_totales), key=lambda x: x[1], reverse=True)
+                    for nombre, puntos in ranking_jornada:
+                        st.write(f"- {nombre}: **{puntos:.1f} pts**")
                 
                 st.write("---")
 
-                # --- 9.2 ACUMULADO TEMPORADA (Suma todas las partidas de 2026) ---
-                # Buscamos en todo el dataframe original (df_p) las partidas del mismo año
+                # --- 9.2 ACUMULADO TEMPORADA (Suma todos los partidos del año) ---
                 anio_actual = str(g.get('temporada', '2026'))
                 df_temporada_completa = df_p[df_p['temporada'].astype(str) == anio_actual].copy()
                 
@@ -629,17 +632,17 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.markdown(f"**📅 Ranking Temporada {anio_actual}:**")
                     lista_temporada = []
                     for i in range(1, 5):
-                        # Aplicamos la misma limpieza para el total del año
-                        puntos_t_limpios = pd.to_numeric(df_temporada_completa[f'p{i}_pts'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-                        lista_temporada.append(puntos_t_limpios.sum())
+                        col_name = f'p{i}_pts'
+                        serie_temp = pd.to_numeric(
+                            df_temporada_completa[col_name].astype(str).str.strip().str.replace(',', '.'), 
+                            errors='coerce'
+                        ).fillna(0)
+                        lista_temporada.append(serie_temp.sum())
                     
                     ranking_t = sorted(zip(nombres_jugadores, lista_temporada), key=lambda x: x[1], reverse=True)
-                    # Mostramos tabla de temporada
                     df_res_temp = pd.DataFrame(ranking_t, columns=["Jugador", "Puntos Totales"])
                     st.table(df_res_temp)
-                else:
-                    st.caption("No hay datos de otras partidas en esta temporada.")
-
+                    
             # 10. FINALIZAR PARTIDA
             st.write("---")
             with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
