@@ -219,9 +219,10 @@ if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
 def cambiar_menu():
-    # Usamos get para que devuelva None si no existe, en lugar de crashear
-    if st.session_state.get("nav_radio"):
-        st.session_state.menu_seleccionado = st.session_state.nav_radio
+    # .get() devuelve None si la clave no existe, evitando el AttributeError
+    seleccion = st.session_state.get("nav_radio")
+    if seleccion:
+        st.session_state.menu_seleccionado = seleccion
         
 def actualizar_o_insertar_hoyo(datos):
     """
