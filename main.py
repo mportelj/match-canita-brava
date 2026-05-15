@@ -219,11 +219,10 @@ if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
 def cambiar_menu():
-    # Usamos .get() para que si 'nav_radio' no existe, devuelva None en lugar de dar error
-    seleccion = st.session_state.get("nav_radio")
-    if seleccion:
-        st.session_state.menu_seleccionado = seleccion
-
+    # Usamos get para que devuelva None si no existe, en lugar de crashear
+    if st.session_state.get("nav_radio"):
+        st.session_state.menu_seleccionado = st.session_state.nav_radio
+        
 def actualizar_o_insertar_hoyo(datos):
     """
     datos: [fecha, hoyo, s0, s1, s2, s3]
@@ -279,24 +278,29 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         
         # --- LÓGICA MVP DENTRO DE LA FUNCIÓN DE GUARDADO ---
+        # --- CÁLCULO MVP MATEMÁTICAMENTE PURO ---
         p_mvp = [0.0, 0.0, 0.0, 0.0]
         for i in range(4):
-            # 1. Puntos por ganar a otros: 
-            # Solo sumamos si mis golpes son MENORES que los del oponente.
-            # Si ambos hacéis 4, (4 < 4) es Falso -> 0 puntos.
-            victoria_rivales = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
-    
-            # 2. Puntos por Par:
-            # Si haces los mismos golpes que el par -> 0.5.
+            # A. VICTORIA (0.5 por cada rival superado)
+            # Solo se suma si mi score es MENOR (<) que el del otro. 
+            # 4 < 4 es FALSO, por lo que sumará 0.
+            puntos_victoria = 0.0
+            for j in range(4):
+                if i != j:
+                    if int(golpes[i]) < int(golpes[j]):
+                        puntos_victoria += 0.5
+            
+            # B. CUMPLIMIENTO DEL PAR (0.5 si igualas el par)
             puntos_par = 0.0
-            dif = golpes[i] - par_hoyo
-            if dif == 0:    puntos_par = 0.5
-            elif dif == -1: puntos_par = 1.5 # Birdie
-            elif dif == -2: puntos_par = 3.0 # Eagle
-            elif dif <= -3: puntos_par = 4.0 # Albatros
-    
-            # 3. Suma final: 0.0 (empate) + 0.5 (par) = 0.5
-            p_mvp[i] = float(victoria_rivales + puntos_par)
+            diferencia = int(golpes[i]) - par_hoyo
+            
+            if diferencia == 0:    puntos_par = 0.5
+            elif diferencia == -1: puntos_par = 1.5
+            elif diferencia == -2: puntos_par = 3.0
+            elif diferencia <= -3: puntos_par = 4.0
+            
+            # Resultado para el jugador i: 0.0 (victoria) + 0.5 (par) = 0.5
+            p_mvp[i] = float(puntos_victoria + puntos_par)
 
         # 4. CÁLCULO MATCH PLAY (Equipos)
         def bonus_m(s, p):
