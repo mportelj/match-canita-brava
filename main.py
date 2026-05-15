@@ -266,79 +266,75 @@ def actualizar_o_insertar_hoyo(datos):
 
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     try:
+        # 1. Obtener referencias
+        if 'sh' not in st.session_state:
+            st.error("Error: No hay conexión con la hoja de cálculo.")
+            return
+            
         hoja = st.session_state.sh
         g = st.session_state.game
         par_hoyo = int(PAR_RIA_VIGO[int(hoyo_id)])
         
-        # Aseguramos enteros
+        # 2. Convertir golpes a enteros
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         
+        # 3. CÁLCULO MVP (Regla: 0.5 si es Par, +0.5 por cada rival superado)
         p_mvp = [0.0, 0.0, 0.0, 0.0]
         for i in range(4):
-            # A. VICTORIA: Solo 0.5 si mi golpe es estrictamente MENOR (<) que el del otro
-            puntos_victoria = 0.0
-            for j in range(4):
-                if i != j:
-                    if golpes[i] < golpes[j]:
-                        puntos_victoria += 0.5
+            # Victoria: Solo si mi golpe es estrictamente MENOR (<) que el del otro
+            pts_victoria = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
             
-            # B. PAR: Solo 0.5 si es igual al par (y bonus si es mejor)
-            puntos_par = 0.0
+            # Par: 0.5 si igual, más bonus si es mejor
+            pts_par = 0.0
             dif = golpes[i] - par_hoyo
-            if dif == 0: puntos_par = 0.5
-            elif dif == -1: puntos_par = 1.5
-            elif dif == -2: puntos_par = 3.0
-            elif dif <= -3: puntos_par = 4.0
+            if dif == 0: pts_par = 0.5
+            elif dif == -1: pts_par = 1.5
+            elif dif == -2: pts_par = 3.0
+            elif dif <= -3: pts_par = 4.0
             
-            p_mvp[i] = float(puntos_victoria + puntos_par)
+            p_mvp[i] = float(pts_victoria + pts_par)
 
-        # ... (resto del código de Match Play igual) ...
-        # IMPORTANTE: Al guardar, asegúrate de que p_mvp va como float
-        # y usa value_input_option='USER_ENTERED'
+        # 4. CÁLCULO MATCH PLAY (Equipos)
+        def bonus_m(s, p):
+            d = s - p
+            return 3.0 if d <= -3 else 2.0 if d == -2 else 1.0 if d == -1 else 0.0
 
-        # --- CÁLCULO MATCH PLAY (Equipos) ---
-        def bonus_m(golpe, p):
-            d = golpe - p
-            if d <= -3: return 3.0
-            if d == -2: return 2.0
-            if d == -1: return 1.0
-            return 0.0
+        res_a, res_b = min(golpes[0], golpes[1]), min(golpes[2], golpes[3])
+        peor_a, peor_b = max(golpes[0], golpes[1]), max(golpes[2], golpes[3])
+        t_a = (1.0 if res_a < res_b else 0.0) + (1.0 if peor_a < peor_b else 0.0) + bonus_m(golpes[0], par_hoyo) + bonus_m(golpes[1], par_hoyo)
+        t_b = (1.0 if res_b < res_a else 0.0) + (1.0 if peor_b < peor_a else 0.0) + bonus_m(golpes[2], par_hoyo) + bonus_m(golpes[3], par_hoyo)
+        m_a = int(max(0, t_a - t_b)) if t_a != t_b else 0
+        m_b = int(max(0, t_b - t_a)) if t_a != t_b else 0
 
-        res_a, res_b = min(s[0], s[1]), min(s[2], s[3])
-        peor_a, peor_b = max(s[0], s[1]), max(s[2], s[3])
-        
-        t_a = (1.0 if res_a < res_b else 0.0) + (1.0 if peor_a < peor_b else 0.0) + bonus_m(s[0], par) + bonus_m(s[1], par)
-        t_b = (1.0 if res_b < res_a else 0.0) + (1.0 if peor_b < peor_a else 0.0) + bonus_m(s[2], par) + bonus_m(s[3], par)
-
-        match_a = int(max(0, t_a - t_b)) if t_a != t_b else 0
-        match_b = int(max(0, t_b - t_a)) if t_a != t_b else 0
-
-        # --- GUARDADO ---
+        # 5. PREPARAR FILA
         id_partido = str(g['id']).split('.')[0]
         fecha = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
         
         nueva_fila = [
             f"{id_partido}_H{hoyo_id}", int(id_partido), int(hoyo_id),
-            fecha, int(g.get('temporada', 2026)), match_a, match_b,
+            fecha, int(g.get('temporada', 2026)), m_a, m_b,
             p_mvp[0], p_mvp[1], p_mvp[2], p_mvp[3],
-            s[0], s[1], s[2], s[3]
+            golpes[0], golpes[1], golpes[2], golpes[3]
         ]
 
-        filas = hoja.get_all_values()
-        header = filas[0]
-        # Limpiar datos viejos de este hoyo
-        datos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_partido and str(f[2]) == str(hoyo_id))]
-        datos.append(nueva_fila)
-        datos.sort(key=lambda x: (str(x[1]), int(x[2])))
+        # 6. ESCRIBIR EN LA HOJA (Usando método directo para evitar fallos)
+        filas_actuales = hoja.get_all_values()
+        header = filas_actuales[0]
+        
+        # Filtrar datos: eliminamos la fila vieja de este hoyo si existe
+        datos_nuevos = [f for f in filas_actuales[1:] if not (str(f[1]).split('.')[0] == id_partido and str(f[2]) == str(hoyo_id))]
+        datos_nuevos.append(nueva_fila)
+        datos_nuevos.sort(key=lambda x: (str(x[1]), int(x[2])))
 
         hoja.clear()
-        hoja.update('A1', [header] + datos, value_input_option='USER_ENTERED')
+        hoja.update('A1', [header] + datos_nuevos, value_input_option='USER_ENTERED')
         
-        st.toast(f"✅ Hoyo {hoyo_id} guardado con éxito")
+        # 7. IMPORTANTE: Forzar actualización de la sesión
         st.cache_data.clear()
-
+        st.success(f"¡Hoyo {hoyo_id} guardado con éxito!")
+        
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error al guardar: {str(e)}")
         
 # --- CÁLCULO DEL MARCADOR ACUMULADO DE LA TEMPORADA ---
 
@@ -590,12 +586,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             v2 = fil_2_col_1.number_input("ROGE", 1, 15, value=golpes_anteriores[2] if golpes_anteriores[2]>0 else par_del_hoyo, key=f"in_v2_{h_actual}")
             v3 = fil_2_col_2.number_input("LALO", 1, 15, value=golpes_anteriores[3] if golpes_anteriores[3]>0 else par_del_hoyo, key=f"in_v3_{h_actual}")
 
-            # Botón de Guardado
-            if [v0, v1, v2, v3] != golpes_anteriores:
-                if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, type="primary"):
-                    ejecutar_guardado_automatico(h_actual, v0, v1, v2, v3)
-                    st.cache_data.clear()
-                    st.rerun()
+            if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True):
+                ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
+                # Forzamos un reinicio de la app para leer los datos nuevos
+                st.rerun()
 
           # 9. SECCIÓN MVP (CON BOTÓN Y CÁLCULO LIMPIO)
             st.write("---")
