@@ -552,28 +552,34 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.session_state.refresco_id += 1
                 st.rerun()
 
+  
             # 6. OBTENCIÓN DE DATOS DEL HOYO ESPECÍFICO
             golpes_anteriores = [0, 0, 0, 0]
-            # Puntos MVP del hoyo (Asegurando conversión de texto/coma a decimal)
-            puntos_mvp_hoyo = []
-            for i in range(1, 5):
-                val = str(registro_hoyo.iloc[0][f'p{i}_pts']).replace(',', '.')
-                puntos_mvp_hoyo.append(float(val))
+            puntos_mvp_hoyo = [0.0, 0.0, 0.0, 0.0] # Inicializamos por defecto
             hay_datos_hoyo = False
             res_hoyo_a, res_hoyo_b = 0, 0
             
             if not df_partido_actual.empty:
-                registro_hoyo = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
-                if not registro_hoyo.empty:
+                # Filtramos el registro del hoyo seleccionado
+                df_h = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
+                
+                if not df_h.empty:
                     # Comprobamos si hay golpes grabados (suma de s0 a s3 > 0)
-                    if registro_hoyo.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
+                    if df_h.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
                         hay_datos_hoyo = True
-                        golpes_anteriores = [int(registro_hoyo.iloc[0][f's{i}']) for i in range(4)]
-                        res_hoyo_a = int(registro_hoyo.iloc[0]['resultado_a'])
-                        res_hoyo_b = int(registro_hoyo.iloc[0]['resultado_b'])
-                        # Puntos MVP del hoyo (campos oficiales p1_pts...p4_pts)
-                        puntos_mvp_hoyo = [float(registro_hoyo.iloc[0][f'p{i}_pts']) for i in range(1, 5)]
-
+                        golpes_anteriores = [int(df_h.iloc[0][f's{i}']) for i in range(4)]
+                        res_hoyo_a = int(df_h.iloc[0]['resultado_a'])
+                        res_hoyo_b = int(df_h.iloc[0]['resultado_b'])
+                        
+                        # Extraemos los puntos MVP asegurando tipo float
+                        puntos_mvp_hoyo = []
+                        for i in range(1, 5):
+                            val_raw = str(df_h.iloc[0][f'p{i}_pts']).replace(',', '.')
+                            try:
+                                puntos_mvp_hoyo.append(float(val_raw))
+                            except:
+                                puntos_mvp_hoyo.append(0.0)
+                                
             # 7. MARCADOR DEL HOYO (Basado en resultado_a y resultado_b)
             par_del_hoyo = PAR_RIA_VIGO.get(h_actual, 4)
             if hay_datos_hoyo:
@@ -604,35 +610,31 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.cache_data.clear()
                     st.rerun()
 
-            # 9. SECCIÓN MVP (DESGLOSE Y ACUMULADO REAL)
+            # 9. SECCIÓN MVP
             st.write("---")
             with st.expander("🏆 CLASIFICACIÓN MVP"):
                 nombres_jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
-                
-                # Desglose de puntos obtenidos SOLO en este hoyo
                 st.markdown(f"**🌟 Puntos Hoyo {h_actual}:**")
                 cols_mvp = st.columns(4)
                 for i in range(4):
                     cols_mvp[i].metric(nombres_jugadores[i], f"{puntos_mvp_hoyo[i]:.1f}")
 
-                # Ranking Acumulado de toda la jornada (Suma de p1_pts...p4_pts)
+                # --- 9.1 ACUMULADO TOTAL JORNADA ---
                 if not df_partido_actual.empty:
                     st.markdown("**📊 Acumulado Total Jornada:**")
-                    
                     lista_totales = []
                     for i in range(1, 5):
-                        columna_puntos = f'p{i}_pts'
-                        # Forzamos conversión numérica para evitar errores de tipo "String" o "NaN"
-                        puntos_serie = pd.to_numeric(df_partido_actual[columna_puntos], errors='coerce').fillna(0)
-                        lista_totales.append(puntos_serie.sum())
+                        # Forzamos conversión de la columna a numérico (Float)
+                        col_mvp = f'p{i}_pts'
+                        serie_pts = pd.to_numeric(
+                            df_partido_actual[col_mvp].astype(str).str.replace(',', '.'), 
+                            errors='coerce'
+                        ).fillna(0)
+                        lista_totales.append(serie_pts.sum())
                     
-                    # Generamos el ranking ordenado
                     ranking_final = sorted(zip(nombres_jugadores, lista_totales), key=lambda x: x[1], reverse=True)
-                    
-                    for nombre, puntos_totales in ranking_final:
-                        st.write(f"- {nombre}: **{float(puntos_totales):.1f} pts**")
-                else:
-                    st.caption("No hay datos suficientes para calcular el acumulado.")
+                    for nombre, pts in ranking_final:
+                        st.write(f"- {nombre}: **{pts:.1f} pts**")
 
             # 10. FINALIZAR PARTIDA
             st.write("---")
