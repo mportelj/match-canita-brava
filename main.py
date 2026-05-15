@@ -593,7 +593,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.cache_data.clear()
                     st.rerun()
 
-            # 9. SECCIÓN MVP (DESGLOSE Y ACUMULADO REAL)
+           # 9. SECCIÓN MVP (DESGLOSE Y ACUMULADO REAL - CORREGIDO 12/05)
             st.write("---")
             with st.expander("🏆 CLASIFICACIÓN MVP"):
                 nombres_jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
@@ -604,39 +604,41 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 for i in range(4):
                     cols_mvp[i].metric(nombres_jugadores[i], f"{puntos_mvp_hoyo[i]:.1f}")
 
-                # Ranking Acumulado de toda la jornada (Suma de p1_pts...p4_pts)
+                # --- 9.1 ACUMULADO TOTAL JORNADA (CORRECCIÓN DECIMALES) ---
                 if not df_partido_actual.empty:
                     st.markdown("**📊 Acumulado Total Jornada:**")
-                    
                     lista_totales = []
                     for i in range(1, 5):
-                        columna_puntos = f'p{i}_pts'
-                        # Función de conversión para asegurar que "15,5" se sume correctamente
-                        puntos_serie = pd.to_numeric(df_partido_actual[columna_puntos].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-                        lista_totales.append(puntos_serie.sum())
+                        # Esta línea es la que arregla el fallo del 12/05:
+                        # Convierte "15,5" a 15.5 antes de sumar
+                        serie_limpia = pd.to_numeric(df_partido_actual[f'p{i}_pts'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                        lista_totales.append(serie_limpia.sum())
                     
-                    # Generamos el ranking ordenado
                     ranking_final = sorted(zip(nombres_jugadores, lista_totales), key=lambda x: x[1], reverse=True)
-                    
                     for nombre, puntos_totales in ranking_final:
                         st.write(f"- {nombre}: **{float(puntos_totales):.1f} pts**")
+                
+                st.write("---")
 
-                    # --- Ranking Acumulado Temporada (Año 2026 completo) ---
-                    st.write("---")
-                    st.markdown(f"**📅 Ranking Temporada {g.get('temporada', '2026')}:**")
-                    df_temp = df_p[df_p['temporada'].astype(str) == str(g.get('temporada', '2026'))].copy()
+                # --- 9.2 ACUMULADO TEMPORADA (Suma todas las partidas de 2026) ---
+                # Buscamos en todo el dataframe original (df_p) las partidas del mismo año
+                anio_actual = str(g.get('temporada', '2026'))
+                df_temporada_completa = df_p[df_p['temporada'].astype(str) == anio_actual].copy()
+                
+                if not df_temporada_completa.empty:
+                    st.markdown(f"**📅 Ranking Temporada {anio_actual}:**")
+                    lista_temporada = []
+                    for i in range(1, 5):
+                        # Aplicamos la misma limpieza para el total del año
+                        puntos_t_limpios = pd.to_numeric(df_temporada_completa[f'p{i}_pts'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                        lista_temporada.append(puntos_t_limpios.sum())
                     
-                    if not df_temp.empty:
-                        lista_temp = []
-                        for i in range(1, 5):
-                            pts_temp = pd.to_numeric(df_temp[f'p{i}_pts'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-                            lista_temp.append(pts_temp.sum())
-                        
-                        rank_temp = sorted(zip(nombres_jugadores, lista_temp), key=lambda x: x[1], reverse=True)
-                        for n, p in rank_temp:
-                            st.write(f"- {n}: **{float(p):.1f} pts**")
+                    ranking_t = sorted(zip(nombres_jugadores, lista_temporada), key=lambda x: x[1], reverse=True)
+                    # Mostramos tabla de temporada
+                    df_res_temp = pd.DataFrame(ranking_t, columns=["Jugador", "Puntos Totales"])
+                    st.table(df_res_temp)
                 else:
-                    st.caption("No hay datos suficientes para calcular el acumulado.")
+                    st.caption("No hay datos de otras partidas en esta temporada.")
 
             # 10. FINALIZAR PARTIDA
             st.write("---")
