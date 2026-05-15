@@ -512,24 +512,27 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.rerun()
 
             # 6. OBTENCIÓN DE DATOS DEL HOYO ESPECÍFICO (CORREGIDO)
-            # --- OBTENER GOLPES POR DEFECTO ---
-            # Buscamos si ya existen datos para este hoyo en el DataFrame
-            df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
+           # --- OBTENER GOLPES (COLUMNAS s0, s1, s2, s3) ---
+df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
 
-            if not df_hoyo_actual.empty:
-            # Si ya hay datos guardados, los usamos
-                golpes_anteriores = [
-                    int(df_hoyo_actual['p1_golpes'].iloc[0]),
-                    int(df_hoyo_actual['p2_golpes'].iloc[0]),
-                    int(df_hoyo_actual['p3_golpes'].iloc[0]),
-                    int(df_hoyo_actual['p4_golpes'].iloc[0])
-                ]
-            else:
-                # SI EL HOYO ESTÁ VACÍO, ASIGNAMOS EL PAR POR DEFECTO
-                par_del_hoyo = int(PAR_RIA_VIGO[h_actual])
-                golpes_anteriores = [par_del_hoyo, par_del_hoyo, par_del_hoyo, par_del_hoyo]
-            puntos_mvp_hoyo = [0.0, 0.0, 0.0, 0.0]
-            hay_datos_hoyo = False
+if not df_hoyo_actual.empty:
+    try:
+        # Actualizamos a tus nombres de columna reales: s0, s1, s2, s3
+        golpes_anteriores = [
+            int(df_hoyo_actual['s0'].iloc[0]),
+            int(df_hoyo_actual['s1'].iloc[0]),
+            int(df_hoyo_actual['s2'].iloc[0]),
+            int(df_hoyo_actual['s3'].iloc[0])
+        ]
+    except KeyError as e:
+        # Si fallara alguna columna, ponemos el par por defecto y avisamos
+        st.error(f"Error de columnas: No se encontró {e} en el Excel.")
+        par_val = int(PAR_RIA_VIGO[h_actual])
+        golpes_anteriores = [par_val] * 4
+else:
+    # SI EL HOYO ES NUEVO (VACÍO), ASIGNAMOS EL PAR AUTOMÁTICAMENTE
+    par_val = int(PAR_RIA_VIGO[h_actual])
+    golpes_anteriores = [par_val] * 4
             
             # INICIALIZACIÓN CRÍTICA (Para evitar el NameError en la línea 580)
             res_hoyo_a = 0 
