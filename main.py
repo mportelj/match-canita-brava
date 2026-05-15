@@ -580,20 +580,13 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             # 8. INPUTS GIGANTES PARA ENTRADA DE RESULTADOS
             st.markdown("---")
-            #fil_1_col_1, fil_1_col_2 = st.columns(2)
-            #fil_2_col_1, fil_2_col_2 = st.columns(2)
-            
-            #v0 = fil_1_col_1.number_input("MANU", 1, 15, value=golpes_anteriores[0] if golpes_anteriores[0]>0 else par_del_hoyo, key=f"in_v0_{h_actual}")
-            #v1 = fil_1_col_2.number_input("JOSE", 1, 15, value=golpes_anteriores[1] if golpes_anteriores[1]>0 else par_del_hoyo, key=f"in_v1_{h_actual}")
-            #v2 = fil_2_col_1.number_input("ROGE", 1, 15, value=golpes_anteriores[2] if golpes_anteriores[2]>0 else par_del_hoyo, key=f"in_v2_{h_actual}")
-            #v3 = fil_2_col_2.number_input("LALO", 1, 15, value=golpes_anteriores[3] if golpes_anteriores[3]>0 else par_del_hoyo, key=f"in_v3_{h_actual}")
 
-          # --- ENTRADA DE GOLPES ---
+            # --- ENTRADA DE GOLPES ---
             # Usamos max(1, ...) para que si no hay datos (0), el mínimo sea 1
-            s0 = st.number_input("MANU", min_value=1, value=max(1, golpes_anteriores[0]), key="input_s0")
-            s1 = st.number_input("JOSE", min_value=1, value=max(1, golpes_anteriores[1]), key="input_s1")
-            s2 = st.number_input("ROGE", min_value=1, value=max(1, golpes_anteriores[2]), key="input_s2")
-            s3 = st.number_input("LALO", min_value=1, value=max(1, golpes_anteriores[3]), key="input_s3")
+            #s0 = st.number_input("MANU", min_value=1, value=max(1, golpes_anteriores[0]), key="input_s0")
+            #s1 = st.number_input("JOSE", min_value=1, value=max(1, golpes_anteriores[1]), key="input_s1")
+            #s2 = st.number_input("ROGE", min_value=1, value=max(1, golpes_anteriores[2]), key="input_s2")
+            #s3 = st.number_input("LALO", min_value=1, value=max(1, golpes_anteriores[3]), key="input_s3")
 
             if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True):
                 # Pasamos las variables definidas justo arriba
