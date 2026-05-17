@@ -798,14 +798,15 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 st.write(df_mvp_html, unsafe_allow_html=True)
 
            
-                                # --- 6. WHATSAPP DETALLADO ---
+                 # --- 6. WHATSAPP DETALLADO ---
                 import urllib.parse
                 
                 w_icon = "📂" if ver_acumulado else "📅"
                 tit_w = temp_actual if ver_acumulado else opciones_fecha[seleccion_filtro]
                 
-                # SECCIÓN DE CLASIFICACIÓN MVP (Ordenamos de mayor a menor puntuación obligatoriamente)
-                lista_mvp = sorted(lista_resultados, key=lambda x: x['pts_mvp'], reverse=True)
+                # SECCIÓN DE CLASIFICACIÓN MVP BLINDADA
+                # Forzamos la conversión a float(x['pts_mvp']) para asegurar que sorted() ordene numéricamente a la perfección
+                lista_mvp = sorted(lista_resultados, key=lambda x: float(x.get('pts_mvp', 0.0)), reverse=True)
                 
                 # LÓGICA DE MARCADORES (CÁLCULO DEL ACUMULADO Y ESTILO INICIO AUTOMÁTICO)
                 if ver_acumulado:
@@ -821,11 +822,10 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         total_a = float(df_origen['m_a'].sum())
                         total_b = float(df_origen['m_b'].sum())
                     else:
-                        # Valores de respaldo basados en tu pantalla de inicio actual (4.5 vs 4.5)
                         total_a = 4.5
                         total_b = 4.5
                     
-                    # Formato exacto solicitado para el título: Match: Manu & Jose X Roge & Lalo Y
+                    # Formato para el título: Match: Manu & Jose X Roge & Lalo Y
                     titulo_final_marcador = f"Match: Manu & Jose {total_a:.1f} Roge & Lalo {total_b:.1f}"
                     
                     # Lógica estilo Inicio: Restamos para ver quién va ganando de forma neta (uno a cero)
@@ -848,16 +848,18 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 txt_wa += f"⛳ {sub_final_marcador}\n"
                 txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
                 
-                # SECCIÓN: CLASIFICACIÓN MVP EN WHATSAPP (ORDENADA POR JUGADOR DE 1º A 4º)
+                # SECCIÓN: CLASIFICACIÓN MVP EN WHATSAPP (AQUÍ YA VA PERFECTAMENTE ORDENADA SIEMPRE)
                 txt_wa += "⭐ *CLASIFICACIÓN MVP* ⭐\n"
-                for i, res in enumerate(lista_mvp):  # <-- RECORRIDO ORDENADO POR CLASIFICACIÓN
+                for i, res in enumerate(lista_mvp):
                     med = ["🥇", "🥈", "🥉", " "][i] if i < 4 else " "
-                    txt_wa += f"{med} {i+1}º {res['Jugador']}: *{res['pts_mvp']:.1f} pts*\n"
+                    # Aseguramos que pinte el valor convertido a float
+                    puntos_v = float(res.get('pts_mvp', 0.0))
+                    txt_wa += f"{med} {i+1}º {res['Jugador']}: *{puntos_v:.1f} pts*\n"
                 txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
                 
-                # SECCIÓN: DETALLE INDIVIDUAL (TAMBIÉN EN ORDEN DE CLASIFICACIÓN MVP)
+                # SECCIÓN: DETALLE INDIVIDUAL (EN EL MISMO ORDEN CLASIFICATORIO)
                 txt_wa += "📊 *ESTADÍSTICAS INDIVIDUALES*\n\n"
-                for res in lista_mvp:  # <-- RECORRIDO ORDENADO POR CLASIFICACIÓN
+                for res in lista_mvp:
                     p_m = f"+{res['pm']}" if res['pm'] > 0 else (str(res['pm']) if res['pm'] < 0 else "E")
                     h = res['hoyos']
                     
@@ -869,9 +871,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                     s_l = ""
                     if not ver_acumulado:
-                        # Agrupación para el partido seleccionado (Estadísticas de la jornada)
-                        birdie_o_mejor = res.get('e', 0) + res.get('b', 0)
-                        triple_o_peor = res.get('tb', 0)
+                        # Agrupación para el partido seleccionado
+                        birdie_o_mejor = int(res.get('e', 0)) + int(res.get('b', 0))
+                        triple_o_peor = int(res.get('tb', 0))
                         
                         s_l += f"🐤 *Birdie o mejor:* {wf(birdie_o_mejor)}\n"
                         s_l += f"🅿️ *Par:* {wf(res['p'])}\n"
@@ -899,7 +901,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     f"https://wa.me/?text={urllib.parse.quote(txt_wa)}", 
                     use_container_width=True
                 )
-
 
 # SECCIÓN: ADMIN
 # ==========================================
