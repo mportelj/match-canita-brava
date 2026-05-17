@@ -744,7 +744,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         return 0
                     
                     scr = int(d_p['dif'].apply(cs).sum())
-                    # SUMA MVP: Suma todos los registros de la columna para ese jugador en el filtro
                     pts_mvp_total = float(df_stats[col_mvp].sum())
 
                     lista_resultados.append({
@@ -755,26 +754,43 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         "db": int((d_p['dif'] == 2).sum()), "tb": int((d_p['dif'] >= 3).sum()), "hoyos": len(d_p)
                     })
             
+            # Ordenamos inicialmente por Scratch para la tabla principal
             lista_resultados = sorted(lista_resultados, key=lambda x: x['scr'], reverse=True)
 
             if lista_resultados:
-                # TABLA PRINCIPAL
+                # TABLA PRINCIPAL (PANTALLA)
                 stats_rows = []
                 for res in lista_resultados:
                     def f_pct(v, th):
                         p = (v/th*100) if th > 0 else 0
                         return f"<b>{v}</b><br><span style='color:gray; font-size:0.8em;'>{p:.0f}%</span>"
                     
+                    h = res['hoyos']
+                    # CORRECCIÓN PARA LA PANTALLA: Si es acumulado calculamos la media cada 18 hoyos
+                    if ver_acumulado and h > 0:
+                        val_pm = (res['pm'] / h) * 18
+                        val_scr = (res['scr'] / h) * 18
+                        txt_pm = f"<span style='color:red;'>+{val_pm:.1f}</span>" if val_pm > 0 else (f"<span>{val_pm:.1f}</span>" if val_pm < 0 else "E")
+                        txt_scr = f"<b>{val_scr:.1f}</b>"
+                    else:
+                        txt_pm = f"<span style='color:red;'>+{res['pm']}</span>" if res['pm'] > 0 else (f"<span>{res['pm']}</span>" if res['pm'] < 0 else "E")
+                        txt_scr = f"<b>{res['scr']}</b>"
+                    
                     stats_rows.append({
                         "Jugador": f"<b>{res['Jugador']}</b>",
-                        "+/-": f"<span style='color:red;'>+{res['pm']}</span>" if res['pm'] > 0 else (f"<span>{res['pm']}</span>" if res['pm'] < 0 else "E"),
-                        "Scratch": f"<b>{res['scr']}</b>",
+                        "+/-": txt_pm,
+                        "Scratch": txt_scr,
                         "Eagle": f_pct(res['e'], res['hoyos']), "Birdie": f_pct(res['b'], res['hoyos']), 
                         "Par": f_pct(res['p'], res['hoyos']), "Bogey": f_pct(res['bog'], res['hoyos']), 
                         "D.Bogey": f_pct(res['db'], res['hoyos']), "3+ Bogey": f_pct(res['tb'], res['hoyos'])
                     })
                 
-                df_html = pd.DataFrame(stats_rows).to_html(escape=False, index=False)
+                # Modificación de cabeceras de columnas si es acumulado
+                df_html_data = pd.DataFrame(stats_rows)
+                if ver_acumulado:
+                    df_html_data = df_html_data.rename(columns={"+/-": "+/- Med (18h)", "Scratch": "Scratch Med (18h)"})
+
+                df_html = df_html_data.to_html(escape=False, index=False)
                 df_html = df_html.replace('<td>', '<td style="text-align: center; vertical-align: middle; padding: 10px;">')
                 df_html = df_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
                 st.write(df_html, unsafe_allow_html=True)
@@ -782,7 +798,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 # --- 5. CLASIFICACIÓN MVP ---
                 st.write("")
                 st.subheader("🏆 Clasificación MVP")
-                lista_mvp = sorted(lista_resultados, key=lambda x: x['pts_mvp'], reverse=True)
+                lista_mvp = sorted(lista_resultados, key=lambda x: float(x.get('pts_mvp', 0.0)), reverse=True)
                 mvp_rows = []
                 for i, res in enumerate(lista_mvp):
                     medalla = ["🥇 ", "🥈 ", "🥉 ", ""][i] if i < 4 else ""
@@ -797,27 +813,20 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 df_mvp_html = df_mvp_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
                 st.write(df_mvp_html, unsafe_allow_html=True)
 
-           
-                 # --- 6. WHATSAPP DETALLADO ---
+                # --- 6. WHATSAPP DETALLADO ---
                 import urllib.parse
                 
                 w_icon = "📂" if ver_acumulado else "📅"
                 tit_w = temp_actual if ver_acumulado else opciones_fecha[seleccion_filtro]
                 
-                # SECCIÓN DE CLASIFICACIÓN MVP BLINDADA
-                # Forzamos la conversión a float(x['pts_mvp']) para asegurar que sorted() ordene numéricamente a la perfección
-                lista_mvp = sorted(lista_resultados, key=lambda x: float(x.get('pts_mvp', 0.0)), reverse=True)
-                
-                # LÓGICA DE MARCADORES (CÁLCULO DEL ACUMULADO Y ESTILO INICIO AUTOMÁTICO)
+                # LÓGICA DE MARCADORES PARA EL ENCABEZADO DE WHATSAPP
                 if ver_acumulado:
-                    # Intentamos buscar el DataFrame correcto dinámicamente o usamos los datos del estado
                     df_origen = None
-                    for var_name in ['df_tabla', 'df', 'df_historico', 'df_partido_actual']:
+                    for var_name in ['df_tabla', 'df', 'df_raw', 'df_stats']:
                         if var_name in locals() or var_name in globals():
                             df_origen = locals().get(var_name, globals().get(var_name))
                             break
                             
-                    # Asignamos los puntos acumulados de match de la temporada de forma segura
                     if df_origen is not None and 'm_a' in df_origen.columns and 'm_b' in df_origen.columns:
                         total_a = float(df_origen['m_a'].sum())
                         total_b = float(df_origen['m_b'].sum())
@@ -825,10 +834,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         total_a = 4.5
                         total_b = 4.5
                     
-                    # Formato para el título: Match: Manu & Jose X Roge & Lalo Y
                     titulo_final_marcador = f"Match: Manu & Jose {total_a:.1f} Roge & Lalo {total_b:.1f}"
                     
-                    # Lógica estilo Inicio: Restamos para ver quién va ganando de forma neta (uno a cero)
                     if total_a > total_b:
                         marcador_a_w = total_a - total_b
                         sub_final_marcador = f"MANU/JOSE GANAN {marcador_a_w:.1f} UP"
@@ -838,40 +845,43 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     else:
                         sub_final_marcador = "EMPATADOS (ALL SQUARE)"
                 else:
-                    # Si es un partido seleccionado, usamos los datos del marcador de la jornada
                     titulo_final_marcador = titulo_marcador.upper()
                     sub_final_marcador = sub_marcador
                 
-                # CONSTRUCCIÓN DEL ENCABEZADO DEL MENSAJE
                 txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n{w_icon} *{tit_w}*\n"
                 txt_wa += f"🏆 *{titulo_final_marcador}*\n"
                 txt_wa += f"⛳ {sub_final_marcador}\n"
                 txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
                 
-                # SECCIÓN: CLASIFICACIÓN MVP EN WHATSAPP (AQUÍ YA VA PERFECTAMENTE ORDENADA SIEMPRE)
                 txt_wa += "⭐ *CLASIFICACIÓN MVP* ⭐\n"
                 for i, res in enumerate(lista_mvp):
                     med = ["🥇", "🥈", "🥉", " "][i] if i < 4 else " "
-                    # Aseguramos que pinte el valor convertido a float
                     puntos_v = float(res.get('pts_mvp', 0.0))
                     txt_wa += f"{med} {i+1}º {res['Jugador']}: *{puntos_v:.1f} pts*\n"
                 txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
                 
-                # SECCIÓN: DETALLE INDIVIDUAL (EN EL MISMO ORDEN CLASIFICATORIO)
                 txt_wa += "📊 *ESTADÍSTICAS INDIVIDUALES*\n\n"
                 for res in lista_mvp:
-                    p_m = f"+{res['pm']}" if res['pm'] > 0 else (str(res['pm']) if res['pm'] < 0 else "E")
                     h = res['hoyos']
+                    
+                    # CORRECCIÓN DE SCRATCH Y +/- SINCRO PARA WHATSAPP
+                    if ver_acumulado and h > 0:
+                        scr_promedio = (res['scr'] / h) * 18
+                        pm_promedio = (res['pm'] / h) * 18
+                        texto_scratch = f"{scr_promedio:.1f} med. scratch"
+                        texto_pm = f"+{pm_promedio:.1f}" if pm_promedio > 0 else (f"{pm_promedio:.1f}" if pm_promedio < 0 else "E")
+                    else:
+                        texto_scratch = f"{res['scr']} pts scratch"
+                        texto_pm = f"+{res['pm']}" if res['pm'] > 0 else (str(res['pm']) if res['pm'] < 0 else "E")
                     
                     def wf(v): 
                         return f"{v} ({v/h*100:.0f}%)"
                     
                     txt_wa += f"👤 *{res['Jugador'].upper()}*\n"
-                    txt_wa += f"🏆 *{p_m}* ({res['scr']} pts scratch)\n"
+                    txt_wa += f"🏆 *{texto_pm}* ({texto_scratch})\n"
                     
                     s_l = ""
                     if not ver_acumulado:
-                        # Agrupación para el partido seleccionado
                         birdie_o_mejor = int(res.get('e', 0)) + int(res.get('b', 0))
                         triple_o_peor = int(res.get('tb', 0))
                         
@@ -881,27 +891,21 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         s_l += f"💀 *D.B:* {wf(res['db'])}\n"
                         s_l += f"💣 *💥 Triple o peor:* {wf(triple_o_peor)}\n"
                     else:
-                        # Desglose completo para el acumulado histórico de la temporada
-                        if res['e'] > 0: 
-                            s_l += f"🦅 Egl: {wf(res['e'])}\n"
-                        if res['b'] > 0: 
-                            s_l += f"🐤 Bir: {wf(res['b'])}\n"
+                        if res['e'] > 0:  s_l += f"🦅 Egl: {wf(res['e'])}\n"
+                        if res['b'] > 0:  s_l += f"🐤 Bir: {wf(res['b'])}\n"
                         s_l += f"🅿️ *Par:* {wf(res['p'])}\n"
                         s_l += f"⚠️ *Bog:* {wf(res['bog'])}\n"
                         s_l += f"💀 *D.B:* {wf(res['db'])}\n"
-                        if res['tb'] > 0: 
-                            s_l += f"💣 +3B: {wf(res['tb'])}\n"
+                        if res['tb'] > 0: s_l += f"💣 +3B: {wf(res['tb'])}\n"
                         
                     txt_wa += s_l + "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
                 
-                # RENDERIZADO DEL BOTÓN EN INTERFAZ
                 st.write("")
                 st.link_button(
                     "📲 Enviar por WhatsApp", 
                     f"https://wa.me/?text={urllib.parse.quote(txt_wa)}", 
                     use_container_width=True
                 )
-
 # SECCIÓN: ADMIN
 # ==========================================
 
