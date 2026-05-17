@@ -799,91 +799,90 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
            
 
-               # --- 6. WHATSAPP DETALLADO ---
-                import urllib.parse
-                w_icon = "📂" if ver_acumulado else "📅"
-                tit_w = temp_actual if ver_acumulado else opciones_fecha[seleccion_filtro]
+# --- 6. WHATSAPP DETALLADO ---
+import urllib.parse
+w_icon = "📂" if ver_acumulado else "📅"
+tit_w = temp_actual if ver_acumulado else opciones_fecha[seleccion_filtro]
 
-                # LÓGICA MODIFICADA PARA EL MARCADOR DEL ACUMULADO (ESTILO INICIO)
-                if ver_acumulado:
-                    # Obtenemos los puntos totales reales de la temporada para cada equipo desde el estado o variables globales
-                    # Nota: Asegúrate de tener calculados 'total_puntos_eq_a' y 'total_puntos_eq_b' antes de este bloque
-                    total_a = total_puntos_eq_a if 'total_puntos_eq_a' in locals() else 0
-                    total_b = total_puntos_eq_b if 'total_puntos_eq_b' in locals() else 0
+# LÓGICA MODIFICADA PARA EL MARCADOR DEL ACUMULADO (ESTILO INICIO)
+if ver_acumulado:
+    # 1. Recuperamos los puntos acumulados totales de la temporada
+    total_a = total_puntos_eq_a if 'total_puntos_eq_a' in locals() else 0.0
+    total_b = total_puntos_eq_b if 'total_puntos_eq_b' in locals() else 0.0
     
-                    # Aplicamos la resta Match Play: el que va perdiendo se queda a 0
-                    if total_a > total_b:
-                        marcador_a_w = total_a - total_b
-                        marcador_b_w = 0
-                        txt_sub_w = f"MANU/JOSE GANAN {marcador_a_w} UP"
-                    elif total_b > total_a:
-                        marcador_a_w = 0
-                        marcador_b_w = total_b - total_a
-                        txt_sub_w = f"ROGE/LALO GANAN {marcador_b_w} UP"
-                    else:
-                        marcador_a_w = 0
-                        marcador_b_w = 0
-                        txt_sub_w = "EMPATADOS (ALL SQUARE)"
+    # 2. Lógica Match Play: El que va perdiendo se reduce a 0 en el marcador "UP"
+    if total_a > total_b:
+        marcador_a_w = total_a - total_b
+        marcador_b_w = 0
+        txt_sub_w = f"MANU/JOSE GANAN {marcador_a_w:.1f} UP"
+    elif total_b > total_a:
+        marcador_a_w = 0
+        marcador_b_w = total_b - total_a
+        txt_sub_w = f"ROGE/LALO GANAN {marcador_b_w:.1f} UP"
+    else:
+        marcador_a_w = 0.0
+        marcador_b_w = 0.0
+        txt_sub_w = "EMPATADOS (ALL SQUARE)"
         
-                    titulo_final_marcador = f"EQUIPO A: {marcador_a_w} | EQUIPO B: {marcador_b_w}"
-                    sub_final_marcador = txt_sub_w
-                else:
-                    # Si es un partido seleccionado, mantenemos las variables originales de tu app
-                    titulo_final_marcador = titulo_marcador.upper()
-                    sub_final_marcador = sub_marcador
+    # CAMBIO SOLICITADO: Formato "Match: Manu & Jose X Roge & Lalo Y"
+    # Nota: Si prefieres que muestre el marcador neto calculado arriba (con uno a cero), usa marcador_a_w y marcador_b_w
+    # Si quieres que muestre el resultado del Match Play actual de la jornada (ej. 4.5 a 4.5), sustituye por tus variables de match play
+    titulo_final_marcador = f"Match: Manu & Jose {marcador_a_w:.1f} Roge & Lalo {marcador_b_w:.1f}"
+    sub_final_marcador = txt_sub_w
+else:
+    # Si es un partido seleccionado (individual), se mantiene tu formato original
+    titulo_final_marcador = titulo_marcador.upper()
+    sub_final_marcador = sub_marcador
 
-                # CONSTRUCCIÓN DEL ENCABEZADO
-                txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n{w_icon} *{tit_w}*\n"
-                txt_wa += f"🏆 *{titulo_final_marcador}*\n"
-                txt_wa += f"⛳ {sub_final_marcador}\n"
-                txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+# CONSTRUCCIÓN DEL ENCABEZADO
+txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n{w_icon} *{tit_w}*\n"
+txt_wa += f"🏆 *{titulo_final_marcador}*\n"
+txt_wa += f"⛳ {sub_final_marcador}\n"
+txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
 
-                # SECCIÓN: CLASIFICACIÓN MVP EN WHATSAPP
-                txt_wa += "⭐ *CLASIFICACIÓN MVP* ⭐\n"
-                lista_mvp = sorted(lista_resultados, key=lambda x: x['pts_mvp'], reverse=True)
-                for i, res in enumerate(lista_mvp):
-                    med = ["🥇","🥈","🥉"," "][i] if i < 4 else " "
-                    txt_wa += f"{med} {i+1}º {res['Jugador']}: *{res['pts_mvp']:.1f} pts*\n"
-                txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+# SECCIÓN: CLASIFICACIÓN MVP EN WHATSAPP
+txt_wa += "⭐ *CLASIFICACIÓN MVP* ⭐\n"
+lista_mvp = sorted(lista_resultados, key=lambda x: x['pts_mvp'], reverse=True)
+for i, res in enumerate(lista_mvp):
+    med = ["🥇","🥈","🥉"," "][i] if i < 4 else " "
+    txt_wa += f"{med} {i+1}º {res['Jugador']}: *{res['pts_mvp']:.1f} pts*\n"
+txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
 
-                # SECCIÓN: DETALLE INDIVIDUAL
-                txt_wa += "📊 *ESTADÍSTICAS INDIVIDUALES*\n\n"
-                for res in lista_resultados:
-                    p_m = f"+{res['pm']}" if res['pm'] > 0 else (str(res['pm']) if res['pm'] < 0 else "E")
-                    h = res['hoyos']
+# SECCIÓN: DETALLE INDIVIDUAL
+txt_wa += "📊 *ESTADÍSTICAS INDIVIDUALES*\n\n"
+for res in lista_resultados:
+    p_m = f"+{res['pm']}" if res['pm'] > 0 else (str(res['pm']) if res['pm'] < 0 else "E")
+    h = res['hoyos']
     
-                    def wf(v): return f"{v} ({v/h*100:.0f}%)"
+    def wf(v): return f"{v} ({v/h*100:.0f}%)"
     
-                    txt_wa += f"👤 *{res['Jugador'].upper()}*\n"
-                    txt_wa += f"🏆 *{p_m}* ({res['scr']} pts scratch)\n"
+    txt_wa += f"👤 *{res['Jugador'].upper()}*\n"
+    txt_wa += f"🏆 *{p_m}* ({res['scr']} pts scratch)\n"
     
-                    s_l = ""
-                    # CAMBIO: Si NO es acumulado (es partido seleccionado), agrupamos estadísticas
-                    if not ver_acumulado:
-                        # Birdie o mejor = Eagles ('e') + Birdies ('b')
-                        birdie_o_mejor = res.get('e', 0) + res.get('b', 0)
-                        # Triple Bogey o peor = Triple bogeys ('tb') y superiores agrupados si los hay
-                        triple_o_peor = res.get('tb', 0)
+    s_l = ""
+    # CAMBIO ANTERIOR: Agrupación de estadísticas para el partido seleccionado
+    if not ver_acumulado:
+        birdie_o_mejor = res.get('e', 0) + res.get('b', 0)
+        triple_o_peor = res.get('tb', 0)
         
-                        s_l += f"🐤 *Birdie o mejor:* {wf(birdie_o_mejor)}\n"
-                        s_l += f"🅿️ Par: {wf(res['p'])}\n"
-                        s_l += f"⚠️ Bog: {wf(res['bog'])}\n"
-                        s_l += f"💀 D.B: {wf(res['db'])}\n"
-                        s_l += f"💣 *💥 Triple o peor:* {wf(triple_o_peor)}\n"
-                    else:
-                        # Si es el acumulado de la temporada, mantenemos el desglose original de tu app
-                        if res['e'] > 0: s_l += f"🦅 Egl: {wf(res['e'])}\n"
-                        if res['b'] > 0: s_l += f"🐤 Bir: {wf(res['b'])}\n"
-                        s_l += f"🅿️ Par: {wf(res['p'])}\n"
-                        s_l += f"⚠️ Bog: {wf(res['bog'])}\n"
-                        s_l += f"💀 D.B: {wf(res['db'])}\n"
-                        if res['tb'] > 0: s_l += f"💣 +3B: {wf(res['tb'])}\n"
+        s_l += f"🐤 *Birdie o mejor:* {wf(birdie_o_mejor)}\n"
+        s_l += f"🅿️ Par: {wf(res['p'])}\n"
+        s_l += f"⚠️ Bog: {wf(res['bog'])}\n"
+        s_l += f"💀 D.B: {wf(res['db'])}\n"
+        s_l += f"💣 *💥 Triple o peor:* {wf(triple_o_peor)}\n"
+    else:
+        # Desglose original para el acumulado de temporada
+        if res['e'] > 0: s_l += f"🦅 Egl: {wf(res['e'])}\n"
+        if res['b'] > 0: s_l += f"🐤 Bir: {wf(res['b'])}\n"
+        s_l += f"🅿️ Par: {wf(res['p'])}\n"
+        s_l += f"⚠️ Bog: {wf(res['bog'])}\n"
+        s_l += f"💀 D.B: {wf(res['db'])}\n"
+        if res['tb'] > 0: s_l += f"💣 +3B: {wf(res['tb'])}\n"
         
-                    txt_wa += s_l + "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+    txt_wa += s_l + "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
 
-                st.write("")
-                st.link_button("📲 Enviar por WhatsApp", f"https://wa.me/?text={urllib.parse.quote(txt_wa)}", use_container_width=True)
-
+st.write("")
+st.link_button("📲 Enviar por WhatsApp", f"https://wa.me/?text={urllib.parse.quote(txt_wa)}", use_container_width=True)
 # SECCIÓN: ADMIN
 # ==========================================
 
