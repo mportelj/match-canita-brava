@@ -743,18 +743,30 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         if d == 1:  return 1
                         return 0
                     
+                    # 1. Suma total absoluta de puntos scratch obtenidos en la temporada/jornada
                     scr = int(d_p['dif'].apply(cs).sum())
                     pts_mvp_total = float(df_stats[col_mvp].sum())
+                    
+                    # 2. CÁLCULO DEL NÚMERO DE PARTIDOS JUGADOS REALES (Fechas únicas con golpes > 0)
+                    partidos_jugados = int(d_p['fecha'].nunique()) if 'fecha' in d_p.columns else 1
+                    if partidos_jugados == 0: 
+                        partidos_jugados = 1
 
                     lista_resultados.append({
                         "Jugador": jug, 
-                        "pm": (len(d_p)*2)-scr, "scr": scr, "pts_mvp": pts_mvp_total,
-                        "e": int((d_p['dif'] <= -2).sum()), "b": int((d_p['dif'] == -1).sum()), 
-                        "p": int((d_p['dif'] == 0).sum()), "bog": int((d_p['dif'] == 1).sum()), 
-                        "db": int((d_p['dif'] == 2).sum()), "tb": int((d_p['dif'] >= 3).sum()), "hoyos": len(d_p)
+                        "pm": (len(d_p)*2)-scr, 
+                        "scr": scr, 
+                        "pts_mvp": pts_mvp_total,
+                        "e": int((d_p['dif'] <= -2).sum()), 
+                        "b": int((d_p['dif'] == -1).sum()), 
+                        "p": int((d_p['dif'] == 0).sum()), 
+                        "bog": int((d_p['dif'] == 1).sum()), 
+                        "db": int((d_p['dif'] == 2).sum()), 
+                        "tb": int((d_p['dif'] >= 3).sum()), 
+                        "hoyos": len(d_p),
+                        "partidos": partidos_jugados  # Guardamos el número de partidos
                     })
             
-            # Ordenamos inicialmente por Scratch para la tabla principal
             lista_resultados = sorted(lista_resultados, key=lambda x: x['scr'], reverse=True)
 
             if lista_resultados:
@@ -766,10 +778,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         return f"<b>{v}</b><br><span style='color:gray; font-size:0.8em;'>{p:.0f}%</span>"
                     
                     h = res['hoyos']
-                    # CORRECCIÓN PARA LA PANTALLA: Si es acumulado calculamos la media cada 18 hoyos
-                    if ver_acumulado and h > 0:
-                        val_pm = (res['pm'] / h) * 18
-                        val_scr = (res['scr'] / h) * 18
+                    partidos = res['partidos']
+                    
+                    # NUEVA LÓGICA DE CORRECCIÓN: Promedio directo por partido jugado
+                    if ver_acumulado:
+                        val_pm = res['pm'] / partidos
+                        val_scr = res['scr'] / partidos
                         txt_pm = f"<span style='color:red;'>+{val_pm:.1f}</span>" if val_pm > 0 else (f"<span>{val_pm:.1f}</span>" if val_pm < 0 else "E")
                         txt_scr = f"<b>{val_scr:.1f}</b>"
                     else:
@@ -785,10 +799,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         "D.Bogey": f_pct(res['db'], res['hoyos']), "3+ Bogey": f_pct(res['tb'], res['hoyos'])
                     })
                 
-                # Modificación de cabeceras de columnas si es acumulado
                 df_html_data = pd.DataFrame(stats_rows)
                 if ver_acumulado:
-                    df_html_data = df_html_data.rename(columns={"+/-": "+/- Med (18h)", "Scratch": "Scratch Med (18h)"})
+                    df_html_data = df_html_data.rename(columns={"+/-": "+/- Med (partido)", "Scratch": "Scratch Med (partido)"})
 
                 df_html = df_html_data.to_html(escape=False, index=False)
                 df_html = df_html.replace('<td>', '<td style="text-align: center; vertical-align: middle; padding: 10px;">')
@@ -819,7 +832,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 w_icon = "📂" if ver_acumulado else "📅"
                 tit_w = temp_actual if ver_acumulado else opciones_fecha[seleccion_filtro]
                 
-                # LÓGICA DE MARCADORES PARA EL ENCABEZADO DE WHATSAPP
                 if ver_acumulado:
                     df_origen = None
                     for var_name in ['df_tabla', 'df', 'df_raw', 'df_stats']:
@@ -863,11 +875,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 txt_wa += "📊 *ESTADÍSTICAS INDIVIDUALES*\n\n"
                 for res in lista_mvp:
                     h = res['hoyos']
+                    partidos = res['partidos']
                     
-                    # CORRECCIÓN DE SCRATCH Y +/- SINCRO PARA WHATSAPP
-                    if ver_acumulado and h > 0:
-                        scr_promedio = (res['scr'] / h) * 18
-                        pm_promedio = (res['pm'] / h) * 18
+                    # NUEVA LÓGICA DE SINCRO PARA WHATSAPP: Basada en partidos reales
+                    if ver_acumulado:
+                        scr_promedio = res['scr'] / partidos
+                        pm_promedio = res['pm'] / partidos
                         texto_scratch = f"{scr_promedio:.1f} med. scratch"
                         texto_pm = f"+{pm_promedio:.1f}" if pm_promedio > 0 else (f"{pm_promedio:.1f}" if pm_promedio < 0 else "E")
                     else:
@@ -906,6 +919,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     f"https://wa.me/?text={urllib.parse.quote(txt_wa)}", 
                     use_container_width=True
                 )
+
+
 # SECCIÓN: ADMIN
 # ==========================================
 
