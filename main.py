@@ -798,13 +798,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 st.write(df_mvp_html, unsafe_allow_html=True)
 
            
-                # --- 6. WHATSAPP DETALLADO ---
+                                # --- 6. WHATSAPP DETALLADO ---
                 import urllib.parse
                 
                 w_icon = "📂" if ver_acumulado else "📅"
                 tit_w = temp_actual if ver_acumulado else opciones_fecha[seleccion_filtro]
                 
-                # SECCIÓN DE CLASIFICACIÓN MVP (La calculamos antes para usar su orden más abajo)
+                # SECCIÓN DE CLASIFICACIÓN MVP (Ordenamos de mayor a menor puntuación obligatoriamente)
                 lista_mvp = sorted(lista_resultados, key=lambda x: x['pts_mvp'], reverse=True)
                 
                 # LÓGICA DE MARCADORES (CÁLCULO DEL ACUMULADO Y ESTILO INICIO AUTOMÁTICO)
@@ -842,22 +842,22 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     titulo_final_marcador = titulo_marcador.upper()
                     sub_final_marcador = sub_marcador
                 
-                # CONSTRUCCIÓN DEL ENCABEZADO DEL MENSAJE (Cambiamos los rombos conflictivos por iconos nativos limpios)
+                # CONSTRUCCIÓN DEL ENCABEZADO DEL MENSAJE
                 txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n{w_icon} *{tit_w}*\n"
                 txt_wa += f"🏆 *{titulo_final_marcador}*\n"
                 txt_wa += f"⛳ {sub_final_marcador}\n"
                 txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
                 
-                # SECCIÓN: CLASIFICACIÓN MVP EN WHATSAPP
+                # SECCIÓN: CLASIFICACIÓN MVP EN WHATSAPP (ORDENADA POR JUGADOR DE 1º A 4º)
                 txt_wa += "⭐ *CLASIFICACIÓN MVP* ⭐\n"
-                for i, res in enumerate(lista_mvp):
+                for i, res in enumerate(lista_mvp):  # <-- RECORRIDO ORDENADO POR CLASIFICACIÓN
                     med = ["🥇", "🥈", "🥉", " "][i] if i < 4 else " "
                     txt_wa += f"{med} {i+1}º {res['Jugador']}: *{res['pts_mvp']:.1f} pts*\n"
                 txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
                 
-                # SECCIÓN: DETALLE INDIVIDUAL (EN ORDEN DE CLASIFICACIÓN MVP)
+                # SECCIÓN: DETALLE INDIVIDUAL (TAMBIÉN EN ORDEN DE CLASIFICACIÓN MVP)
                 txt_wa += "📊 *ESTADÍSTICAS INDIVIDUALES*\n\n"
-                for res in lista_mvp:
+                for res in lista_mvp:  # <-- RECORRIDO ORDENADO POR CLASIFICACIÓN
                     p_m = f"+{res['pm']}" if res['pm'] > 0 else (str(res['pm']) if res['pm'] < 0 else "E")
                     h = res['hoyos']
                     
@@ -869,7 +869,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                     s_l = ""
                     if not ver_acumulado:
-                        # Agrupación para el partido seleccionado
+                        # Agrupación para el partido seleccionado (Estadísticas de la jornada)
                         birdie_o_mejor = res.get('e', 0) + res.get('b', 0)
                         triple_o_peor = res.get('tb', 0)
                         
@@ -879,7 +879,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         s_l += f"💀 *D.B:* {wf(res['db'])}\n"
                         s_l += f"💣 *💥 Triple o peor:* {wf(triple_o_peor)}\n"
                     else:
-                        # Desglose completo para el acumulado con los títulos en negrita
+                        # Desglose completo para el acumulado histórico de la temporada
                         if res['e'] > 0: 
                             s_l += f"🦅 Egl: {wf(res['e'])}\n"
                         if res['b'] > 0: 
