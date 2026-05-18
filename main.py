@@ -829,7 +829,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                # --- 6. WHATSAPP DETALLADO ---
                 import urllib.parse
                 
-                w_icon = "📂" if ver_acumulado else "📅"
+                w_icon = "[ACUMULADO]" if ver_acumulado else "[JORNADA]"
                 tit_w = temp_actual if ver_acumulado else opciones_fecha[seleccion_filtro]
                 
                 # LÓGICA DE MARCADORES (CÁLCULO DEL ACUMULADO Y ESTILO INICIO AUTOMÁTICO)
@@ -851,23 +851,22 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     titulo_final_marcador = titulo_marcador.upper()
                     sub_final_marcador = sub_marcador
                 
-                # CONSTRUCCIÓN DEL ENCABEZADO (CON ESPACIOS DE SEGURIDAD PARA LOS EMOJIS)
-                txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n"
+                # CONSTRUCCIÓN DEL ENCABEZADO (USANDO ELEMENTOS DE TEXTO SEGUROS)
+                txt_wa = f"=== CAÑITA BRAVA ===\n"
                 txt_wa += f"{w_icon} *{tit_w}*\n"
-                txt_wa += f"🏆 *{titulo_final_marcador}*\n"
-                txt_wa += f"⛳ {sub_final_marcador}\n"
+                txt_wa += f"-> *{titulo_final_marcador}*\n"
+                txt_wa += f"-> {sub_final_marcador}\n"
                 txt_wa += "-----------------------------------\n\n"
                 
-                # SECCIÓN: CLASIFICACIÓN MVP (ESTRUCTURA ULTRA-LIMPIA SIN MEDALLAS CONFLICTIVAS)
-                txt_wa += "⭐ *CLASIFICACIÓN MVP* ⭐\n"
+                # SECCIÓN: CLASIFICACIÓN MVP (FORMATO TABLA LIMPIO)
+                txt_wa += ".[ CLASIFICACIÓN MVP ].\n"
                 for i, res in enumerate(lista_mvp):
                     puntos_v = float(res.get('pts_mvp', 0.0))
-                    # Usamos un formato plano impecable para evitar que WhatsApp rompa el texto
-                    txt_wa += f"- {i+1}º {res['Jugador']}: *{puntos_v:.1f} pts*\n"
+                    txt_wa += f" {i+1}º {res['Jugador']}: *{puntos_v:.1f} pts*\n"
                 txt_wa += "-----------------------------------\n\n"
                 
                 # SECCIÓN: DETALLE INDIVIDUAL
-                txt_wa += "📊 *ESTADÍSTICAS INDIVIDUALES*\n\n"
+                txt_wa += ".[ ESTADÍSTICAS INDIVIDUALES ].\n\n"
                 for res in lista_mvp:
                     h = res['hoyos']
                     partidos = res['partidos']
@@ -884,30 +883,30 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     def wf(v): 
                         return f"{v} ({v/h*100:.0f}%)"
                     
-                    txt_wa += f"👤 *{res['Jugador'].upper()}*\n"
-                    txt_wa += f"🏆 *{texto_pm}* ({texto_scratch})\n"
+                    txt_wa += f" ({res['Jugador'].upper()})\n"
+                    txt_wa += f" *{texto_pm}* ({texto_scratch})\n"
                     
                     s_l = ""
                     if not ver_acumulado:
                         birdie_o_mejor = int(res.get('e', 0)) + int(res.get('b', 0))
                         triple_o_peor = int(res.get('tb', 0))
                         
-                        s_l += f"- Birdie o mejor: {wf(birdie_o_mejor)}\n"
-                        s_l += f"- Par: {wf(res['p'])}\n"
-                        s_l += f"- Bog: {wf(res['bog'])}\n"
-                        s_l += f"- D.B: {wf(res['db'])}\n"
-                        s_l += f"- Triple o peor: {wf(triple_o_peor)}\n"
+                        s_l += f"  . Birdie o mejor: {wf(birdie_o_mejor)}\n"
+                        s_l += f"  . Par: {wf(res['p'])}\n"
+                        s_l += f"  . Bog: {wf(res['bog'])}\n"
+                        s_l += f"  . D.B: {wf(res['db'])}\n"
+                        s_l += f"  . Triple o peor: {wf(triple_o_peor)}\n"
                     else:
-                        if res['e'] > 0:  s_l += f"🦅 Egl: {wf(res['e'])}\n"
-                        if res['b'] > 0:  s_l += f"🐤 Bir: {wf(res['b'])}\n"
-                        s_l += f"🅿️ Par: {wf(res['p'])}\n"
-                        s_l += f"⚠️ Bog: {wf(res['bog'])}\n"
-                        s_l += f"💀 D.B: {wf(res['db'])}\n"
-                        if res['tb'] > 0: s_l += f"💣 +3B: {wf(res['tb'])}\n"
+                        if res['e'] > 0:  s_l += f"  . Egl: {wf(res['e'])}\n"
+                        if res['b'] > 0:  s_l += f"  . Bir: {wf(res['b'])}\n"
+                        s_l += f"  . Par: {wf(res['p'])}\n"
+                        s_l += f"  . Bog: {wf(res['bog'])}\n"
+                        s_l += f"  . D.B: {wf(res['db'])}\n"
+                        if res['tb'] > 0: s_l += f"  . +3B: {wf(res['tb'])}\n"
                         
                     txt_wa += s_l + "-------------------\n"
                 
-                # RENDERIZADO DEL BOTÓN
+                # RENDERIZADO DEL BOTÓN CON CODIFICACIÓN LIMPIA
                 st.write("")
                 st.link_button(
                     "📲 Enviar por WhatsApp", 
