@@ -826,58 +826,59 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 df_mvp_html = df_mvp_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
                 st.write(df_mvp_html, unsafe_allow_html=True)
 
-                # --- 6. WHATSAPP DETALLADO ---
+               # --- 6. WHATSAPP DETALLADO ---
                 import urllib.parse
                 
                 w_icon = "📂" if ver_acumulado else "📅"
                 tit_w = temp_actual if ver_acumulado else opciones_fecha[seleccion_filtro]
                 
+                # CÁLCULO DEL MARCADOR EXACTO (Para que coincida con la pantalla de Inicio: ej. 4.5 vs 4.5)
                 if ver_acumulado:
-                    df_origen = None
-                    for var_name in ['df_tabla', 'df', 'df_raw', 'df_stats']:
-                        if var_name in locals() or var_name in globals():
-                            df_origen = locals().get(var_name, globals().get(var_name))
-                            break
-                            
-                    if df_origen is not None and 'm_a' in df_origen.columns and 'm_b' in df_origen.columns:
-                        total_a = float(df_origen['m_a'].sum())
-                        total_b = float(df_origen['m_b'].sum())
-                    else:
-                        total_a = 4.5
-                        total_b = 4.5
+                    # Inicializamos con los puntos base de 2026 (3.5) o 0
+                    total_a, total_b = (3.5, 3.5) if str(temp_actual) == "2026" else (0.0, 0.0)
                     
-                    titulo_final_marcador = f"Match: Manu & Jose {total_a:.1f} Roge & Lalo {total_b:.1f}"
+                    if not df_stats.empty:
+                        # Agrupamos por partido para saber quién ganó cada jornada
+                        partidos_stats = df_stats.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
+                        for _, r in partidos_stats.iterrows():
+                            if r['resultado_a'] > r['resultado_b']: 
+                                total_a += 1
+                            elif r['resultado_b'] > r['resultado_a']: 
+                                total_b += 1
+                            else:
+                                total_a += 0.5
+                                total_b += 0.5
+                                
+                    titulo_final_marcador = f"Match: Manu y Jose {total_a:g} Roge y Lalo {total_b:g}"
                     
                     if total_a > total_b:
-                        marcador_a_w = total_a - total_b
-                        sub_final_marcador = f"MANU/JOSE GANAN {marcador_a_w:.1f} UP"
+                        sub_final_marcador = f"MANU / JOSE GANAN {total_a - total_b:g} UP"
                     elif total_b > total_a:
-                        marcador_b_w = total_b - total_a
-                        sub_final_marcador = f"ROGE/LALO GANAN {marcador_b_w:.1f} UP"
+                        sub_final_marcador = f"ROGE / LALO GANAN {total_b - total_a:g} UP"
                     else:
                         sub_final_marcador = "EMPATADOS (ALL SQUARE)"
                 else:
                     titulo_final_marcador = titulo_marcador.upper()
                     sub_final_marcador = sub_marcador
                 
+                # CONSTRUCCIÓN DEL MENSAJE (USANDO GUIONES NORMALES '-' PARA EVITAR ROMBOS)
                 txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n{w_icon} *{tit_w}*\n"
                 txt_wa += f"🏆 *{titulo_final_marcador}*\n"
                 txt_wa += f"⛳ {sub_final_marcador}\n"
-                txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+                txt_wa += "-----------------------------------\n\n"
                 
                 txt_wa += "⭐ *CLASIFICACIÓN MVP* ⭐\n"
                 for i, res in enumerate(lista_mvp):
-                    med = ["🥇", "🥈", "🥉", " "][i] if i < 4 else " "
+                    med = ["🥇", "🥈", "🥉", "▪️"][i] if i < 4 else "▪️"
                     puntos_v = float(res.get('pts_mvp', 0.0))
                     txt_wa += f"{med} {i+1}º {res['Jugador']}: *{puntos_v:.1f} pts*\n"
-                txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+                txt_wa += "-----------------------------------\n\n"
                 
                 txt_wa += "📊 *ESTADÍSTICAS INDIVIDUALES*\n\n"
                 for res in lista_mvp:
                     h = res['hoyos']
                     partidos = res['partidos']
                     
-                    # NUEVA LÓGICA DE SINCRO PARA WHATSAPP: Basada en partidos reales
                     if ver_acumulado:
                         scr_promedio = res['scr'] / partidos
                         pm_promedio = res['pm'] / partidos
@@ -898,25 +899,28 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         birdie_o_mejor = int(res.get('e', 0)) + int(res.get('b', 0))
                         triple_o_peor = int(res.get('tb', 0))
                         
-                        s_l += f"🐤 *Birdie o mejor:* {wf(birdie_o_mejor)}\n"
-                        s_l += f"🅿️ *Par:* {wf(res['p'])}\n"
-                        s_l += f"⚠️ *Bog:* {wf(res['bog'])}\n"
-                        s_l += f"💀 *D.B:* {wf(res['db'])}\n"
-                        s_l += f"💣 *💥 Triple o peor:* {wf(triple_o_peor)}\n"
+                        s_l += f"🐤 Birdie o mejor: {wf(birdie_o_mejor)}\n"
+                        s_l += f"🅿️ Par: {wf(res['p'])}\n"
+                        s_l += f"⚠️ Bogey: {wf(res['bog'])}\n"
+                        s_l += f"💀 D.Bogey: {wf(res['db'])}\n"
+                        s_l += f"💣 Triple o peor: {wf(triple_o_peor)}\n"
                     else:
-                        if res['e'] > 0:  s_l += f"🦅 Egl: {wf(res['e'])}\n"
-                        if res['b'] > 0:  s_l += f"🐤 Bir: {wf(res['b'])}\n"
-                        s_l += f"🅿️ *Par:* {wf(res['p'])}\n"
-                        s_l += f"⚠️ *Bog:* {wf(res['bog'])}\n"
-                        s_l += f"💀 *D.B:* {wf(res['db'])}\n"
-                        if res['tb'] > 0: s_l += f"💣 +3B: {wf(res['tb'])}\n"
+                        if res['e'] > 0:  s_l += f"🦅 Eagle: {wf(res['e'])}\n"
+                        if res['b'] > 0:  s_l += f"🐤 Birdie: {wf(res['b'])}\n"
+                        s_l += f"🅿️ Par: {wf(res['p'])}\n"
+                        s_l += f"⚠️ Bogey: {wf(res['bog'])}\n"
+                        s_l += f"💀 D.Bogey: {wf(res['db'])}\n"
+                        if res['tb'] > 0: s_l += f"💣 +3 Bogey: {wf(res['tb'])}\n"
                         
-                    txt_wa += s_l + "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+                    txt_wa += s_l + "-----------------------------------\n"
+                
+                # Forzamos codificación UTF-8 pura antes de pasarlo a la URL
+                txt_wa_codificado = urllib.parse.quote(txt_wa.encode('utf-8'))
                 
                 st.write("")
                 st.link_button(
                     "📲 Enviar por WhatsApp", 
-                    f"https://wa.me/?text={urllib.parse.quote(txt_wa)}", 
+                    f"https://wa.me/?text={txt_wa_codificado}", 
                     use_container_width=True
                 )
 
