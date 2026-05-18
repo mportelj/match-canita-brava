@@ -832,52 +832,47 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 w_icon = "📂" if ver_acumulado else "📅"
                 tit_w = temp_actual if ver_acumulado else opciones_fecha[seleccion_filtro]
                 
+                # LÓGICA DE MARCADORES (CÁLCULO DEL ACUMULADO Y ESTILO INICIO AUTOMÁTICO)
                 if ver_acumulado:
-                    df_origen = None
-                    for var_name in ['df_tabla', 'df', 'df_raw', 'df_stats']:
-                        if var_name in locals() or var_name in globals():
-                            df_origen = locals().get(var_name, globals().get(var_name))
-                            break
-                            
-                    if df_origen is not None and 'm_a' in df_origen.columns and 'm_b' in df_origen.columns:
-                        total_a = float(df_origen['m_a'].sum())
-                        total_b = float(df_origen['m_b'].sum())
-                    else:
-                        total_a = 4.5
-                        total_b = 4.5
+                    # Usamos de forma segura los valores h_a y h_b ya calculados en la sección 3
+                    total_a = float(h_a)
+                    total_b = float(h_b)
                     
-                    titulo_final_marcador = f"Match: Manu & Jose {total_a:.1f} Roge & Lalo {total_b:.1f}"
+                    titulo_final_marcador = f"Match: Manu & Jose {total_a:g} Roge & Lalo {total_b:g}"
                     
                     if total_a > total_b:
                         marcador_a_w = total_a - total_b
-                        sub_final_marcador = f"MANU/JOSE GANAN {marcador_a_w:.1f} UP"
+                        sub_final_marcador = f"MANU/JOSE GANAN {marcador_a_w:g} UP"
                     elif total_b > total_a:
                         marcador_b_w = total_b - total_a
-                        sub_final_marcador = f"ROGE/LALO GANAN {marcador_b_w:.1f} UP"
+                        sub_final_marcador = f"ROGE/LALO GANAN {marcador_b_w:g} UP"
                     else:
                         sub_final_marcador = "EMPATADOS (ALL SQUARE)"
                 else:
                     titulo_final_marcador = titulo_marcador.upper()
                     sub_final_marcador = sub_marcador
                 
+                # CONSTRUCCIÓN DEL ENCABEZADO DEL MENSAJE
                 txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n{w_icon} *{tit_w}*\n"
                 txt_wa += f"🏆 *{titulo_final_marcador}*\n"
                 txt_wa += f"⛳ {sub_final_marcador}\n"
-                txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+                txt_wa += "-----------------------------------\n\n"
                 
+                # SECCIÓN: CLASIFICACIÓN MVP EN WHATSAPP
                 txt_wa += "⭐ *CLASIFICACIÓN MVP* ⭐\n"
                 for i, res in enumerate(lista_mvp):
-                    med = ["🥇", "🥈", "🥉", " "][i] if i < 4 else " "
+                    med = ["🥇", "🥈", "🥉", "▪️"][i] if i < 4 else "▪️"
                     puntos_v = float(res.get('pts_mvp', 0.0))
                     txt_wa += f"{med} {i+1}º {res['Jugador']}: *{puntos_v:.1f} pts*\n"
-                txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+                txt_wa += "-----------------------------------\n\n"
                 
+                # SECCIÓN: DETALLE INDIVIDUAL COMPLETADO
                 txt_wa += "📊 *ESTADÍSTICAS INDIVIDUALES*\n\n"
                 for res in lista_mvp:
                     h = res['hoyos']
                     partidos = res['partidos']
                     
-                    # NUEVA LÓGICA DE SINCRO PARA WHATSAPP: Basada en partidos reales
+                    # Lógica de corrección de Scratch y +/- para acumulado/jornada
                     if ver_acumulado:
                         scr_promedio = res['scr'] / partidos
                         pm_promedio = res['pm'] / partidos
@@ -893,17 +888,20 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     txt_wa += f"👤 *{res['Jugador'].upper()}*\n"
                     txt_wa += f"🏆 *{texto_pm}* ({texto_scratch})\n"
                     
+                    # AQUÍ SE RECUPERAN TODAS LAS LÍNEAS DEL MENSAJE ORIGINAL QUE FALTABAN:
                     s_l = ""
                     if not ver_acumulado:
+                        # Agrupación para el partido seleccionado
                         birdie_o_mejor = int(res.get('e', 0)) + int(res.get('b', 0))
                         triple_o_peor = int(res.get('tb', 0))
                         
-                        s_l += f"🐤 *Birdie o mejor:* {wf(birdie_o_mejor)}\n"
-                        s_l += f"🅿️ *Par:* {wf(res['p'])}\n"
-                        s_l += f"⚠️ *Bog:* {wf(res['bog'])}\n"
-                        s_l += f"💀 *D.B:* {wf(res['db'])}\n"
-                        s_l += f"💣 *💥 Triple o peor:* {wf(triple_o_peor)}\n"
+                        s_l += f"🔹 *Birdie o mejor:* {wf(birdie_o_mejor)}\n"
+                        s_l += f"🔹 *Par:* {wf(res['p'])}\n"
+                        s_l += f"🔹 *Bog:* {wf(res['bog'])}\n"
+                        s_l += f"🔹 *D.B:* {wf(res['db'])}\n"
+                        s_l += f"🔹 *Triple o peor:* {wf(triple_o_peor)}\n"
                     else:
+                        # Desglose completo e histórico para el acumulado de la temporada
                         if res['e'] > 0:  s_l += f"🦅 Egl: {wf(res['e'])}\n"
                         if res['b'] > 0:  s_l += f"🐤 Bir: {wf(res['b'])}\n"
                         s_l += f"🅿️ *Par:* {wf(res['p'])}\n"
@@ -911,12 +909,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         s_l += f"💀 *D.B:* {wf(res['db'])}\n"
                         if res['tb'] > 0: s_l += f"💣 +3B: {wf(res['tb'])}\n"
                         
-                    txt_wa += s_l + "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+                    txt_wa += s_l + "-------------------\n"
                 
+                # RENDERIZADO DEL BOTÓN CON CODIFICACIÓN BLINDADA (safe='')
                 st.write("")
                 st.link_button(
                     "📲 Enviar por WhatsApp", 
-                    f"https://wa.me/?text={urllib.parse.quote(txt_wa)}", 
+                    f"https://wa.me/?text={urllib.parse.quote(txt_wa, safe='')}", 
                     use_container_width=True
                 )
 
