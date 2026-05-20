@@ -652,14 +652,26 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 # El botón se habilita en cuanto 'hoyo_modificado' pasa a ser True
             boton_deshabilitado = not st.session_state['hoyo_modificado']
 
-            if st.button("💾 Guardar Hoyo", use_container_width=True, disabled=boton_deshabilitado, type="primary"):
-                if guardar_datos_hoyo():
-                    st.success("Hoyo grabado correctamente")
-                    # 🎯 CRÍTICO: Devolvemos el interruptor a False para el próximo hoyo
-                    st.session_state['hoyo_modificado'] = False
-                    st.rerun()
+           # --- SECCIÓN BOTÓN GUARDAR HOYO CORREGIDO ---
+            
+            # El botón se habilita en cuanto 'hoyo_modificado' pasa a ser True
+            # (es decir, en cuanto se toca cualquier número de golpes)
+            no_hay_cambios = not st.session_state.get('hoyo_modificado', False)
+
+            if st.button(
+                "💾 GUARDAR RESULTADO HOYO", 
+                use_container_width=True, 
+                key=f"btn_guardar_h{h_actual}", 
+                disabled=no_hay_cambios,
+                type="primary"
+            ):
+                # 🎯 AQUÍ COMIENZA TU CÓDIGO ORIGINAL DE GUARDADO (el que va debajo del botón)
+                # Justo al final de todo tu bloque de guardado (antes o después del st.rerun), 
+                # recuerda añadir esta línea para resetear el botón para el siguiente hoyo:
+                st.session_state['hoyo_modificado'] = False
             ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
             st.rerun()
+            st.session_state['hoyo_modificado'] = False
                 
             res_hoyo_a, res_hoyo_b = 0, 0
             if not df_partido_actual.empty:
