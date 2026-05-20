@@ -1109,6 +1109,7 @@ elif st.session_state.menu_seleccionado == "Admin":
                             if st.button("ELIMINAR DEFINITIVAMENTE", key=f"btn_del_{p_id}", type="primary"):
                                 if borrar_partido_completo(p_id):
                                     st.toast("Jornada eliminada")
+                                    st.cache_data.clear()
                                     st.rerun()
                                 else:
                                     st.error("No se pudo eliminar el partido.")
