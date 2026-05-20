@@ -387,7 +387,10 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         st.success(f"Guardado Hoyo {hoyo_cronologico} (Match: {res_a} vs {res_b})")
     except Exception as e:
         st.error(f"Error al guardar: {e}")
-        
+
+def activar_boton_guardar():
+    st.session_state['hoyo_modificado'] = True
+
 # --- CÁLCULO DEL MARCADOR ACUMULADO DE LA TEMPORADA ---
 
 def calcular_marcador_acumulado(df):
@@ -482,12 +485,14 @@ if st.session_state.menu_seleccionado == "Inicio":
    # Pon esto en tu pantalla de inicio justo donde se calculan los totales correctos:
     st.session_state['marcador_acumulado_a'] = pa_t  # O la variable que uses para Manu/Jose
     st.session_state['marcador_acumulado_b'] = pb_t  # O la variable que uses para Roge/Lalo
+
 # ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
         # --- BLOQUE 0: INICIALIZACIÓN DE ESTADO ---
         if 'refresco_id' not in st.session_state: 
             st.session_state.refresco_id = 0
-        
+        if 'hoyo_modificado' not in st.session_state:
+            st.session_state['hoyo_modificado'] = False
         # Inicializamos DataFrames vacíos para evitar errores de referencia
         df_p = pd.DataFrame()
         df_partido_actual = pd.DataFrame()
@@ -627,24 +632,34 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             cols_g = st.columns(4)
     
             # Mapeo limpio de los inputs con sus claves (keys) corregidas y únicas
-            s0 = cols_g[0].number_input("MANU", min_value=1, value=golpes_anteriores[0], key=f"s0_h{h_actual}")
-            s1 = cols_g[1].number_input("JOSE", min_value=1, value=golpes_anteriores[1], key=f"s1_h{h_actual}")
-            s2 = cols_g[2].number_input("ROGE", min_value=1, value=golpes_anteriores[2], key=f"s2_h{h_actual}")
-            s3 = cols_g[3].number_input("LALO", min_value=1, value=golpes_anteriores[3], key=f"s3_h{h_actual}")
+            s0 = cols_g[0].number_input("MANU", min_value=1, value=golpes_anteriores[0], on_change=activar_boton_guardar, key=f"s0_h{h_actual}")
+            s1 = cols_g[1].number_input("JOSE", min_value=1, value=golpes_anteriores[1], on_change=activar_boton_guardar, key=f"s1_h{h_actual}")
+            s2 = cols_g[2].number_input("ROGE", min_value=1, value=golpes_anteriores[2], on_change=activar_boton_guardar, key=f"s2_h{h_actual}")
+            s3 = cols_g[3].number_input("LALO", min_value=1, value=golpes_anteriores[3], on_change=activar_boton_guardar, key=f"s3_h{h_actual}")
             
             # Comprobamos si los golpes actuales son idénticos a los guardados
             valores_actuales = [s0, s1, s2, s3]
             no_hay_cambios = (valores_actuales == golpes_anteriores)
         
             # El botón permanece deshabilitado hasta que cambie algún número
-            if st.button(
-                "💾 GUARDAR RESULTADO HOYO", 
-                use_container_width=True, 
-                key=f"btn_guardar_h{h_actual}", 
-                disabled=no_hay_cambios
-            ):
-                ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
-                st.rerun()
+            #if st.button(
+            #   "💾 GUARDAR RESULTADO HOYO", 
+            #    use_container_width=True, 
+            #    key=f"btn_guardar_h{h_actual}", 
+            #    disabled=no_hay_cambios
+            #):
+
+                # El botón se habilita en cuanto 'hoyo_modificado' pasa a ser True
+            boton_deshabilitado = not st.session_state['hoyo_modificado']
+
+            if st.button("💾 Guardar Hoyo", use_container_width=True, disabled=boton_deshabilitado, type="primary"):
+                if guardar_datos_hoyo():
+                    st.success("Hoyo grabado correctamente")
+                    # 🎯 CRÍTICO: Devolvemos el interruptor a False para el próximo hoyo
+                    st.session_state['hoyo_modificado'] = False
+                    st.rerun()
+            ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
+            st.rerun()
                 
             res_hoyo_a, res_hoyo_b = 0, 0
             if not df_partido_actual.empty:
