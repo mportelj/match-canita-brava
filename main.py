@@ -1014,6 +1014,79 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     f"https://wa.me/?text={urllib.parse.quote(txt_wa)}", 
                     use_container_width=True
                 )
+
+# --- 📊 NUEVA SECCIÓN DE GRÁFICOS ---
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+
+st.markdown("---")
+st.markdown("### 📈 Análisis Gráfico de Rendimiento")
+
+if lista_mvp:
+    # Convertimos tu lista de resultados a un DataFrame de Pandas para graficar fácilmente
+    df_graficos = pd.DataFrame(lista_mvp)
+    
+    col_graf_1, col_graf_2 = st.columns(2)
+    
+    with col_graf_1:
+        # 1. GRÁFICO DE BARRAS APILADAS: Distribución de Resultados
+        # Preparamos los datos aislando los golpes
+        df_dist = df_graficos[['Jugador', 'e', 'b', 'p', 'bog', 'db', 'tb']].copy()
+        df_dist.columns = ['Jugador', 'Eagle', 'Birdie', 'Par', 'Bogey', 'D.Bogey', '+3 Bogey']
+        
+        # Transformamos la tabla para que Plotly la entienda (formato largo)
+        df_long = df_dist.melt(id_vars='Jugador', var_name='Resultado', value_name='Cantidad')
+        
+        # Colores personalizados e intuitivos para el golf
+        colores_golf = {
+            'Eagle': '#FFD700',     # Oro
+            'Birdie': '#00BFFF',    # Azul claro
+            'Par': '#28B463',       # Verde
+            'Bogey': '#F39C12',     # Naranja
+            'D.Bogey': '#E74C3C',   # Rojo
+            '+3 Bogey': '#7B241C'   # Rojo muy oscuro
+        }
+        
+        fig1 = px.bar(
+            df_long, 
+            x='Jugador', 
+            y='Cantidad', 
+            color='Resultado',
+            title="🎯 Radiografía de Hoyos",
+            color_discrete_map=colores_golf,
+            text_auto=True
+        )
+        # Ocultamos el título del eje Y para que quede más limpio
+        fig1.update_layout(yaxis_title=None, xaxis_title=None) 
+        st.plotly_chart(fig1, use_container_width=True)
+
+    with col_graf_2:
+        # 2. GRÁFICO DE BARRAS AGRUPADAS: Scratch vs Puntos MVP
+        # Comparamos el rendimiento bruto frente a los puntos de MVP que aporta cada uno
+        
+        # Ajustamos los nombres de las columnas que queremos mostrar
+        df_rend = df_graficos[['Jugador', 'scr', 'pts_mvp']].copy()
+        df_rend.rename(columns={'scr': 'Puntos Scratch', 'pts_mvp': 'Puntos MVP'}, inplace=True)
+        df_rend_long = df_rend.melt(id_vars='Jugador', var_name='Métrica', value_name='Valor')
+        
+        fig2 = px.bar(
+            df_rend_long, 
+            x='Jugador', 
+            y='Valor', 
+            color='Métrica', 
+            barmode='group',
+            title="🏆 Rendimiento: Scratch vs MVP",
+            color_discrete_map={'Puntos Scratch': '#34495E', 'Puntos MVP': '#F1C40F'},
+            text_auto='.1f'
+        )
+        fig2.update_layout(yaxis_title=None, xaxis_title=None, legend_title_text='')
+        st.plotly_chart(fig2, use_container_width=True)
+        
+    # Opcional: Un gráfico de líneas si en el futuro quieres ver la evolución a lo largo de las jornadas
+    # st.markdown("---")
+    # st.info("💡 Consejo: Si guardas un histórico de puntos por fecha, aquí podríamos añadir un gráfico de líneas para ver quién va mejorando su hándicap durante la temporada.")
+
 # SECCIÓN: ADMIN
 # ==========================================
 
