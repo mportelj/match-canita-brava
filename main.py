@@ -290,6 +290,22 @@ def actualizar_o_insertar_hoyo(datos):
 
 # --- 2. FUNCIONES DE DATOS ---
 
+# 🔥 BONUS: +1 por Birdie, +2 por Eagle, +3 por Albatros
+def calcular_bonus_hoyo(golpes_jugador, par):
+    if golpes_jugador <= 0:  # Por si hay algún valor vacío o cero
+        return 0
+            
+    diferencia = par - golpes_jugador
+    if diferencia == 1:    # Birdie
+        return 1
+    elif diferencia == 2:  # Eagle
+        return 2
+    elif diferencia >= 3:  # Albatros o mejor
+        return 3
+    return 0
+
+        
+
 def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     try:
         hoja = st.session_state.sh
@@ -322,11 +338,12 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         elif peor_b < peor_a:   res_b += 1
         
         # 🔥 BONUS: +1 punto por cada Birdie o mejor (menor o igual a Par - 1)
-        if golpes[0] <= par_hoyo - 1: res_a += 1
-        if golpes[1] <= par_hoyo - 1: res_a += 1
-        if golpes[2] <= par_hoyo - 1: res_b += 1
-        if golpes[3] <= par_hoyo - 1: res_b += 1
-
+        # Aplicamos el bonus acumulado a cada bando
+        res_a += calcular_bonus_hoyo(golpes[0], par_hoyo)
+        res_a += calcular_bonus_hoyo(golpes[1], par_hoyo)
+        res_b += calcular_bonus_hoyo(golpes[2], par_hoyo)
+        res_b += calcular_bonus_hoyo(golpes[3], par_hoyo)
+        
         # --- CÁLCULO PUNTOS MVP ---
         p_mvp = [0.0, 0.0, 0.0, 0.0]
         for i in range(4):
