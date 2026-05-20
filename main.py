@@ -1103,16 +1103,27 @@ elif st.session_state.menu_seleccionado == "Admin":
                     st.rerun()
 
                 # BOTÓN BORRAR con popover de seguridad
+                # --- BOTÓN BORRAR CON POPOVER DE SEGURIDAD CORREGIDO ---
                 with col_bor:
-                        with st.popover("🗑️ Borrar Jornada", use_container_width=True):
-                            st.error("¿Seguro? Se eliminarán todos los registros de este día.")
-                            if st.button("ELIMINAR DEFINITIVAMENTE", key=f"btn_del_{p_id}", type="primary"):
-                                if borrar_partido_completo(p_id):
-                                    st.toast("Jornada eliminada")
-                                    st.cache_data.clear()
-                                    st.rerun()
-                                else:
-                                    st.error("No se pudo eliminar el partido.")
+                    # 1. Creamos una clave única en session_state para controlar si está abierto
+                    key_popover = f"popover_del_{p_id}"
+                    
+                    # Renderizamos el popover vinculando su estado
+                    with st.popover("🗑️ Borrar Jornada", use_container_width=True, key=key_popover):
+                        st.error("¿Seguro? Se eliminarán todos los registros de este día.")
+                        
+                        if st.button("ELIMINAR DEFINITIVAMENTE", key=f"btn_del_{p_id}", type="primary", use_container_width=True):
+                            if borrar_partido_completo(p_id):
+                                st.toast("Jornada eliminada")
+                                
+                                # 🎯 TRUCO CRÍTICO: Forzamos el cierre del popover en la memoria de Streamlit
+                                st.session_state[key_popover] = False
+                                
+                                # Limpiamos caché y relanzamos la aplicación limpia
+                                st.cache_data.clear()
+                                st.rerun()
+                            else:
+                                st.error("No se pudo eliminar el partido.")
                                    
                                     
 
