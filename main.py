@@ -40,41 +40,68 @@ if 'game' not in st.session_state:
 if 'nav_radio' not in st.session_state:
     st.session_state.nav_radio = "Inicio" # O el valor por defecto que tengas
 
-def borrar_partido_completo(id_partido_a_borrar):
+def borrar_partido_completo(partido_id):
     try:
         hoja = st.session_state.sh
+        id_p_buscar = str(partido_id).split('.')[0].strip()
+        
+        # 1. Leemos todas las filas actuales
         filas = hoja.get_all_values()
-        header = filas[0]
-        
-        # Normalizamos el ID que queremos borrar para que sea string sin .0
-        id_target = str(id_partido_a_borrar).split('.')[0]
-        
-        # Filtramos la lista: nos quedamos solo con lo que NO sea ese partido
-        nuevas_filas = [header]
-        conteo_borrados = 0
-        
-        for fila in filas[1:]:
-            if len(fila) > 1:
-                # Normalizamos el ID de la fila actual del Excel
-                id_fila = str(fila[1]).split('.')[0]
-                if id_fila == id_target:
-                    conteo_borrados += 1
-                    continue # No la incluimos (borrado)
-            nuevas_filas.append(fila)
-        
-        if conteo_borrados > 0:
-            hoja.clear()
-            hoja.update('A1', nuevas_filas)
-            st.success(f"🔥 Partido eliminado ({conteo_borrados} hoyos borrados).")
-            st.cache_data.clear()
-            return True
-        else:
-            st.error("No se encontró el partido para borrar.")
+        if not filas:
             return False
             
+        header = filas[0]
+        datos_originales = filas[1:]
+        
+        # 2. Filtramos dejando fuera las filas del partido que queremos borrar
+        nuevos_datos = []
+        for fila in datos_originales:
+            if len(fila) > 1:
+                id_fila = str(fila[1]).split('.')[0].strip()
+                if id_fila == id_p_buscar:
+                    continue # Nos saltamos las filas de este partido (borrado)
+            
+            # --- 🔥 FORMATEO DE TIPOS ELEMENTO POR ELEMENTO ---
+            # Para evitar que Google Sheets lo guarde todo como texto plano,
+            # convertimos cada columna a su tipo correcto basándonos en tu estructura de la hoja:
+            fila_tipada = []
+            for idx, valor in enumerate(fila):
+                val_str = str(valor).strip()
+                if val_str == "" or val_str.lower() == "nan":
+                    fila_tipada.append("")
+                    continue
+                
+                try:
+                    # Columnas de ID, hoyo, temporada, resultados, golpes (s0-s3) y hoyo_real deben ser enteros (INT)
+                    # Índices: 1 (id_partido), 2 (hoyo), 4 (temporada), 5 (res_a), 6 (res_b), 11, 12, 13, 14 (golpes), 15 (hoyo_real)
+                    if idx in [1, 2, 4, 5, 6, 11, 12, 13, 14, 15]:
+                        fila_tipada.append(int(float(val_str))) # Pasamos por float primero por si viene con un .0
+                    
+                    # Columnas de puntos MVP (p1_pts a p4_pts) deben ser números decimales (FLOAT)
+                    # Índices: 7, 8, 9, 10
+                    elif idx in [7, 8, 9, 10]:
+                        fila_tipada.append(float(val_str.replace(',', '.')))
+                    
+                    # El resto de columnas (0: ID_Hoyo compuesto, 3: Fecha texto) se quedan como texto plano
+                    else:
+                        fila_tipada.append(val_str)
+                except ValueError:
+                    # Si falla cualquier conversión por un caso extraño, dejamos el string original
+                    fila_tipada.append(val_str)
+                    
+            nuevos_datos.append(fila_tipada)
+            
+        # 3. Limpiamos y reescribimos la hoja con la opción USER_ENTERED para que respete los tipos numéricos
+        hoja.clear()
+        hoja.update('A1', [header] + nuevos_datos, value_input_option='USER_ENTERED')
+        
+        # Limpiamos caché de Streamlit para que los cambios se vean en el acto
+        st.cache_data.clear()
+        return True
     except Exception as e:
-        st.error(f"Error en el borrado: {e}")
+        st.error(f"Error interno al borrar: {e}")
         return False
+        
 # --- CONFIGURACIÓN DE NAVEGACIÓN ---
 
 def cb_editar_partido(p_id, fecha, temporada):
