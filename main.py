@@ -902,16 +902,16 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     #        else:
                     #            total_a += 0.5
                     #            total_b += 0.5
-                    
+                    año_txt = str(temp_actual).strip()
                     # Fallback de seguridad por si las moscas
                     if total_a == 0.0 and total_b == 0.0:
-                        if str(temp_actual).strip()=="2026":
+                        if año_txt=="2026":
                             total_a = 3.5
                             total_b = 3.5
-                        else
+                        else:
                             pass
                     
-                    año_txt = str(temp_actual).strip()
+                    
                     titulo_final_marcador = f"Match: Manu & Jose {total_a:g} Roge & Lalo {total_b:g}"
                     
                     if total_a > total_b:
