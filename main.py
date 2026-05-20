@@ -177,6 +177,7 @@ def leer_datos():
     except Exception as e:
         st.error(f"Error al leer la base de datos: {e}")
         return pd.DataFrame()
+
 # --- 1. CONFIGURACIÓN CORREGIDA DEL CAMPO ---
 PAR_RIA_VIGO = {
     1: 4, 2: 5, 3: 3, 4: 4, 5: 4, 6: 5, 7: 3, 8: 4, 9: 4,
@@ -660,7 +661,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.cache_data.clear()
                     st.rerun()
 
-#ESTADUSTICAS ==============
+#ESTADISTICAS ==============
 
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas y Clasificación")
@@ -682,15 +683,26 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             c_pts = f'p{i}_pts'
             df_raw[c_pts] = pd.to_numeric(df_raw.get(c_pts, 0), errors='coerce').fillna(0)
 
-        df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], errors='coerce')
-        fechas_unicas = df_raw.sort_values('fecha_dt', ascending=False)['fecha'].unique().tolist()
+        # 🔥 CORRECCIÓN CRÍTICA: Forzamos que lea primero el día (dayfirst=True)
+        df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], dayfirst=True, errors='coerce')
+        
+        # Reescribimos la columna 'fecha' en un formato de texto estandarizado DD/MM/YYYY para que no haya duplicados raros
+        df_raw['fecha'] = df_raw['fecha_dt'].dt.strftime('%d/%m/%Y')
+        
+        # Ahora extraemos las fechas únicas basándonos en el orden cronológico real de 'fecha_dt'
+        df_raw_ordenado = df_raw.dropna(subset=['fecha_dt']).sort_values('fecha_dt', ascending=False)
+        fechas_unicas = []
+        for f in df_raw_ordenado['fecha']:
+            if f not in fechas_unicas:
+                fechas_unicas.append(f)
+                
         temporadas_unicas = sorted(df_raw['t_limpia'].unique().tolist(), reverse=True)
 
+        # Construimos el mapeo visual para el selectbox
         opciones_fecha = {}
         for f in fechas_unicas:
             num_hoyos = len(df_raw[df_raw['fecha'] == f])
-            fecha_fmt = pd.to_datetime(f).strftime('%d/%m/%Y')
-            opciones_fecha[f] = f"{fecha_fmt} ({num_hoyos} hoyos)"
+            opciones_fecha[f] = f"{f} ({num_hoyos} hoyos)"
 
         col1, col2 = st.columns(2)
         with col2:
@@ -699,6 +711,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             if ver_acumulado:
                 seleccion_filtro = st.selectbox("Seleccionar Temporada:", temporadas_unicas, key="st_v_final_t")
             else:
+                # Al estar 'fechas_unicas' ya en formato 'dd/mm/aaaa', el combo saldrá perfecto y sin mezclas
                 seleccion_filtro = st.selectbox("Seleccionar Jornada:", fechas_unicas, format_func=lambda x: opciones_fecha[x], key="st_v_final_j")
 
         # --- 2. FILTRADO ---
@@ -752,7 +765,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     scr = int(d_p['dif'].apply(cs).sum())
                     pts_mvp_total = float(df_stats[col_mvp].sum())
                     
-                    # 2. CÁLCULO DEL NÚMERO DE PARTIDOS JUGADOS REALES (Fechas únicas con golpes > 0)
+                    # 2. CÁLCULO DEL NÚMERO DE PARTIDOS JUGADOS REALES
                     partidos_jugados = int(d_p['fecha'].nunique()) if 'fecha' in d_p.columns else 1
                     if partidos_jugados == 0: 
                         partidos_jugados = 1
@@ -769,7 +782,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         "db": int((d_p['dif'] == 2).sum()), 
                         "tb": int((d_p['dif'] >= 3).sum()), 
                         "hoyos": len(d_p),
-                        "partidos": partidos_jugados  # Guardamos el número de partidos
+                        "partidos": partidos_jugados  
                     })
             
             lista_resultados = sorted(lista_resultados, key=lambda x: x['scr'], reverse=True)
@@ -785,7 +798,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     h = res['hoyos']
                     partidos = res['partidos']
                     
-                    # NUEVA LÓGICA DE CORRECCIÓN: Promedio directo por partido jugado
                     if ver_acumulado:
                         val_pm = res['pm'] / partidos
                         val_scr = res['scr'] / partidos
@@ -835,7 +847,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 import urllib.parse
                 
                 w_icon = "📂" if ver_acumulado else "📅"
-                tit_w = temp_actual if ver_acumulado else opciones_fecha[seleccion_filtro]
+                tit_w = temp_actual if ver_acumulado else seleccion_filtro
                 
                 if ver_acumulado:
                     df_origen = None
@@ -882,7 +894,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     h = res['hoyos']
                     partidos = res['partidos']
                     
-                    # NUEVA LÓGICA DE SINCRO PARA WHATSAPP: Basada en partidos reales
                     if ver_acumulado:
                         scr_promedio = res['scr'] / partidos
                         pm_promedio = res['pm'] / partidos
@@ -924,7 +935,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     f"https://wa.me/?text={urllib.parse.quote(txt_wa)}", 
                     use_container_width=True
                 )
-
 
 # SECCIÓN: ADMIN
 # ==========================================
