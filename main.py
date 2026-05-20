@@ -884,29 +884,32 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     total_a = st.session_state.get('marcador_acumulado_a', 3.5)
                     total_b = st.session_state.get('marcador_acumulado_b', 3.5)
                                         
-                    if not df_temp.empty:
+                    #if not df_temp.empty:
                         # 🎯 CORRECCIÓN CLAVE: Usamos 'fecha_dt' para identificar las jornadas de forma única e inequívoca
-                        fechas_reales = df_temp['fecha_dt'].dropna().unique()
+                    #    fechas_reales = df_temp['fecha_dt'].dropna().unique()
                         
-                        for f_unica in fechas_reales:
-                            grupo_jornada = df_temp[df_temp['fecha_dt'] == f_unica]
+                    #    for f_unica in fechas_reales:
+                    #        grupo_jornada = df_temp[df_temp['fecha_dt'] == f_unica]
                             
-                            sum_hoyos_a = grupo_jornada['res_a'].sum()
-                            sum_hoyos_b = grupo_jornada['res_b'].sum()
+                    #        sum_hoyos_a = grupo_jornada['res_a'].sum()
+                    #        sum_hoyos_b = grupo_jornada['res_b'].sum()
                             
                             # Criterio idéntico al de la pantalla de Inicio
-                            if sum_hoyos_a > sum_hoyos_b:
-                                total_a += 1.0
-                            elif sum_hoyos_b > sum_hoyos_a:
-                                total_b += 1.0
-                            else:
-                                total_a += 0.5
-                                total_b += 0.5
+                    #        if sum_hoyos_a > sum_hoyos_b:
+                    #            total_a += 1.0
+                    #        elif sum_hoyos_b > sum_hoyos_a:
+                    #            total_b += 1.0
+                    #        else:
+                    #            total_a += 0.5
+                    #            total_b += 0.5
                     
                     # Fallback de seguridad por si las moscas
                     if total_a == 0.0 and total_b == 0.0:
-                        total_a = 5.5
-                        total_b = 4.5
+                        if str(temp_actual).strip()=="2026":
+                            total_a = 3.5
+                            total_b = 3.5
+                        else
+                            pass
                     
                     año_txt = str(temp_actual).strip()
                     titulo_final_marcador = f"Match: Manu & Jose {total_a:g} Roge & Lalo {total_b:g}"
