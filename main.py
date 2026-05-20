@@ -266,51 +266,76 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
     try:
         hoja = st.session_state.sh
         g = st.session_state.game
-        par_hoyo = int(PAR_RIA_VIGO[int(hoyo_id)])
+        
+        hoyo_cronologico = int(hoyo_id)
+        if g.get('modo_9_hoyos', False):
+            vuelta_base = 1 if g.get('vuelta_repetida') == "1ª Vuelta (Hoyos 1-9)" else 10
+            hoyo_real_campo = ((hoyo_cronologico - 1) % 9) + vuelta_base
+        else:
+            hoyo_real_campo = hoyo_cronologico
+
+        par_hoyo = int(PAR_RIA_VIGO[hoyo_real_campo])
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         
-        # --- CÁLCULO MVP MATEMÁTICO ---
+        # --- CÁLCULO MATCH PLAY (2 PUNTOS POR HOYO: Mejor Bola + Peor Bola) ---
+        mejor_a = min(golpes[0], golpes[1]) # Manu, Jose
+        mejor_b = min(golpes[2], golpes[3]) # Roge, Lalo
+        peor_a = max(golpes[0], golpes[1])
+        peor_b = max(golpes[2], golpes[3])
+        
+        res_a, res_b = 0, 0
+        # 1 Punto por Mejor Bola
+        if mejor_a < mejor_b:   res_a += 1
+        elif mejor_b < mejor_a: res_b += 1
+        
+        # 1 Punto por Peor Bola
+        if peor_a < peor_b:     res_a += 1
+        elif peor_b < peor_a:   res_b += 1
+
+        # --- CÁLCULO PUNTOS MVP ---
         p_mvp = [0.0, 0.0, 0.0, 0.0]
         for i in range(4):
-            # 1. VICTORIA: 0.5 solo si mi golpe es MENOR (<) que el del rival
-            # Si todos hacen 4: (4 < 4) es FALSO -> Suma 0
             puntos_victoria = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
-            
-            # 2. PAR: 0.5 si igualas el par, o más si haces birdie/eagle
             puntos_par = 0.0
             dif = golpes[i] - par_hoyo
-            if dif == 0:    puntos_par = 0.5 # PAR
-            elif dif == -1: puntos_par = 1.5 # BIRDIE
-            elif dif == -2: puntos_par = 3.0 # EAGLE
-            elif dif <= -3: puntos_par = 4.0 # ALBATROS
-            
+            if dif == 0:    puntos_par = 0.5
+            elif dif == -1: puntos_par = 1.5
+            elif dif == -2: puntos_par = 3.0
+            elif dif <= -3: puntos_par = 4.0
             p_mvp[i] = float(puntos_victoria + puntos_par)
 
-        # --- GUARDADO EN GOOGLE SHEETS ---
         id_p = str(g['id']).split('.')[0]
         fecha = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
         
-        # Asegúrate de que este orden de columnas es el de tu Excel
+        # AQUÍ ESTABA EL FALLO: Ahora guardamos res_a y res_b en lugar de "0, 0"
         nueva_fila = [
-            f"{id_p}_H{hoyo_id}", int(id_p), int(hoyo_id), fecha, 
-            int(g.get('temporada', 2026)), 0, 0, # Match Play
-            p_mvp[0], p_mvp[1], p_mvp[2], p_mvp[3], # Puntos MVP
-            golpes[0], golpes[1], golpes[2], golpes[3]  # s0, s1, s2, s3
+            f"{id_p}_H{hoyo_cronologico}", int(id_p), int(hoyo_cronologico), fecha, 
+            int(g.get('temporada', 2026)), int(res_a), int(res_b), 
+            p_mvp[0], p_mvp[1], p_mvp[2], p_mvp[3], 
+            golpes[0], golpes[1], golpes[2], golpes[3],
+            int(hoyo_real_campo)
         ]
 
-        # Limpiar fila previa del mismo hoyo para evitar duplicados
         filas = hoja.get_all_values()
         header = filas[0]
-        datos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_p and str(f[2]) == str(hoyo_id))]
+        
+        if 'hoyo_real' not in header:
+            header.append('hoyo_real')
+
+        datos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_p and str(f[2]) == str(hoyo_cronologico))]
+        
+        for f in datos:
+            if len(f) < len(header):
+                f.append(f[2])
+
         datos.append(nueva_fila)
         
         hoja.clear()
         hoja.update('A1', [header] + datos, value_input_option='USER_ENTERED')
         st.cache_data.clear()
-        st.success(f"Guardado Hoyo {hoyo_id}")
-        
+        st.success(f"Guardado Hoyo {hoyo_cronologico} (Match: {res_a} vs {res_b})")
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error al guardar: {e}")
         
 # --- CÁLCULO DEL MARCADOR ACUMULADO DE LA TEMPORADA ---
 
@@ -545,74 +570,38 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     pass
 
             # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
-            st.markdown(f"### ⛳ Hoyo {h_actual} (Par {val_par_hoyo})")
-            cols_g = st.columns(4)
+            st.markdown(f"### ⛳ Tarjeta Hoyo {h_actual} (Físico: Hoyo {h_fisico_campo} | Par {val_par_hoyo})")
+        cols_g = st.columns(4)
 
-            # La key dinámica 'h{h_actual}' asegura que los valores cambien al moverte de hoyo
-            s0 = cols_g[0].number_input("MANU", min_value=1, value=golpes_anteriores[0], key=f"s0_h{h_actual}")
-            s1 = cols_g[1].number_input("JOSE", min_value=1, value=golpes_anteriores[1], key=f"s1_h{h_actual}")
-            s2 = cols_g[2].number_input("ROGE", min_value=1, value=golpes_anteriores[2], key=f"s2_h{h_actual}")
-            s3 = cols_g[3].number_input("LALO", min_value=1, value=golpes_anteriores[3], key=f"s3_h{h_actual}")
+        # Mapeo limpio de los inputs
+        s0 = cols_g[0].number_input("MANU", min_value=1, value=golpes_anteriores[0], key=f"s0_h{h_actual}")
+        s1 = cols_g[1].number_input("JOSE", min_value=1, value=golpes_anteriores[1], key=f"s1_h{h_actual}")
+        s2 = cols_g[2].number_input("ROGE", min_value=1, value=golpes_anteriores[2], key=f"s2_h{h_actual}")
+        s3 = cols_g[3].number_input("LALO", min_value=1, value=golpes_anteriores[3], key=f"s3_h{h_actual}")
     
-            # --- 4. BOTÓN DE GUARDADO ---
-            if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True):
-                ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
-                st.rerun()
+        if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, key=f"btn_guardar_h{h_actual}"):
+            ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
+            st.rerun()
             
-            # INICIALIZACIÓN CRÍTICA (Para evitar el NameError en la línea 580)
-            res_hoyo_a = 0 
-            res_hoyo_b = 0
-            
-            if not df_partido_actual.empty:
-                # Usamos el DataFrame ya limpio por la nueva función leer_datos()
-                reg = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
-                
-                if not reg.empty:
-                    # Verificamos si hay golpes reales grabados
-                    if reg.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
-                        hay_datos_hoyo = True
-                        golpes_anteriores = [int(reg.iloc[0][f's{i}']) for i in range(4)]
-                        
-                        # Asignamos los valores que causaban el error
-                        res_hoyo_a = int(reg.iloc[0]['resultado_a'])
-                        res_hoyo_b = int(reg.iloc[0]['resultado_b'])
-                        
-                        # Extraemos los puntos MVP (ahora ya vienen como float de leer_datos)
-                        puntos_mvp_hoyo = [
-                            float(reg.iloc[0]['p1_pts']),
-                            float(reg.iloc[0]['p2_pts']),
-                            float(reg.iloc[0]['p3_pts']),
-                            float(reg.iloc[0]['p4_pts'])
-                        ]
+        res_hoyo_a, res_hoyo_b = 0, 0
+        if not df_partido_actual.empty:
+            reg = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
+            if not reg.empty:
+                if reg.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
+                    hay_datos_hoyo = True
+                    res_hoyo_a = int(reg.iloc[0]['resultado_a'])
+                    res_hoyo_b = int(reg.iloc[0]['resultado_b'])
                                 
-            # 7. MARCADOR DEL HOYO (Basado en resultado_a y resultado_b)
-            par_del_hoyo = PAR_RIA_VIGO.get(h_actual, 4)
-            if hay_datos_hoyo:
-                diferencia_hoyo = res_hoyo_a - res_hoyo_b
-                if diferencia_hoyo > 0:
-                    st.success(f"✅ Manu & Jose {abs(diferencia_hoyo)} UP ({res_hoyo_a} - {res_hoyo_b})")
-                elif diferencia_hoyo < 0:
-                    st.error(f"✅ Roge & Lalo {abs(diferencia_hoyo)} UP ({res_hoyo_b} - {res_hoyo_a})")
-                else:
-                    st.warning(f"✅ Hoyo Empatado AS ({res_hoyo_a} - {res_hoyo_b})")
+        # Pintamos el resultado real leído del Excel
+        if hay_datos_hoyo:
+            if res_hoyo_a > res_hoyo_b:
+                st.success(f"✅ Manu & Jose +{int(res_hoyo_a - res_hoyo_b)} en este Hoyo ({res_hoyo_a} - {res_hoyo_b})")
+            elif res_hoyo_b > res_hoyo_a:
+                st.error(f"✅ Roge & Lalo +{int(res_hoyo_b - res_hoyo_a)} en este Hoyo ({res_hoyo_b} - {res_hoyo_a})")
             else:
-                st.info(f"⏳ Hoyo {h_actual} (Par {par_del_hoyo}) pendiente de juego")
-
-            # 8. INPUTS GIGANTES PARA ENTRADA DE RESULTADOS
-            st.markdown("---")
-
-            # --- ENTRADA DE GOLPES ---
-            # Usamos max(1, ...) para que si no hay datos (0), el mínimo sea 1
-            #s0 = st.number_input("MANU", min_value=1, value=max(1, golpes_anteriores[0]), key="input_s0")
-            #s1 = st.number_input("JOSE", min_value=1, value=max(1, golpes_anteriores[1]), key="input_s1")
-            #s2 = st.number_input("ROGE", min_value=1, value=max(1, golpes_anteriores[2]), key="input_s2")
-            #s3 = st.number_input("LALO", min_value=1, value=max(1, golpes_anteriores[3]), key="input_s3")
-
-            # --- 4. BOTÓN DE GUARDADO (CON KEY ÚNICA) ---
-            # Al añadir f"btn_{h_actual}", cada hoyo tendrá su propio ID de botón
-            if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, key=f"btn_guardar_h{h_actual}"):
-                ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
-                st.rerun()
+                st.warning(f"✅ Hoyo Empatado AS ({res_hoyo_a} - {res_hoyo_b})")
+        else:
+            st.info(f"⏳ Hoyo {h_actual} pendiente de juego")
                 
           # 9. SECCIÓN MVP (CON BOTÓN Y CÁLCULO LIMPIO)
             st.write("---")
