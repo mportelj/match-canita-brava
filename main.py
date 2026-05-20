@@ -877,12 +877,29 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 tit_w = temp_actual if ver_acumulado else seleccion_filtro
                 
                 if ver_acumulado:
-                    # CALCULAMOS EL ACUMULADO REAL DIRECTAMENTE DE LAS COLUMNAS RES_A Y RES_B
-                    # En lugar de usar valores fijos (4.5), sumamos los hoyos reales ganados en la temporada
-                    total_a = float(df_raw[df_raw['t_limpia'] == temp_actual]['res_a'].sum())
-                    total_b = float(df_raw[df_raw['t_limpia'] == temp_actual]['res_b'].sum())
+                    # 🔥 CÁLCULO EXACTO DEL ACUMULADO POR JORNADAS JUGADAS
+                    df_temp = df_raw[df_raw['t_limpia'] == temp_actual].copy()
                     
-                    # Convertimos el año a string limpio para evitar problemas con la negrita de Markdown
+                    total_a = 0.0
+                    total_b = 0.0
+                    
+                    if not df_temp.empty:
+                        # Agrupamos por fecha para analizar cada jornada de forma independiente
+                        jornadas = df_temp.groupby('fecha')
+                        for f_jornada, grupo in jornadas:
+                            sum_a = grupo['res_a'].sum()
+                            sum_b = grupo['res_b'].sum()
+                            
+                            # Criterio estándar: quien sume más puntos de match gana la jornada (1 punto)
+                            if sum_a > sum_b:
+                                total_a += 1.0
+                            elif sum_b > sum_a:
+                                total_b += 1.0
+                            else:
+                                # Empate (All Square) otorga medio punto a cada bando
+                                total_a += 0.5
+                                total_b += 0.5
+                    
                     año_txt = str(temp_actual).strip()
                     titulo_final_marcador = f"Match: Manu & Jose {total_a:g} Roge & Lalo {total_b:g}"
                     
@@ -899,7 +916,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     sub_final_marcador = sub_marcador
                     año_txt = str(temp_actual).strip()
                 
-                # Construcción del mensaje de WhatsApp corrigiendo las negritas fijas
+                # Construcción del texto para WhatsApp
                 txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n"
                 txt_wa += f"{w_icon} *{tit_w}*\n"
                 txt_wa += f"🏆 *{titulo_final_marcador}*\n"
