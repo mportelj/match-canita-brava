@@ -877,7 +877,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 tit_w = temp_actual if ver_acumulado else seleccion_filtro
                 
                 if ver_acumulado:
-                    # 🔥 CÁLCULO DIRECTO BASADO EN LA LÓGICA FIEL DE INICIO
+                    # 🔥 CÁLCULO DIRECTO HOYO A HOYO MEDIANTE LA FECHA ORIGINAL DEL EXCEL
                     # Filtramos las filas de la temporada actual
                     df_temp = df_raw[df_raw['t_limpia'] == temp_actual].copy()
                     
@@ -885,19 +885,16 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     total_b = 0.0
                     
                     if not df_temp.empty:
-                        # Para evitar fallos con las fechas de texto modificadas, 
-                        # usamos el ID único de cada partido ('id_partido' o 'id') para agrupar las jornadas reales
-                        col_partido = 'id_partido' if 'id_partido' in df_temp.columns else ('id' if 'id' in df_temp.columns else 'fecha_dt')
+                        # Usamos la columna original 'fecha' del Excel antes de cualquier formateo de texto plano
+                        fechas_reales = df_temp['fecha'].unique()
                         
-                        # Extraemos una fila por cada hoyo 1 (o por cada jornada única) para sumar los puntos del Match (m_a y m_b)
-                        # Agrupamos por el ID del partido y extraemos el resultado final de los puntos de jornada
-                        jornadas_unicas = df_temp.groupby(col_partido)
-                        for _, grupo_jornada in jornadas_unicas:
-                            # Sumamos todos los hoyos ganados en la jornada para determinar el ganador del día
+                        for f_unica in fechas_reales:
+                            grupo_jornada = df_temp[df_temp['fecha'] == f_unica]
+                            
                             sum_hoyos_a = grupo_jornada['res_a'].sum()
                             sum_hoyos_b = grupo_jornada['res_b'].sum()
                             
-                            # Asignamos los puntos correspondientes a la jornada (1 al ganador, 0.5 si empatan AS)
+                            # Criterio idéntico al de Inicio: 1 punto al ganador del día, 0.5 si empatan
                             if sum_hoyos_a > sum_hoyos_b:
                                 total_a += 1.0
                             elif sum_hoyos_b > sum_hoyos_a:
@@ -906,7 +903,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                                 total_a += 0.5
                                 total_b += 0.5
                     
-                    # Si tras el cálculo da 0 (por nombres de columnas diferentes), usamos un fallback de seguridad
+                    # Fallback de seguridad estricto en caso de que las fechas del Excel vengan con strings vacíos
                     if total_a == 0.0 and total_b == 0.0:
                         total_a = 5.5
                         total_b = 4.5
@@ -987,7 +984,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     f"https://wa.me/?text={urllib.parse.quote(txt_wa)}", 
                     use_container_width=True
                 )
-
 
 # SECCIÓN: ADMIN
 # ==========================================
