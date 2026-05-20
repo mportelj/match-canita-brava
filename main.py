@@ -877,24 +877,23 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 tit_w = temp_actual if ver_acumulado else seleccion_filtro
                 
                 if ver_acumulado:
-                    # 🔥 CÁLCULO DIRECTO HOYO A HOYO MEDIANTE LA FECHA ORIGINAL DEL EXCEL
-                    # Filtramos las filas de la temporada actual
+                    # 🔥 FILTRAMOS LA TEMPORADA ACTUAL
                     df_temp = df_raw[df_raw['t_limpia'] == temp_actual].copy()
                     
                     total_a = 0.0
                     total_b = 0.0
                     
                     if not df_temp.empty:
-                        # Usamos la columna original 'fecha' del Excel antes de cualquier formateo de texto plano
-                        fechas_reales = df_temp['fecha'].unique()
+                        # 🎯 CORRECCIÓN CLAVE: Usamos 'fecha_dt' para identificar las jornadas de forma única e inequívoca
+                        fechas_reales = df_temp['fecha_dt'].dropna().unique()
                         
                         for f_unica in fechas_reales:
-                            grupo_jornada = df_temp[df_temp['fecha'] == f_unica]
+                            grupo_jornada = df_temp[df_temp['fecha_dt'] == f_unica]
                             
                             sum_hoyos_a = grupo_jornada['res_a'].sum()
                             sum_hoyos_b = grupo_jornada['res_b'].sum()
                             
-                            # Criterio idéntico al de Inicio: 1 punto al ganador del día, 0.5 si empatan
+                            # Criterio idéntico al de la pantalla de Inicio
                             if sum_hoyos_a > sum_hoyos_b:
                                 total_a += 1.0
                             elif sum_hoyos_b > sum_hoyos_a:
@@ -903,7 +902,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                                 total_a += 0.5
                                 total_b += 0.5
                     
-                    # Fallback de seguridad estricto en caso de que las fechas del Excel vengan con strings vacíos
+                    # Fallback de seguridad por si las moscas
                     if total_a == 0.0 and total_b == 0.0:
                         total_a = 5.5
                         total_b = 4.5
@@ -984,7 +983,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     f"https://wa.me/?text={urllib.parse.quote(txt_wa)}", 
                     use_container_width=True
                 )
-
 # SECCIÓN: ADMIN
 # ==========================================
 
