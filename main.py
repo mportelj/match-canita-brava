@@ -462,7 +462,9 @@ if st.session_state.menu_seleccionado == "Inicio":
             </div>
         </div>
     """, unsafe_allow_html=True)
-   
+   # Pon esto en tu pantalla de inicio justo donde se calculan los totales correctos:
+    st.session_state['marcador_acumulado_a'] = total_a  # O la variable que uses para Manu/Jose
+    st.session_state['marcador_acumulado_b'] = total_b  # O la variable que uses para Roge/Lalo
 # ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
         # --- BLOQUE 0: INICIALIZACIÓN DE ESTADO ---
@@ -879,10 +881,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 if ver_acumulado:
                     # 🔥 FILTRAMOS LA TEMPORADA ACTUAL
                     df_temp = df_raw[df_raw['t_limpia'] == temp_actual].copy()
-                    
-                    total_a = 0.0
-                    total_b = 0.0
-                    
+                    total_a = st.session_state.get('marcador_acumulado_a', 3.5)
+                    total_b = st.session_state.get('marcador_acumulado_b', 3.5)
+                                        
                     if not df_temp.empty:
                         # 🎯 CORRECCIÓN CLAVE: Usamos 'fecha_dt' para identificar las jornadas de forma única e inequívoca
                         fechas_reales = df_temp['fecha_dt'].dropna().unique()
