@@ -877,26 +877,30 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 tit_w = temp_actual if ver_acumulado else seleccion_filtro
                 
                 if ver_acumulado:
-                    # 🔥 CÁLCULO EXACTO DEL ACUMULADO POR JORNADAS JUGADAS
+                    # 🔥 REPLICAMOS EXACTAMENTE LA LÓGICA DE LA PANTALLA DE INICIO
+                    # Filtramos todas las filas que pertenezcan a la temporada seleccionada
                     df_temp = df_raw[df_raw['t_limpia'] == temp_actual].copy()
                     
                     total_a = 0.0
                     total_b = 0.0
                     
                     if not df_temp.empty:
-                        # Agrupamos por fecha para analizar cada jornada de forma independiente
-                        jornadas = df_temp.groupby('fecha')
-                        for f_jornada, grupo in jornadas:
+                        # Identificamos las jornadas únicas reales de esta temporada usando el ID del partido
+                        # (o usando la columna 'fecha' si tus IDs varían)
+                        col_agrupar = 'id' if 'id' in df_temp.columns else 'fecha'
+                        jornadas = df_temp.groupby(col_agrupar)
+                        
+                        for _, grupo in jornadas:
+                            # Sumamos los hoyos de Match Play ganados por cada bando en ESTA jornada concreta
                             sum_a = grupo['res_a'].sum()
                             sum_b = grupo['res_b'].sum()
                             
-                            # Criterio estándar: quien sume más puntos de match gana la jornada (1 punto)
+                            # Otorgamos los puntos de la jornada (1 al ganador, 0.5 si hay empate AS)
                             if sum_a > sum_b:
                                 total_a += 1.0
                             elif sum_b > sum_a:
                                 total_b += 1.0
                             else:
-                                # Empate (All Square) otorga medio punto a cada bando
                                 total_a += 0.5
                                 total_b += 0.5
                     
