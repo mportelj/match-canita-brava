@@ -488,6 +488,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         if 'refresco_id' not in st.session_state: 
             st.session_state.refresco_id = 0
         
+        # 🎯 NUEVA VARIABLE DE CONTROL PARA EL BOTÓN GUARDAR
+        if 'hoyo_modificado' not in st.session_state:
+            st.session_state.hoyo_modificado = False
+        
         # Inicializamos DataFrames vacíos para evitar errores de referencia
         df_p = pd.DataFrame()
         df_partido_actual = pd.DataFrame()
@@ -625,18 +629,20 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
             st.markdown(f"### ⛳ Hoyo {h_actual} (Par {val_par_hoyo})")
             cols_g = st.columns(4)
-    
+            def activar_boton_guardar():
+                st.session_state.hoyo_modificado = True
             # Mapeo limpio de los inputs con sus claves (keys) corregidas y únicas
-            s0 = cols_g[0].number_input("MANU", min_value=1, value=golpes_anteriores[0], key=f"s0_h{h_actual}")
-            s1 = cols_g[1].number_input("JOSE", min_value=1, value=golpes_anteriores[1], key=f"s1_h{h_actual}")
-            s2 = cols_g[2].number_input("ROGE", min_value=1, value=golpes_anteriores[2], key=f"s2_h{h_actual}")
-            s3 = cols_g[3].number_input("LALO", min_value=1, value=golpes_anteriores[3], key=f"s3_h{h_actual}")
+            s0 = cols_g[0].number_input("MANU", min_value=1, value=golpes_anteriores[0], on_change=activar_boton_guardar, key=f"s0_h{h_actual}")
+            s1 = cols_g[1].number_input("JOSE", min_value=1, value=golpes_anteriores[1], on_change=activar_boton_guardar, key=f"s1_h{h_actual}")
+            s2 = cols_g[2].number_input("ROGE", min_value=1, value=golpes_anteriores[2], on_change=activar_boton_guardar, key=f"s2_h{h_actual}")
+            s3 = cols_g[3].number_input("LALO", min_value=1, value=golpes_anteriores[3], on_change=activar_boton_guardar, key=f"s3_h{h_actual}")
             
             # Comprobamos si los golpes actuales son idénticos a los guardados
-            valores_actuales = [s0, s1, s2, s3]
-            no_hay_cambios = (valores_actuales == golpes_anteriores)
+            #valores_actuales = [s0, s1, s2, s3]
+            #no_hay_cambios = (valores_actuales == golpes_anteriores)
+            no_hay_cambios = not st.session_state.hoyo_modificado
         
-            # El botón permanece deshabilitado hasta que cambie algún número
+            # El botón permanece deshabilitado hasta que cambie algún número de la interfaz
             if st.button(
                 "💾 GUARDAR RESULTADO HOYO", 
                 use_container_width=True, 
@@ -644,6 +650,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 disabled=no_hay_cambios
             ):
                 ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
+                
+                # 🎯 REINICIO DEL INTERRUPTOR: El próximo hoyo empezará bloqueado por seguridad
+                st.session_state.hoyo_modificado = False
+                
                 st.rerun()
                 
             res_hoyo_a, res_hoyo_b = 0, 0
