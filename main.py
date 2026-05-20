@@ -577,37 +577,47 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
             st.markdown(f"### ⛳ Hoyo {h_actual} (Par {val_par_hoyo})")
-            cols_g = st.columns(4)
-    
-            # Mapeo limpio de los inputs
-            s0 = cols_g[0].number_input("MANU", min_value=1, value=golpes_anteriores[0], key=f"s0_h{h_actual}")
-            s1 = cols_g[1].number_input("JOSE", min_value=1, value=golpes_anteriores[1], key=f"s1_h{h_actual}")
-            s2 = cols_g[2].number_input("ROGE", min_value=1, value=golpes_anteriores[2], key=f"s2_h{h_actual}")
-            s3 = cols_g[3].number_input("LALO", min_value=1, value=golpes_anteriores[3], key=f"s3_h{h_actual}")
+        cols_g = st.columns(4)
+
+        # Mapeo limpio de los inputs
+        s0 = cols_g[0].number_input("MANU", min_value=1, value=golpes_anteriores[0], key=f"s0_h{h_actual}")
+        s1 = cols_g[1].number_input("JOSE", min_value=1, value=golpes_anteriores[1], key=f"s0_h{h_actual}")
+        s2 = cols_g[2].number_input("ROGE", min_value=1, value=golpes_anteriores[2], key=f"s0_h{h_actual}")
+        s3 = cols_g[3].number_input("LALO", min_value=1, value=golpes_anteriores[3], key=f"s0_h{h_actual}")
         
-            if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, key=f"btn_guardar_h{h_actual}"):
-                ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
-                st.rerun()
-                
-            res_hoyo_a, res_hoyo_b = 0, 0
-            if not df_partido_actual.empty:
-                reg = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
-                if not reg.empty:
-                    if reg.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
-                        hay_datos_hoyo = True
-                        res_hoyo_a = int(reg.iloc[0]['resultado_a'])
-                        res_hoyo_b = int(reg.iloc[0]['resultado_b'])
-                                    
-            # Pintamos el resultado real leído del Excel
-            if hay_datos_hoyo:
-                if res_hoyo_a > res_hoyo_b:
-                    st.success(f"✅ Manu & Jose +{int(res_hoyo_a - res_hoyo_b)} en este Hoyo ({res_hoyo_a} - {res_hoyo_b})")
-                elif res_hoyo_b > res_hoyo_a:
-                    st.error(f"✅ Roge & Lalo +{int(res_hoyo_b - res_hoyo_a)} en este Hoyo ({res_hoyo_b} - {res_hoyo_a})")
-                else:
-                    st.warning(f"✅ Hoyo Empatado AS ({res_hoyo_a} - {res_hoyo_b})")
+        # Comprobamos si los golpes actuales son idénticos a los guardados
+        valores_actuales = [s0, s1, s2, s3]
+        no_hay_cambios = (valores_actuales == golpes_anteriores)
+    
+        # El botón permanece deshabilitado hasta que cambie algún número
+        if st.button(
+            "💾 GUARDAR RESULTADO HOYO", 
+            use_container_width=True, 
+            key=f"btn_guardar_h{h_actual}", 
+            disabled=no_hay_cambios
+        ):
+            ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
+            st.rerun()
+            
+        res_hoyo_a, res_hoyo_b = 0, 0
+        if not df_partido_actual.empty:
+            reg = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
+            if not reg.empty:
+                if reg.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
+                    hay_datos_hoyo = True
+                    res_hoyo_a = int(reg.iloc[0]['resultado_a'])
+                    res_hoyo_b = int(reg.iloc[0]['resultado_b'])
+                                
+        # Pintamos el resultado real leído del Excel
+        if hay_datos_hoyo:
+            if res_hoyo_a > res_hoyo_b:
+                st.success(f"✅ Manu & Jose +{int(res_hoyo_a - res_hoyo_b)} en este Hoyo ({res_hoyo_a} - {res_hoyo_b})")
+            elif res_hoyo_b > res_hoyo_a:
+                st.error(f"✅ Roge & Lalo +{int(res_hoyo_b - res_hoyo_a)} en este Hoyo ({res_hoyo_b} - {res_hoyo_a})")
             else:
-                st.info(f"⏳ Hoyo {h_actual} pendiente de juego")
+                st.warning(f"✅ Hoyo Empatado AS ({res_hoyo_a} - {res_hoyo_b})")
+        else:
+            st.info(f"⏳ Hoyo {h_actual} pendiente de juego")
                 
           # 9. SECCIÓN MVP (CON BOTÓN Y CÁLCULO LIMPIO)
             st.write("---")
