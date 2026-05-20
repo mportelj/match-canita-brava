@@ -277,13 +277,14 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         par_hoyo = int(PAR_RIA_VIGO[hoyo_real_campo])
         golpes = [int(g0), int(g1), int(g2), int(g3)]
         
-        # --- CÁLCULO MATCH PLAY (2 PUNTOS POR HOYO: Mejor Bola + Peor Bola) ---
+        # --- CÁLCULO MATCH PLAY ---
         mejor_a = min(golpes[0], golpes[1]) # Manu, Jose
         mejor_b = min(golpes[2], golpes[3]) # Roge, Lalo
         peor_a = max(golpes[0], golpes[1])
         peor_b = max(golpes[2], golpes[3])
         
         res_a, res_b = 0, 0
+        
         # 1 Punto por Mejor Bola
         if mejor_a < mejor_b:   res_a += 1
         elif mejor_b < mejor_a: res_b += 1
@@ -291,6 +292,12 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         # 1 Punto por Peor Bola
         if peor_a < peor_b:     res_a += 1
         elif peor_b < peor_a:   res_b += 1
+        
+        # 🔥 BONUS: +1 punto por cada Birdie o mejor (menor o igual a Par - 1)
+        if golpes[0] <= par_hoyo - 1: res_a += 1
+        if golpes[1] <= par_hoyo - 1: res_a += 1
+        if golpes[2] <= par_hoyo - 1: res_b += 1
+        if golpes[3] <= par_hoyo - 1: res_b += 1
 
         # --- CÁLCULO PUNTOS MVP ---
         p_mvp = [0.0, 0.0, 0.0, 0.0]
@@ -307,7 +314,6 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         id_p = str(g['id']).split('.')[0]
         fecha = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
         
-        # AQUÍ ESTABA EL FALLO: Ahora guardamos res_a y res_b en lugar de "0, 0"
         nueva_fila = [
             f"{id_p}_H{hoyo_cronologico}", int(id_p), int(hoyo_cronologico), fecha, 
             int(g.get('temporada', 2026)), int(res_a), int(res_b), 
