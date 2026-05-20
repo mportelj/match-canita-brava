@@ -877,34 +877,31 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 tit_w = temp_actual if ver_acumulado else seleccion_filtro
                 
                 if ver_acumulado:
-                    df_origen = None
-                    for var_name in ['df_tabla', 'df', 'df_raw', 'df_stats']:
-                        if var_name in locals() or var_name in globals():
-                            df_origen = locals().get(var_name, globals().get(var_name))
-                            break
-                            
-                    if df_origen is not None and 'm_a' in df_origen.columns and 'm_b' in df_origen.columns:
-                        total_a = float(df_origen['m_a'].sum())
-                        total_b = float(df_origen['m_b'].sum())
-                    else:
-                        total_a = 4.5
-                        total_b = 4.5
+                    # CALCULAMOS EL ACUMULADO REAL DIRECTAMENTE DE LAS COLUMNAS RES_A Y RES_B
+                    # En lugar de usar valores fijos (4.5), sumamos los hoyos reales ganados en la temporada
+                    total_a = float(df_raw[df_raw['t_limpia'] == temp_actual]['res_a'].sum())
+                    total_b = float(df_raw[df_raw['t_limpia'] == temp_actual]['res_b'].sum())
                     
-                    titulo_final_marcador = f"Match: Manu & Jose {total_a:.1f} Roge & Lalo {total_b:.1f}"
+                    # Convertimos el año a string limpio para evitar problemas con la negrita de Markdown
+                    año_txt = str(temp_actual).strip()
+                    titulo_final_marcador = f"Match: Manu & Jose {total_a:g} Roge & Lalo {total_b:g}"
                     
                     if total_a > total_b:
                         marcador_a_w = total_a - total_b
-                        sub_final_marcador = f"MANU/JOSE GANAN {marcador_a_w:.1f} UP"
+                        sub_final_marcador = f"MANU/JOSE GANAN {marcador_a_w:g} UP"
                     elif total_b > total_a:
                         marcador_b_w = total_b - total_a
-                        sub_final_marcador = f"ROGE/LALO GANAN {marcador_b_w:.1f} UP"
+                        sub_final_marcador = f"ROGE/LALO GANAN {marcador_b_w:g} UP"
                     else:
                         sub_final_marcador = "EMPATADOS (ALL SQUARE)"
                 else:
                     titulo_final_marcador = titulo_marcador.upper()
                     sub_final_marcador = sub_marcador
+                    año_txt = str(temp_actual).strip()
                 
-                txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n{w_icon} *{tit_w}*\n"
+                # Construcción del mensaje de WhatsApp corrigiendo las negritas fijas
+                txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n"
+                txt_wa += f"{w_icon} *{tit_w}*\n"
                 txt_wa += f"🏆 *{titulo_final_marcador}*\n"
                 txt_wa += f"⛳ {sub_final_marcador}\n"
                 txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
@@ -913,7 +910,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 for i, res in enumerate(lista_mvp):
                     med = ["🥇", "🥈", "🥉", " "][i] if i < 4 else " "
                     puntos_v = float(res.get('pts_mvp', 0.0))
-                    txt_wa += f"{med} {i+1}º {res['Jugador']}: *{puntos_v:.1f} pts*\n"
+                    txt_wa += f"{med} {i+1}º {res['Jugador']}: *{puntos_v:g} pts*\n"
                 txt_wa += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
                 
                 txt_wa += "📊 *ESTADÍSTICAS INDIVIDUALES*\n\n"
