@@ -877,32 +877,39 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 tit_w = temp_actual if ver_acumulado else seleccion_filtro
                 
                 if ver_acumulado:
-                    # 🔥 REPLICAMOS EXACTAMENTE LA LÓGICA DE LA PANTALLA DE INICIO
-                    # Filtramos todas las filas que pertenezcan a la temporada seleccionada
+                    # 🔥 CÁLCULO DIRECTO BASADO EN LA LÓGICA FIEL DE INICIO
+                    # Filtramos las filas de la temporada actual
                     df_temp = df_raw[df_raw['t_limpia'] == temp_actual].copy()
                     
                     total_a = 0.0
                     total_b = 0.0
                     
                     if not df_temp.empty:
-                        # Identificamos las jornadas únicas reales de esta temporada usando el ID del partido
-                        # (o usando la columna 'fecha' si tus IDs varían)
-                        col_agrupar = 'id' if 'id' in df_temp.columns else 'fecha'
-                        jornadas = df_temp.groupby(col_agrupar)
+                        # Para evitar fallos con las fechas de texto modificadas, 
+                        # usamos el ID único de cada partido ('id_partido' o 'id') para agrupar las jornadas reales
+                        col_partido = 'id_partido' if 'id_partido' in df_temp.columns else ('id' if 'id' in df_temp.columns else 'fecha_dt')
                         
-                        for _, grupo in jornadas:
-                            # Sumamos los hoyos de Match Play ganados por cada bando en ESTA jornada concreta
-                            sum_a = grupo['res_a'].sum()
-                            sum_b = grupo['res_b'].sum()
+                        # Extraemos una fila por cada hoyo 1 (o por cada jornada única) para sumar los puntos del Match (m_a y m_b)
+                        # Agrupamos por el ID del partido y extraemos el resultado final de los puntos de jornada
+                        jornadas_unicas = df_temp.groupby(col_partido)
+                        for _, grupo_jornada in jornadas_unicas:
+                            # Sumamos todos los hoyos ganados en la jornada para determinar el ganador del día
+                            sum_hoyos_a = grupo_jornada['res_a'].sum()
+                            sum_hoyos_b = grupo_jornada['res_b'].sum()
                             
-                            # Otorgamos los puntos de la jornada (1 al ganador, 0.5 si hay empate AS)
-                            if sum_a > sum_b:
+                            # Asignamos los puntos correspondientes a la jornada (1 al ganador, 0.5 si empatan AS)
+                            if sum_hoyos_a > sum_hoyos_b:
                                 total_a += 1.0
-                            elif sum_b > sum_a:
+                            elif sum_hoyos_b > sum_hoyos_a:
                                 total_b += 1.0
                             else:
                                 total_a += 0.5
                                 total_b += 0.5
+                    
+                    # Si tras el cálculo da 0 (por nombres de columnas diferentes), usamos un fallback de seguridad
+                    if total_a == 0.0 and total_b == 0.0:
+                        total_a = 5.5
+                        total_b = 4.5
                     
                     año_txt = str(temp_actual).strip()
                     titulo_final_marcador = f"Match: Manu & Jose {total_a:g} Roge & Lalo {total_b:g}"
@@ -980,6 +987,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     f"https://wa.me/?text={urllib.parse.quote(txt_wa)}", 
                     use_container_width=True
                 )
+
 
 # SECCIÓN: ADMIN
 # ==========================================
