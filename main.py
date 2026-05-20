@@ -463,8 +463,8 @@ if st.session_state.menu_seleccionado == "Inicio":
         </div>
     """, unsafe_allow_html=True)
    # Pon esto en tu pantalla de inicio justo donde se calculan los totales correctos:
-    st.session_state['marcador_acumulado_a'] = resultado_a  # O la variable que uses para Manu/Jose
-    st.session_state['marcador_acumulado_b'] = resultado_b  # O la variable que uses para Roge/Lalo
+    st.session_state['marcador_acumulado_a'] = pa_t  # O la variable que uses para Manu/Jose
+    st.session_state['marcador_acumulado_b'] = pb_t  # O la variable que uses para Roge/Lalo
 # ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
         # --- BLOQUE 0: INICIALIZACIÓN DE ESTADO ---
