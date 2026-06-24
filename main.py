@@ -116,6 +116,10 @@ def cb_editar_partido(p_id, fecha, temporada):
     st.session_state.nav_radio = "Nueva Partida"
     st.session_state.menu_seleccionado = "Nueva Partida"
 
+# 🎯 CORRECCIÓN 1: Inicializamos la variable principal ANTES de dibujar el menú
+if 'menu_seleccionado' not in st.session_state:
+    st.session_state.menu_seleccionado = "Inicio"
+
 # --- 2. EL SIDEBAR (MENÚ LATERAL) ---
 # --- 4. SIDEBAR DEFINITIVO ---
 with st.sidebar:
@@ -124,23 +128,22 @@ with st.sidebar:
     
     opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
     
+    # 🎯 CORRECCIÓN 2: Sincronizamos la clave del radio con el estado actual ANTES de renderizar
+    st.session_state.nav_radio = st.session_state.menu_seleccionado
+    
     # Función para cambiar el estado cuando se toca el radio manualmente
     def cambiar_menu():
         st.session_state.menu_seleccionado = st.session_state.nav_radio
 
-    # Un solo radio con índice dinámico
+    # 🎯 CORRECCIÓN 3: Quitamos el 'index' problemático. El widget usa su 'key' automáticamente
     st.radio(
         "Navegación",
         opciones_menu,
-        index=opciones_menu.index(st.session_state.get('menu_seleccionado', 'Inicio')),
         key="nav_radio",
         on_change=cambiar_menu
     )
-# Inicializamos la variable si no existe
-if 'menu_seleccionado' not in st.session_state:
-    st.session_state.menu_seleccionado = "Inicio"
 
-# Calculamos el índice basándonos en el texto guardado
+# Calculamos el índice basándonos en el texto guardado (mantenido por si lo usas en el resto del código)
 try:
     idx_actual = opciones_menu.index(st.session_state.menu_seleccionado)
 except ValueError:
@@ -150,8 +153,6 @@ except ValueError:
 def cambiar_pagina():
     if "selector_menu" in st.session_state:
         st.session_state.menu_seleccionado = st.session_state.selector_menu
-
-
 
 # --- LÓGICA DE DATOS ---
 @st.cache_data(ttl=600)
