@@ -659,6 +659,12 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 # 🎯 REINICIO DEL INTERRUPTOR: El próximo hoyo empezará bloqueado por seguridad
                 st.session_state.hoyo_modificado = False
                 
+                # ⛳ AVANCE AUTOMÁTICO INTELIGENTE:
+                # Si es el hoyo 1 al 17, avanza solo. Si es el 18, se queda congelado en el 18.
+                if h_actual < 18:
+                    st.session_state.game['h_sel'] = h_actual + 1
+                    st.session_state.refresco_id += 1  # Esto actualiza el combo visual al nuevo hoyo
+                    
                 st.rerun()
                 
             res_hoyo_a, res_hoyo_b = 0, 0
