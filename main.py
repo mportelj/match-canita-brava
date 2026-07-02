@@ -122,28 +122,31 @@ if 'menu_seleccionado' not in st.session_state:
 
 # --- 2. EL SIDEBAR (MENÚ LATERAL) ---
 # --- 4. SIDEBAR DEFINITIVO ---
+# --- 2. EL SIDEBAR (MENÚ LATERAL) ---
 with st.sidebar:
     st.markdown("# ⛳ Cañita Brava")
     st.write("---")
     
     opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
     
-    # 🎯 CORRECCIÓN 2: Sincronizamos solo si hay un desfase (ej. al venir del panel Admin)
-if st.session_state.get("nav_radio") != st.session_state.menu_seleccionado:
-    st.session_state.nav_radio = st.session_state.menu_seleccionado
-    
-    # Función para cambiar el estado cuando se toca el radio manualmente
+    # 🎯 LA SOLUCIÓN SEGURO: Calculamos el índice real antes de dibujar el radio
+    try:
+        idx_actual = opciones_menu.index(st.session_state.menu_seleccionado)
+    except ValueError:
+        idx_actual = 0
+
+    # Función limpia para actualizar el estado al hacer clic manual
     def cambiar_menu():
         st.session_state.menu_seleccionado = st.session_state.nav_radio
 
-    # 🎯 CORRECCIÓN 3: Quitamos el 'index' problemático. El widget usa su 'key' automáticamente
+    # El radio utiliza su index dinámico y se sincroniza a la perfección
     st.radio(
         "Navegación",
         opciones_menu,
+        index=idx_actual,
         key="nav_radio",
         on_change=cambiar_menu
     )
-
 # Calculamos el índice basándonos en el texto guardado (mantenido por si lo usas en el resto del código)
 try:
     idx_actual = opciones_menu.index(st.session_state.menu_seleccionado)
