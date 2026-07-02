@@ -646,7 +646,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             # Reducimos también un poco el tamaño del texto del Par y del separador "|"
             st.markdown(
                 f"### ⛳ Hoyo {h_actual} "
-                f"<span style='font-size:18px; color:gray; font-weight:normal;'>*(Par {val_par_hoyo})*</span> "
+                f"<span style='font-size:20px; color:gray; font-weight:normal;'>*(Par {val_par_hoyo})*</span> "
                 f"<span style='color:#ccc; font-size:14px;'>&nbsp;|&nbsp;</span> "
                 f"{badge_estado}", 
                 unsafe_allow_html=True
