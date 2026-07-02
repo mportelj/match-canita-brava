@@ -128,7 +128,8 @@ with st.sidebar:
     
     opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
     
-    # 🎯 CORRECCIÓN 2: Sincronizamos la clave del radio con el estado actual ANTES de renderizar
+    # 🎯 CORRECCIÓN 2: Sincronizamos solo si hay un desfase (ej. al venir del panel Admin)
+if st.session_state.get("nav_radio") != st.session_state.menu_seleccionado:
     st.session_state.nav_radio = st.session_state.menu_seleccionado
     
     # Función para cambiar el estado cuando se toca el radio manualmente
@@ -247,11 +248,11 @@ def calcular_puntos_hoyo(s0, s2, s1, s3, par):
 if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-def cambiar_menu():
+# def cambiar_menu():
     # Usamos .get() que es seguro: si no existe 'nav_radio', devuelve None
-    seleccion = st.session_state.get("nav_radio")
-    if seleccion:
-        st.session_state.menu_seleccionado = seleccion
+    # seleccion = st.session_state.get("nav_radio")
+    # if seleccion:
+        # st.session_state.menu_seleccionado = seleccion
         
 def actualizar_o_insertar_hoyo(datos):
     """
