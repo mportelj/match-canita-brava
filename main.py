@@ -636,10 +636,21 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
             # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
             # 🎯 INDICADOR VISUAL: Si existe en la base de datos está JUGADO, si no, PENDIENTE
-            badge_estado = "🟢 **JUGADO**" if hay_datos_hoyo else "🟡 **PENDIENTE**"
+            # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
+            # 🎯 INDICADOR VISUAL: Tamaño reducido (13px) y alineación vertical para que no salte de línea
+            if hay_datos_hoyo:
+                badge_estado = "<span style='font-size:13px; font-weight:bold; vertical-align:middle;'>🟢 JUGADO</span>"
+            else:
+                badge_estado = "<span style='font-size:13px; font-weight:bold; vertical-align:middle;'>🟡 PENDIENTE</span>"
             
-            # 🔧 CORREGIDO: Cambiado unsafe_html por unsafe_allow_html
-            st.markdown(f"### ⛳ Hoyo {h_actual} <span style='font-size:18px; color:gray;'>*(Par {val_par_hoyo})*</span> &nbsp;&nbsp;|&nbsp;&nbsp; {badge_estado}", unsafe_allow_html=True)
+            # Reducimos también un poco el tamaño del texto del Par y del separador "|"
+            st.markdown(
+                f"### ⛳ Hoyo {h_actual} "
+                f"<span style='font-size:15px; color:gray; font-weight:normal;'>*(Par {val_par_hoyo})*</span> "
+                f"<span style='color:#ccc; font-size:14px;'>&nbsp;|&nbsp;</span> "
+                f"{badge_estado}", 
+                unsafe_allow_html=True
+            )
             
             cols_g = st.columns(4)
             def activar_boton_guardar():
