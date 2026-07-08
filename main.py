@@ -1160,49 +1160,55 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         st.plotly_chart(fig2, use_container_width=True)
                         
                     #PUTT
-                 # --- ANÁLISIS DE PUTTS (CONFIGURACIÓN FINAL) ---
-
-                # 1. Conversión de fechas y Filtros
-                df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], dayfirst=True)
-                fecha_corte = pd.Timestamp('2026-07-08')
-                
-                # Filtramos por Temporada y Fecha
-                df_stats_source = df_raw[
-                    (df_raw['t_limpia'] == temp_actual) & 
-                    (df_raw['fecha_dt'] >= fecha_corte)
-                ].copy()
-                
-                # 2. Cálculo del número de hoyos (filas)
-                num_hoyos = len(df_stats_source)
-                
-                # Título con estilo (Verde y pequeño para el contador)
-                st.markdown(
-                    f"### ⛳ Análisis de Putts <span style='color:green; font-size: 0.8em;'>({num_hoyos} hoyos registrados)</span>", 
-                    unsafe_allow_html=True
-                )
-                
-                # 3. Definir jugadores
-                cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
-                
-                # 4. Verificación y Cálculo
-                if not df_stats_source.empty:
-                    cols_existentes = [c for c in cols_putts.keys() if c in df_stats_source.columns]
-                    df_data = df_stats_source[cols_existentes].apply(pd.to_numeric, errors='coerce').fillna(0)
+                    # --- ANÁLISIS DE PUTTS (CONTROL TOTAL DE ESTILO) ---
                     
-                    df_putts_summary = pd.DataFrame({
-                        'Jugador': [cols_putts[c] for c in cols_existentes],
-                        'Total': df_data.sum().values,
-                        'Media': df_data.mean().values
-                    })
-                
-                    # 5. Mostrar tabla (Alineada a la izquierda por defecto)
-                    st.dataframe(
-                        df_putts_summary, 
-                        hide_index=True, 
-                        use_container_width=True
+                    # 1. Preparación de datos (igual que antes)
+                    df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], dayfirst=True)
+                    fecha_corte = pd.Timestamp('2026-07-08')
+                    
+                    df_stats_source = df_raw[
+                        (df_raw['t_limpia'] == temp_actual) & 
+                        (df_raw['fecha_dt'] >= fecha_corte)
+                    ].copy()
+                    
+                    num_hoyos = len(df_stats_source)
+                    
+                    # 2. Título estilizado
+                    st.markdown(
+                        f"### ⛳ Análisis de Putts <span style='color:green; font-size: 0.8em;'>({num_hoyos} hoyos registrados)</span>", 
+                        unsafe_allow_html=True
                     )
-                else:
-                    st.info(f"No hay registros de putts en la temporada **{temp_actual}** posteriores al 08/07/2026.")
+                    
+                    # 3. Verificación y Cálculo
+                    if not df_stats_source.empty:
+                        cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
+                        cols_existentes = [c for c in cols_putts.keys() if c in df_stats_source.columns]
+                        df_data = df_stats_source[cols_existentes].apply(pd.to_numeric, errors='coerce').fillna(0)
+                        
+                        df_putts_summary = pd.DataFrame({
+                            'Jugador': [cols_putts[c] for c in cols_existentes],
+                            'Total': df_data.sum().values,
+                            'Media': df_data.mean().values
+                        })
+                    
+                        # 4. APLICAMOS ESTILO (Aquí está el secreto del centrado y el ancho)
+                        # Definimos el estilo para centrar el texto y ajustar el ancho de las columnas
+                        estilo_tabla = df_putts_summary.style \
+                            .set_properties(**{
+                                'text-align': 'center',    # Centra el contenido
+                                'width': '80px',           # Fuerza un ancho estrecho
+                                'min-width': '80px'
+                            }) \
+                            .set_table_styles([
+                                {'selector': 'th', 'props': [('text-align', 'center')]} # Centra encabezados
+                            ]) \
+                            .format({'Total': '{:.0f}', 'Media': '{:.2f}'}) # Formato numérico
+                    
+                        # 5. Renderizamos como st.table (HTML estático)
+                        st.table(estilo_tabla)
+                    
+                    else:
+                        st.info(f"No hay registros de putts en la temporada **{temp_actual}** posteriores al 08/07/2026.")
                    
 
 # SECCIÓN: ADMIN
