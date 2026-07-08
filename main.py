@@ -1245,26 +1245,21 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                         st.table(estilo)
                     
-                  # --- GRÁFICO DE BARRAS (FORZANDO ETIQUETAS) ---
+                  # --- GRÁFICO DE BARRAS (FORZADO) ---
                     st.markdown("### 📊 Comparativa de Putts")
                     
-                    # 1. Definimos el orden explícito para que coincida con el DataFrame
-                    orden_jugadores = list(df_consistencia['Jugador'])
-                    
-                    # 2. Creamos el gráfico
+                    # Definimos el gráfico explícitamente sin leyenda
                     chart = alt.Chart(df_consistencia).mark_bar().encode(
-                        # 'Jugador:N' (Nominal) + labels=True asegura que aparezcan los nombres
-                        x=alt.X('Jugador:N', 
-                                sort=orden_jugadores, 
-                                axis=alt.Axis(labels=True, labelAngle=0, title=None)), 
-                        
+                        # Forzamos X como el campo 'Jugador' sin leyenda
+                        x=alt.X('Jugador', 
+                                sort=list(df_consistencia['Jugador']), 
+                                axis=alt.Axis(labelAngle=0, title=None)),
                         y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3])),
-                        
-                        # Mantenemos color pero eliminamos leyenda lateral
-                        color=alt.Color('Jugador:N', legend=None) 
+                        # Asignamos el color, pero el parámetro legend=None es innegociable aquí
+                        color=alt.Color('Jugador', legend=None) 
                     ).properties(height=300)
                     
-                    # 3. Añadimos los números encima de las barras
+                    # Capa de texto (los valores encima de la barra)
                     text = chart.mark_text(
                         align='center',
                         baseline='bottom',
@@ -1274,7 +1269,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         text=alt.Text('Media Putts', format='.2f')
                     )
                     
-                    # 4. Combinamos y mostramos
+                    # Combinamos y renderizamos
                     st.altair_chart(chart + text, use_container_width=True)
                     
                     # --- 3. TABLA DE CONSISTENCIA (CORREGIDA) ---
