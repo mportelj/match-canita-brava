@@ -685,7 +685,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             def activar_boton_guardar():
                 st.session_state.hoyo_modificado = True
 
-           # --- 1. CONFIGURACIÓN ---
+           # --- 1. CONFIGURACIÓN DE COLORES Y CSS ---
             config_jugadores = {
                 "MANU": {"color": "#2E8B57", "clase": "borde-manu"},
                 "JOSE": {"color": "#1E90FF", "clase": "borde-jose"},
@@ -693,26 +693,27 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 "LALO": {"color": "#000000", "clase": "borde-lalo"}
             }
             
-            # CSS para aplicar color a los bordes de los inputs
             st.markdown("""
                 <style>
-                .borde-manu div[data-baseweb="base-input"] { border: 2px solid #2E8B57 !important; }
-                .borde-jose div[data-baseweb="base-input"] { border: 2px solid #1E90FF !important; }
-                .borde-roge div[data-baseweb="base-input"] { border: 2px solid #DC143C !important; }
-                .borde-lalo div[data-baseweb="base-input"] { border: 2px solid #000000 !important; }
+                /* Aplicamos el borde al input directamente dentro de nuestra clase */
+                .borde-manu input { border: 2px solid #2E8B57 !important; }
+                .borde-jose input { border: 2px solid #1E90FF !important; }
+                .borde-roge input { border: 2px solid #DC143C !important; }
+                .borde-lalo input { border: 2px solid #000000 !important; }
                 </style>
             """, unsafe_allow_html=True)
             
-            # --- 2. LÓGICA DE DATOS INICIALES ---
+            # --- 2. LÓGICA DE DATOS (PAR POR DEFECTO) ---
             jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
-            p_defaults = [2, 2, 2, 2]
-            g_defaults = [4, 4, 4, 4] # Ajusta este valor por defecto a tu gusto
             
+            # Si NO hay datos, usamos el PAR del hoyo. Si hay datos, usamos los de la BD.
             if hay_datos_hoyo:
-                try:
-                    p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
-                    g_defaults = [int(df_hoyo_actual[f's{i}'].iloc[0]) for i in range(4)]
-                except: pass
+                g_defaults = [int(df_hoyo_actual[f's{i}'].iloc[0]) for i in range(4)]
+                p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
+            else:
+                # AQUÍ ESTÁ EL CAMBIO: Usamos val_par_hoyo como valor inicial
+                g_defaults = [val_par_hoyo] * 4 
+                p_defaults = [2] * 4 # O el valor por defecto que prefieras
             
             # --- 3. INPUTS ---
             inputs_s = []
@@ -728,7 +729,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 with c1:
                     st.markdown(f"<p style='color:{cfg['color']}; font-weight:bold; margin-top: 15px;'>{nombre}</p>", unsafe_allow_html=True)
                 
-                # Input Golpes (con borde color jugador)
+                # Input Golpes (envuelto en div con clase)
                 with c2:
                     st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
                     val_s = st.number_input(f"G{i}", min_value=1, value=g_defaults[i], 
@@ -736,7 +737,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.markdown('</div>', unsafe_allow_html=True)
                     inputs_s.append(val_s)
                     
-                # Input Putts (con borde color jugador)
+                # Input Putts (envuelto en div con clase)
                 with c3:
                     st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
                     val_p = st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
@@ -748,7 +749,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             s0, s1, s2, s3 = inputs_s
             p0, p1, p2, p3 = inputs_p
             
-           
+            
                         
             # --- BOTÓN DE GUARDADO ---
             no_hay_cambios = not st.session_state.hoyo_modificado
