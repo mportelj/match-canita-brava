@@ -193,7 +193,7 @@ def cambiar_pagina():
         st.session_state.menu_seleccionado = st.session_state.selector_menu
 
 # --- LÓGICA DE DATOS ---
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=0)
 def leer_datos():
     try:
         if 'sh' not in st.session_state:
