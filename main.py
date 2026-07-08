@@ -51,8 +51,21 @@ if 'sh' not in st.session_state:
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-if 'game' not in st.session_state:
+# 🚀 MOTOR DE RESURRECCIÓN TRAS BLOQUEO DE MÓVIL
+if "partida_id" in st.query_params:
+    st.session_state.menu_seleccionado = "Nueva Partida"
+    
+    # Si al desbloquear el móvil se ha borrado la memoria, la reconstruimos desde la URL
+    if 'game' not in st.session_state or st.session_state.game is None:
+        st.session_state.game = {
+            'id': st.query_params["partida_id"],
+            'h_sel': int(st.query_params.get("hoyo", 1)),
+            'fecha': datetime.now().strftime("%d/%m/%Y"), # Valor refugio
+            'temporada': str(datetime.now().year)         # Valor refugio
+        }
+elif 'game' not in st.session_state:
     st.session_state.game = {"h_sel": 1}
+
 
 if 'nav_radio' not in st.session_state:
     st.session_state.nav_radio = "Inicio" # O el valor por defecto que tengas
@@ -524,8 +537,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.title("⛳ Nueva Partida")
             fecha_nueva = st.date_input("Fecha del partido", key="fecha_nueva_p")
             if st.button("🚀 INICIAR PARTIDO", type="primary", use_container_width=True):
+                # 1. Generamos el ID con la hora exacta y lo guardamos en una variable
+                nuevo_id = datetime.now().strftime("%Y%m%d%H%M%S")
                 st.session_state.game = {
-                    "id": datetime.now().strftime("%Y%m%d%H%M%S"),
+                    "id": nuevo_id,
                     "fecha": fecha_nueva.strftime("%d/%m/%Y"),
                     "temporada": str(fecha_nueva.year),
                     'id': partida_id,
@@ -533,7 +548,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 }
                 st.session_state.refresco_id += 1
                 st.cache_data.clear()
-                st.query_params["partida_id"] = partida_id
+                st.query_params["partida_id"] = nuevo_id
                 st.query_params["hoyo"] = 1
                 st.rerun()
         
