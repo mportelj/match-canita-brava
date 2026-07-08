@@ -1245,21 +1245,26 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                         st.table(estilo)
                     
-                   # --- GRÁFICO DE BARRAS (SIN LEYENDA Y CON NOMBRES EN EL EJE X) ---
+                  # --- GRÁFICO DE BARRAS (FORZANDO ETIQUETAS) ---
                     st.markdown("### 📊 Comparativa de Putts")
                     
-                    # Definimos el gráfico
+                    # 1. Definimos el orden explícito para que coincida con el DataFrame
+                    orden_jugadores = list(df_consistencia['Jugador'])
+                    
+                    # 2. Creamos el gráfico
                     chart = alt.Chart(df_consistencia).mark_bar().encode(
-                        # 'Jugador:N' asegura que los nombres se coloquen en el eje X
+                        # 'Jugador:N' (Nominal) + labels=True asegura que aparezcan los nombres
                         x=alt.X('Jugador:N', 
-                                sort=list(df_consistencia['Jugador']), 
-                                axis=alt.Axis(labelAngle=0, title=None)), 
+                                sort=orden_jugadores, 
+                                axis=alt.Axis(labels=True, labelAngle=0, title=None)), 
+                        
                         y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3])),
-                        # Color:N con legend=None elimina la leyenda lateral
+                        
+                        # Mantenemos color pero eliminamos leyenda lateral
                         color=alt.Color('Jugador:N', legend=None) 
                     ).properties(height=300)
                     
-                    # Capa de texto (los valores encima de la barra)
+                    # 3. Añadimos los números encima de las barras
                     text = chart.mark_text(
                         align='center',
                         baseline='bottom',
@@ -1269,7 +1274,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         text=alt.Text('Media Putts', format='.2f')
                     )
                     
-                    # Combinamos barras y texto
+                    # 4. Combinamos y mostramos
                     st.altair_chart(chart + text, use_container_width=True)
                     
                     # --- 3. TABLA DE CONSISTENCIA (CORREGIDA) ---
