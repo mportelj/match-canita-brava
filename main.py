@@ -1198,9 +1198,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         estilo = df_putts_summary.style \
                             .format({'Total': '{:.0f}', 'Media': '{:.2f}'}) \
                             .set_table_styles([
-                                {'selector': 'th', 'props': [('text-align', 'center'), ('width', '20px')]},
-                                {'selector': 'td', 'props': [('text-align', 'center'), ('width', '20px')]},
-                                {'selector': 'table', 'props': [('margin-left', '0'), ('margin-right', 'auto')]}
+                                {'selector': 'th', 'props': [('text-align', 'center'), ('width', '8px')]},
+                                {'selector': 'td', 'props': [('text-align', 'center'), ('width', '8px')]},
+                                {'selector': 'table', 'props': [('margin-left', '10'), ('margin-right', 'auto')]}
                             ])
                     
                         # Renderizamos como tabla
