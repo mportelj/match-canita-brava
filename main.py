@@ -1246,21 +1246,23 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         st.table(estilo)
                     
                  # --- 1. ORDENAMOS EL DATAFRAME (MENOR A MAYOR) ---
-                # Forzamos el orden en el origen de los datos
+                    # ascending=True asegura que el jugador con menos putts (mejor resultado) salga primero
                     df_consistencia = df_consistencia.sort_values(by='Media Putts', ascending=True)
-                
-                # --- 2. GRÁFICO (SOLUCIÓN DEFINITIVA) ---
+                    
+                    # --- 2. GRÁFICO (CON LEYENDA Y ORDENADO) ---
                     st.markdown("### 📊 Comparativa de Putts")
                     
-                    # Definimos el gráfico usando el orden del DataFrame
+                    # Definimos el gráfico
                     chart = alt.Chart(df_consistencia).mark_bar().encode(
-                        # 'sort=list(...)' obliga a Altair a respetar el orden del DataFrame
+                        # Mantenemos el orden de las barras según el dataframe
                         x=alt.X('Jugador:N', 
                                 sort=list(df_consistencia['Jugador']), 
                                 axis=alt.Axis(labelAngle=0, title=None)), 
+                        
                         y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3])),
-                        # Quitamos la leyenda lateral
-                        color=alt.Color('Jugador:N', legend=None) 
+                        
+                        # Al quitar 'legend=None', Altair vuelve a colocar la leyenda a la derecha
+                        color='Jugador:N' 
                     ).properties(height=300)
                     
                     # Capa de texto (los valores encima de la barra)
@@ -1273,7 +1275,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         text=alt.Text('Media Putts', format='.2f')
                     )
                     
-                    # Renderizamos
+                    # Combinamos y renderizamos
                     st.altair_chart(chart + text, use_container_width=True)
                     
                     # --- 3. TABLA DE CONSISTENCIA (CORREGIDA) ---
