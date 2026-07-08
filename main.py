@@ -685,18 +685,23 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             def activar_boton_guardar():
                 st.session_state.hoyo_modificado = True
 
+           # --- CSS PARA ELIMINAR EL SALTO DE LÍNEA ---
             st.markdown("""
                 <style>
+                /* Forzamos a que el contenedor de columnas no haga salto de línea */
                 [data-testid="column"] {
-                    flex: 1 1 0% !important;
-                    display: flex !important;
-                    flex-direction: row !important;
-                    align-items: center !important;
-                    gap: 5px !important;
+                    flex: 1 !important;
+                    min-width: 0 !important;
+                    white-space: nowrap !important;
                 }
-                /* Reducimos un poco el margen de los inputs para que quepan mejor */
-                .stNumberInput > div > div > input {
-                    padding: 5px !important;
+                /* Reducimos el padding de los inputs para que ocupen menos espacio horizontal */
+                .stNumberInput {
+                    width: 100% !important;
+                    padding: 0px !important;
+                }
+                /* Ajustamos el tamaño de la fuente para que el texto sea más pequeño en móvil */
+                input {
+                    font-size: 14px !important;
                 }
                 </style>
             """, unsafe_allow_html=True)
@@ -714,14 +719,15 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
                 except: pass
             
-            # --- 2. BUCLE DE CREACIÓN DE INPUTS ---
+            
+           # --- BUCLE AJUSTADO ---
+            # Usamos gap="small" para que las columnas estén pegadas
             for i in range(4):
-                # Usamos [1.5, 1, 1]. Si aún ves que se corta, cambia a [1, 1, 1]
-                c1, c2, c3 = st.columns([1.5, 1, 1], vertical_alignment='center')
+                c1, c2, c3 = st.columns([1.2, 1, 1], gap="small", vertical_alignment="center")
                 
                 with c1:
-                    # Usamos markdown para tener control total de márgenes
-                    st.markdown(f"**{jugadores[i]}**", unsafe_allow_html=True)
+                    # Usamos texto simple sin markdown para evitar márgenes extra
+                    st.write(f"**{jugadores[i]}**")
                 
                 with c2:
                     val_s = st.number_input(f"G{i}", min_value=1, value=golpes_anteriores[i], 
@@ -735,10 +741,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                                             key=f"p{i}_h{h_actual}", label_visibility="collapsed")
                     inputs_p.append(val_p)
             
-            # Unpacking
+            # Desempaquetado
             s0, s1, s2, s3 = inputs_s
             p0, p1, p2, p3 = inputs_p
-            
+                        
             # --- BOTÓN DE GUARDADO ---
             no_hay_cambios = not st.session_state.hoyo_modificado
             
