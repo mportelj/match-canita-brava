@@ -685,63 +685,68 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             def activar_boton_guardar():
                 st.session_state.hoyo_modificado = True
 
-           # --- CSS PARA ELIMINAR EL SALTO DE LÍNEA ---
+           # --- 1. CONFIGURACIÓN ---
+            config_jugadores = {
+                "MANU": {"color": "#2E8B57", "clase": "borde-manu"},
+                "JOSE": {"color": "#1E90FF", "clase": "borde-jose"},
+                "ROGE": {"color": "#DC143C", "clase": "borde-roge"},
+                "LALO": {"color": "#000000", "clase": "borde-lalo"}
+            }
+            
+            # Solo el CSS necesario para los bordes
             st.markdown("""
                 <style>
-                /* Eliminamos todos los márgenes y paddings de las columnas */
-                [data-testid="column"] {
-                    padding: 0px !important;
-                    margin: 0px !important;
-                }
-                /* Forzamos a que los inputs ocupen el espacio mínimo necesario */
-                .stNumberInput {
-                    width: 100% !important;
-                }
-                /* Eliminamos el espacio extra que deja la etiqueta colapsada */
-                .stNumberInput div[data-baseweb="base-input"] {
-                    padding: 2px !important;
-                }
+                .borde-manu div[data-baseweb="base-input"] { border: 2px solid #2E8B57 !important; }
+                .borde-jose div[data-baseweb="base-input"] { border: 2px solid #1E90FF !important; }
+                .borde-roge div[data-baseweb="base-input"] { border: 2px solid #DC143C !important; }
+                .borde-lalo div[data-baseweb="base-input"] { border: 2px solid #000000 !important; }
                 </style>
             """, unsafe_allow_html=True)
-                        
-           # --- INPUTS DE JUGADORES (CÓDIGO CORREGIDO) ---
-            jugadores = ["M", "J", "R", "L"]
-            # --- 1. INICIALIZACIÓN (Crucial que esté ANTES del bucle) ---
+            
+            # --- 2. INPUTS DE JUGADORES ---
+            jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
             inputs_s = []
             inputs_p = []
-            
+
             # Definimos defaults de putts
-            p_defaults = [2, 2, 2, 2]
-            if hay_datos_hoyo:
-                try:
-                    p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
-                except: pass
+                        p_defaults = [2, 2, 2, 2]
+                        if hay_datos_hoyo:
+                            try:
+                                p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
+                            except: pass
+                                
+            # (Asegúrate de que 'golpes_anteriores' y 'p_defaults' estén definidos previamente)
             
-            
-           # --- BUCLE AJUSTADO ---
-            # Usamos gap="small" para que las columnas estén pegadas
             for i in range(4):
-                # Usamos proporciones donde el nombre (la inicial) ocupe lo mínimo posible
-                c1, c2, c3 = st.columns([0.5, 1, 1], gap="small", vertical_alignment="center")
+                nombre = jugadores[i]
+                cfg = config_jugadores[nombre]
+                
+                # Usamos columnas estándar sin forzar CSS extraño
+                c1, c2, c3 = st.columns([1, 1, 1])
                 
                 with c1:
-                    st.write(f"**{jugadores[i]}**")
+                    st.markdown(f"<p style='color:{cfg['color']}; font-weight:bold; margin-top: 10px;'>{nombre}</p>", unsafe_allow_html=True)
                 
                 with c2:
-                    val_s = st.number_input(f"G{i}", min_value=1, value=golpes_anteriores[i], 
-                                            on_change=activar_boton_guardar, 
-                                            key=f"s{i}_h{h_actual}", label_visibility="collapsed")
+                    # Contenedor para aplicar el borde
+                    st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
+                    val_s = st.number_input(f"Golpes {nombre}", min_value=1, value=golpes_anteriores[i], 
+                                            on_change=activar_boton_guardar, key=f"s{i}_h{h_actual}", label_visibility="collapsed")
+                    st.markdown('</div>', unsafe_allow_html=True)
                     inputs_s.append(val_s)
                     
                 with c3:
-                    val_p = st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
-                                            on_change=activar_boton_guardar, 
-                                            key=f"p{i}_h{h_actual}", label_visibility="collapsed")
+                    st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
+                    val_p = st.number_input(f"Putts {nombre}", min_value=0, value=p_defaults[i], 
+                                            on_change=activar_boton_guardar, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
+                    st.markdown('</div>', unsafe_allow_html=True)
                     inputs_p.append(val_p)
             
             # Desempaquetado
             s0, s1, s2, s3 = inputs_s
             p0, p1, p2, p3 = inputs_p
+            
+           
                         
             # --- BOTÓN DE GUARDADO ---
             no_hay_cambios = not st.session_state.hoyo_modificado
