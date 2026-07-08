@@ -1172,8 +1172,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     ].copy()
                     
                     # 2. CÁLCULO DE MÉTRICAS DE CONSISTENCIA
-                    cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
+                    import altair as alt
+
+                    # --- 1. PREPARACIÓN Y CÁLCULO ---
+                    # (Asumiendo que df_stats_source ya está filtrado como en los pasos anteriores)
                     stats_list = []
+                    cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
                     
                     for col, nombre in cols_putts.items():
                         if col in df_stats_source.columns:
@@ -1185,27 +1189,44 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                                 '% 3-Putts': (datos >= 3).mean() * 100
                             })
                     
-                    df_consistencia = pd.DataFrame(stats_list).sort_values(by='Media Putts')
+                    # Creamos el DF y lo ordenamos de menor a mayor media
+                    df_consistencia = pd.DataFrame(stats_list).sort_values(by='Media Putts', ascending=True)
                     
-                    # --- 3. GRÁFICO DE BARRAS (ALTAIR) ---
+                    # --- 2. GRÁFICO DE BARRAS (ORDENADO Y CON ETIQUETAS) ---
                     st.markdown("### 📊 Comparativa de Putts")
-                    chart = alt.Chart(df_consistencia).mark_bar().encode(
-                        x=alt.X('Jugador', sort='-y'),
-                        y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3])), # Escala realista de golf
-                        color='Jugador',
-                        tooltip=['Jugador', alt.Tooltip('Media Putts', format='.2f')]
-                    ).properties(height=300)
+                    
+                    # Definimos la base del gráfico
+                    base = alt.Chart(df_consistencia).encode(
+                        # Ordenamos explícitamente según el dataframe
+                        x=alt.X('Jugador', sort=list(df_consistencia['Jugador'])),
+                        y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3]))
+                    )
+                    
+                    # Capa de barras
+                    bars = base.mark_bar().encode(color='Jugador')
+                    
+                    # Capa de texto (los valores encima de la barra)
+                    text = base.mark_text(
+                        align='center',
+                        baseline='bottom',
+                        dy=-5,  # Desplazamiento vertical para que quede justo encima
+                        color='black'
+                    ).encode(
+                        text=alt.Text('Media Putts', format='.2f')
+                    )
+                    
+                    # Combinamos capas
+                    chart = (bars + text).properties(height=300)
                     
                     st.altair_chart(chart, use_container_width=True)
                     
-                    # --- 4. TABLA DE CONSISTENCIA ---
+                    # --- 3. TABLA DE CONSISTENCIA ---
                     st.markdown(
                         f"### ⛳ Tabla de Consistencia <span style='color:green; font-size: 0.8em;'>({len(df_stats_source)} hoyos registrados)</span>", 
                         unsafe_allow_html=True
                     )
                     
                     if not df_consistencia.empty:
-                        # Aplicamos estilo para centrar y ajustar ancho
                         estilo = df_consistencia.style \
                             .format({'Media Putts': '{:.2f}', '% 1-Putt': '{:.0f}%', '% 3-Putts': '{:.0f}%'}) \
                             .set_table_styles([
@@ -1213,10 +1234,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                                 {'selector': 'td', 'props': [('text-align', 'center'), ('width', '100px')]},
                                 {'selector': 'table', 'props': [('margin-left', '0'), ('margin-right', 'auto')]}
                             ])
-                    
                         st.table(estilo)
-                    else:
-                        st.info("No hay suficientes datos registrados.")
 # SECCIÓN: ADMIN
 # ==========================================
 
