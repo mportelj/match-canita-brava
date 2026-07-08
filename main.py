@@ -1225,7 +1225,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                             hide_index=True, 
                             use_container_width=True,
                             column_config={
-                                "1-Putt": st.column_config.TextColumn("1 Putt"),
+                                "1-Putt": st.column_config.TextColumn("🏆 1 Putt"),
                                 "3+ Putts": st.column_config.TextColumn("3+ Putts")
                             }
                         )
