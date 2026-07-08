@@ -717,7 +717,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 key=f"btn_guardar_h{h_actual}", 
                 disabled=no_hay_cambios
             ):
-                ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, po, p1, p2, p3)
+                ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
                 
                 # 🎯 REINICIO DEL INTERRUPTOR: El próximo hoyo empezará bloqueado por seguridad
                 st.session_state.hoyo_modificado = False
