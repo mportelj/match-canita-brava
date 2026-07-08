@@ -673,8 +673,16 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 unsafe_allow_html=True
             )
             
-            # --- 3. INTERFAZ DE USUARIO (INPUTS OPTIMIZADA) ---
-            # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
+           # --- 1. PREPARACIÓN DE DATOS ANTERIORES ---
+            # Si hay datos (df_partido_actual no está vacío), los cargamos, si no, inicializamos a 0
+            if not df_partido_actual.empty:
+                golpes_anteriores = [df_partido_actual.iloc[0][f's{i}'] for i in range(4)]
+                putts_anteriores = [df_partido_actual.iloc[0][f'p{i}'] for i in range(4)]
+            else:
+                golpes_anteriores = [1, 1, 1, 1] # Valor por defecto para hoyo nuevo
+                putts_anteriores = [0, 0, 0, 0]
+            
+            # --- 2. INTERFAZ DE USUARIO (INPUTS) ---
             cols_g = st.columns(4)
             nombres = ["MANU", "JOSE", "ROGE", "LALO"]
             
@@ -682,7 +690,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 with cols_g[i]:
                     st.markdown(f"**{nombres[i]}**")
                     
-                    # 1. GOLPES
+                    # Campo Golpes
                     st.number_input(
                         "Golpes", min_value=1, step=1, 
                         value=int(golpes_anteriores[i]), 
@@ -690,14 +698,13 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                         on_change=activar_boton_guardar
                     )
                     
-                    # 2. PUTTS
+                    # Campo Putts
                     st.number_input(
                         "Putts", min_value=0, step=1, 
                         value=int(putts_anteriores[i]), 
                         key=f"p{i}_h{h_actual}",
                         on_change=activar_boton_guardar
                     )
-            
                 # --- BOTÓN DE GUARDADO ---
                 if st.button("💾 GUARDAR", use_container_width=True, key=f"btn_guardar_h{h_actual}"):
                     
