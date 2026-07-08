@@ -128,7 +128,8 @@ def borrar_partido_completo(partido_id):
         # 3. Limpiamos y reescribimos la hoja con la opción USER_ENTERED para que respete los tipos numéricos
         hoja.clear()
         hoja.update('A1', [header] + nuevos_datos, value_input_option='USER_ENTERED')
-        
+        if 'sh' in st.session_state:
+            del st.session_state.sh
         # Limpiamos caché de Streamlit para que los cambios se vean en el acto
         st.cache_data.clear()
         return True
@@ -193,7 +194,7 @@ def cambiar_pagina():
         st.session_state.menu_seleccionado = st.session_state.selector_menu
 
 # --- LÓGICA DE DATOS ---
-@st.cache_data(ttl=0)
+@st.cache_data(ttl=600)
 def leer_datos():
     try:
         if 'sh' not in st.session_state:
