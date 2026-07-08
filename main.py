@@ -681,34 +681,38 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 unsafe_allow_html=True
             )
             
-           # --- 1. PREPARACIÓN DE DATOS ANTERIORES ---
-            # Si hay datos (df_partido_actual no está vacío), los cargamos, si no, inicializamos a 0
-            if not df_partido_actual.empty:
-                golpes_anteriores = [df_partido_actual.iloc[0][f's{i}'] for i in range(4)]
-                putts_anteriores = [df_partido_actual.iloc[0][f'p{i}'] for i in range(4)]
-            else:
-                golpes_anteriores = [1, 1, 1, 1] # Valor por defecto para hoyo nuevo
-                putts_anteriores = [0, 0, 0, 0]
-            
-            # --- 2. INTERFAZ DE USUARIO (INPUTS) ---
+           # --- 3. INTERFAZ DE USUARIO (SOLUCIÓN DEFINITIVA) ---
+
+            # 1. Definimos las columnas FUERA del bucle
             cols_g = st.columns(4)
             nombres = ["MANU", "JOSE", "ROGE", "LALO"]
             
+            # 2. Nos aseguramos de tener listas de longitud 4. 
+            # Si los datos anteriores están mal, forzamos valores por defecto para evitar errores de índice
+            if 'golpes_anteriores' not in locals() or len(golpes_anteriores) < 4:
+                golpes_anteriores = [1, 1, 1, 1]
+            if 'putts_anteriores' not in locals() or len(putts_anteriores) < 4:
+                putts_anteriores = [0, 0, 0, 0]
+            
+            # 3. Iteramos exactamente 4 veces
             for i in range(4):
                 with cols_g[i]:
+                    # Título del jugador
                     st.markdown(f"**{nombres[i]}**")
                     
-                    # Campo Golpes
+                    # Input GOLPES
                     st.number_input(
-                        "Golpes", min_value=1, step=1, 
+                        "Golpes", 
+                        min_value=1, step=1, 
                         value=int(golpes_anteriores[i]), 
                         key=f"s{i}_h{h_actual}",
                         on_change=activar_boton_guardar
                     )
                     
-                    # Campo Putts
+                    # Input PUTTS
                     st.number_input(
-                        "Putts", min_value=0, step=1, 
+                        "Putts", 
+                        min_value=0, step=1, 
                         value=int(putts_anteriores[i]), 
                         key=f"p{i}_h{h_actual}",
                         on_change=activar_boton_guardar
