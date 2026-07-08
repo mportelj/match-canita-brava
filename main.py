@@ -714,7 +714,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
                                     on_change=activar_boton_guardar, 
                                     key=f"p{i}_h{h_actual}", label_visibility="collapsed")
-                    inputs_p.append(val_p)
+                # inputs_p.append(val_p)
             
             # Asignamos los valores a las variables para que funcionen con tu función de guardado
             s0, s1, s2, s3 = inputs_s
