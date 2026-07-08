@@ -693,9 +693,23 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 "LALO": {"color": "#000000", "clase": "borde-lalo"}
             }
             
+            # --- 1. CSS COMPACTO Y COLORES ---
             st.markdown("""
                 <style>
-                /* Aplicamos el borde al input directamente dentro de nuestra clase */
+                /* Reduce la separación entre columnas y filas */
+                [data-testid="column"] {
+                    padding-top: 2px !important;
+                    padding-bottom: 2px !important;
+                }
+                
+                /* Hace los inputs más pequeños (altura reducida y fuente menor) */
+                .stNumberInput input {
+                    font-size: 14px !important;
+                    height: 30px !important; 
+                    padding: 2px 5px !important;
+                }
+                
+                /* Ajusta el borde de color del jugador */
                 .borde-manu input { border: 2px solid #2E8B57 !important; }
                 .borde-jose input { border: 2px solid #1E90FF !important; }
                 .borde-roge input { border: 2px solid #DC143C !important; }
@@ -703,8 +717,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 </style>
             """, unsafe_allow_html=True)
             
-            # --- 2. LÓGICA DE DATOS (PAR POR DEFECTO) ---
+            # --- 2. INPUTS (MANTENIENDO TU LÓGICA DE VALORES) ---
             jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
+            inputs_s = []
+            inputs_p = []
             
             # Si NO hay datos, usamos el PAR del hoyo. Si hay datos, usamos los de la BD.
             if hay_datos_hoyo:
@@ -715,21 +731,17 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 g_defaults = [val_par_hoyo] * 4 
                 p_defaults = [2] * 4 # O el valor por defecto que prefieras
             
-            # --- 3. INPUTS ---
-            inputs_s = []
-            inputs_p = []
-            
+           
             for i in range(4):
                 nombre = jugadores[i]
                 cfg = config_jugadores[nombre]
                 
-                c1, c2, c3 = st.columns([1, 1, 1])
+                # Columnas un poco más ajustadas (0.6 para nombre, 1 para inputs)
+                c1, c2, c3 = st.columns([0.6, 1, 1], gap="small", vertical_alignment="center")
                 
-                # Nombre
                 with c1:
-                    st.markdown(f"<p style='color:{cfg['color']}; font-weight:bold; margin-top: 15px;'>{nombre}</p>", unsafe_allow_html=True)
+                    st.markdown(f"<p style='color:{cfg['color']}; font-weight:bold; font-size:14px; margin:0;'>{nombre}</p>", unsafe_allow_html=True)
                 
-                # Input Golpes (envuelto en div con clase)
                 with c2:
                     st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
                     val_s = st.number_input(f"G{i}", min_value=1, value=g_defaults[i], 
@@ -737,7 +749,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.markdown('</div>', unsafe_allow_html=True)
                     inputs_s.append(val_s)
                     
-                # Input Putts (envuelto en div con clase)
                 with c3:
                     st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
                     val_p = st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
