@@ -686,7 +686,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.session_state.hoyo_modificado = True
 
            # --- 1. CONFIGURACIÓN ---
-            # --- 1. CONFIGURACIÓN ---
             config_jugadores = {
                 "MANU": {"color": "#2E8B57", "clase": "borde-manu"},
                 "JOSE": {"color": "#1E90FF", "clase": "borde-jose"},
@@ -694,7 +693,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 "LALO": {"color": "#000000", "clase": "borde-lalo"}
             }
             
-            # CSS para bordes de colores
+            # CSS para aplicar color a los bordes de los inputs
             st.markdown("""
                 <style>
                 .borde-manu div[data-baseweb="base-input"] { border: 2px solid #2E8B57 !important; }
@@ -725,9 +724,11 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 
                 c1, c2, c3 = st.columns([1, 1, 1])
                 
+                # Nombre
                 with c1:
-                    st.markdown(f"<p style='color:{cfg['color']}; font-weight:bold; margin-top: 10px;'>{nombre}</p>", unsafe_allow_html=True)
+                    st.markdown(f"<p style='color:{cfg['color']}; font-weight:bold; margin-top: 15px;'>{nombre}</p>", unsafe_allow_html=True)
                 
+                # Input Golpes (con borde color jugador)
                 with c2:
                     st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
                     val_s = st.number_input(f"G{i}", min_value=1, value=g_defaults[i], 
@@ -735,6 +736,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.markdown('</div>', unsafe_allow_html=True)
                     inputs_s.append(val_s)
                     
+                # Input Putts (con borde color jugador)
                 with c3:
                     st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
                     val_p = st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
