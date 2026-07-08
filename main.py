@@ -686,6 +686,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.session_state.hoyo_modificado = True
 
            # --- 1. CONFIGURACIÓN ---
+            # --- 1. CONFIGURACIÓN ---
             config_jugadores = {
                 "MANU": {"color": "#2E8B57", "clase": "borde-manu"},
                 "JOSE": {"color": "#1E90FF", "clase": "borde-jose"},
@@ -693,7 +694,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 "LALO": {"color": "#000000", "clase": "borde-lalo"}
             }
             
-            # Solo el CSS necesario para los bordes
+            # CSS para bordes de colores
             st.markdown("""
                 <style>
                 .borde-manu div[data-baseweb="base-input"] { border: 2px solid #2E8B57 !important; }
@@ -703,41 +704,40 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 </style>
             """, unsafe_allow_html=True)
             
-            # --- 2. INPUTS DE JUGADORES ---
+            # --- 2. LÓGICA DE DATOS INICIALES ---
             jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
+            p_defaults = [2, 2, 2, 2]
+            g_defaults = [4, 4, 4, 4] # Ajusta este valor por defecto a tu gusto
+            
+            if hay_datos_hoyo:
+                try:
+                    p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
+                    g_defaults = [int(df_hoyo_actual[f's{i}'].iloc[0]) for i in range(4)]
+                except: pass
+            
+            # --- 3. INPUTS ---
             inputs_s = []
             inputs_p = []
-
-            # Definimos defaults de putts
-            p_defaults = [2, 2, 2, 2]
-            if hay_datos_hoyo:
-               try:
-                   p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
-                except: pass
-                                
-            # (Asegúrate de que 'golpes_anteriores' y 'p_defaults' estén definidos previamente)
             
             for i in range(4):
                 nombre = jugadores[i]
                 cfg = config_jugadores[nombre]
                 
-                # Usamos columnas estándar sin forzar CSS extraño
                 c1, c2, c3 = st.columns([1, 1, 1])
                 
                 with c1:
                     st.markdown(f"<p style='color:{cfg['color']}; font-weight:bold; margin-top: 10px;'>{nombre}</p>", unsafe_allow_html=True)
                 
                 with c2:
-                    # Contenedor para aplicar el borde
                     st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
-                    val_s = st.number_input(f"Golpes {nombre}", min_value=1, value=golpes_anteriores[i], 
+                    val_s = st.number_input(f"G{i}", min_value=1, value=g_defaults[i], 
                                             on_change=activar_boton_guardar, key=f"s{i}_h{h_actual}", label_visibility="collapsed")
                     st.markdown('</div>', unsafe_allow_html=True)
                     inputs_s.append(val_s)
                     
                 with c3:
                     st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
-                    val_p = st.number_input(f"Putts {nombre}", min_value=0, value=p_defaults[i], 
+                    val_p = st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
                                             on_change=activar_boton_guardar, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
                     st.markdown('</div>', unsafe_allow_html=True)
                     inputs_p.append(val_p)
