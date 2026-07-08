@@ -1263,7 +1263,7 @@ elif st.session_state.menu_seleccionado == "Admin":
                 
                 # Tabla detallada con nombres de jugadores
                 st.dataframe(
-                    df_partido[['hoyo', 's0', 's1', 's2', 's3', p0, p1, p2, p3, 'resultado_a', 'resultado_b']],
+                    df_partido[['hoyo', 's0', 's1', 's2', 's3', 'p0', 'p1', 'p2', 'p3', 'resultado_a', 'resultado_b']],
                     column_config={
                         "hoyo": "H",
                         "s0": "Manu", "s1": "Jose", 
