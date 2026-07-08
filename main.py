@@ -54,16 +54,21 @@ if "partida_id" in st.query_params:
     st.session_state.menu_seleccionado = "Nueva Partida"
     st.session_state.nav_radio = "Nueva Partida"
     
-    if 'game' not in st.session_state or st.session_state.game is None:
-        st.session_state.game = {
-            'id': st.query_params["partida_id"],
-            'h_sel': int(st.query_params.get("hoyo", 1)),
-            'fecha': datetime.now().strftime("%d/%m/%Y"), 
-            'temporada': str(datetime.now().year)
-        }
-elif 'game' not in st.session_state:
-    st.session_state.game = {"h_sel": 1}
+# --- INICIALIZACIÓN SEGURA ---
+if 'game' not in st.session_state or st.session_state.game is None:
     
+    # Obtenemos los parámetros de forma segura (usando .get para evitar errores si no existen)
+    # Si 'partida_id' no está en la URL, le damos un valor por defecto (ej: "0")
+    partida_id = st.query_params.get("partida_id", "0")
+    hoyo_actual = int(st.query_params.get("hoyo", 1))
+    
+    st.session_state.game = {
+        'id': partida_id,
+        'h_sel': hoyo_actual,
+        'fecha': datetime.now().strftime("%d/%m/%Y"),
+        'temporada': str(datetime.now().year),
+        'modo_9_hoyos': False # Inicializa también lo que necesites después
+    }
 def borrar_partido_completo(partido_id):
     try:
         hoja = st.session_state.sh
