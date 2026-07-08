@@ -1250,31 +1250,31 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 df_consistencia = df_consistencia.sort_values(by='Media Putts', ascending=True)
                 
                 # --- 2. GRÁFICO (SOLUCIÓN DEFINITIVA) ---
-                st.markdown("### 📊 Comparativa de Putts")
-                
-                # Definimos el gráfico usando el orden del DataFrame
-                chart = alt.Chart(df_consistencia).mark_bar().encode(
-                    # 'sort=list(...)' obliga a Altair a respetar el orden del DataFrame
-                    x=alt.X('Jugador:N', 
-                            sort=list(df_consistencia['Jugador']), 
-                            axis=alt.Axis(labelAngle=0, title=None)), 
-                    y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3])),
-                    # Quitamos la leyenda lateral
-                    color=alt.Color('Jugador:N', legend=None) 
-                ).properties(height=300)
-                
-                # Capa de texto (los valores encima de la barra)
-                text = chart.mark_text(
-                    align='center',
-                    baseline='bottom',
-                    dy=-5,
-                    color='black'
-                ).encode(
-                    text=alt.Text('Media Putts', format='.2f')
-                )
-                
-                # Renderizamos
-                st.altair_chart(chart + text, use_container_width=True)
+                    st.markdown("### 📊 Comparativa de Putts")
+                    
+                    # Definimos el gráfico usando el orden del DataFrame
+                    chart = alt.Chart(df_consistencia).mark_bar().encode(
+                        # 'sort=list(...)' obliga a Altair a respetar el orden del DataFrame
+                        x=alt.X('Jugador:N', 
+                                sort=list(df_consistencia['Jugador']), 
+                                axis=alt.Axis(labelAngle=0, title=None)), 
+                        y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3])),
+                        # Quitamos la leyenda lateral
+                        color=alt.Color('Jugador:N', legend=None) 
+                    ).properties(height=300)
+                    
+                    # Capa de texto (los valores encima de la barra)
+                    text = chart.mark_text(
+                        align='center',
+                        baseline='bottom',
+                        dy=-5,
+                        color='black'
+                    ).encode(
+                        text=alt.Text('Media Putts', format='.2f')
+                    )
+                    
+                    # Renderizamos
+                    st.altair_chart(chart + text, use_container_width=True)
                     
                     # --- 3. TABLA DE CONSISTENCIA (CORREGIDA) ---
                     st.markdown(
