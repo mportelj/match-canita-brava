@@ -696,36 +696,21 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
            # --- CSS AGRESIVO PARA COMPACTAR AL MÁXIMO ---
             st.markdown("""
                 <style>
-                /* 1. Reducir el espacio externo del input */
-                .stNumberInput {
-                    margin-top: -10px !important;
-                    margin-bottom: 0px !important;
-                    padding-top: 0px !important;
-                    padding-bottom: 0px !important;
-                }
-                
-                /* 2. Forzar altura pequeña y sin relleno interno en la caja */
-                div[data-baseweb="base-input"] {
-                    height: 30px !important;
-                    min-height: 30px !important;
-                    padding: 0px 5px !important;
-                }
-                
-                /* 3. Reducir el tamaño de la fuente y centrar el texto */
-                input {
-                    font-size: 13px !important;
-                    height: 30px !important;
-                    padding: 0px 5px !important;
-                }
-                
-                /* 4. Mantenemos tus colores de borde */
-                .borde-manu input { border: 2px solid #2E8B57 !important; }
-                .borde-jose input { border: 2px solid #1E90FF !important; }
-                .borde-roge input { border: 2px solid #DC143C !important; }
-                .borde-lalo input { border: 2px solid #000000 !important; }
+                    /* Eliminamos el margen por defecto de los inputs */
+                    .stNumberInput {
+                        margin-bottom: 2px !important;
+                        padding-bottom: 0px !important;
+                        margin-top: 0px !important;
+                    }
+                    /* Ajustamos el contenedor de los bordes para que estén pegados */
+                    .input-container {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 1px !important; 
+                    }
                 </style>
             """, unsafe_allow_html=True)
-            
+                        
             # --- 2. INPUTS (MANTENIENDO TU LÓGICA DE VALORES) ---
             jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
             inputs_s = []
@@ -745,24 +730,25 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 nombre = jugadores[i]
                 cfg = config_jugadores[nombre]
                 
-                # Columnas un poco más ajustadas (0.6 para nombre, 1 para inputs)
-                c1, c2, c3 = st.columns([0.6, 1, 1], gap="small", vertical_alignment="center")
+                # ESTRUCTURA: Columna 1 (Nombre), Columna 2 (Inputs apilados)
+                c1, c2 = st.columns([0.4, 1], vertical_alignment="center")
                 
                 with c1:
                     st.markdown(f"<p style='color:{cfg['color']}; font-weight:bold; font-size:14px; margin:0;'>{nombre}</p>", unsafe_allow_html=True)
                 
                 with c2:
-                    st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
+                    # Usamos un div contenedor para mantener los bordes coloreados
+                    st.markdown(f'<div class="{cfg["clase"]}" style="margin-bottom: 2px;">', unsafe_allow_html=True)
                     val_s = st.number_input(f"G{i}", min_value=1, value=g_defaults[i], 
                                             on_change=activar_boton_guardar, key=f"s{i}_h{h_actual}", label_visibility="collapsed")
                     st.markdown('</div>', unsafe_allow_html=True)
-                    inputs_s.append(val_s)
                     
-                with c3:
                     st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
                     val_p = st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
                                             on_change=activar_boton_guardar, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
                     st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    inputs_s.append(val_s)
                     inputs_p.append(val_p)
             
             # Desempaquetado
