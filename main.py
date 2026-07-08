@@ -709,11 +709,11 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             inputs_p = []
 
             # Definimos defaults de putts
-                        p_defaults = [2, 2, 2, 2]
-                        if hay_datos_hoyo:
-                            try:
-                                p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
-                            except: pass
+            p_defaults = [2, 2, 2, 2]
+            if hay_datos_hoyo:
+               try:
+                   p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
+                   except: pass
                                 
             # (Asegúrate de que 'golpes_anteriores' y 'p_defaults' estén definidos previamente)
             
