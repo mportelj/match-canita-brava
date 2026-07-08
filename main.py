@@ -1160,8 +1160,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         st.plotly_chart(fig2, use_container_width=True)
                         
                     
-                    else:
-                        st.info("No hay datos para mostrar con los filtros actuales.")
+                   
 
 # SECCIÓN: ADMIN
 # ==========================================
