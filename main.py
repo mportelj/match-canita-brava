@@ -32,7 +32,10 @@ def activar_boton_guardar():
     st.session_state.hoyo_modificado = True
 
 # --- 2. INICIALIZACIÓN DE ESTADOS (ESTO EVITA QUE LA APP MUERA) ---
-if 'game' not in st.session_state or st.session_state.game is None:
+if st.session_state.get('logout_requested', False):
+    # Si acabamos de salir, reseteamos el flag y NO creamos partida nueva
+    st.session_state.logout_requested = False
+elif 'game' not in st.session_state or st.session_state.game is None:
     # Obtenemos parámetros de forma segura, con valores por defecto si no existen
     partida_id = st.query_params.get("partida_id", "0")
     hoyo_sel = int(st.query_params.get("hoyo", 1))
@@ -790,21 +793,17 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     for idx, (nom, pts) in enumerate(ranking):
                         cols_r[idx].write(f"**{nom}**")
                         cols_r[idx].write(f"{pts:.1f}")
-
-           # 10. FINALIZAR PARTIDA
-            st.write("---")
-            with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
-                st.warning("⚠️ Esta acción cerrará la sesión actual.")
-                if st.button("Confirmar y Salir", type="primary", use_container_width=True):
                     
-                    # 1. Marcamos el estado de "salida solicitada"
-                    st.session_state.logout_requested = True 
-                    
-                    # 2. Limpiamos
-                    st.session_state.game = None
-                    st.query_params.clear()
-                    st.cache_data.clear()
-                    st.rerun()
+                    # 10. FINALIZAR PARTIDA
+                    st.write("---")
+                    with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
+                        st.warning("⚠️ Esta acción cerrará la sesión actual.")
+                        if st.button("Confirmar y Salir", type="primary", use_container_width=True):
+                            st.session_state.logout_requested = True # <--- ESTO ES LA CLAVE
+                            st.session_state.game = None
+                            st.query_params.clear()
+                            st.cache_data.clear()
+                            st.rerun()
 
 #ESTADISTICAS ==============
 
