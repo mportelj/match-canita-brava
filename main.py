@@ -70,21 +70,7 @@ if "partida_id" in st.query_params:
     st.session_state.menu_seleccionado = "Nueva Partida"
     st.session_state.nav_radio = "Nueva Partida"
     
-# --- INICIALIZACIÓN SEGURA ---
-if 'game' not in st.session_state or st.session_state.game is None:
-    
-    # Obtenemos los parámetros de forma segura (usando .get para evitar errores si no existen)
-    # Si 'partida_id' no está en la URL, le damos un valor por defecto (ej: "0")
-    partida_id = st.query_params.get("partida_id", "0")
-    hoyo_actual = int(st.query_params.get("hoyo", 1))
-    
-    st.session_state.game = {
-        'id': partida_id,
-        'h_sel': hoyo_actual,
-        'fecha': datetime.now().strftime("%d/%m/%Y"),
-        'temporada': str(datetime.now().year),
-        'modo_9_hoyos': False # Inicializa también lo que necesites después
-    }
+
 def borrar_partido_completo(partido_id):
     try:
         hoja = st.session_state.sh
@@ -805,12 +791,17 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                         cols_r[idx].write(f"**{nom}**")
                         cols_r[idx].write(f"{pts:.1f}")
 
-            # 10. FINALIZAR PARTIDA
+           # 10. FINALIZAR PARTIDA
             st.write("---")
             with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
                 st.warning("⚠️ Esta acción cerrará la sesión actual.")
                 if st.button("Confirmar y Salir", type="primary", use_container_width=True):
                     
+                    # 1. Marcamos el estado de "salida solicitada"
+                    st.session_state.logout_requested = True 
+                    
+                    # 2. Limpiamos
+                    st.session_state.game = None
                     st.query_params.clear()
                     st.cache_data.clear()
                     st.rerun()
