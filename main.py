@@ -29,38 +29,35 @@ def cargar_datos_golf():
 
 # --- 3. INICIALIZACIÓN DE ESTADOS ---
 
-# 1. Variables base del sistema
+# 1. Variables base del sistema (que requieren lógica o carga previa)
 if 'sh' not in st.session_state:
     st.session_state.sh = cargar_datos_golf()
 
-if 'refresco_id' not in st.session_state:
-    st.session_state.refresco_id = 0
+# 2. Inicializamos todos los estados por defecto de una sola vez
+default_states = {
+    'refresco_id': 0,
+    'hoyo_modificado': False,
+    'menu_seleccionado': 'Inicio',
+    'nav_radio': 'Inicio'
+}
 
-if 'hoyo_modificado' not in st.session_state:
-    st.session_state.hoyo_modificado = False
-
-# 2. Variables de navegación (Por defecto en Inicio)
-if 'menu_seleccionado' not in st.session_state:
-    st.session_state.menu_seleccionado = "Inicio"
-
-if 'nav_radio' not in st.session_state:
-    st.session_state.nav_radio = "Inicio"
+for key, value in default_states.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
 
 # 3. 🚀 MOTOR DE RESURRECCIÓN TRAS BLOQUEO
+# Esta parte es correcta y necesaria, ya que sobrescribe los valores si venimos de una URL
 if "partida_id" in st.query_params:
-    # Si detecta URL, sobrescribe la navegación para forzar la entrada al partido
     st.session_state.menu_seleccionado = "Nueva Partida"
     st.session_state.nav_radio = "Nueva Partida"
     
-    # Reconstruye el diccionario 'game' si el bloqueo lo ha borrado de la memoria
     if 'game' not in st.session_state or st.session_state.game is None:
         st.session_state.game = {
             'id': st.query_params["partida_id"],
             'h_sel': int(st.query_params.get("hoyo", 1)),
             'fecha': datetime.now().strftime("%d/%m/%Y"), 
-            'temporada': str(datetime.now().year)         
+            'temporada': str(datetime.now().year)
         }
-# 4. Inicialización normal si no venimos de un bloqueo
 elif 'game' not in st.session_state:
     st.session_state.game = {"h_sel": 1}
     
@@ -161,7 +158,7 @@ with st.sidebar:
 
     # Función limpia para actualizar el estado al hacer clic manual
     def cambiar_menu():
-        st.session_state.menu_seleccionado = st.session_state.nav_radio
+        st.session_state.menu_seleccionado = st.session_state.get('nav_radio', 'Inicio')
 
     # El radio utiliza su index dinámico y se sincroniza a la perfección
     st.radio(
@@ -275,12 +272,7 @@ def calcular_puntos_hoyo(s0, s2, s1, s3, par):
 if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-# def cambiar_menu():
-    # Usamos .get() que es seguro: si no existe 'nav_radio', devuelve None
-    # seleccion = st.session_state.get("nav_radio")
-    # if seleccion:
-        # st.session_state.menu_seleccionado = seleccion
-        
+
 def actualizar_o_insertar_hoyo(datos):
     """
     datos: [fecha, hoyo, s0, s1, s2, s3]
