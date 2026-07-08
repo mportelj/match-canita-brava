@@ -1209,8 +1209,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     # 2. CÁLCULO DE MÉTRICAS DE CONSISTENCIA
                     import altair as alt
 
-                    # --- 1. PREPARACIÓN Y CÁLCULO ---
-                    # (Asumiendo que df_stats_source ya está filtrado como en los pasos anteriores)
+                    # --- 1. CÁLCULO CON NUEVA MÉTRICA ---
                     stats_list = []
                     cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
                     
@@ -1221,11 +1220,29 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                                 'Jugador': nombre,
                                 'Media Putts': datos.mean(),
                                 '% 1-Putt': (datos == 1).mean() * 100,
+                                '% 2-Putts': (datos == 2).mean() * 100,  # <--- NUEVA MÉTRICA
                                 '% 3-Putts': (datos >= 3).mean() * 100
                             })
                     
-                    # Creamos el DF y lo ordenamos de menor a mayor media
+                    # Creamos el DataFrame y lo limpiamos
                     df_consistencia = pd.DataFrame(stats_list).sort_values(by='Media Putts', ascending=True)
+                    df_consistencia = df_consistencia.reset_index(drop=True) # <--- ESTO QUITA LA COLUMNA 0, 1, 2...
+
+# --- 2. TABLA CON ESTILO ---
+if not df_consistencia.empty:
+    estilo = df_consistencia.style \
+        .format({
+            'Media Putts': '{:.2f}', 
+            '% 1-Putt': '{:.0f}%', 
+            '% 2-Putts': '{:.0f}%', # <--- NUEVO FORMATO
+            '% 3-Putts': '{:.0f}%'
+        }) \
+        .set_table_styles([
+            {'selector': 'th', 'props': [('text-align', 'center')]},
+            {'selector': 'td', 'props': [('text-align', 'center')]}
+        ])
+
+    st.table(estilo)
                     
                     # --- 2. GRÁFICO DE BARRAS (ORDENADO Y CON ETIQUETAS) ---
                     st.markdown("### 📊 Comparativa de Putts")
