@@ -1245,33 +1245,36 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                         st.table(estilo)
                     
-                  # --- GRÁFICO DE BARRAS (SOLUCIÓN DEFINITIVA) ---
-                    st.markdown("### 📊 Comparativa de Putts")
-                    
-                    # 1. Aseguramos que la columna sea tratada como texto (Nominal)
-                    df_consistencia['Jugador'] = df_consistencia['Jugador'].astype(str)
-                    
-                    # 2. Definimos el gráfico
-                    chart = alt.Chart(df_consistencia).mark_bar().encode(
-                        # Forzamos las etiquetas en el eje X
-                        x=alt.X('Jugador', axis=alt.Axis(labelAngle=0, title=None, labels=True)),
-                        y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3])),
-                        # Eliminamos cualquier referencia a la leyenda
-                        color=alt.Color('Jugador', legend=None) 
-                    ).properties(height=300)
-                    
-                    # 3. Capa de texto (valores encima)
-                    text = chart.mark_text(
-                        align='center',
-                        baseline='bottom',
-                        dy=-5,
-                        color='black'
-                    ).encode(
-                        text=alt.Text('Media Putts', format='.2f')
-                    )
-                    
-                    # 4. Renderizamos
-                    st.altair_chart(chart + text, use_container_width=True)
+                 # --- 1. ORDENAMOS EL DATAFRAME (MENOR A MAYOR) ---
+                # Forzamos el orden en el origen de los datos
+                df_consistencia = df_consistencia.sort_values(by='Media Putts', ascending=True)
+                
+                # --- 2. GRÁFICO (SOLUCIÓN DEFINITIVA) ---
+                st.markdown("### 📊 Comparativa de Putts")
+                
+                # Definimos el gráfico usando el orden del DataFrame
+                chart = alt.Chart(df_consistencia).mark_bar().encode(
+                    # 'sort=list(...)' obliga a Altair a respetar el orden del DataFrame
+                    x=alt.X('Jugador:N', 
+                            sort=list(df_consistencia['Jugador']), 
+                            axis=alt.Axis(labelAngle=0, title=None)), 
+                    y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3])),
+                    # Quitamos la leyenda lateral
+                    color=alt.Color('Jugador:N', legend=None) 
+                ).properties(height=300)
+                
+                # Capa de texto (los valores encima de la barra)
+                text = chart.mark_text(
+                    align='center',
+                    baseline='bottom',
+                    dy=-5,
+                    color='black'
+                ).encode(
+                    text=alt.Text('Media Putts', format='.2f')
+                )
+                
+                # Renderizamos
+                st.altair_chart(chart + text, use_container_width=True)
                     
                     # --- 3. TABLA DE CONSISTENCIA (CORREGIDA) ---
                     st.markdown(
