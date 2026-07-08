@@ -28,6 +28,8 @@ def cargar_datos_golf():
     return client.open_by_url(s["url"]).sheet1
 
 # --- 3. INICIALIZACIÓN DE ESTADOS ---
+
+# 1. Variables base del sistema
 if 'sh' not in st.session_state:
     st.session_state.sh = cargar_datos_golf()
 
@@ -37,15 +39,20 @@ if 'refresco_id' not in st.session_state:
 if 'hoyo_modificado' not in st.session_state:
     st.session_state.hoyo_modificado = False
 
-# 1º Asignamos el valor por defecto PRIMERO para que no dé el KeyError
+# 2. Variables de navegación (Por defecto en Inicio)
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-# 2º 🚀 MOTOR DE RESURRECCIÓN: Lee la URL y sobrescribe el menú si venimos de un bloqueo
+if 'nav_radio' not in st.session_state:
+    st.session_state.nav_radio = "Inicio"
+
+# 3. 🚀 MOTOR DE RESURRECCIÓN TRAS BLOQUEO
 if "partida_id" in st.query_params:
+    # Si detecta URL, sobrescribe la navegación para forzar la entrada al partido
     st.session_state.menu_seleccionado = "Nueva Partida"
+    st.session_state.nav_radio = "Nueva Partida"
     
-    # Reconstruimos la partida en memoria usando los datos de la URL
+    # Reconstruye el diccionario 'game' si el bloqueo lo ha borrado de la memoria
     if 'game' not in st.session_state or st.session_state.game is None:
         st.session_state.game = {
             'id': st.query_params["partida_id"],
@@ -53,11 +60,9 @@ if "partida_id" in st.query_params:
             'fecha': datetime.now().strftime("%d/%m/%Y"), 
             'temporada': str(datetime.now().year)         
         }
+# 4. Inicialización normal si no venimos de un bloqueo
 elif 'game' not in st.session_state:
     st.session_state.game = {"h_sel": 1}
-
-if 'nav_radio' not in st.session_state:
-    st.session_state.nav_radio = st.session_state.menu_seleccionado
     
 def borrar_partido_completo(partido_id):
     try:
