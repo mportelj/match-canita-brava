@@ -1170,7 +1170,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     df_putts['Jugador'] = df_putts['Jugador'].map(mapa_nombres)
                     
                     # Cálculo de promedio
-                    df_putts['Promedio/Hoyo'] = df_stats[['p0', 'p1', 'p2', 'p3']].mean().values
+                    df_putts['Hoyo'] = df_stats[['p0', 'p1', 'p2', 'p3']].mean().values
                     
                     # Mostrar tabla resumen
                     col_st1, col_st2 = st.columns([1, 2])
@@ -1225,8 +1225,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                             hide_index=True, 
                             use_container_width=True,
                             column_config={
-                                "1-Putt": st.column_config.TextColumn("Salvas (1-Putt)"),
-                                "3+ Putts": st.column_config.TextColumn("Errores (3+ Putts)")
+                                "1-Putt": st.column_config.TextColumn("1 Putt"),
+                                "3+ Putts": st.column_config.TextColumn("3+ Putts")
                             }
                         )
                         
