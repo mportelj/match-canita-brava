@@ -1160,42 +1160,50 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         st.plotly_chart(fig2, use_container_width=True)
                         
                     #PUTT
-                        # --- ANÁLISIS DE PUTTS (CÓDIGO CORREGIDO) ---
-                    st.markdown("### ⛳ Análisis de Putts")
-                    
-                    # 1. Aseguramos la existencia de la fuente de datos
-                    df_stats_source = df_stats.copy() 
-                    
-                    # 2. Definir columnas de jugadores
-                    cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
-                    
-                    # 3. Verificación de seguridad
-                    if not df_stats_source.empty:
-                        # Seleccionamos solo las columnas de putts
-                        columnas_existentes = [c for c in cols_putts.keys() if c in df_stats_source.columns]
-                        df_putts_data = df_stats_source[columnas_existentes].apply(pd.to_numeric, errors='coerce').fillna(0)
+                  # --- ANÁLISIS DE PUTTS (FILTRADO POR FECHA) ---
+                        # --- ANÁLISIS DE PUTTS (FILTRADO Y CENTRADO) ---
+                        st.markdown("### ⛳ Análisis de Putts")
                         
-                        # Preparamos el DataFrame de resultados
-                        df_putts_summary = pd.DataFrame({
-                            'Jugador': list(cols_putts.values()),
-                            'Total': df_putts_data.sum().values,
-                            'Media': df_putts_data.mean().values
-                        })
-                    
-                        # 4. Mostrar tabla
-                        # Nota: He eliminado 'text_align' porque causaba el error
-                        st.dataframe(
-                            df_putts_summary,
-                            hide_index=True,
-                            use_container_width=True,
-                            column_config={
-                                "Jugador": st.column_config.TextColumn("Jugador"),
-                                "Total": st.column_config.NumberColumn("Total Putts", format="%d"),
-                                "Media": st.column_config.NumberColumn("Media/Hoyo", format="%.2f")
-                            }
-                        )
-                    else:
-                        st.info("No hay datos disponibles para procesar los putts.")
+                        # 1. Conversión de fechas y Filtros
+                        # Aseguramos que 'fecha' sea datetime (haz esto una vez al cargar datos si puedes, para optimizar)
+                        df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], dayfirst=True)
+                        fecha_corte = pd.Timestamp('2026-07-08')
+                        
+                        # Filtramos por Temporada (temp_actual) Y por Fecha
+                        df_stats_source = df_raw[
+                            (df_raw['t_limpia'] == temp_actual) & 
+                            (df_raw['fecha_dt'] >= fecha_corte)
+                        ].copy()
+                        
+                        # 2. Definir jugadores
+                        cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
+                        
+                        # 3. Verificación y Cálculo
+                        if not df_stats_source.empty:
+                            cols_existentes = [c for c in cols_putts.keys() if c in df_stats_source.columns]
+                            df_data = df_stats_source[cols_existentes].apply(pd.to_numeric, errors='coerce').fillna(0)
+                            
+                            df_putts_summary = pd.DataFrame({
+                                'Jugador': [cols_putts[c] for c in cols_existentes],
+                                'Total': df_data.sum().values,
+                                'Media': df_data.mean().values
+                            })
+                        
+                            # 4. Mostrar con celdas centradas (usando Styler)
+                            # Aplicamos estilo de centrado tanto al cuerpo (text-align) como a los encabezados (th)
+                            df_styled = df_putts_summary.style \
+                                .set_properties(**{'text-align': 'center'}) \
+                                .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}]) \
+                                .format({'Total': '{:.0f}', 'Media': '{:.2f}'})
+                        
+                            st.dataframe(
+                                df_styled, 
+                                hide_index=True, 
+                                use_container_width=True
+                            )
+                        else:
+                            # Mensaje informativo mejorado
+                            st.info(f"No hay registros de putts en la temporada **{temp_actual}** posteriores al 08/07/2026.")
                    
 
 # SECCIÓN: ADMIN
