@@ -27,7 +27,10 @@ def cargar_datos_golf():
     client = gspread.authorize(creds)
     return client.open_by_url(s["url"]).sheet1
 
-# --- 3. INICIALIZACIÓN DE ESTADOS ---
+def activar_boton_guardar():
+    st.session_state.hoyo_modificado = True
+
+    # --- 3. INICIALIZACIÓN DE ESTADOS ---
 
 # 1. Variables base del sistema (que requieren lógica o carga previa)
 if 'sh' not in st.session_state:
