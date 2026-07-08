@@ -1160,9 +1160,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         st.plotly_chart(fig2, use_container_width=True)
                         
                     #PUTT
-                    # --- ANÁLISIS DE PUTTS (CONTROL TOTAL DE ESTILO) ---
-                    
-                    # 1. Preparación de datos (igual que antes)
+                    # --- ANÁLISIS DE PUTTS (ORDENADO Y AJUSTADO) ---
+
+                    # 1. Preparación de datos
                     df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], dayfirst=True)
                     fecha_corte = pd.Timestamp('2026-07-08')
                     
@@ -1179,10 +1179,10 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         unsafe_allow_html=True
                     )
                     
-                    # 3. Verificación y Cálculo
                     if not df_stats_source.empty:
                         cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
                         cols_existentes = [c for c in cols_putts.keys() if c in df_stats_source.columns]
+                        
                         df_data = df_stats_source[cols_existentes].apply(pd.to_numeric, errors='coerce').fillna(0)
                         
                         df_putts_summary = pd.DataFrame({
@@ -1191,25 +1191,23 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                             'Media': df_data.mean().values
                         })
                     
-                        # 4. APLICAMOS ESTILO (Aquí está el secreto del centrado y el ancho)
-                        # Definimos el estilo para centrar el texto y ajustar el ancho de las columnas
-                        estilo_tabla = df_putts_summary.style \
-                            .set_properties(**{
-                                'text-align': 'center',    # Centra el contenido
-                                'width': '80px',           # Fuerza un ancho estrecho
-                                'min-width': '80px'
-                            }) \
-                            .set_table_styles([
-                                {'selector': 'th', 'props': [('text-align', 'center')]} # Centra encabezados
-                            ]) \
-                            .format({'Total': '{:.0f}', 'Media': '{:.2f}'}) # Formato numérico
+                        # --- ORDENAR POR MEDIA (MENOR A MAYOR) ---
+                        df_putts_summary = df_putts_summary.sort_values(by='Media', ascending=True).reset_index(drop=True)
                     
-                        # 5. Renderizamos como st.table (HTML estático)
-                        st.table(estilo_tabla)
+                        # --- ESTILO AGRESIVO (CENTRADO Y ANCHO FIJO) ---
+                        estilo = df_putts_summary.style \
+                            .format({'Total': '{:.0f}', 'Media': '{:.2f}'}) \
+                            .set_table_styles([
+                                {'selector': 'th', 'props': [('text-align', 'center'), ('width', '100px')]},
+                                {'selector': 'td', 'props': [('text-align', 'center'), ('width', '100px')]},
+                                {'selector': 'table', 'props': [('margin-left', '0'), ('margin-right', 'auto')]}
+                            ])
+                    
+                        # Renderizamos como tabla
+                        st.table(estilo)
                     
                     else:
                         st.info(f"No hay registros de putts en la temporada **{temp_actual}** posteriores al 08/07/2026.")
-                   
 
 # SECCIÓN: ADMIN
 # ==========================================
