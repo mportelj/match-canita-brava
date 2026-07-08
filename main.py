@@ -328,7 +328,7 @@ def calcular_bonus_hoyo(golpes_jugador, par):
 
         
 
-def ejecutar_guardado_automatico(hoyo_id, s0, s1, s2, s3, p0, p1, p2, p3):
+def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3, p0, p1, p2, p3):
     try:
         hoja = st.session_state.sh
         g = st.session_state.game
