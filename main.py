@@ -810,7 +810,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
                 st.warning("⚠️ Esta acción cerrará la sesión actual.")
                 if st.button("Confirmar y Salir", type="primary", use_container_width=True):
-                    st.session_state.game = None
+                    
                     st.query_params.clear()
                     st.cache_data.clear()
                     st.rerun()
