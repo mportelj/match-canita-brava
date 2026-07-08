@@ -1207,7 +1207,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     ].copy()
                     
                     # 2. CÁLCULO DE MÉTRICAS DE CONSISTENCIA
-                    import altair as alt
+      
 
                     # --- 1. CÁLCULO CON NUEVA MÉTRICA ---
                     stats_list = []
@@ -1245,35 +1245,30 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                         st.table(estilo)
                     
-                    # --- 2. GRÁFICO DE BARRAS (ORDENADO Y CON ETIQUETAS) ---
+                    # --- 2. GRÁFICO DE BARRAS (CORREGIDO) ---
                     st.markdown("### 📊 Comparativa de Putts")
                     
-                    # Definimos la base del gráfico
                     base = alt.Chart(df_consistencia).encode(
-                        # Ordenamos explícitamente según el dataframe
-                        x=alt.X('Jugador', sort=list(df_consistencia['Jugador'])),
+                        # AÑADIDO: axis=alt.Axis(labelAngle=0) para nombres horizontales
+                        x=alt.X('Jugador', sort=list(df_consistencia['Jugador']), axis=alt.Axis(labelAngle=0)),
                         y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3]))
                     )
                     
-                    # Capa de barras
                     bars = base.mark_bar().encode(color='Jugador')
                     
-                    # Capa de texto (los valores encima de la barra)
                     text = base.mark_text(
                         align='center',
                         baseline='bottom',
-                        dy=-5,  # Desplazamiento vertical para que quede justo encima
+                        dy=-5,
                         color='black'
                     ).encode(
                         text=alt.Text('Media Putts', format='.2f')
                     )
                     
-                    # Combinamos capas
                     chart = (bars + text).properties(height=300)
-                    
                     st.altair_chart(chart, use_container_width=True)
                     
-                    # --- 3. TABLA DE CONSISTENCIA ---
+                    # --- 3. TABLA DE CONSISTENCIA (CORREGIDA) ---
                     st.markdown(
                         f"### ⛳ Tabla de Consistencia <span style='color:green; font-size: 0.8em;'>({len(df_stats_source)} hoyos registrados)</span>", 
                         unsafe_allow_html=True
@@ -1281,13 +1276,19 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                     if not df_consistencia.empty:
                         estilo = df_consistencia.style \
-                            .format({'Media Putts': '{:.2f}', '% 1-Putt': '{:.0f}%', '% 3-Putts': '{:.0f}%'}) \
+                            .format({
+                                'Media Putts': '{:.2f}', 
+                                '% 1-Putt': '{:.0f}%', 
+                                '% 2-Putts': '{:.0f}%',  # <--- AÑADIDO AQUÍ
+                                '% 3-Putts': '{:.0f}%'
+                            }) \
                             .set_table_styles([
                                 {'selector': 'th', 'props': [('text-align', 'center'), ('width', '100px')]},
                                 {'selector': 'td', 'props': [('text-align', 'center'), ('width', '100px')]},
                                 {'selector': 'table', 'props': [('margin-left', '0'), ('margin-right', 'auto')]}
                             ])
                         st.table(estilo)
+
 # SECCIÓN: ADMIN
 # ==========================================
 
