@@ -1160,16 +1160,21 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         st.plotly_chart(fig2, use_container_width=True)
                         
                     #PUTT
-                    # --- ANÁLISIS DE PUTTS (CONFIGURACIÓN LIMPIA) ---
+                   # --- 2. ANÁLISIS DE PUTTS (SECCIÓN CORREGIDA) ---
                     st.markdown("### ⛳ Análisis de Putts")
                     
-                    # 1. Definir columnas de jugadores
+                    # 1. Aseguramos la existencia de la fuente de datos
+                    # df_stats es la variable que ya tienes definida arriba en tu script
+                    df_stats_source = df_stats.copy() 
+                    
+                    # 2. Definir columnas de jugadores
                     cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
                     
-                    # 2. Verificación de seguridad: ¿Hay datos?
+                    # 3. Verificación de seguridad
                     if not df_stats_source.empty:
-                        # Aseguramos que los datos sean numéricos (limpiamos errores)
-                        df_putts_data = df_stats_source[list(cols_putts.keys())].apply(pd.to_numeric, errors='coerce').fillna(0)
+                        # Seleccionamos solo las columnas de putts y nos aseguramos de que sean números
+                        # (Usamos .get para evitar errores si alguna columna falta)
+                        df_putts_data = df_stats_source[[c for c in cols_putts.keys() if c in df_stats_source.columns]].apply(pd.to_numeric, errors='coerce').fillna(0)
                         
                         # Preparamos el DataFrame de resultados
                         df_putts_summary = pd.DataFrame({
@@ -1178,26 +1183,15 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                             'Media': df_putts_data.mean().values
                         })
                     
-                        # 3. Mostrar tabla con celdas centradas
+                        # 4. Mostrar tabla con celdas centradas
                         st.dataframe(
                             df_putts_summary,
                             hide_index=True,
                             use_container_width=True,
                             column_config={
-                                "Jugador": st.column_config.TextColumn(
-                                    "Jugador", 
-                                    text_align="center"
-                                ),
-                                "Total": st.column_config.NumberColumn(
-                                    "Total Putts", 
-                                    format="%d", 
-                                    text_align="center"
-                                ),
-                                "Media": st.column_config.NumberColumn(
-                                    "Media/Hoyo", 
-                                    format="%.2f", 
-                                    text_align="center"
-                                )
+                                "Jugador": st.column_config.TextColumn("Jugador", text_align="center"),
+                                "Total": st.column_config.NumberColumn("Total Putts", format="%d", text_align="center"),
+                                "Media": st.column_config.NumberColumn("Media/Hoyo", format="%.2f", text_align="center")
                             }
                         )
                     else:
