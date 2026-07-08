@@ -1191,6 +1191,52 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         fig_putts.update_layout(showlegend=False, yaxis_title="Putts/Hoyo")
                         st.plotly_chart(fig_putts, use_container_width=True)
 
+                    # --- CÁLCULO DE EFICIENCIAS DE PUTTING ---
+                    st.markdown("### 📊 Eficiencia en el Green")
+                    
+                    # Inicializamos lista para guardar resultados
+                    datos_eficiencia = []
+                    mapa_nombres = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
+                    total_hoyos = len(df_stats)
+                    
+                    if total_hoyos > 0:
+                        for p in ['p0', 'p1', 'p2', 'p3']:
+                            # Convertimos a numérico y tratamos errores por si hay celdas vacías
+                            data_p = pd.to_numeric(df_stats[p], errors='coerce').fillna(0)
+                            
+                            # Calculamos los porcentajes
+                            porcentaje_1_putt = (len(data_p[data_p == 1]) / total_hoyos) * 100
+                            porcentaje_3_putts = (len(data_p[data_p >= 3]) / total_hoyos) * 100
+                            media_putts = data_p.mean()
+                            
+                            datos_eficiencia.append({
+                                'Jugador': mapa_nombres[p],
+                                'Media': media_putts,
+                                '1-Putt': f"{porcentaje_1_putt:.1f}%",
+                                '3+ Putts': f"{porcentaje_3_putts:.1f}%"
+                            })
+                    
+                        # Convertimos a DataFrame para mostrarlo bonito
+                        df_eficiencia = pd.DataFrame(datos_eficiencia)
+                    
+                        # Mostramos la tabla con un diseño limpio
+                        st.dataframe(
+                            df_eficiencia, 
+                            hide_index=True, 
+                            use_container_width=True,
+                            column_config={
+                                "1-Putt": st.column_config.TextColumn("Salvas (1-Putt)"),
+                                "3+ Putts": st.column_config.TextColumn("Errores (3+ Putts)")
+                            }
+                        )
+                        
+                        # Un pequeño consejo dinámico
+                        peor_putter = df_eficiencia.loc[df_eficiencia['Media'].idxmax()]['Jugador']
+                        mejor_putter = df_eficiencia.loc[df_eficiencia['Media'].idxmin()]['Jugador']
+                        st.info(f"⛳ **Análisis:** El jugador con mejor media de putts es {mejor_putter}. ¡Cuidado con {peor_putter} en el próximo hoyo!")
+                    else:
+                        st.warning("No hay suficientes datos registrados para calcular estadísticas.")
+
 # SECCIÓN: ADMIN
 # ==========================================
 
