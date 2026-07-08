@@ -6,7 +6,24 @@ from datetime import datetime
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
-
+# --- MOTOR DE RESURRECCIÓN TRAS BLOQUEO DE MÓVIL ---
+if "partida_id" in st.query_params:
+    # Si la URL contiene una partida, forzamos que el menú activo sea jugar
+    st.session_state.menu_seleccionado = "Nueva Partida"
+    
+    # Si la memoria intermedia se borró por culpa del bloqueo, la reconstruimos al vuelo
+    if 'game' not in st.session_state or st.session_state.game is None:
+        p_id_recuperado = st.query_params["partida_id"]
+        h_recuperado = int(st.query_params.get("hoyo", 1))
+        
+        # Volvemos a levantar la estructura mínima del partido
+        st.session_state.game = {
+            'id': p_id_recuperado,
+            'h_sel': h_recuperado
+        }
+        # 💡 NOTA IMPORTANTE: Si tu diccionario st.session_state.game necesita obligatoriamente
+        # tener los nombres de los jugadores o datos del campo cargados para no dar error,
+        # puedes recuperarlos en este punto haciendo una lectura rápida a tu Google Sheet usando el p_id_recuperado.
 # --- FUNCIONES DE CONEXIÓN ---
 def cargar_datos_golf():
     s = st.secrets["gsheets"]
@@ -511,10 +528,13 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     "id": datetime.now().strftime("%Y%m%d%H%M%S"),
                     "fecha": fecha_nueva.strftime("%d/%m/%Y"),
                     "temporada": str(fecha_nueva.year),
+                    'id': partida_id,
                     "h_sel": 1
                 }
                 st.session_state.refresco_id += 1
                 st.cache_data.clear()
+                st.query_params["partida_id"] = partida_id
+                st.query_params["hoyo"] = 1
                 st.rerun()
         
         # --- BLOQUE B: INTERFAZ DE JUEGO (PARTIDO EN CURSO) ---
@@ -584,14 +604,17 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 key=f"sb_hoyo_{st.session_state.refresco_id}"
             )
             st.session_state.game['h_sel'] = h_actual
-
+            st.query_params["hoyo"] = h_actual
+            
             col_nav_1, col_nav_2 = st.columns(2)
             if col_nav_1.button("⬅️ ANTERIOR", use_container_width=True):
                 st.session_state.game['h_sel'] = max(1, int(st.session_state.game['h_sel']) - 1)
+                st.query_params["hoyo"] = st.session_state.game['h_sel']
                 st.session_state.refresco_id += 1
                 st.rerun()
             if col_nav_2.button("SIGUIENTE ➡️", use_container_width=True):
                 st.session_state.game['h_sel'] = min(18, int(st.session_state.game['h_sel']) + 1)
+                st.query_params["hoyo"] = st.session_state.game['h_sel']
                 st.session_state.refresco_id += 1
                 st.rerun()
 
@@ -684,6 +707,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 # Si es el hoyo 1 al 17, avanza solo. Si es el 18, se queda congelado en el 18.
                 if h_actual < 18:
                     st.session_state.game['h_sel'] = h_actual + 1
+                    st.query_params["hoyo"] = st.session_state.game['h_sel']
                     st.session_state.refresco_id += 1  # Esto actualiza el combo visual al nuevo hoyo
                     
                 st.rerun()
@@ -746,6 +770,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.warning("⚠️ Esta acción cerrará la sesión actual.")
                 if st.button("Confirmar y Salir", type="primary", use_container_width=True):
                     st.session_state.game = None
+                    st.query_params.clear()
                     st.cache_data.clear()
                     st.rerun()
 
