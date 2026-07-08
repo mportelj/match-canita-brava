@@ -1160,9 +1160,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         st.plotly_chart(fig2, use_container_width=True)
                         
                     #PUTT
-                    # --- ANÁLISIS DE PUTTS (ORDENADO Y AJUSTADO) ---
+                    import altair as alt
 
-                    # 1. Preparación de datos
+                    # --- 1. PREPARACIÓN DE DATOS ---
                     df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], dayfirst=True)
                     fecha_corte = pd.Timestamp('2026-07-08')
                     
@@ -1171,44 +1171,52 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         (df_raw['fecha_dt'] >= fecha_corte)
                     ].copy()
                     
-                    num_hoyos = len(df_stats_source)
+                    # 2. CÁLCULO DE MÉTRICAS DE CONSISTENCIA
+                    cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
+                    stats_list = []
                     
-                    # 2. Título estilizado
+                    for col, nombre in cols_putts.items():
+                        if col in df_stats_source.columns:
+                            datos = pd.to_numeric(df_stats_source[col], errors='coerce').fillna(0)
+                            stats_list.append({
+                                'Jugador': nombre,
+                                'Media Putts': datos.mean(),
+                                '% 1-Putt': (datos == 1).mean() * 100,
+                                '% 3-Putts': (datos >= 3).mean() * 100
+                            })
+                    
+                    df_consistencia = pd.DataFrame(stats_list).sort_values(by='Media Putts')
+                    
+                    # --- 3. GRÁFICO DE BARRAS (ALTAIR) ---
+                    st.markdown("### 📊 Comparativa de Putts")
+                    chart = alt.Chart(df_consistencia).mark_bar().encode(
+                        x=alt.X('Jugador', sort='-y'),
+                        y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3])), # Escala realista de golf
+                        color='Jugador',
+                        tooltip=['Jugador', alt.Tooltip('Media Putts', format='.2f')]
+                    ).properties(height=300)
+                    
+                    st.altair_chart(chart, use_container_width=True)
+                    
+                    # --- 4. TABLA DE CONSISTENCIA ---
                     st.markdown(
-                        f"### ⛳ Análisis de Putts <span style='color:green; font-size: 0.8em;'>({num_hoyos} hoyos registrados)</span>", 
+                        f"### ⛳ Tabla de Consistencia <span style='color:green; font-size: 0.8em;'>({len(df_stats_source)} hoyos registrados)</span>", 
                         unsafe_allow_html=True
                     )
                     
-                    if not df_stats_source.empty:
-                        cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
-                        cols_existentes = [c for c in cols_putts.keys() if c in df_stats_source.columns]
-                        
-                        df_data = df_stats_source[cols_existentes].apply(pd.to_numeric, errors='coerce').fillna(0)
-                        
-                        df_putts_summary = pd.DataFrame({
-                            'Jugador': [cols_putts[c] for c in cols_existentes],
-                            'Total': df_data.sum().values,
-                            'Media': df_data.mean().values
-                        })
-                    
-                        # --- ORDENAR POR MEDIA (MENOR A MAYOR) ---
-                        df_putts_summary = df_putts_summary.sort_values(by='Media', ascending=True).reset_index(drop=True)
-                    
-                        # --- ESTILO AGRESIVO (CENTRADO Y ANCHO FIJO) ---
-                        estilo = df_putts_summary.style \
-                            .format({'Total': '{:.0f}', 'Media': '{:.2f}'}) \
+                    if not df_consistencia.empty:
+                        # Aplicamos estilo para centrar y ajustar ancho
+                        estilo = df_consistencia.style \
+                            .format({'Media Putts': '{:.2f}', '% 1-Putt': '{:.0f}%', '% 3-Putts': '{:.0f}%'}) \
                             .set_table_styles([
-                                {'selector': 'th', 'props': [('text-align', 'center'), ('width', '8px')]},
-                                {'selector': 'td', 'props': [('text-align', 'center'), ('width', '8px')]},
-                                {'selector': 'table', 'props': [('margin-left', '10'), ('margin-right', 'auto')]}
+                                {'selector': 'th', 'props': [('text-align', 'center'), ('width', '100px')]},
+                                {'selector': 'td', 'props': [('text-align', 'center'), ('width', '100px')]},
+                                {'selector': 'table', 'props': [('margin-left', '0'), ('margin-right', 'auto')]}
                             ])
                     
-                        # Renderizamos como tabla
                         st.table(estilo)
-                    
                     else:
-                        st.info(f"No hay registros de putts en la temporada **{temp_actual}** posteriores al 08/07/2026.")
-
+                        st.info("No hay suficientes datos registrados.")
 # SECCIÓN: ADMIN
 # ==========================================
 
