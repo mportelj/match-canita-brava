@@ -1182,6 +1182,16 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                   
                     # --- 2. ANÁLISIS DE PUTTS ---
                     st.markdown("### ⛳ Análisis de Putts")
+
+                    # --- BLOQUE DE DEPURACIÓN (Borra esto una vez funcione) ---
+                    st.write("--- DEBUG ---")
+                    st.write(f"¿ver_acumulado está activo?: {ver_acumulado}")
+                    st.write(f"Filas en df_total: {len(df_total) if 'df_total' in locals() else 'No existe'}")
+                    st.write(f"Filas en df_filtrado: {len(df_filtrado) if 'df_filtrado' in locals() else 'No existe'}")
+                    st.write(f"Fuente seleccionada (df_stats_source) tiene {len(df_stats_source)} filas")
+                    st.write("Columnas disponibles:", df_stats_source.columns.tolist())
+                    # -----------------------------------------------------------
+
                     
                     if not df_stats_source.empty:
                         # Cálculo de medias y sumas
