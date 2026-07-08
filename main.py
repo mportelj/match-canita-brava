@@ -673,7 +673,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             else:
                 badge_estado = "<span style='font-size:13px; font-weight:bold; vertical-align:middle;'>🟡 PENDIENTE</span>"
             
-            # Reducimos también un poco el tamaño del texto del Par y del separador "|"
+           # --- TÍTULO ---
             st.markdown(
                 f"### ⛳ Hoyo {h_actual} "
                 f"<span style='font-size:20px; color:gray; font-weight:normal;'>*(Par {val_par_hoyo})*</span> "
@@ -682,35 +682,49 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 unsafe_allow_html=True
             )
             
-            cols_g = st.columns(4)
             def activar_boton_guardar():
                 st.session_state.hoyo_modificado = True
             
-                        
-            # Mapeo limpio de los inputs con sus claves (keys) corregidas y únicas
-            s0 = cols_g[0].number_input("MANU", min_value=1, value=golpes_anteriores[0], on_change=activar_boton_guardar, key=f"s0_h{h_actual}")
-            s1 = cols_g[1].number_input("JOSE", min_value=1, value=golpes_anteriores[1], on_change=activar_boton_guardar, key=f"s1_h{h_actual}")
-            s2 = cols_g[2].number_input("ROGE", min_value=1, value=golpes_anteriores[2], on_change=activar_boton_guardar, key=f"s2_h{h_actual}")
-            s3 = cols_g[3].number_input("LALO", min_value=1, value=golpes_anteriores[3], on_change=activar_boton_guardar, key=f"s3_h{h_actual}")
+            # --- INPUTS DE JUGADORES (ESTILO MÓVIL) ---
+            jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
+            inputs_s = []
+            inputs_p = []
             
-            st.write("**--- Putts ---**")
-            cols_p = st.columns(4)
-            # Definimos valores por defecto (2 putts es un estándar de golf)
-            p_default = [2, 2, 2, 2] 
+            # Definimos defaults de putts
+            p_defaults = [2, 2, 2, 2]
             if hay_datos_hoyo:
                 try:
-                    p_default = [int(df_hoyo_actual['p0'].iloc[0]), int(df_hoyo_actual['p1'].iloc[0]), 
-                                 int(df_hoyo_actual['p2'].iloc[0]), int(df_hoyo_actual['p3'].iloc[0])]
+                    p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
                 except: pass
             
-            p0 = cols_p[0].number_input("P. Manu", min_value=0, value=p_default[0], on_change=activar_boton_guardar, key=f"p0_h{h_actual}")
-            p1 = cols_p[1].number_input("P. Jose", min_value=0, value=p_default[1], on_change=activar_boton_guardar, key=f"p1_h{h_actual}")
-            p2 = cols_p[2].number_input("P. Roge", min_value=0, value=p_default[2], on_change=activar_boton_guardar, key=f"p2_h{h_actual}")
-            p3 = cols_p[3].number_input("P. Lalo", min_value=0, value=p_default[3], on_change=activar_boton_guardar, key=f"p3_h{h_actual}")
+            # Creamos una fila por jugador: Nombre | Golpes | Putts
+            for i in range(4):
+                # Proporción de columnas: Nombre (más ancho), Golpes (estrecho), Putts (estrecho)
+                c1, c2, c3 = st.columns([1.5, 1, 1])
+                
+                with c1:
+                    st.markdown(f"<br>**{jugadores[i]}**", unsafe_allow_html=True)
+                
+                with c2:
+                    # label_visibility="collapsed" quita el texto y ahorra espacio
+                    val_s = st.number_input(f"G{i}", min_value=1, value=golpes_anteriores[i], 
+                                            on_change=activar_boton_guardar, 
+                                            key=f"s{i}_h{h_actual}", label_visibility="collapsed")
+                    inputs_s.append(val_s)
+                    
+                with c3:
+                    val_p = st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
+                                            on_change=activar_boton_guardar, 
+                                            key=f"p{i}_h{h_actual}", label_visibility="collapsed")
+                    inputs_p.append(val_p)
             
+            # Asignamos los valores a las variables para que funcionen con tu función de guardado
+            s0, s1, s2, s3 = inputs_s
+            p0, p1, p2, p3 = inputs_p
+            
+            # --- BOTÓN DE GUARDADO ---
             no_hay_cambios = not st.session_state.hoyo_modificado
-        
-            # El botón permanece deshabilitado hasta que cambie algún número de la interfaz
+            
             if st.button(
                 "💾 GUARDAR RESULTADO HOYO", 
                 use_container_width=True, 
