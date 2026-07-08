@@ -513,19 +513,19 @@ if st.session_state.menu_seleccionado == "Inicio":
     st.session_state['marcador_acumulado_b'] = pb_t  # O la variable que uses para Roge/Lalo
 # ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
-# --- BLOQUE 0: INICIALIZACIÓN DE ESTADO ---
-if 'refresco_id' not in st.session_state: 
-    st.session_state.refresco_id = 0
-st.cache_data.clear()
-
-# 2. Reseteamos el estado
-st.session_state.game = None
-
-# 3. Borramos los parámetros de la URL para que no intente cargar nada antiguo
-st.query_params.clear()
-
-# 4. Refrescamos la app
-st.rerun()
+        # --- BLOQUE 0: INICIALIZACIÓN DE ESTADO ---
+        if 'refresco_id' not in st.session_state: 
+            st.session_state.refresco_id = 0
+        st.cache_data.clear()
+        
+        # 2. Reseteamos el estado
+        st.session_state.game = None
+        
+        # 3. Borramos los parámetros de la URL para que no intente cargar nada antiguo
+        st.query_params.clear()
+        
+        # 4. Refrescamos la app
+        # st.rerun()
         
         # 🎯 NUEVA VARIABLE DE CONTROL PARA EL BOTÓN GUARDAR
         if 'hoyo_modificado' not in st.session_state:
