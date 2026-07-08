@@ -197,8 +197,8 @@ def cambiar_pagina():
 @st.cache_data(ttl=600)
 def leer_datos():
     try:
-        if 'sh' not in st.session_state:
-            st.session_state.sh = cargar_datos_golf()
+       # if 'sh' not in st.session_state:
+        st.session_state.sh = cargar_datos_golf()
         
         hoja = st.session_state.sh
         datos = hoja.get_all_values()
