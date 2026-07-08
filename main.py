@@ -685,10 +685,8 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             def activar_boton_guardar():
                 st.session_state.hoyo_modificado = True
             
-            # --- INPUTS DE JUGADORES (ESTILO MÓVIL) ---
+            # --- INPUTS DE JUGADORES (OPTIMIZADO PARA MÓVIL) ---
             jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
-            inputs_s = []
-            inputs_p = []
             
             # Definimos defaults de putts
             p_defaults = [2, 2, 2, 2]
@@ -697,25 +695,25 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
                 except: pass
             
-            # Creamos una fila por jugador: Nombre | Golpes | Putts
+            # Creamos una fila por jugador
             for i in range(4):
-                # Proporción de columnas: Nombre (más ancho), Golpes (estrecho), Putts (estrecho)
-                c1, c2, c3 = st.columns([1.5, 1, 1])
+                # vertical_alignment='center' asegura que Nombre, Golpes y Putts se alineen al centro
+                # Las proporciones [1.5, 1, 1] dan el espacio justo para que quepan en el ancho de un móvil
+                c1, c2, c3 = st.columns([1.5, 1, 1], vertical_alignment='center')
                 
                 with c1:
-                    st.markdown(f"<br>**{jugadores[i]}**", unsafe_allow_html=True)
+                    # Quitamos el <br> para que no cree espacio vertical extra
+                    st.write(f"**{jugadores[i]}**")
                 
                 with c2:
-                    # label_visibility="collapsed" quita el texto y ahorra espacio
-                    val_s = st.number_input(f"G{i}", min_value=1, value=golpes_anteriores[i], 
-                                            on_change=activar_boton_guardar, 
-                                            key=f"s{i}_h{h_actual}", label_visibility="collapsed")
-                    inputs_s.append(val_s)
+                    st.number_input(f"G{i}", min_value=1, value=golpes_anteriores[i], 
+                                    on_change=activar_boton_guardar, 
+                                    key=f"s{i}_h{h_actual}", label_visibility="collapsed")
                     
                 with c3:
-                    val_p = st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
-                                            on_change=activar_boton_guardar, 
-                                            key=f"p{i}_h{h_actual}", label_visibility="collapsed")
+                    st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
+                                    on_change=activar_boton_guardar, 
+                                    key=f"p{i}_h{h_actual}", label_visibility="collapsed")
                     inputs_p.append(val_p)
             
             # Asignamos los valores a las variables para que funcionen con tu función de guardado
