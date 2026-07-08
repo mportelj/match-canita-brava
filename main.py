@@ -1245,21 +1245,22 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                         st.table(estilo)
                     
-                  # --- GRÁFICO DE BARRAS (FORZADO) ---
+                  # --- GRÁFICO DE BARRAS (SOLUCIÓN DEFINITIVA) ---
                     st.markdown("### 📊 Comparativa de Putts")
                     
-                    # Definimos el gráfico explícitamente sin leyenda
+                    # 1. Aseguramos que la columna sea tratada como texto (Nominal)
+                    df_consistencia['Jugador'] = df_consistencia['Jugador'].astype(str)
+                    
+                    # 2. Definimos el gráfico
                     chart = alt.Chart(df_consistencia).mark_bar().encode(
-                        # Forzamos X como el campo 'Jugador' sin leyenda
-                        x=alt.X('Jugador', 
-                                sort=list(df_consistencia['Jugador']), 
-                                axis=alt.Axis(labelAngle=0, title=None)),
+                        # Forzamos las etiquetas en el eje X
+                        x=alt.X('Jugador', axis=alt.Axis(labelAngle=0, title=None, labels=True)),
                         y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3])),
-                        # Asignamos el color, pero el parámetro legend=None es innegociable aquí
+                        # Eliminamos cualquier referencia a la leyenda
                         color=alt.Color('Jugador', legend=None) 
                     ).properties(height=300)
                     
-                    # Capa de texto (los valores encima de la barra)
+                    # 3. Capa de texto (valores encima)
                     text = chart.mark_text(
                         align='center',
                         baseline='bottom',
@@ -1269,7 +1270,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         text=alt.Text('Media Putts', format='.2f')
                     )
                     
-                    # Combinamos y renderizamos
+                    # 4. Renderizamos
                     st.altair_chart(chart + text, use_container_width=True)
                     
                     # --- 3. TABLA DE CONSISTENCIA (CORREGIDA) ---
