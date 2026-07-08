@@ -728,31 +728,29 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                         on_change=activar_boton_guardar
                     )
                     
-                # --- BOTÓN DE GUARDADO ---
-                if st.button("💾 GUARDAR", use_container_width=True, key=f"btn_guardar_h{h_actual}"):
-                    
-                    # Construimos las listas leyendo directamente de session_state
-                    # Usamos la misma lógica de keys que definimos en el bucle
-                    golpes_actuales = [st.session_state[f"s{i}_h{h_actual}"] for i in range(4)]
-                    putts_actuales = [st.session_state[f"p{i}_h{h_actual}"] for i in range(4)]
-                    
-                    # Llamamos a tu función con las listas ya construidas
-                    ejecutar_guardado_automatico(h_actual, golpes_actuales, putts_actuales)
-                    
-                    # Reiniciamos el estado de modificación y recargamos
-                    st.session_state.hoyo_modificado = False
-                    st.rerun()
-                    
-                    # 🎯 REINICIO DEL INTERRUPTOR: El próximo hoyo empezará bloqueado por seguridad
-                    st.session_state.hoyo_modificado = False
-                    
-                # ⛳ AVANCE AUTOMÁTICO INTELIGENTE:
-                # Si es el hoyo 1 al 17, avanza solo. Si es el 18, se queda congelado en el 18.
+            # --- BOTÓN DE GUARDADO ---
+            if st.button("💾 GUARDAR", use_container_width=True, key=f"btn_guardar_h{h_actual}"):
+                
+                # 1. Recogemos los valores actuales
+                golpes_actuales = [st.session_state[f"s{i}_h{h_actual}"] for i in range(4)]
+                putts_actuales = [st.session_state[f"p{i}_h{h_actual}"] for i in range(4)]
+                
+                # 2. Ejecutamos el guardado
+                ejecutar_guardado_automatico(h_actual, golpes_actuales, putts_actuales)
+                
+                # 3. LÓGICA DE AVANCE (Antes del rerun)
                 if h_actual < 18:
-                    st.session_state.game['h_sel'] = h_actual + 1
-                    st.query_params["hoyo"] = st.session_state.game['h_sel']
-                    st.session_state.refresco_id += 1  # Esto actualiza el combo visual al nuevo hoyo
-                    
+                    nuevo_hoyo = h_actual + 1
+                    st.session_state.game['h_sel'] = nuevo_hoyo
+                    st.query_params["hoyo"] = nuevo_hoyo
+                    # Opcional: st.session_state.refresco_id += 1 
+                else:
+                    st.success("¡Partida finalizada!")
+                
+                # 4. Limpiamos estado de modificación
+                st.session_state.hoyo_modificado = False
+                
+                # 5. REINICIAMOS UNA SOLA VEZ AL FINAL
                 st.rerun()
                 
             res_hoyo_a, res_hoyo_b = 0, 0
