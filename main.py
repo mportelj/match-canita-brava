@@ -713,7 +713,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             if hay_datos_hoyo:
                try:
                    p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
-                   except: pass
+                except: pass
                                 
             # (Asegúrate de que 'golpes_anteriores' y 'p_defaults' estén definidos previamente)
             
