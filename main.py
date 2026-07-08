@@ -1247,7 +1247,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                  # --- 1. ORDENAMOS EL DATAFRAME (MENOR A MAYOR) ---
                 # Forzamos el orden en el origen de los datos
-                df_consistencia = df_consistencia.sort_values(by='Media Putts', ascending=True)
+                    df_consistencia = df_consistencia.sort_values(by='Media Putts', ascending=True)
                 
                 # --- 2. GRÁFICO (SOLUCIÓN DEFINITIVA) ---
                     st.markdown("### 📊 Comparativa de Putts")
