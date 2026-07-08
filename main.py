@@ -523,19 +523,26 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.title("⛳ Nueva Partida")
             fecha_nueva = st.date_input("Fecha del partido", key="fecha_nueva_p")
             if st.button("🚀 INICIAR PARTIDO", type="primary", use_container_width=True):
-                # 1. Generamos el ID con la hora exacta y lo guardamos en una variable
+                # 1. Generamos el ID único
                 nuevo_id = datetime.now().strftime("%Y%m%d%H%M%S")
+                
+                # 2. Inicializamos el estado del juego solo con el nuevo ID
                 st.session_state.game = {
                     "id": nuevo_id,
                     "fecha": fecha_nueva.strftime("%d/%m/%Y"),
                     "temporada": str(fecha_nueva.year),
-                    'id': st.session_state.game.get('id', st.query_params.get("partida_id", "Desconocido")),
                     "h_sel": 1
                 }
+                
+                # 3. Preparamos el entorno para la nueva partida
                 st.session_state.refresco_id += 1
                 st.cache_data.clear()
+                
+                # 4. Actualizamos la URL para el "Motor de Resurrección"
                 st.query_params["partida_id"] = nuevo_id
                 st.query_params["hoyo"] = 1
+                
+                # 5. Recargamos la app
                 st.rerun()
         
         # --- BLOQUE B: INTERFAZ DE JUEGO (PARTIDO EN CURSO) ---
