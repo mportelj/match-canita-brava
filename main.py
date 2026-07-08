@@ -1182,7 +1182,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         fig_putts = px.bar(
                             df_putts, 
                             x='Jugador', 
-                            y='Promedio/Hoyo', 
+                            y='Media/Hoyo', 
                             title="Promedio de Putts por Hoyo",
                             color='Jugador',
                             color_discrete_sequence=px.colors.qualitative.Pastel,
