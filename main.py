@@ -684,17 +684,23 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             
             def activar_boton_guardar():
                 st.session_state.hoyo_modificado = True
-            
-            # --- INPUTS DE JUGADORES (OPTIMIZADO PARA MÓVIL) ---
-            jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
-            
-            # Definimos defaults de putts
-            p_defaults = [2, 2, 2, 2]
-            if hay_datos_hoyo:
-                try:
-                    p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
-                except: pass
-            
+
+            st.markdown("""
+                <style>
+                [data-testid="column"] {
+                    flex: 1 1 0% !important;
+                    display: flex !important;
+                    flex-direction: row !important;
+                    align-items: center !important;
+                    gap: 5px !important;
+                }
+                /* Reducimos un poco el margen de los inputs para que quepan mejor */
+                .stNumberInput > div > div > input {
+                    padding: 5px !important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+                        
            # --- INPUTS DE JUGADORES (CÓDIGO CORREGIDO) ---
             jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
             # --- 1. INICIALIZACIÓN (Crucial que esté ANTES del bucle) ---
@@ -710,25 +716,26 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             
             # --- 2. BUCLE DE CREACIÓN DE INPUTS ---
             for i in range(4):
+                # Usamos [1.5, 1, 1]. Si aún ves que se corta, cambia a [1, 1, 1]
                 c1, c2, c3 = st.columns([1.5, 1, 1], vertical_alignment='center')
                 
                 with c1:
-                    st.write(f"**{jugadores[i]}**")
+                    # Usamos markdown para tener control total de márgenes
+                    st.markdown(f"**{jugadores[i]}**", unsafe_allow_html=True)
                 
                 with c2:
                     val_s = st.number_input(f"G{i}", min_value=1, value=golpes_anteriores[i], 
                                             on_change=activar_boton_guardar, 
                                             key=f"s{i}_h{h_actual}", label_visibility="collapsed")
-                    inputs_s.append(val_s)  # <--- Esto debe estar AQUÍ
+                    inputs_s.append(val_s)
                     
                 with c3:
                     val_p = st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
                                             on_change=activar_boton_guardar, 
                                             key=f"p{i}_h{h_actual}", label_visibility="collapsed")
-                    inputs_p.append(val_p)  # <--- Esto debe estar AQUÍ
+                    inputs_p.append(val_p)
             
-            # --- 3. DESEMPAQUETADO (Esto va DESPUÉS del bucle) ---
-            # Ahora la lista ya tiene 4 elementos y se pueden asignar
+            # Unpacking
             s0, s1, s2, s3 = inputs_s
             p0, p1, p2, p3 = inputs_p
             
