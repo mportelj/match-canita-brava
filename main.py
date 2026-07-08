@@ -1160,15 +1160,21 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         st.plotly_chart(fig2, use_container_width=True)
                         
                     st.markdown("---")
-                   # --- 1. SELECCIÓN DE DATOS SEGÚN EL SELECTOR ---
-                    # Si ver_acumulado es True (activado), usamos los datos totales.
-                    # Si es False (desactivado), usamos el df_filtrado por fechas/temporada.
-                    # Asegúrate de que 'df_total' contenga todos los datos originales.
+                  
                     # --- 1. SELECCIÓN DE DATOS SEGÚN EL SELECTOR ---
                     # Si ver_acumulado es True (activado), usamos los datos totales.
                     # Si es False (desactivado), usamos el df_filtrado por fechas/temporada.
                     # Asegúrate de que 'df_total' contenga todos los datos originales.
-                    if ver_acumulado:
+                    # --- SEGURIDAD PARA LAS VARIABLES ---
+                    # Inicializamos las variables si no existen para evitar el NameError
+                    if 'df_total' not in locals():
+                        df_total = pd.DataFrame() # O lo que corresponda a tus datos crudos
+                    
+                    if 'df_filtrado' not in locals():
+                        df_filtrado = df_total.copy() # Si no existe el filtro, usamos el total
+                    
+                    # Ahora definimos la fuente de forma segura
+                    if 'ver_acumulado' in locals() and ver_acumulado:
                         df_stats_source = df_total
                     else:
                         df_stats_source = df_filtrado
