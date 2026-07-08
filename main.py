@@ -1160,66 +1160,63 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         st.plotly_chart(fig2, use_container_width=True)
                         
                     st.markdown("---")
-                    st.markdown("### ⛳ Análisis de Putts")
-                    
-                    # Preparamos datos para gráfico
-                    df_putts = df_stats[['p0', 'p1', 'p2', 'p3']].sum().reset_index()
-                    df_putts.columns = ['Jugador', 'Total Putts']
-                    # Mapeo de columnas a nombres
-                    mapa_nombres = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
-                    df_putts['Jugador'] = df_putts['Jugador'].map(mapa_nombres)
-                    
-                    # Cálculo de promedio
-                    df_putts['Hoyo'] = df_stats[['p0', 'p1', 'p2', 'p3']].mean().values
-                    
-                    # Mostrar tabla resumen
-                    col_st1, col_st2 = st.columns([1, 2])
-                    with col_st1:
-                        st.dataframe(df_putts, hide_index=True, use_container_width=True)
-                    
-                    with col_st2:
-                        # Gráfico de Putts
-                        fig_putts = px.bar(
-                            df_putts, 
-                            x='Jugador', 
-                            y='Media/Hoyo', 
-                            title="Promedio de Putts por Hoyo",
-                            color='Jugador',
-                            color_discrete_sequence=px.colors.qualitative.Pastel,
-                            text_auto='.2f'
-                        )
-                        fig_putts.update_layout(showlegend=False, yaxis_title="Putts/Hoyo")
-                        st.plotly_chart(fig_putts, use_container_width=True)
+                    # --- GRÁFICO DE PUTTS Y EFICIENCIA ---
 
-                    # --- CÁLCULO DE EFICIENCIAS DE PUTTING ---
-                    st.markdown("### 📊 Eficiencia en el Green")
+                    # 1. Preparación de datos de forma robusta
+                    if not df_stats.empty:
+                        # Calculamos medias y sumas directamente
+                        medias = df_stats[['p0', 'p1', 'p2', 'p3']].mean()
+                        sumas = df_stats[['p0', 'p1', 'p2', 'p3']].sum()
+                        
+                        # Creamos el DataFrame explícitamente
+                        df_putts = pd.DataFrame({
+                            'Jugador': ['MANU', 'JOSE', 'ROGE', 'LALO'],
+                            'Total Putts': sumas.values,
+                            'Media/Hoyo': medias.values # Aseguramos que este nombre coincida con el gráfico
+                        })
                     
-                    # Inicializamos lista para guardar resultados
-                    datos_eficiencia = []
-                    mapa_nombres = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
-                    total_hoyos = len(df_stats)
+                        # Mostrar tabla resumen y gráfico
+                        col_st1, col_st2 = st.columns([1, 2])
+                        
+                        with col_st1:
+                            st.markdown("### ⛳ Análisis de Putts")
+                            st.dataframe(df_putts, hide_index=True, use_container_width=True)
                     
-                    if total_hoyos > 0:
+                        with col_st2:
+                            # Gráfico de Putts (Ahora sí encontrará 'Media/Hoyo')
+                            fig_putts = px.bar(
+                                df_putts, 
+                                x='Jugador', 
+                                y='Media/Hoyo', # Coincide exactamente con el nombre de arriba
+                                title="Promedio de Putts por Hoyo",
+                                color='Jugador',
+                                color_discrete_sequence=px.colors.qualitative.Pastel,
+                                text_auto='.2f'
+                            )
+                            fig_putts.update_layout(showlegend=False, yaxis_title="Putts/Hoyo")
+                            st.plotly_chart(fig_putts, use_container_width=True)
+                    
+                        # --- CÁLCULO DE EFICIENCIAS DE PUTTING ---
+                        st.markdown("### 📊 Eficiencia en el Green")
+                        
+                        datos_eficiencia = []
+                        mapa_nombres = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
+                        total_hoyos = len(df_stats)
+                        
                         for p in ['p0', 'p1', 'p2', 'p3']:
-                            # Convertimos a numérico y tratamos errores por si hay celdas vacías
                             data_p = pd.to_numeric(df_stats[p], errors='coerce').fillna(0)
-                            
-                            # Calculamos los porcentajes
                             porcentaje_1_putt = (len(data_p[data_p == 1]) / total_hoyos) * 100
                             porcentaje_3_putts = (len(data_p[data_p >= 3]) / total_hoyos) * 100
-                            media_putts = data_p.mean()
                             
                             datos_eficiencia.append({
                                 'Jugador': mapa_nombres[p],
-                                'Media': media_putts,
+                                'Media': data_p.mean(),
                                 '1-Putt': f"{porcentaje_1_putt:.1f}%",
                                 '3+ Putts': f"{porcentaje_3_putts:.1f}%"
                             })
                     
-                        # Convertimos a DataFrame para mostrarlo bonito
                         df_eficiencia = pd.DataFrame(datos_eficiencia)
                     
-                        # Mostramos la tabla con un diseño limpio
                         st.dataframe(
                             df_eficiencia, 
                             hide_index=True, 
