@@ -693,23 +693,32 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 "LALO": {"color": "#000000", "clase": "borde-lalo"}
             }
             
-            # --- 1. CSS COMPACTO Y COLORES ---
+           # --- CSS AGRESIVO PARA COMPACTAR AL MÁXIMO ---
             st.markdown("""
                 <style>
-                /* Reduce la separación entre columnas y filas */
-                [data-testid="column"] {
-                    padding-top: 2px !important;
-                    padding-bottom: 2px !important;
+                /* 1. Reducir el espacio externo del input */
+                .stNumberInput {
+                    margin-top: -10px !important;
+                    margin-bottom: 0px !important;
+                    padding-top: 0px !important;
+                    padding-bottom: 0px !important;
                 }
                 
-                /* Hace los inputs más pequeños (altura reducida y fuente menor) */
-                .stNumberInput input {
-                    font-size: 14px !important;
-                    height: 30px !important; 
-                    padding: 2px 5px !important;
+                /* 2. Forzar altura pequeña y sin relleno interno en la caja */
+                div[data-baseweb="base-input"] {
+                    height: 30px !important;
+                    min-height: 30px !important;
+                    padding: 0px 5px !important;
                 }
                 
-                /* Ajusta el borde de color del jugador */
+                /* 3. Reducir el tamaño de la fuente y centrar el texto */
+                input {
+                    font-size: 13px !important;
+                    height: 30px !important;
+                    padding: 0px 5px !important;
+                }
+                
+                /* 4. Mantenemos tus colores de borde */
                 .borde-manu input { border: 2px solid #2E8B57 !important; }
                 .borde-jose input { border: 2px solid #1E90FF !important; }
                 .borde-roge input { border: 2px solid #DC143C !important; }
