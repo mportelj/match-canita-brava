@@ -688,26 +688,24 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
            # --- CSS PARA ELIMINAR EL SALTO DE LÍNEA ---
             st.markdown("""
                 <style>
-                /* Forzamos a que el contenedor de columnas no haga salto de línea */
+                /* Eliminamos todos los márgenes y paddings de las columnas */
                 [data-testid="column"] {
-                    flex: 1 !important;
-                    min-width: 0 !important;
-                    white-space: nowrap !important;
+                    padding: 0px !important;
+                    margin: 0px !important;
                 }
-                /* Reducimos el padding de los inputs para que ocupen menos espacio horizontal */
+                /* Forzamos a que los inputs ocupen el espacio mínimo necesario */
                 .stNumberInput {
                     width: 100% !important;
-                    padding: 0px !important;
                 }
-                /* Ajustamos el tamaño de la fuente para que el texto sea más pequeño en móvil */
-                input {
-                    font-size: 14px !important;
+                /* Eliminamos el espacio extra que deja la etiqueta colapsada */
+                .stNumberInput div[data-baseweb="base-input"] {
+                    padding: 2px !important;
                 }
                 </style>
             """, unsafe_allow_html=True)
                         
            # --- INPUTS DE JUGADORES (CÓDIGO CORREGIDO) ---
-            jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
+            jugadores = ["M", "J", "R", "L"]
             # --- 1. INICIALIZACIÓN (Crucial que esté ANTES del bucle) ---
             inputs_s = []
             inputs_p = []
@@ -723,10 +721,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
            # --- BUCLE AJUSTADO ---
             # Usamos gap="small" para que las columnas estén pegadas
             for i in range(4):
-                c1, c2, c3 = st.columns([1.2, 1, 1], gap="small", vertical_alignment="center")
+                # Usamos proporciones donde el nombre (la inicial) ocupe lo mínimo posible
+                c1, c2, c3 = st.columns([0.5, 1, 1], gap="small", vertical_alignment="center")
                 
                 with c1:
-                    # Usamos texto simple sin markdown para evitar márgenes extra
                     st.write(f"**{jugadores[i]}**")
                 
                 with c2:
