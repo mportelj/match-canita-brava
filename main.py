@@ -537,7 +537,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     "id": nuevo_id,
                     "fecha": fecha_nueva.strftime("%d/%m/%Y"),
                     "temporada": str(fecha_nueva.year),
-                    'id': partida_id,
+                    'id': st.session_state.game.get('id', st.query_params.get("partida_id", "Desconocido")),
                     "h_sel": 1
                 }
                 st.session_state.refresco_id += 1
