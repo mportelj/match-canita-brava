@@ -210,7 +210,8 @@ def leer_datos():
             # 2. Resultados y Golpes: Deben ser enteros (int)
             cols_int = [
                 'resultado_a', 'resultado_b', 
-                's0', 's1', 's2', 's3', 
+                's0', 's1', 's2', 's3',
+                'p0', 'p1', 'p2', 'p3',
                 'hoyo', 'temporada', 'partido_id'
             ]
             for col in cols_int:
@@ -385,6 +386,7 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
             int(g.get('temporada', 2026)), int(res_a), int(res_b), 
             p_mvp[0], p_mvp[1], p_mvp[2], p_mvp[3], 
             golpes[0], golpes[1], golpes[2], golpes[3],
+            int(p0), int(p1), int(p2), int(p3),
             int(hoyo_real_campo)
         ]
 
@@ -662,13 +664,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     # Si las columnas no existen, mantenemos el Par definido arriba
                     pass
 
-            # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
-            
-            # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
+          
             # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
             # 🎯 INDICADOR VISUAL: Si existe en la base de datos está JUGADO, si no, PENDIENTE
-            # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
-            # 🎯 INDICADOR VISUAL: Tamaño reducido (13px) y alineación vertical para que no salte de línea
+            
             if hay_datos_hoyo:
                 badge_estado = "<span style='font-size:13px; font-weight:bold; vertical-align:middle;'>🟢 JUGADO</span>"
             else:
@@ -694,9 +693,21 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             s2 = cols_g[2].number_input("ROGE", min_value=1, value=golpes_anteriores[2], on_change=activar_boton_guardar, key=f"s2_h{h_actual}")
             s3 = cols_g[3].number_input("LALO", min_value=1, value=golpes_anteriores[3], on_change=activar_boton_guardar, key=f"s3_h{h_actual}")
             
-            # Comprobamos si los golpes actuales son idénticos a los guardados
-            #valores_actuales = [s0, s1, s2, s3]
-            #no_hay_cambios = (valores_actuales == golpes_anteriores)
+            st.write("**--- Putts ---**")
+            cols_p = st.columns(4)
+            # Definimos valores por defecto (2 putts es un estándar de golf)
+            p_default = [2, 2, 2, 2] 
+            if hay_datos_hoyo:
+                try:
+                    p_default = [int(df_hoyo_actual['p0'].iloc[0]), int(df_hoyo_actual['p1'].iloc[0]), 
+                                 int(df_hoyo_actual['p2'].iloc[0]), int(df_hoyo_actual['p3'].iloc[0])]
+                except: pass
+            
+            p0 = cols_p[0].number_input("P. Manu", min_value=0, value=p_default[0], on_change=activar_boton_guardar, key=f"p0_h{h_actual}")
+            p1 = cols_p[1].number_input("P. Jose", min_value=0, value=p_default[1], on_change=activar_boton_guardar, key=f"p1_h{h_actual}")
+            p2 = cols_p[2].number_input("P. Roge", min_value=0, value=p_default[2], on_change=activar_boton_guardar, key=f"p2_h{h_actual}")
+            p3 = cols_p[3].number_input("P. Lalo", min_value=0, value=p_default[3], on_change=activar_boton_guardar, key=f"p3_h{h_actual}")
+            
             no_hay_cambios = not st.session_state.hoyo_modificado
         
             # El botón permanece deshabilitado hasta que cambie algún número de la interfaz
@@ -706,7 +717,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 key=f"btn_guardar_h{h_actual}", 
                 disabled=no_hay_cambios
             ):
-                ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
+                ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, po, p1, p2, p3)
                 
                 # 🎯 REINICIO DEL INTERRUPTOR: El próximo hoyo empezará bloqueado por seguridad
                 st.session_state.hoyo_modificado = False
@@ -1148,9 +1159,37 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         fig2.update_layout(yaxis_title=None, xaxis_title=None, legend_title_text='')
                         st.plotly_chart(fig2, use_container_width=True)
                         
-                    # Opcional: Un gráfico de líneas si en el futuro quieres ver la evolución a lo largo de las jornadas
-                    # st.markdown("---")
-                    # st.info("💡 Consejo: Si guardas un histórico de puntos por fecha, aquí podríamos añadir un gráfico de líneas para ver quién va mejorando su hándicap durante la temporada.")
+                    st.markdown("---")
+                    st.markdown("### ⛳ Análisis de Putts")
+                    
+                    # Preparamos datos para gráfico
+                    df_putts = df_stats[['p0', 'p1', 'p2', 'p3']].sum().reset_index()
+                    df_putts.columns = ['Jugador', 'Total Putts']
+                    # Mapeo de columnas a nombres
+                    mapa_nombres = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
+                    df_putts['Jugador'] = df_putts['Jugador'].map(mapa_nombres)
+                    
+                    # Cálculo de promedio
+                    df_putts['Promedio/Hoyo'] = df_stats[['p0', 'p1', 'p2', 'p3']].mean().values
+                    
+                    # Mostrar tabla resumen
+                    col_st1, col_st2 = st.columns([1, 2])
+                    with col_st1:
+                        st.dataframe(df_putts, hide_index=True, use_container_width=True)
+                    
+                    with col_st2:
+                        # Gráfico de Putts
+                        fig_putts = px.bar(
+                            df_putts, 
+                            x='Jugador', 
+                            y='Promedio/Hoyo', 
+                            title="Promedio de Putts por Hoyo",
+                            color='Jugador',
+                            color_discrete_sequence=px.colors.qualitative.Pastel,
+                            text_auto='.2f'
+                        )
+                        fig_putts.update_layout(showlegend=False, yaxis_title="Putts/Hoyo")
+                        st.plotly_chart(fig_putts, use_container_width=True)
 
 # SECCIÓN: ADMIN
 # ==========================================
@@ -1180,6 +1219,7 @@ elif st.session_state.menu_seleccionado == "Admin":
             'temporada': 'first',
             'resultado_a': 'sum',
             'resultado_b': 'sum',
+            'p0': 'sum', 'p1': 'sum', 'p2': 'sum', 'p3': 'sum',
             'hoyo': 'count'
         }).sort_values(by='id_clean', ascending=False)
         st.subheader(f"Partidos Registrados ({len(partidos)})")
@@ -1212,14 +1252,23 @@ elif st.session_state.menu_seleccionado == "Admin":
                 m2.metric("MANU & JOSE", int(pts_a))
                 m3.metric("ROGE & LALO", int(pts_b))
                 m4.metric("Diferencia", int(abs(pts_a - pts_b)))
-
+                st.write("---")
+                st.write("### ⛳ Putts Totales de la Jornada")
+                col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+                col_p1.metric("Manu", int(row['p0']))
+                col_p2.metric("Jose", int(row['p1']))
+                col_p3.metric("Roge", int(row['p2']))
+                col_p4.metric("Lalo", int(row['p3']))
+                st.write("---")
+                
                 # Tabla detallada con nombres de jugadores
                 st.dataframe(
-                    df_partido[['hoyo', 's0', 's1', 's2', 's3', 'resultado_a', 'resultado_b']],
+                    df_partido[['hoyo', 's0', 's1', 's2', 's3', p0, p1, p2, p3, 'resultado_a', 'resultado_b']],
                     column_config={
                         "hoyo": "H",
                         "s0": "Manu", "s1": "Jose", 
                         "s2": "Roge", "s3": "Lalo",
+                        "p0": "M_Put", "p1": "J_Put", "p2": "R_Put", "p3": "L_Put",
                         "resultado_a": "Match A", "resultado_b": "Match B"
                     },
                     hide_index=True,
