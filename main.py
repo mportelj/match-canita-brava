@@ -1160,34 +1160,50 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         st.plotly_chart(fig2, use_container_width=True)
                         
                     st.markdown("---")
-                    # --- GRÁFICO DE PUTTS Y EFICIENCIA ---
-
-                    # 1. Preparación de datos de forma robusta
-                    if not df_stats.empty:
-                        # Calculamos medias y sumas directamente
-                        medias = df_stats[['p0', 'p1', 'p2', 'p3']].mean()
-                        sumas = df_stats[['p0', 'p1', 'p2', 'p3']].sum()
+                   # --- 1. SELECCIÓN DE DATOS SEGÚN EL SELECTOR ---
+                    # Si ver_acumulado es True (activado), usamos los datos totales.
+                    # Si es False (desactivado), usamos el df_filtrado por fechas/temporada.
+                    # Asegúrate de que 'df_total' contenga todos los datos originales.
+                    if ver_acumulado:
+                        df_stats_source = df_total
+                    else:
+                        df_stats_source = df_filtrado
+                    
+                    # --- 2. ANÁLISIS DE PUTTS ---
+                    st.markdown("### ⛳ Análisis de Putts")
+                    
+                    if not df_stats_source.empty:
+                        # Cálculo de medias y sumas
+                        medias = df_stats_source[['p0', 'p1', 'p2', 'p3']].mean()
+                        sumas = df_stats_source[['p0', 'p1', 'p2', 'p3']].sum()
                         
-                        # Creamos el DataFrame explícitamente
                         df_putts = pd.DataFrame({
                             'Jugador': ['MANU', 'JOSE', 'ROGE', 'LALO'],
                             'Total Putts': sumas.values,
-                            'Media/Hoyo': medias.values # Aseguramos que este nombre coincida con el gráfico
+                            'Media/Hoyo': medias.values
                         })
                     
-                        # Mostrar tabla resumen y gráfico
                         col_st1, col_st2 = st.columns([1, 2])
                         
                         with col_st1:
-                            st.markdown("### ⛳ Análisis de Putts")
-                            st.dataframe(df_putts, hide_index=True, use_container_width=True)
+                            # TABLA 1: TOTALES Y MEDIAS (CENTRADAS)
+                            st.dataframe(
+                                df_putts, 
+                                hide_index=True, 
+                                use_container_width=True,
+                                column_config={
+                                    "Jugador": st.column_config.TextColumn("Jugador", text_align="center"),
+                                    "Total Putts": st.column_config.NumberColumn("Total", format="%d", text_align="center"),
+                                    "Media/Hoyo": st.column_config.NumberColumn("Media", format="%.2f", text_align="center")
+                                }
+                            )
                     
                         with col_st2:
-                            # Gráfico de Putts (Ahora sí encontrará 'Media/Hoyo')
+                            # GRÁFICO
                             fig_putts = px.bar(
                                 df_putts, 
                                 x='Jugador', 
-                                y='Media/Hoyo', # Coincide exactamente con el nombre de arriba
+                                y='Media/Hoyo', 
                                 title="Promedio de Putts por Hoyo",
                                 color='Jugador',
                                 color_discrete_sequence=px.colors.qualitative.Pastel,
@@ -1196,17 +1212,17 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                             fig_putts.update_layout(showlegend=False, yaxis_title="Putts/Hoyo")
                             st.plotly_chart(fig_putts, use_container_width=True)
                     
-                        # --- CÁLCULO DE EFICIENCIAS DE PUTTING ---
+                        # --- 3. EFICIENCIA EN EL GREEN ---
                         st.markdown("### 📊 Eficiencia en el Green")
                         
                         datos_eficiencia = []
                         mapa_nombres = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
-                        total_hoyos = len(df_stats)
+                        total_hoyos = len(df_stats_source)
                         
                         for p in ['p0', 'p1', 'p2', 'p3']:
-                            data_p = pd.to_numeric(df_stats[p], errors='coerce').fillna(0)
-                            porcentaje_1_putt = (len(data_p[data_p == 1]) / total_hoyos) * 100
-                            porcentaje_3_putts = (len(data_p[data_p >= 3]) / total_hoyos) * 100
+                            data_p = pd.to_numeric(df_stats_source[p], errors='coerce').fillna(0)
+                            porcentaje_1_putt = (len(data_p[data_p == 1]) / total_hoyos) * 100 if total_hoyos > 0 else 0
+                            porcentaje_3_putts = (len(data_p[data_p >= 3]) / total_hoyos) * 100 if total_hoyos > 0 else 0
                             
                             datos_eficiencia.append({
                                 'Jugador': mapa_nombres[p],
@@ -1217,22 +1233,20 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                         df_eficiencia = pd.DataFrame(datos_eficiencia)
                     
+                        # TABLA 2: EFICIENCIA (CENTRADAS)
                         st.dataframe(
                             df_eficiencia, 
                             hide_index=True, 
                             use_container_width=True,
                             column_config={
-                                "1-Putt": st.column_config.TextColumn("🏆 1 Putt"),
-                                "3+ Putts": st.column_config.TextColumn("3+ Putts")
+                                "Jugador": st.column_config.TextColumn("Jugador", text_align="center"),
+                                "Media": st.column_config.NumberColumn("Media", format="%.2f", text_align="center"),
+                                "1-Putt": st.column_config.TextColumn("🏆 1 Putt", text_align="center"),
+                                "3+ Putts": st.column_config.TextColumn("3+ Putts", text_align="center")
                             }
                         )
-                        
-                        # Un pequeño consejo dinámico
-                        peor_putter = df_eficiencia.loc[df_eficiencia['Media'].idxmax()]['Jugador']
-                        mejor_putter = df_eficiencia.loc[df_eficiencia['Media'].idxmin()]['Jugador']
-                        st.info(f"⛳ **Análisis:** El jugador con mejor media de putts es {mejor_putter}. ¡Cuidado con {peor_putter} en el próximo hoyo!")
                     else:
-                        st.warning("No hay suficientes datos registrados para calcular estadísticas.")
+                        st.info("No hay datos para mostrar con los filtros actuales.")
 
 # SECCIÓN: ADMIN
 # ==========================================
