@@ -6,24 +6,7 @@ from datetime import datetime
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
-# --- MOTOR DE RESURRECCIÓN TRAS BLOQUEO DE MÓVIL ---
-if "partida_id" in st.query_params:
-    # Si la URL contiene una partida, forzamos que el menú activo sea jugar
-    st.session_state.menu_seleccionado = "Nueva Partida"
-    
-    # Si la memoria intermedia se borró por culpa del bloqueo, la reconstruimos al vuelo
-    if 'game' not in st.session_state or st.session_state.game is None:
-        p_id_recuperado = st.query_params["partida_id"]
-        h_recuperado = int(st.query_params.get("hoyo", 1))
-        
-        # Volvemos a levantar la estructura mínima del partido
-        st.session_state.game = {
-            'id': p_id_recuperado,
-            'h_sel': h_recuperado
-        }
-        # 💡 NOTA IMPORTANTE: Si tu diccionario st.session_state.game necesita obligatoriamente
-        # tener los nombres de los jugadores o datos del campo cargados para no dar error,
-        # puedes recuperarlos en este punto haciendo una lectura rápida a tu Google Sheet usando el p_id_recuperado.
+
 # --- FUNCIONES DE CONEXIÓN ---
 def cargar_datos_golf():
     s = st.secrets["gsheets"]
@@ -44,32 +27,38 @@ def cargar_datos_golf():
     client = gspread.authorize(creds)
     return client.open_by_url(s["url"]).sheet1
 
-# --- 3. INICIALIZACIÓN DE ESTADOS (ESTO EVITA EL ERROR DE LINEA 100) ---
+# --- 3. INICIALIZACIÓN DE ESTADOS ---
 if 'sh' not in st.session_state:
     st.session_state.sh = cargar_datos_golf()
 
+if 'refresco_id' not in st.session_state:
+    st.session_state.refresco_id = 0
+
+if 'hoyo_modificado' not in st.session_state:
+    st.session_state.hoyo_modificado = False
+
+# 1º Asignamos el valor por defecto PRIMERO para que no dé el KeyError
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-# 🚀 MOTOR DE RESURRECCIÓN TRAS BLOQUEO DE MÓVIL
+# 2º 🚀 MOTOR DE RESURRECCIÓN: Lee la URL y sobrescribe el menú si venimos de un bloqueo
 if "partida_id" in st.query_params:
     st.session_state.menu_seleccionado = "Nueva Partida"
     
-    # Si al desbloquear el móvil se ha borrado la memoria, la reconstruimos desde la URL
+    # Reconstruimos la partida en memoria usando los datos de la URL
     if 'game' not in st.session_state or st.session_state.game is None:
         st.session_state.game = {
             'id': st.query_params["partida_id"],
             'h_sel': int(st.query_params.get("hoyo", 1)),
-            'fecha': datetime.now().strftime("%d/%m/%Y"), # Valor refugio
-            'temporada': str(datetime.now().year)         # Valor refugio
+            'fecha': datetime.now().strftime("%d/%m/%Y"), 
+            'temporada': str(datetime.now().year)         
         }
 elif 'game' not in st.session_state:
     st.session_state.game = {"h_sel": 1}
 
-
 if 'nav_radio' not in st.session_state:
-    st.session_state.nav_radio = "Inicio" # O el valor por defecto que tengas
-
+    st.session_state.nav_radio = st.session_state.menu_seleccionado
+    
 def borrar_partido_completo(partido_id):
     try:
         hoja = st.session_state.sh
