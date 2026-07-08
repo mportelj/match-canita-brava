@@ -27,11 +27,27 @@ def cargar_datos_golf():
     client = gspread.authorize(creds)
     return client.open_by_url(s["url"]).sheet1
 
+# --- 1. FUNCIONES GLOBALES ---
 def activar_boton_guardar():
     st.session_state.hoyo_modificado = True
 
-    # --- 3. INICIALIZACIÓN DE ESTADOS ---
+# --- 2. INICIALIZACIÓN DE ESTADOS (ESTO EVITA QUE LA APP MUERA) ---
+if 'game' not in st.session_state or st.session_state.game is None:
+    # Obtenemos parámetros de forma segura, con valores por defecto si no existen
+    partida_id = st.query_params.get("partida_id", "0")
+    hoyo_sel = int(st.query_params.get("hoyo", 1))
+    
+    st.session_state.game = {
+        'id': partida_id,
+        'h_sel': hoyo_sel,
+        'fecha': datetime.now().strftime("%d/%m/%Y"),
+        'temporada': str(datetime.now().year),
+        'modo_9_hoyos': False
+    }
 
+# Aseguramos que el flag de modificación exista
+if 'hoyo_modificado' not in st.session_state:
+    st.session_state.hoyo_modificado = False
 # 1. Variables base del sistema (que requieren lógica o carga previa)
 if 'sh' not in st.session_state:
     st.session_state.sh = cargar_datos_golf()
@@ -681,42 +697,37 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 unsafe_allow_html=True
             )
             
-           # --- 3. INTERFAZ DE USUARIO (SOLUCIÓN DEFINITIVA) ---
-
-            # 1. Definimos las columnas FUERA del bucle
+          # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
+            # Primero, definimos valores por defecto seguros por si el df está vacío
+            golpes_anteriores = [1, 1, 1, 1] 
+            putts_anteriores = [0, 0, 0, 0]
+            
+            # Intentamos cargar los datos si existen
+            if 'df_partido_actual' in locals() and not df_partido_actual.empty:
+                golpes_anteriores = [df_partido_actual.iloc[0][f's{i}'] for i in range(4)]
+                putts_anteriores = [df_partido_actual.iloc[0][f'p{i}'] for i in range(4)]
+            
             cols_g = st.columns(4)
             nombres = ["MANU", "JOSE", "ROGE", "LALO"]
             
-            # 2. Nos aseguramos de tener listas de longitud 4. 
-            # Si los datos anteriores están mal, forzamos valores por defecto para evitar errores de índice
-            if 'golpes_anteriores' not in locals() or len(golpes_anteriores) < 4:
-                golpes_anteriores = [1, 1, 1, 1]
-            if 'putts_anteriores' not in locals() or len(putts_anteriores) < 4:
-                putts_anteriores = [0, 0, 0, 0]
-            
-            # 3. Iteramos exactamente 4 veces
             for i in range(4):
                 with cols_g[i]:
-                    # Título del jugador
                     st.markdown(f"**{nombres[i]}**")
                     
-                    # Input GOLPES
                     st.number_input(
-                        "Golpes", 
-                        min_value=1, step=1, 
+                        "Golpes", min_value=1, step=1, 
                         value=int(golpes_anteriores[i]), 
                         key=f"s{i}_h{h_actual}",
                         on_change=activar_boton_guardar
                     )
                     
-                    # Input PUTTS
                     st.number_input(
-                        "Putts", 
-                        min_value=0, step=1, 
+                        "Putts", min_value=0, step=1, 
                         value=int(putts_anteriores[i]), 
                         key=f"p{i}_h{h_actual}",
                         on_change=activar_boton_guardar
                     )
+                    
                 # --- BOTÓN DE GUARDADO ---
                 if st.button("💾 GUARDAR", use_container_width=True, key=f"btn_guardar_h{h_actual}"):
                     
