@@ -1245,17 +1245,18 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                         st.table(estilo)
                     
-                   # --- GRÁFICO DE BARRAS (CORREGIDO) ---
+                   # --- GRÁFICO DE BARRAS (SIN LEYENDA Y CON NOMBRES EN EL EJE X) ---
                     st.markdown("### 📊 Comparativa de Putts")
                     
                     # Definimos el gráfico
-                    # Cambiamos 'Jugador' a 'Jugador:N' para forzar a Altair a tratarlo como nombres (Nominal)
                     chart = alt.Chart(df_consistencia).mark_bar().encode(
+                        # 'Jugador:N' asegura que los nombres se coloquen en el eje X
                         x=alt.X('Jugador:N', 
                                 sort=list(df_consistencia['Jugador']), 
-                                axis=alt.Axis(labelAngle=0, title=None)), # labelAngle=0 pone el texto horizontal
+                                axis=alt.Axis(labelAngle=0, title=None)), 
                         y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3])),
-                        color='Jugador' # Esto mantiene los colores, pero la etiqueta ya estará en el eje X
+                        # Color:N con legend=None elimina la leyenda lateral
+                        color=alt.Color('Jugador:N', legend=None) 
                     ).properties(height=300)
                     
                     # Capa de texto (los valores encima de la barra)
