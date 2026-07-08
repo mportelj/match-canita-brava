@@ -516,7 +516,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         # --- BLOQUE 0: INICIALIZACIÓN DE ESTADO ---
         if 'refresco_id' not in st.session_state: 
             st.session_state.refresco_id = 0
-            st.cache_data.clear()
+        st.cache_data.clear()
     
         # 2. Reseteamos el estado
         st.session_state.game = None
