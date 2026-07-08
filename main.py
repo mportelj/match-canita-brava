@@ -1245,24 +1245,25 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                         st.table(estilo)
                     
-                 # --- 1. ORDENAMOS EL DATAFRAME (MENOR A MAYOR) ---
-                    # ascending=True asegura que el jugador con menos putts (mejor resultado) salga primero
+                 # --- 1. ORDENAMOS EL DATAFRAME ---
+                    # Ordenamos primero el DataFrame para que el orden sea consistente en todos lados
                     df_consistencia = df_consistencia.sort_values(by='Media Putts', ascending=True)
+                    orden_jugadores = list(df_consistencia['Jugador'])
                     
-                    # --- 2. GRÁFICO (CON LEYENDA Y ORDENADO) ---
+                    # --- 2. GRÁFICO (ORDENADO EN BARRAS Y LEYENDA) ---
                     st.markdown("### 📊 Comparativa de Putts")
                     
                     # Definimos el gráfico
                     chart = alt.Chart(df_consistencia).mark_bar().encode(
-                        # Mantenemos el orden de las barras según el dataframe
+                        # Ordenamos el eje X
                         x=alt.X('Jugador:N', 
-                                sort=list(df_consistencia['Jugador']), 
+                                sort=orden_jugadores, 
                                 axis=alt.Axis(labelAngle=0, title=None)), 
                         
                         y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3])),
                         
-                        # Al quitar 'legend=None', Altair vuelve a colocar la leyenda a la derecha
-                        color='Jugador:N' 
+                        # IMPORTANTE: Ordenamos la leyenda usando el mismo parámetro sort
+                        color=alt.Color('Jugador:N', sort=orden_jugadores) 
                     ).properties(height=300)
                     
                     # Capa de texto (los valores encima de la barra)
