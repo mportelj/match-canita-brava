@@ -327,7 +327,7 @@ def calcular_bonus_hoyo(golpes_jugador, par):
 
         
 
-def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
+def ejecutar_guardado_automatico(hoyo_id, lista_golpes, lista_putts):
     try:
         hoja = st.session_state.sh
         g = st.session_state.game
@@ -340,26 +340,25 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
             hoyo_real_campo = hoyo_cronologico
 
         par_hoyo = int(PAR_RIA_VIGO[hoyo_real_campo])
-        golpes = [int(g0), int(g1), int(g2), int(g3)]
         
-        # --- CÁLCULO MATCH PLAY ---
-        mejor_a = min(golpes[0], golpes[1]) # Manu, Jose
-        mejor_b = min(golpes[2], golpes[3]) # Roge, Lalo
+        # Convertimos a int para asegurar el cálculo
+        golpes = [int(x) for x in lista_golpes]
+        putts = [int(x) for x in lista_putts]
+        
+        # --- CÁLCULO MATCH PLAY (Mantiene lógica actual) ---
+        mejor_a = min(golpes[0], golpes[1]) 
+        mejor_b = min(golpes[2], golpes[3]) 
         peor_a = max(golpes[0], golpes[1])
         peor_b = max(golpes[2], golpes[3])
         
         res_a, res_b = 0, 0
         
-        # 1 Punto por Mejor Bola
         if mejor_a < mejor_b:   res_a += 1
         elif mejor_b < mejor_a: res_b += 1
         
-        # 1 Punto por Peor Bola
         if peor_a < peor_b:     res_a += 1
         elif peor_b < peor_a:   res_b += 1
         
-        # 🔥 BONUS: +1 punto por cada Birdie o mejor (menor o igual a Par - 1)
-        # Aplicamos el bonus acumulado a cada bando
         res_a += calcular_bonus_hoyo(golpes[0], par_hoyo)
         res_a += calcular_bonus_hoyo(golpes[1], par_hoyo)
         res_b += calcular_bonus_hoyo(golpes[2], par_hoyo)
@@ -380,32 +379,28 @@ def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3):
         id_p = str(g['id']).split('.')[0]
         fecha = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
         
+        # --- CONSTRUCCIÓN DE LA FILA (AQUÍ ESTÁ EL CAMBIO) ---
         nueva_fila = [
             f"{id_p}_H{hoyo_cronologico}", int(id_p), int(hoyo_cronologico), fecha, 
             int(g.get('temporada', 2026)), int(res_a), int(res_b), 
             p_mvp[0], p_mvp[1], p_mvp[2], p_mvp[3], 
-            golpes[0], golpes[1], golpes[2], golpes[3],
+            golpes[0], golpes[1], golpes[2], golpes[3], # GOLPES
+            putts[0], putts[1], putts[2], putts[3],      # PUTTS (NUEVO)
             int(hoyo_real_campo)
         ]
 
         filas = hoja.get_all_values()
         header = filas[0]
         
-        if 'hoyo_real' not in header:
-            header.append('hoyo_real')
-
         datos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_p and str(f[2]) == str(hoyo_cronologico))]
         
-        for f in datos:
-            if len(f) < len(header):
-                f.append(f[2])
-
         datos.append(nueva_fila)
         
         hoja.clear()
         hoja.update('A1', [header] + datos, value_input_option='USER_ENTERED')
         st.cache_data.clear()
         st.success(f"Guardado Hoyo {hoyo_cronologico} (Match: {res_a} vs {res_b})")
+        
     except Exception as e:
         st.error(f"Error al guardar: {e}")
         
@@ -662,12 +657,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     # Si las columnas no existen, mantenemos el Par definido arriba
                     pass
 
-            # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
-            
-            # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
-            # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
-            # 🎯 INDICADOR VISUAL: Si existe en la base de datos está JUGADO, si no, PENDIENTE
-            # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
+           # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
             # 🎯 INDICADOR VISUAL: Tamaño reducido (13px) y alineación vertical para que no salte de línea
             if hay_datos_hoyo:
                 badge_estado = "<span style='font-size:13px; font-weight:bold; vertical-align:middle;'>🟢 JUGADO</span>"
@@ -683,34 +673,49 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 unsafe_allow_html=True
             )
             
+            # --- 3. INTERFAZ DE USUARIO (INPUTS OPTIMIZADA) ---
+            # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
             cols_g = st.columns(4)
-            def activar_boton_guardar():
-                st.session_state.hoyo_modificado = True
+            nombres = ["MANU", "JOSE", "ROGE", "LALO"]
             
-                        
-            # Mapeo limpio de los inputs con sus claves (keys) corregidas y únicas
-            s0 = cols_g[0].number_input("MANU", min_value=1, value=golpes_anteriores[0], on_change=activar_boton_guardar, key=f"s0_h{h_actual}")
-            s1 = cols_g[1].number_input("JOSE", min_value=1, value=golpes_anteriores[1], on_change=activar_boton_guardar, key=f"s1_h{h_actual}")
-            s2 = cols_g[2].number_input("ROGE", min_value=1, value=golpes_anteriores[2], on_change=activar_boton_guardar, key=f"s2_h{h_actual}")
-            s3 = cols_g[3].number_input("LALO", min_value=1, value=golpes_anteriores[3], on_change=activar_boton_guardar, key=f"s3_h{h_actual}")
+            for i in range(4):
+                with cols_g[i]:
+                    st.markdown(f"**{nombres[i]}**")
+                    
+                    # 1. GOLPES
+                    st.number_input(
+                        "Golpes", min_value=1, step=1, 
+                        value=int(golpes_anteriores[i]), 
+                        key=f"s{i}_h{h_actual}",
+                        on_change=activar_boton_guardar
+                    )
+                    
+                    # 2. PUTTS
+                    st.number_input(
+                        "Putts", min_value=0, step=1, 
+                        value=int(putts_anteriores[i]), 
+                        key=f"p{i}_h{h_actual}",
+                        on_change=activar_boton_guardar
+                    )
             
-            # Comprobamos si los golpes actuales son idénticos a los guardados
-            #valores_actuales = [s0, s1, s2, s3]
-            #no_hay_cambios = (valores_actuales == golpes_anteriores)
-            no_hay_cambios = not st.session_state.hoyo_modificado
-        
-            # El botón permanece deshabilitado hasta que cambie algún número de la interfaz
-            if st.button(
-                "💾 GUARDAR RESULTADO HOYO", 
-                use_container_width=True, 
-                key=f"btn_guardar_h{h_actual}", 
-                disabled=no_hay_cambios
-            ):
-                ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3)
-                
-                # 🎯 REINICIO DEL INTERRUPTOR: El próximo hoyo empezará bloqueado por seguridad
-                st.session_state.hoyo_modificado = False
-                
+                # --- BOTÓN DE GUARDADO ---
+                if st.button("💾 GUARDAR", use_container_width=True, key=f"btn_guardar_h{h_actual}"):
+                    
+                    # Construimos las listas leyendo directamente de session_state
+                    # Usamos la misma lógica de keys que definimos en el bucle
+                    golpes_actuales = [st.session_state[f"s{i}_h{h_actual}"] for i in range(4)]
+                    putts_actuales = [st.session_state[f"p{i}_h{h_actual}"] for i in range(4)]
+                    
+                    # Llamamos a tu función con las listas ya construidas
+                    ejecutar_guardado_automatico(h_actual, golpes_actuales, putts_actuales)
+                    
+                    # Reiniciamos el estado de modificación y recargamos
+                    st.session_state.hoyo_modificado = False
+                    st.rerun()
+                    
+                    # 🎯 REINICIO DEL INTERRUPTOR: El próximo hoyo empezará bloqueado por seguridad
+                    st.session_state.hoyo_modificado = False
+                    
                 # ⛳ AVANCE AUTOMÁTICO INTELIGENTE:
                 # Si es el hoyo 1 al 17, avanza solo. Si es el 18, se queda congelado en el 18.
                 if h_actual < 18:
