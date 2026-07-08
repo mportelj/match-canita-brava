@@ -1164,11 +1164,16 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     # Si ver_acumulado es True (activado), usamos los datos totales.
                     # Si es False (desactivado), usamos el df_filtrado por fechas/temporada.
                     # Asegúrate de que 'df_total' contenga todos los datos originales.
+                    # --- 1. SELECCIÓN DE DATOS SEGÚN EL SELECTOR ---
+                    # Si ver_acumulado es True (activado), usamos los datos totales.
+                    # Si es False (desactivado), usamos el df_filtrado por fechas/temporada.
+                    # Asegúrate de que 'df_total' contenga todos los datos originales.
                     if ver_acumulado:
                         df_stats_source = df_total
                     else:
                         df_stats_source = df_filtrado
-                    
+                                  
+                  
                     # --- 2. ANÁLISIS DE PUTTS ---
                     st.markdown("### ⛳ Análisis de Putts")
                     
