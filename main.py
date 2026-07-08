@@ -697,6 +697,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             
            # --- INPUTS DE JUGADORES (CÓDIGO CORREGIDO) ---
             jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
+            # --- 1. INICIALIZACIÓN (Crucial que esté ANTES del bucle) ---
             inputs_s = []
             inputs_p = []
             
@@ -707,7 +708,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
                 except: pass
             
-            # Creamos una fila por jugador
+            # --- 2. BUCLE DE CREACIÓN DE INPUTS ---
             for i in range(4):
                 c1, c2, c3 = st.columns([1.5, 1, 1], vertical_alignment='center')
                 
@@ -715,22 +716,21 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.write(f"**{jugadores[i]}**")
                 
                 with c2:
-                    # ASIGNAMOS el resultado a 'val_s' y luego lo guardamos
                     val_s = st.number_input(f"G{i}", min_value=1, value=golpes_anteriores[i], 
                                             on_change=activar_boton_guardar, 
                                             key=f"s{i}_h{h_actual}", label_visibility="collapsed")
-                    inputs_s.append(val_s)
+                    inputs_s.append(val_s)  # <--- Esto debe estar AQUÍ
                     
                 with c3:
-                    # ASIGNAMOS el resultado a 'val_p' y luego lo guardamos
                     val_p = st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
                                             on_change=activar_boton_guardar, 
                                             key=f"p{i}_h{h_actual}", label_visibility="collapsed")
-                    inputs_p.append(val_p)
-
-                # Ahora sí, descomprimimos las listas para la función de guardado
-                s0, s1, s2, s3 = inputs_s
-                p0, p1, p2, p3 = inputs_p
+                    inputs_p.append(val_p)  # <--- Esto debe estar AQUÍ
+            
+            # --- 3. DESEMPAQUETADO (Esto va DESPUÉS del bucle) ---
+            # Ahora la lista ya tiene 4 elementos y se pueden asignar
+            s0, s1, s2, s3 = inputs_s
+            p0, p1, p2, p3 = inputs_p
             
             # --- BOTÓN DE GUARDADO ---
             no_hay_cambios = not st.session_state.hoyo_modificado
