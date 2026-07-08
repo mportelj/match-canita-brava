@@ -1245,18 +1245,21 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                         st.table(estilo)
                     
-                    # --- 2. GRÁFICO DE BARRAS (CORREGIDO) ---
+                   # --- GRÁFICO DE BARRAS (CORREGIDO) ---
                     st.markdown("### 📊 Comparativa de Putts")
                     
-                    base = alt.Chart(df_consistencia).encode(
-                        # AÑADIDO: axis=alt.Axis(labelAngle=0) para nombres horizontales
-                        x=alt.X('Jugador', sort=list(df_consistencia['Jugador']), axis=alt.Axis(labelAngle=0)),
-                        y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3]))
-                    )
+                    # Definimos el gráfico
+                    # Cambiamos 'Jugador' a 'Jugador:N' para forzar a Altair a tratarlo como nombres (Nominal)
+                    chart = alt.Chart(df_consistencia).mark_bar().encode(
+                        x=alt.X('Jugador:N', 
+                                sort=list(df_consistencia['Jugador']), 
+                                axis=alt.Axis(labelAngle=0, title=None)), # labelAngle=0 pone el texto horizontal
+                        y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3])),
+                        color='Jugador' # Esto mantiene los colores, pero la etiqueta ya estará en el eje X
+                    ).properties(height=300)
                     
-                    bars = base.mark_bar().encode(color='Jugador')
-                    
-                    text = base.mark_text(
+                    # Capa de texto (los valores encima de la barra)
+                    text = chart.mark_text(
                         align='center',
                         baseline='bottom',
                         dy=-5,
@@ -1265,8 +1268,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         text=alt.Text('Media Putts', format='.2f')
                     )
                     
-                    chart = (bars + text).properties(height=300)
-                    st.altair_chart(chart, use_container_width=True)
+                    # Combinamos barras y texto
+                    st.altair_chart(chart + text, use_container_width=True)
                     
                     # --- 3. TABLA DE CONSISTENCIA (CORREGIDA) ---
                     st.markdown(
