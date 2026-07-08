@@ -1229,12 +1229,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     df_consistencia = df_consistencia.reset_index(drop=True) # <--- ESTO QUITA LA COLUMNA 0, 1, 2...
 
                     # --- 2. TABLA CON ESTILO ---
+                    # Asegúrate de aplicar este bloque de formato exactamente así:
                     if not df_consistencia.empty:
                         estilo = df_consistencia.style \
                             .format({
                                 'Media Putts': '{:.2f}', 
                                 '% 1-Putt': '{:.0f}%', 
-                                '% 2-Putts': '{:.0f}%', # <--- NUEVO FORMATO
+                                '% 2-Putts': '{:.0f}%',  # <- Esto fuerza el formato sin decimales y con %
                                 '% 3-Putts': '{:.0f}%'
                             }) \
                             .set_table_styles([
