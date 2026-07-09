@@ -616,18 +616,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.session_state.game['h_sel'] = h_actual
             st.query_params["hoyo"] = h_actual
             
-            col_nav_1, col_nav_2 = st.columns(2)
-            if col_nav_1.button("⬅️ ANTERIOR", use_container_width=True):
-                st.session_state.game['h_sel'] = max(1, int(st.session_state.game['h_sel']) - 1)
-                st.query_params["hoyo"] = st.session_state.game['h_sel']
-                st.session_state.refresco_id += 1
-                st.rerun()
-            if col_nav_2.button("SIGUIENTE ➡️", use_container_width=True):
-                st.session_state.game['h_sel'] = min(18, int(st.session_state.game['h_sel']) + 1)
-                st.query_params["hoyo"] = st.session_state.game['h_sel']
-                st.session_state.refresco_id += 1
-                st.rerun()
-
+            
             # 6. OBTENCIÓN DE DATOS DEL HOYO ESPECÍFICO (CORREGIDO)
            # --- OBTENER GOLPES (COLUMNAS s0, s1, s2, s3) ---
             # --- LÓGICA DE OBTENCIÓN DE DATOS DEL HOYO ---
@@ -696,18 +685,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
            # --- CSS AGRESIVO PARA COMPACTAR AL MÁXIMO ---
             st.markdown("""
                 <style>
-                    /* Eliminamos el margen por defecto de los inputs */
-                    .stNumberInput {
-                        margin-bottom: 2px !important;
-                        padding-bottom: 0px !important;
-                        margin-top: 0px !important;
-                    }
-                    /* Ajustamos el contenedor de los bordes para que estén pegados */
-                    .input-container {
-                        display: flex;
-                        flex-direction: column;
-                        gap: 1px !important; 
-                    }
+                    .nombre-jugador { font-size: 18px !important; font-weight: bold !important; margin: 0; }
+                    .stNumberInput { margin-top: -10px !important; margin-bottom: 0px !important; }
+                    /* Ajuste de columnas para que estén pegadas */
+                    div[data-testid="column"] { padding: 0 2px !important; }
                 </style>
             """, unsafe_allow_html=True)
                         
@@ -730,56 +711,55 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 nombre = jugadores[i]
                 cfg = config_jugadores[nombre]
                 
-                # ESTRUCTURA: Columna 1 (Nombre), Columna 2 (Inputs apilados)
-                c1, c2 = st.columns([0.4, 1], vertical_alignment="center")
+                # Columna 1: Nombre (más ancho), Columna 2: Golpes, Columna 3: Putts
+                c1, c2, c3 = st.columns([0.6, 1, 1], vertical_alignment="center")
                 
                 with c1:
-                    st.markdown(f"<p style='color:{cfg['color']}; font-weight:bold; font-size:14px; margin:0;'>{nombre}</p>", unsafe_allow_html=True)
+                    st.markdown(f"<p class='nombre-jugador' style='color:{cfg['color']};'>{nombre}</p>", unsafe_allow_html=True)
                 
                 with c2:
-                    # Usamos un div contenedor para mantener los bordes coloreados
-                    st.markdown(f'<div class="{cfg["clase"]}" style="margin-bottom: 2px;">', unsafe_allow_html=True)
+                    st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
                     val_s = st.number_input(f"G{i}", min_value=1, value=g_defaults[i], 
                                             on_change=activar_boton_guardar, key=f"s{i}_h{h_actual}", label_visibility="collapsed")
                     st.markdown('</div>', unsafe_allow_html=True)
+                    inputs_s.append(val_s)
                     
+                with c3:
                     st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
                     val_p = st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
                                             on_change=activar_boton_guardar, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
                     st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    inputs_s.append(val_s)
                     inputs_p.append(val_p)
-            
+                    
+                               
             # Desempaquetado
             s0, s1, s2, s3 = inputs_s
             p0, p1, p2, p3 = inputs_p
             
             
                         
-            # --- BOTÓN DE GUARDADO ---
+           # --- 3. BOTÓN DE GUARDADO ---
             no_hay_cambios = not st.session_state.hoyo_modificado
-            
-            if st.button(
-                "💾 GUARDAR RESULTADO HOYO", 
-                use_container_width=True, 
-                key=f"btn_guardar_h{h_actual}", 
-                disabled=no_hay_cambios
-            ):
+            if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, key=f"btn_guardar_h{h_actual}", disabled=no_hay_cambios):
                 ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
-                
-                # 🎯 REINICIO DEL INTERRUPTOR: El próximo hoyo empezará bloqueado por seguridad
                 st.session_state.hoyo_modificado = False
-                
-                # ⛳ AVANCE AUTOMÁTICO INTELIGENTE:
-                # Si es el hoyo 1 al 17, avanza solo. Si es el 18, se queda congelado en el 18.
                 if h_actual < 18:
                     st.session_state.game['h_sel'] = h_actual + 1
                     st.query_params["hoyo"] = st.session_state.game['h_sel']
-                    st.session_state.refresco_id += 1  # Esto actualiza el combo visual al nuevo hoyo
-                    
+                    st.session_state.refresco_id += 1
                 st.rerun()
-                
+            st.write("---")
+            col_nav_1, col_nav_2 = st.columns(2)
+            if col_nav_1.button("⬅️ ANTERIOR", use_container_width=True):
+                st.session_state.game['h_sel'] = max(1, int(st.session_state.game['h_sel']) - 1)
+                st.query_params["hoyo"] = st.session_state.game['h_sel']
+                st.session_state.refresco_id += 1
+                st.rerun()
+            if col_nav_2.button("SIGUIENTE ➡️", use_container_width=True):
+                st.session_state.game['h_sel'] = min(18, int(st.session_state.game['h_sel']) + 1)
+                st.query_params["hoyo"] = st.session_state.game['h_sel']
+                st.session_state.refresco_id += 1
+                st.rerun()      
             res_hoyo_a, res_hoyo_b = 0, 0
             if not df_partido_actual.empty:
                 reg = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
