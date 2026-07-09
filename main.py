@@ -1224,22 +1224,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     df_consistencia = pd.DataFrame(stats_list).sort_values(by='Media Putts', ascending=True)
                     df_consistencia = df_consistencia.reset_index(drop=True) # <--- ESTO QUITA LA COLUMNA 0, 1, 2...
 
-                    # --- 2. TABLA CON ESTILO ---
-                    # Asegúrate de aplicar este bloque de formato exactamente así:
-                    if not df_consistencia.empty:
-                        estilo = df_consistencia.style \
-                            .format({
-                                'Media Putts': '{:.2f}', 
-                                '% 1-Putt': '{:.0f}%', 
-                                '% 2-Putts': '{:.0f}%',  # <- Esto fuerza el formato sin decimales y con %
-                                '% 3-Putts': '{:.0f}%'
-                            }) \
-                            .set_table_styles([
-                                {'selector': 'th', 'props': [('text-align', 'center')]},
-                                {'selector': 'td', 'props': [('text-align', 'center')]}
-                            ])
-                    
-                        st.table(estilo)
+              
                     
                  # --- 1. ORDENAMOS EL DATAFRAME ---
                     # Ordenamos primero el DataFrame para que el orden sea consistente en todos lados
