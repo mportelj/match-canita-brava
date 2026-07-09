@@ -1192,95 +1192,81 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         
                     #PUTT
                     import altair as alt
-
-                    # --- 1. PREPARACIÓN DE DATOS ---
-                    df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], dayfirst=True)
+                    # --- 📊 ANÁLISIS DE PUTTS (Dinámico y Condicionado) ---
+                    st.markdown("---")
+                    st.markdown("### 📊 Análisis de Putts")
+                    
+                    # 1. DEFINICIÓN DEL DATASET BASE
+                    # Usamos df_raw para filtrar dinámicamente según la selección del usuario
+                    if ver_acumulado:
+                        # Si estamos en modo acumulado, filtramos por la temporada seleccionada
+                        temp_val = str(seleccion_filtro)
+                        df_putts_source = df_raw[df_raw['t_limpia'] == temp_val].copy()
+                    else:
+                        # Si estamos en modo jornada, usamos la jornada seleccionada
+                        df_putts_source = df_raw[df_raw['fecha'] == seleccion_filtro].copy()
+                    
+                    # 2. APLICACIÓN DE LA REGLA ESPECIAL 2026
+                    # Si la temporada es '2026', filtramos estrictamente a partir del 8/07/2026
                     fecha_corte = pd.Timestamp('2026-07-08')
+                    # Aseguramos que tenemos la columna fecha_dt para comparar
+                    if 'fecha_dt' not in df_putts_source.columns:
+                        df_putts_source['fecha_dt'] = pd.to_datetime(df_putts_source['fecha'], dayfirst=True)
                     
-                    df_stats_source = df_raw[
-                        (df_raw['t_limpia'] == temp_actual) & 
-                        (df_raw['fecha_dt'] >= fecha_corte)
-                    ].copy()
+                    # Filtro: Si la temporada es 2026, solo nos quedamos con fechas >= 08/07/2026
+                    if '2026' in df_putts_source['t_limpia'].values:
+                        df_putts_source = df_putts_source[
+                            (df_putts_source['t_limpia'] != '2026') | (df_putts_source['fecha_dt'] >= fecha_corte)
+                        ]
                     
-                    # 2. CÁLCULO DE MÉTRICAS DE CONSISTENCIA
-      
-
-                    # --- 1. CÁLCULO CON NUEVA MÉTRICA ---
-                    stats_list = []
-                    cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
-                    
-                    for col, nombre in cols_putts.items():
-                        if col in df_stats_source.columns:
-                            datos = pd.to_numeric(df_stats_source[col], errors='coerce').fillna(0)
-                            stats_list.append({
-                                'Jugador': nombre,
-                                'Media Putts': datos.mean(),
-                                '% 1-Putt': (datos == 1).mean() * 100,
-                                '% 2-Putts': (datos == 2).mean() * 100,  # <--- NUEVA MÉTRICA
-                                '% 3-Putts': (datos >= 3).mean() * 100
-                            })
-                    
-                    # Creamos el DataFrame y lo limpiamos
-                    df_consistencia = pd.DataFrame(stats_list).sort_values(by='Media Putts', ascending=True)
-                    df_consistencia = df_consistencia.reset_index(drop=True) # <--- ESTO QUITA LA COLUMNA 0, 1, 2...
-
-              
-                    
-                 # --- 1. ORDENAMOS EL DATAFRAME ---
-                    # Ordenamos primero el DataFrame para que el orden sea consistente en todos lados
-                    df_consistencia = df_consistencia.sort_values(by='Media Putts', ascending=True)
-                    orden_jugadores = list(df_consistencia['Jugador'])
-                    
-                    # --- 2. GRÁFICO (ORDENADO EN BARRAS Y LEYENDA) ---
-                    st.markdown("### 📊 Comparativa de Putts")
-                    
-                    # Definimos el gráfico
-                    chart = alt.Chart(df_consistencia).mark_bar().encode(
-                        # Ordenamos el eje X
-                        x=alt.X('Jugador:N', 
-                                sort=orden_jugadores, 
-                                axis=alt.Axis(labelAngle=0, title=None)), 
+                    # 3. CÁLCULO DE MÉTRICAS (Si hay datos tras el filtrado)
+                    if not df_putts_source.empty:
+                        stats_list = []
+                        cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
                         
-                        y=alt.Y('Media Putts', scale=alt.Scale(domain=[1, 3])),
+                        for col, nombre in cols_putts.items():
+                            if col in df_putts_source.columns:
+                                datos = pd.to_numeric(df_putts_source[col], errors='coerce').fillna(0)
+                                stats_list.append({
+                                    'Jugador': nombre,
+                                    'Media Putts': datos.mean(),
+                                    '% 1-Putt': (datos == 1).mean() * 100,
+                                    '% 2-Putts': (datos == 2).mean() * 100,
+                                    '% 3-Putts': (datos >= 3).mean() * 100
+                                })
                         
-                        # IMPORTANTE: Ordenamos la leyenda usando el mismo parámetro sort
-                        color=alt.Color('Jugador:N', sort=orden_jugadores) 
-                    ).properties(height=300)
+                        df_consistencia = pd.DataFrame(stats_list)
+                        df_consistencia = df_consistencia.sort_values(by='Media Putts', ascending=True).reset_index(drop=True)
+                        orden_jugadores = list(df_consistencia['Jugador'])
                     
-                    # Capa de texto (los valores encima de la barra)
-                    text = chart.mark_text(
-                        align='center',
-                        baseline='bottom',
-                        dy=-5,
-                        color='black'
-                    ).encode(
-                        text=alt.Text('Media Putts', format='.2f')
-                    )
-                    
-                    # Combinamos y renderizamos
-                    st.altair_chart(chart + text, use_container_width=True)
-                    
-                    # --- 3. TABLA DE CONSISTENCIA (CORREGIDA) ---
-                    st.markdown(
-                        f"### ⛳ Tabla de Consistencia <span style='color:green; font-size: 0.8em;'>({len(df_stats_source)} hoyos registrados)</span>", 
-                        unsafe_allow_html=True
-                    )
-                    
-                    if not df_consistencia.empty:
-                        estilo = df_consistencia.style \
-                            .format({
-                                'Media Putts': '{:.2f}', 
-                                '% 1-Putt': '{:.0f}%', 
-                                '% 2-Putts': '{:.0f}%',  # <--- AÑADIDO AQUÍ
-                                '% 3-Putts': '{:.0f}%'
-                            }) \
-                            .set_table_styles([
-                                {'selector': 'th', 'props': [('text-align', 'center'), ('width', '100px')]},
-                                {'selector': 'td', 'props': [('text-align', 'center'), ('width', '100px')]},
-                                {'selector': 'table', 'props': [('margin-left', '0'), ('margin-right', 'auto')]}
-                            ])
+                        # 4. GRÁFICO (Altair)
+                        chart = alt.Chart(df_consistencia).mark_bar().encode(
+                            x=alt.X('Jugador:N', sort=orden_jugadores, axis=alt.Axis(labelAngle=0, title=None)), 
+                            y=alt.Y('Media Putts', scale=alt.Scale(domain=[0, 3])), 
+                            color=alt.Color('Jugador:N', sort=orden_jugadores, legend=None) 
+                        ).properties(height=300)
+                        
+                        text = chart.mark_text(align='center', baseline='bottom', dy=-5, color='black').encode(
+                            text=alt.Text('Media Putts', format='.2f')
+                        )
+                        
+                        st.altair_chart(chart + text, use_container_width=True)
+                        
+                        # 5. TABLA DE CONSISTENCIA
+                        st.markdown(f"### ⛳ Tabla de Consistencia <span style='color:green; font-size: 0.8em;'>({len(df_putts_source)} hoyos)</span>", unsafe_allow_html=True)
+                        
+                        estilo = df_consistencia.style.format({
+                            'Media Putts': '{:.2f}', 
+                            '% 1-Putt': '{:.0f}%', 
+                            '% 2-Putts': '{:.0f}%', 
+                            '% 3-Putts': '{:.0f}%'
+                        }).set_table_styles([
+                            {'selector': 'th', 'props': [('text-align', 'center')]},
+                            {'selector': 'td', 'props': [('text-align', 'center')]}
+                        ])
                         st.table(estilo)
-
+                    else:
+                        st.warning("No hay datos de putts disponibles para esta selección (o no cumplen el requisito de fecha > 08/07/2026).")
 # SECCIÓN: ADMIN
 # ==========================================
 
