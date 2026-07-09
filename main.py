@@ -595,17 +595,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 </style>
             """, unsafe_allow_html=True)
 
-            # 4. RENDERIZADO DEL MARCADOR VISUAL (HTML)
-            st.markdown(f"""
-                <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 10px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
-                    <div style="display: flex; justify-content: space-around; align-items: center;">
-                        <div style="flex: 1;"><p style="margin:0; font-size:0.9em; font-weight:bold;">MANU & JOSE</p><h1 style="margin:0; font-size:4.5em; color:{COLOR_A if marcador_a > 0 else '#333'};">{marcador_a:g}</h1></div>
-                        <div style="background:#ccc; border-radius:50%; width:35px; height:35px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#666; font-size:0.8em;">VS</div>
-                        <div style="flex: 1;"><p style="margin:0; font-size:0.9em; font-weight:bold;">ROGE & LALO</p><h1 style="margin:0; font-size:4.5em; color:{COLOR_B if marcador_b > 0 else '#333'};">{marcador_b:g}</h1></div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
+            
             # 5. SELECTOR DE HOYO Y NAVEGACIÓN
             h_actual = st.selectbox(
                 "📍 HOYO SELECCIONADO", 
@@ -760,6 +750,18 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.query_params["hoyo"] = st.session_state.game['h_sel']
                 st.session_state.refresco_id += 1
                 st.rerun()      
+
+            # 4. RENDERIZADO DEL MARCADOR VISUAL (HTML)
+            st.markdown(f"""
+                <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 10px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
+                    <div style="display: flex; justify-content: space-around; align-items: center;">
+                        <div style="flex: 1;"><p style="margin:0; font-size:0.9em; font-weight:bold;">MANU & JOSE</p><h1 style="margin:0; font-size:4.5em; color:{COLOR_A if marcador_a > 0 else '#333'};">{marcador_a:g}</h1></div>
+                        <div style="background:#ccc; border-radius:50%; width:35px; height:35px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#666; font-size:0.8em;">VS</div>
+                        <div style="flex: 1;"><p style="margin:0; font-size:0.9em; font-weight:bold;">ROGE & LALO</p><h1 style="margin:0; font-size:4.5em; color:{COLOR_B if marcador_b > 0 else '#333'};">{marcador_b:g}</h1></div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
             res_hoyo_a, res_hoyo_b = 0, 0
             if not df_partido_actual.empty:
                 reg = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
