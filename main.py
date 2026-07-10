@@ -1232,7 +1232,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                                     'Media Putts': datos.mean(),
                                     '% 1-Putt': (datos == 1).mean() * 100,
                                     '% 2-Putts': (datos == 2).mean() * 100,
-                                    '% 3-Putts': (datos >= 3).mean() * 100
+                                    '💀 % 3-Putts': (datos >= 3).mean() * 100
                                 })
                         
                         df_consistencia = pd.DataFrame(stats_list)
@@ -1253,13 +1253,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         st.altair_chart(chart + text, use_container_width=True)
                         
                         # 5. TABLA DE CONSISTENCIA
-                        st.markdown(f"### ⛳ Tabla de Consistencia <span style='color:green; font-size: 0.8em;'>({len(df_putts_source)} hoyos)</span>", unsafe_allow_html=True)
+                        st.markdown(f"### ⛳ Tabla de Consistencia <span style='color:green; font-size: 0.8em;'>({len(df_putts_source)} hoyos registrados)</span>", unsafe_allow_html=True)
                         
                         estilo = df_consistencia.style.format({
                             'Media Putts': '{:.2f}', 
                             '% 1-Putt': '{:.0f}%', 
                             '% 2-Putts': '{:.0f}%', 
-                            '💀 % 3-Putts': '{:.0f}%'
+                            '% 3-Putts': '{:.0f}%'
                         }).set_table_styles([
                             {'selector': 'th', 'props': [('text-align', 'center')]},
                             {'selector': 'td', 'props': [('text-align', 'center')]}
