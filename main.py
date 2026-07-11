@@ -1285,7 +1285,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                             'Media Putts': '{:.2f}', 
                             '% 1-Putt': '{:.0f}%', 
                             '% 2-Putts': '{:.0f}%', 
-                            '% 3-Putts': '{:.0f}%'
+                            '💀 % 3-Putts': '{:.0f}%'
                         }).set_table_styles([
                             {'selector': 'th', 'props': [('text-align', 'center')]},
                             {'selector': 'td', 'props': [('text-align', 'center')]}
