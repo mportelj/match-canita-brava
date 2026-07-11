@@ -914,12 +914,14 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 d_p = df_stats[df_stats[col_s] > 0].copy()
                 #########################################
                 # 1. Definimos lógica de GIR y Up&Down
-                # GIR: Shots a green (Total - Putts) <= Par - 2
-                # Up&Down: !GIR y Putts == 1
                 d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
                 d_p['shots_a_green'] = d_p[col_s] - d_p[f'p{i}']
+                
+                # GIR: Golpes para llegar a green <= Par - 2
                 d_p['is_gir'] = d_p['shots_a_green'] <= (d_p['par_h'] - 2)
-                d_p['is_updown'] = (~d_p['is_gir']) & (d_p[f'p{i}'] == 1)
+                
+                # U&D: Falla GIR + 1 Putt + Hace Par o mejor (dif <= 0)
+                d_p['is_updown'] = (~d_p['is_gir']) & (d_p[f'p{i}'] == 1) & (d_p['dif'] <= 0)
                 
                 # Calculamos porcentajes
                 total_hoyos = len(d_p)
