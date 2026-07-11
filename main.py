@@ -960,7 +960,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         "db": int((d_p['dif'] == 2).sum()), 
                         "tb": int((d_p['dif'] >= 3).sum()), 
                         "hoyos": len(d_p),
-                        "partidos": partidos_jugados
+                        "partidos": partidos_jugados,
                         "gir": gir_pct,     # <--- NUEVO
                         "ud": ud_pct        # <--- NUEVO
                     })
