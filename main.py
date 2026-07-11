@@ -961,8 +961,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         "tb": int((d_p['dif'] >= 3).sum()), 
                         "hoyos": len(d_p),
                         "partidos": partidos_jugados,
-                        "gir": gir_pct,     # <--- NUEVO
-                        "ud": ud_pct        # <--- NUEVO
+                        "gir_cnt": int(d_p['is_gir'].sum()),      
+                        "ud_cnt": int(d_p['is_updown'].sum())
                     })
             
             lista_resultados = sorted(lista_resultados, key=lambda x: x['scr'], reverse=True)
@@ -991,8 +991,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         "Jugador": f"<b>{res['Jugador']}</b>",
                         "+/-": txt_pm,
                         "Scratch": txt_scr,
-                        "GIR": f"{res['gir']:.0f}%",    # <--- AÑADIR
-                        "U&D": f"{res['ud']:.0f}%",     # <--- AÑADIR
+                        "GIR": f_pct(res['gir_cnt'], res['hoyos']),
+                        "U&D": f_pct(res['ud_cnt'], res['hoyos']),
                         "Eagle": f_pct(res['e'], res['hoyos']), "Birdie": f_pct(res['b'], res['hoyos']), 
                         "Par": f_pct(res['p'], res['hoyos']), "Bogey": f_pct(res['bog'], res['hoyos']), 
                         "D.Bogey": f_pct(res['db'], res['hoyos']), "3+ Bogey": f_pct(res['tb'], res['hoyos'])
