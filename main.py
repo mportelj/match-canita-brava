@@ -912,6 +912,21 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
                 d_p = df_stats[df_stats[col_s] > 0].copy()
+                #########################################
+                # 1. Definimos lógica de GIR y Up&Down
+                # GIR: Shots a green (Total - Putts) <= Par - 2
+                # Up&Down: !GIR y Putts == 1
+                d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
+                d_p['shots_a_green'] = d_p[col_s] - d_p[f'p{i}']
+                d_p['is_gir'] = d_p['shots_a_green'] <= (d_p['par_h'] - 2)
+                d_p['is_updown'] = (~d_p['is_gir']) & (d_p[f'p{i}'] == 1)
+                
+                # Calculamos porcentajes
+                total_hoyos = len(d_p)
+                gir_pct = (d_p['is_gir'].sum() / total_hoyos * 100) if total_hoyos > 0 else 0
+                ud_pct = (d_p['is_updown'].sum() / total_hoyos * 100) if total_hoyos > 0 else 0
+
+                ###############################
                 
                 if not d_p.empty:
                     d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
@@ -945,7 +960,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         "db": int((d_p['dif'] == 2).sum()), 
                         "tb": int((d_p['dif'] >= 3).sum()), 
                         "hoyos": len(d_p),
-                        "partidos": partidos_jugados  
+                        "partidos": partidos_jugados
+                        "gir": gir_pct,     # <--- NUEVO
+                        "ud": ud_pct        # <--- NUEVO
                     })
             
             lista_resultados = sorted(lista_resultados, key=lambda x: x['scr'], reverse=True)
@@ -974,6 +991,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         "Jugador": f"<b>{res['Jugador']}</b>",
                         "+/-": txt_pm,
                         "Scratch": txt_scr,
+                        "GIR": f"{res['gir']:.0f}%",    # <--- AÑADIR
+                        "U&D": f"{res['ud']:.0f}%",     # <--- AÑADIR
                         "Eagle": f_pct(res['e'], res['hoyos']), "Birdie": f_pct(res['b'], res['hoyos']), 
                         "Par": f_pct(res['p'], res['hoyos']), "Bogey": f_pct(res['bog'], res['hoyos']), 
                         "D.Bogey": f_pct(res['db'], res['hoyos']), "3+ Bogey": f_pct(res['tb'], res['hoyos'])
