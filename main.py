@@ -1437,15 +1437,15 @@ elif st.session_state.menu_seleccionado == "Admin":
                             else:
                                 st.error("No se pudo eliminar el partido.")
                                 
-                 with st.popover("🗑️ Eliminar Hoyo"):
-                        hoyos_disponibles = sorted(df_partido['hoyo'].astype(int).tolist())
-                        hoyo_sel = st.selectbox("Selecciona hoyo a borrar:", hoyos_disponibles)
-                        
-                        if st.button(f"Confirmar borrado Hoyo {hoyo_sel}", type="primary"):
-                            if borrar_hoyo_especifico(p_id, hoyo_sel):
-                                st.success(f"Hoyo {hoyo_sel} eliminado.")
-                                st.rerun()                  
-                                    
+                     with st.popover("🗑️ Eliminar Hoyo"):
+                            hoyos_disponibles = sorted(df_partido['hoyo'].astype(int).tolist())
+                            hoyo_sel = st.selectbox("Selecciona hoyo a borrar:", hoyos_disponibles)
+                            
+                            if st.button(f"Confirmar borrado Hoyo {hoyo_sel}", type="primary"):
+                                if borrar_hoyo_especifico(p_id, hoyo_sel):
+                                    st.success(f"Hoyo {hoyo_sel} eliminado.")
+                                    st.rerun()                  
+                                        
 
 
                                 
