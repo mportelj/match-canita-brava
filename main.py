@@ -434,7 +434,28 @@ def calcular_marcador_acumulado(df):
     
     return total_a, total_b
 
-
+    def borrar_hoyo_especifico(partido_id, hoyo_id):
+        try:
+            hoja = st.session_state.sh
+            filas = hoja.get_all_values()
+            header = filas[0]
+            datos = filas[1:]
+            
+            # Filtramos: guardamos todas las filas MENOS la del partido y hoyo específico
+            nuevos_datos = []
+            for f in datos:
+                # Comparamos partido_id y hoyo (asegurando tipos)
+                if str(f[1]).split('.')[0].strip() == str(partido_id).split('.')[0].strip() and str(f[2]).strip() == str(hoyo_id).strip():
+                    continue
+                nuevos_datos.append(f)
+                
+            hoja.clear()
+            hoja.update('A1', [header] + nuevos_datos, value_input_option='USER_ENTERED')
+            st.cache_data.clear()
+            return True
+        except Exception as e:
+            st.error(f"Error al borrar hoyo: {e}")
+            return False
 
 
 # --- 4. PANTALLAS ---
@@ -1120,6 +1141,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                     txt_wa += f"👤 *{res['Jugador'].upper()}*\n"
                     txt_wa += f"🏆 *{texto_pm}* ({texto_scratch})\n"
+                    txt_wa += f"🎯 *GIR:* {wf(res['gir_cnt'])}\n"
+                    txt_wa += f"⬆️ *U&D:* {wf(res['ud_cnt'])}\n"
                     
                     s_l = ""
                     if not ver_acumulado:
@@ -1413,7 +1436,15 @@ elif st.session_state.menu_seleccionado == "Admin":
                                 st.rerun()
                             else:
                                 st.error("No se pudo eliminar el partido.")
-                                   
+                                
+                 with st.popover("🗑️ Eliminar Hoyo"):
+                        hoyos_disponibles = sorted(df_partido['hoyo'].astype(int).tolist())
+                        hoyo_sel = st.selectbox("Selecciona hoyo a borrar:", hoyos_disponibles)
+                        
+                        if st.button(f"Confirmar borrado Hoyo {hoyo_sel}", type="primary"):
+                            if borrar_hoyo_especifico(p_id, hoyo_sel):
+                                st.success(f"Hoyo {hoyo_sel} eliminado.")
+                                st.rerun()                  
                                     
 
 
