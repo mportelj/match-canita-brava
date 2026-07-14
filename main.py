@@ -1400,52 +1400,44 @@ elif st.session_state.menu_seleccionado == "Admin":
                     use_container_width=True
                 )
 
-                # Botones de gestión
-                col_ed, col_bor = st.columns(2)
+                # --- BOTONES DE GESTIÓN (Ajustados a 3 columnas) ---
+                col_ed, col_bor, col_bor_h = st.columns(3)
                 
-                # BOTÓN EDITAR: Carga el partido y salta a Nueva Partida
-                if col_ed.button("📝 Seguir/Editar Partido", key=f"ed_{p_id}", use_container_width=True):
+                # 1. BOTÓN EDITAR
+                if col_ed.button("📝 Seguir/Editar", key=f"ed_{p_id}", use_container_width=True):
                     st.session_state.game = {
                         "id": p_id,
                         "fecha": row['fecha'],
                         "temporada": row['temporada'],
-                        "h_sel": int(df_partido['hoyo'].max()) # Te sitúa en el último hoyo jugado
+                        "h_sel": int(df_partido['hoyo'].max())
                     }
                     st.session_state.menu_seleccionado = "Nueva Partida"
                     st.rerun()
 
-                # BOTÓN BORRAR con popover de seguridad
-                # --- BOTÓN BORRAR CON POPOVER DE SEGURIDAD CORREGIDO ---
+                # 2. BOTÓN BORRAR JORNADA
+                key_popover = f"popover_del_{p_id}"
                 with col_bor:
-                    # 1. Creamos una clave única en session_state para controlar si está abierto
-                    key_popover = f"popover_del_{p_id}"
-                    
-                    # Renderizamos el popover vinculando su estado
-                    with st.popover("🗑️ Borrar Jornada", use_container_width=True, key=key_popover):
+                    with st.popover("🗑️ Borrar Día", use_container_width=True):
                         st.error("¿Seguro? Se eliminarán todos los registros de este día.")
-                        
-                        if st.button("ELIMINAR DEFINITIVAMENTE", key=f"btn_del_{p_id}", type="primary", use_container_width=True):
+                        if st.button("ELIMINAR DÍA", key=f"btn_del_{p_id}", type="primary", use_container_width=True):
                             if borrar_partido_completo(p_id):
                                 st.toast("Jornada eliminada")
-                                
-                                # 🎯 TRUCO CRÍTICO: Forzamos el cierre del popover en la memoria de Streamlit
-                                st.session_state[key_popover] = False
-                                
-                                # Limpiamos caché y relanzamos la aplicación limpia
                                 st.cache_data.clear()
                                 st.rerun()
                             else:
-                                st.error("No se pudo eliminar el partido.")
-                                
-                 with st.popover("🗑️ Eliminar Hoyo"):
+                                st.error("No se pudo eliminar.")
+
+                # 3. BOTÓN ELIMINAR HOYO (Integrado en la 3ª columna)
+                with col_bor_h:
+                    with st.popover("🗑️ Borrar Hoyo", use_container_width=True):
                         hoyos_disponibles = sorted(df_partido['hoyo'].astype(int).tolist())
-                        hoyo_sel = st.selectbox("Selecciona hoyo a borrar:", hoyos_disponibles)
+                        hoyo_sel = st.selectbox("¿Qué hoyo borrar?", hoyos_disponibles, key=f"sel_h_{p_id}")
                         
-                        if st.button(f"Confirmar borrado Hoyo {hoyo_sel}", type="primary"):
+                        if st.button(f"Confirmar Hoyo {hoyo_sel}", key=f"btn_del_h_{p_id}_{hoyo_sel}", type="primary", use_container_width=True):
                             if borrar_hoyo_especifico(p_id, hoyo_sel):
                                 st.success(f"Hoyo {hoyo_sel} eliminado.")
-                                st.rerun()                  
-                                        
+                                st.cache_data.clear() # Limpiamos caché para refrescar la tabla
+                                st.rerun()
 
 
                                 
