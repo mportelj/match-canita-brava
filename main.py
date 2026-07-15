@@ -935,10 +935,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
                 col_p = f'p{i}'
+                col_mvp = f'p{i+1}_pts'
                 
-                # --- LÓGICA DE FILTRADO CONDICIONAL ---
+                # Aseguramos que la columna de golpes sea numérica
+                df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
+
+                # --- 1. LÓGICA DE FILTRADO CONDICIONAL ---
                 if ver_acumulado:
-                    # Filtro específico para Acumulado: Temporada (ya en df_stats) + Fecha desde 07/07/26
                     fecha_limite = pd.to_datetime('2026-07-07')
                     d_p = df_stats[
                         (df_stats[col_s] > 0) & 
@@ -946,22 +949,15 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         (df_stats['fecha'] >= fecha_limite)
                     ].copy()
                 else:
-                    # En Jornada, ya tenemos el df_stats filtrado por la fecha exacta en el bloque anterior
                     d_p = df_stats[df_stats[col_s] > 0].copy()
 
-                # --- CÁLCULO DE MEDIA ---
+                # --- 2. CÁLCULO DE MEDIA PUTTS ---
                 avg_putts = 0
                 if not d_p.empty:
-                    # Convertimos a numérico y eliminamos nulos
                     putts_serie = pd.to_numeric(d_p[col_p], errors='coerce')
-                    # Solo contamos hoyos donde hubo putts (evita ceros de "no registro")
-                    # Si el dato es 0 y lo quieres contar como 0 putts, usa .dropna()
-                    # Si los datos viejos son 0 y no quieres que cuenten, asegúrate de que sean NaT/NaN
                     putts_validos = putts_serie.dropna()
-                    
                     total_putts = putts_validos.sum()
                     num_hoyos = len(putts_validos)
-                    
                     if num_hoyos > 0:
                         avg_putts = total_putts / num_hoyos
                 
