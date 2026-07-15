@@ -931,12 +931,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 df_stats['fecha'] = pd.to_datetime(df_stats['fecha'], dayfirst=True, errors='coerce')
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
+                col_p = f'p{i}' # Definimos la columna de putts correspondiente
                 col_mvp = f'p{i+1}_pts'
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
                 # 1. Filtramos: Jugador + Fecha válida (>= 07/07/2026) + Golpes > 0
                 fecha_limite = pd.to_datetime('2026-07-07')
                 d_p = df_stats[
-                    (df_stats['jugador'] == jug) & 
                     (df_stats[col_s] > 0) & 
                     (df_stats['fecha'].notna()) & 
                     (df_stats['fecha'] >= fecha_limite)
@@ -947,7 +947,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 
                 # 3. Calculamos si hay datos
                 if not d_p.empty:
-                    putts_serie = pd.to_numeric(d_p[f'p{i}'], errors='coerce')
+                    putts_serie = pd.to_numeric(d_p[col_p], errors='coerce')
                     putts_validos = putts_serie.dropna()
                     total_putts = putts_validos.sum()
                     num_hoyos = len(putts_validos)
