@@ -932,18 +932,22 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 col_mvp = f'p{i+1}_pts'
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
                 d_p = df_stats[df_stats[col_s] > 0].copy()
-                # 1. Filtramos solo los hoyos donde realmente se han registrado golpes
-                # Esto elimina hoyos vacíos o mal registrados en el acumulado
-                df_jugados = d_p[d_p[col_s] > 0].copy()
+                # --- DENTRO DEL BUCLE DE JUGADORES (sección Estadísticas) ---
+
+                # 1. Aseguramos que la columna de putts sea numérica (convierte errores a NaN)
+                # Esto limpia el DataFrame d_p de cualquier dato no numérico
+                putts_serie = pd.to_numeric(d_p[f'p{i}'], errors='coerce')
                 
-                # 2. Sumamos los putts (el 0 cuenta correctamente como 0 en la suma)
-                total_putts = df_jugados[f'p{i}'].sum()
+                # 2. Filtramos solo los hoyos que tienen datos de putts válidos
+                # .dropna() elimina todas las filas donde no se registró putt (ej: pre-07/07/2026)
+                putts_validos = putts_serie.dropna()
                 
-                # 3. Contamos los hoyos jugados usando la longitud de este dataframe filtrado
-                num_hoyos = len(df_jugados)
+                # 3. Calculamos la media solo con los hoyos que TIENEN datos
+                total_putts = putts_validos.sum()
+                num_hoyos_con_putts = len(putts_validos)
                 
-                # 4. Calculamos la media
-                avg_putts = total_putts / num_hoyos if num_hoyos > 0 else 0
+                # 4. Resultado final
+                avg_putts = total_putts / num_hoyos_con_putts if num_hoyos_con_putts > 0 else 0
                 #########################################
                # 1. Primero calculamos el PAR y la DIFERENCIA (esto debe ir primero)
                 d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
@@ -967,14 +971,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 # --- DENTRO DEL BUCLE DE JUGADORES ---
                 df_jugados = d_p[d_p[col_s] > 0].copy()
                 
-                # AÑADE ESTO PARA VER QUÉ PASA
-                st.write(f"--- Debug Jugador: {jug} ---")
-                st.write(f"Filas detectadas: {len(df_jugados)}")
-                st.write(f"Suma de putts (columna {f'p{i}'}): {df_jugados[f'p{i}'].sum()}")
-                st.write(f"Muestra de datos (primeras 5 filas):")
-                st.write(df_jugados[[f'p{i}', col_s]].head())
-                ###############################
-                
+                                
                 if not d_p.empty:
                     d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
                     d_p['dif'] = d_p[col_s] - d_p['par_h']
