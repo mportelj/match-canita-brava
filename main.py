@@ -950,12 +950,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     ].copy()
                 else:
                     d_p = df_stats[df_stats[col_s] > 0].copy()
-                # --- DEBUG: RADIOGRAFÍA DE DATOS ---
-                                if ver_acumulado:
-                                    st.write(f"--- Datos de {jug} ---")
-                                    st.write(f"Total filas detectadas: {len(d_p)}")
-                                    # Mostramos las fechas y los putts de esas 26 filas
-                                    st.write(d_p[['fecha', col_p]])
+# --- DEBUG: RADIOGRAFÍA DE DATOS ---
+                if ver_acumulado:
+                    st.write(f"--- Datos de {jug} ---")
+                    st.write(f"Total filas detectadas: {len(d_p)}")
+                    # Mostramos las fechas y los putts de esas 26 filas
+                    st.write(d_p[['fecha', col_p]])
                 # --- CÁLCULO DE MEDIA PUTTS (Corregido) ---
                 avg_putts = 0
                 if not d_p.empty:
