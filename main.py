@@ -927,27 +927,19 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
             # --- 4. ESTADÍSTICAS JUGADORES ---
             lista_resultados = []
+            df_stats['fecha'] = pd.to_datetime(df_stats['fecha'])
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
                 col_mvp = f'p{i+1}_pts'
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
-                d_p = df_stats[df_stats[col_s] > 0].copy()
-                # --- DENTRO DEL BUCLE DE JUGADORES (sección Estadísticas) ---
+                d_p = df_stats[(df_stats[col_s] > 0) & (df_stats['fecha'] >= '2026-07-07')].copy()
 
-                # 1. Aseguramos que la columna de putts sea numérica (convierte errores a NaN)
-                # Esto limpia el DataFrame d_p de cualquier dato no numérico
+                # Ahora calculamos la media con este d_p limpio
                 putts_serie = pd.to_numeric(d_p[f'p{i}'], errors='coerce')
-                
-                # 2. Filtramos solo los hoyos que tienen datos de putts válidos
-                # .dropna() elimina todas las filas donde no se registró putt (ej: pre-07/07/2026)
                 putts_validos = putts_serie.dropna()
                 
-                # 3. Calculamos la media solo con los hoyos que TIENEN datos
                 total_putts = putts_validos.sum()
                 num_hoyos_con_putts = len(putts_validos)
-                
-                # 4. Resultado final
-                avg_putts = total_putts / num_hoyos_con_putts if num_hoyos_con_putts > 0 else 0
                 #########################################
                # 1. Primero calculamos el PAR y la DIFERENCIA (esto debe ir primero)
                 d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
