@@ -930,7 +930,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
                 col_mvp = f'p{i+1}_pts'
-                
+                avg_putts = d_p[f'p{i}'].mean() if len(d_p) > 0 else 0
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
                 d_p = df_stats[df_stats[col_s] > 0].copy()
                 #########################################
@@ -979,7 +979,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     lista_resultados.append({
                         "Jugador": jug, 
                         "pm": (len(d_p)*2)-scr, 
-                        "scr": scr, 
+                        "scr": scr,
+                        "avg_putts": avg_putts,
                         "pts_mvp": pts_mvp_total,
                         "e": int((d_p['dif'] <= -2).sum()), 
                         "b": int((d_p['dif'] == -1).sum()), 
@@ -1019,6 +1020,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         "Jugador": f"<b>{res['Jugador']}</b>",
                         "+/-": txt_pm,
                         "Scratch": txt_scr,
+                        "Media Putts": f"{res['avg_putts']:.1f}",
                         "GIR": f_pct(res['gir_cnt'], res['hoyos']),
                         "U&D": f_pct(res['ud_cnt'], res['hoyos']),
                         "Eagle": f_pct(res['e'], res['hoyos']), "Birdie": f_pct(res['b'], res['hoyos']), 
@@ -1065,24 +1067,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     total_a = st.session_state.get('marcador_acumulado_a', 3.5)
                     total_b = st.session_state.get('marcador_acumulado_b', 3.5)
                                         
-                    #if not df_temp.empty:
-                        # 🎯 CORRECCIÓN CLAVE: Usamos 'fecha_dt' para identificar las jornadas de forma única e inequívoca
-                    #    fechas_reales = df_temp['fecha_dt'].dropna().unique()
-                        
-                    #    for f_unica in fechas_reales:
-                    #        grupo_jornada = df_temp[df_temp['fecha_dt'] == f_unica]
-                            
-                    #        sum_hoyos_a = grupo_jornada['res_a'].sum()
-                    #        sum_hoyos_b = grupo_jornada['res_b'].sum()
-                            
-                            # Criterio idéntico al de la pantalla de Inicio
-                    #        if sum_hoyos_a > sum_hoyos_b:
-                    #            total_a += 1.0
-                    #        elif sum_hoyos_b > sum_hoyos_a:
-                    #            total_b += 1.0
-                    #        else:
-                    #            total_a += 0.5
-                    #            total_b += 0.5
                     año_txt = str(temp_actual).strip()
                     # Fallback de seguridad por si las moscas
                     if total_a == 0.0 and total_b == 0.0:
@@ -1305,7 +1289,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         st.markdown(f"### ⛳ Tabla de Consistencia <span style='color:green; font-size: 0.8em;'>({len(df_putts_source)} hoyos registrados)</span>", unsafe_allow_html=True)
                         
                         estilo = df_consistencia.style.format({
-                            'Media Putts': '{:.2f}', 
+                            'Media Putts': '{:.1f}', 
                             '% 1-Putt': '{:.0f}%', 
                             '% 2-Putts': '{:.0f}%', 
                             '💀 % 3-Putts': '{:.0f}%'
