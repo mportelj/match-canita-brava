@@ -927,27 +927,33 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
             # --- 4. ESTADÍSTICAS JUGADORES ---
             lista_resultados = []
-            df_stats['fecha'] = pd.to_datetime(df_stats['fecha'], dayfirst=True, errors='coerce')
+            if 'fecha' in df_stats.columns:
+                df_stats['fecha'] = pd.to_datetime(df_stats['fecha'], dayfirst=True, errors='coerce')
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
                 col_mvp = f'p{i+1}_pts'
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
-                # --- FILTRO SEGURO ---
-                # Convertimos el string a timestamp para comparar
+                # 1. Filtramos: Jugador + Fecha válida (>= 07/07/2026) + Golpes > 0
                 fecha_limite = pd.to_datetime('2026-07-07')
-                
-                # Filtramos eliminando los NaT (filas sin fecha válida) y aplicando la fecha
                 d_p = df_stats[
+                    (df_stats['jugador'] == jug) & 
                     (df_stats[col_s] > 0) & 
                     (df_stats['fecha'].notna()) & 
                     (df_stats['fecha'] >= fecha_limite)
                 ].copy()
-                # Ahora calculamos la media con este d_p limpio
-                putts_serie = pd.to_numeric(d_p[f'p{i}'], errors='coerce')
-                putts_validos = putts_serie.dropna()
+            
+                # 2. Inicializamos avg_putts por seguridad
+                avg_putts = 0
                 
-                total_putts = putts_validos.sum()
-                num_hoyos_con_putts = len(putts_validos)
+                # 3. Calculamos si hay datos
+                if not d_p.empty:
+                    putts_serie = pd.to_numeric(d_p[f'p{i}'], errors='coerce')
+                    putts_validos = putts_serie.dropna()
+                    total_putts = putts_validos.sum()
+                    num_hoyos = len(putts_validos)
+                    
+                    if num_hoyos > 0:
+                        avg_putts = total_putts / num_hoyos
                 #########################################
                # 1. Primero calculamos el PAR y la DIFERENCIA (esto debe ir primero)
                 d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
