@@ -931,93 +931,68 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             # Convertimos fecha una sola vez
             if 'fecha' in df_stats.columns:
                 df_stats['fecha'] = pd.to_datetime(df_stats['fecha'], dayfirst=True, errors='coerce')
+
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
                 col_p = f'p{i}'
                 col_mvp = f'p{i+1}_pts'
                 
-                # Aseguramos que la columna de golpes sea numérica
+                # Aseguramos formato numérico
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
-
-                # --- 2. FILTRADO ---
-                if ver_acumulado:
-                    fecha_limite = pd.to_datetime('2026-07-08')
-                    # Filtramos por fecha y golpes > 0
-                    d_p = df_stats[
-                        (df_stats[col_s] > 0) & 
-                        (df_stats['fecha'].notna()) & 
-                        (df_stats['fecha'] >= fecha_limite)
-                    ].copy()
-                else:
-                    d_p = df_stats[df_stats[col_s] > 0].copy()
-
-                d_p_putts = d_p[d_p[col_p].notna()]
-
-                # --- 3. CÁLCULO DE MEDIA PUTTS ---
-                avg_putts = 0
-                avg_putts = d_p_putts[col_p].mean() if not d_p_putts.empty else 0
                 
-                #########################################
-               # 1. Primero calculamos el PAR y la DIFERENCIA (esto debe ir primero)
+                # --- 1. FILTRADO: TODOS los datos de la temporada/partido ---
+                # YA NO hay fecha hardcodeada. Toma todo lo que corresponda a la selección.
+                d_p = df_stats[df_stats[col_s] > 0].copy()
+
+                if d_p.empty:
+                    continue
+
+                # --- 2. CÁLCULOS DE JUEGO (Sobre todo el conjunto) ---
                 d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
-                d_p['dif'] = d_p[col_s] - d_p['par_h'] 
+                d_p['dif'] = d_p[col_s] - d_p['par_h']
                 
-                # 2. Ahora calculamos GIR
-                d_p['shots_a_green'] = d_p[col_s] - d_p[f'p{i}']
+                # Cálculo GIR
+                d_p['shots_a_green'] = d_p[col_s] - pd.to_numeric(d_p[col_p], errors='coerce')
                 d_p['is_gir'] = d_p['shots_a_green'] <= (d_p['par_h'] - 2)
                 
-                # 3. Finalmente, calculamos U&D (ahora 'dif' ya existe y no dará error)
-                d_p['is_updown'] = (~d_p['is_gir']) & (d_p[f'p{i}'] == 1) & (d_p['dif'] <= 0)
+                # Cálculo U&D
+                d_p['is_updown'] = (~d_p['is_gir']) & (pd.to_numeric(d_p[col_p], errors='coerce') == 1) & (d_p['dif'] <= 0)
                 
-                # 4. Y luego puedes calcular tus métricas de GIR/UD para la lista_resultados
-                gir_cnt = int(d_p['is_gir'].sum())
-                ud_cnt = int(d_p['is_updown'].sum())
+                # --- 3. CÁLCULO DE PUTTS (Exclusivamente sobre datos existentes) ---
+                # Convertimos putts a numérico y filtramos solo donde NO es nulo
+                ser_putts = pd.to_numeric(d_p[col_p], errors='coerce')
+                d_p_putts = ser_putts[ser_putts.notna()]
+                avg_putts = d_p_putts.mean() if not d_p_putts.empty else 0
                 
-                # Calculamos porcentajes
-                total_hoyos = len(d_p)
-                gir_pct = (d_p['is_gir'].sum() / total_hoyos * 100) if total_hoyos > 0 else 0
-                ud_pct = (d_p['is_updown'].sum() / total_hoyos * 100) if total_hoyos > 0 else 0
-                # --- DENTRO DEL BUCLE DE JUGADORES ---
-                df_jugados = d_p[d_p[col_s] > 0].copy()
+                # --- 4. MÉTRICAS SCRATCH ---
+                def cs(d):
+                    if d <= -2: return 4
+                    if d == -1: return 3
+                    if d == 0:  return 2
+                    if d == 1:  return 1
+                    return 0
                 
-                                
-                if not d_p.empty:
-                    d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
-                    d_p['dif'] = d_p[col_s] - d_p['par_h']
-                    
-                    def cs(d):
-                        if d <= -2: return 4
-                        if d == -1: return 3
-                        if d == 0:  return 2
-                        if d == 1:  return 1
-                        return 0
-                    
-                    # 1. Suma total absoluta de puntos scratch obtenidos en la temporada/jornada
-                    scr = int(d_p['dif'].apply(cs).sum())
-                    pts_mvp_total = float(df_stats[col_mvp].sum())
-                    
-                    # 2. CÁLCULO DEL NÚMERO DE PARTIDOS JUGADOS REALES
-                    partidos_jugados = int(d_p['fecha'].nunique()) if 'fecha' in d_p.columns else 1
-                    if partidos_jugados == 0: 
-                        partidos_jugados = 1
+                scr = int(d_p['dif'].apply(cs).sum())
+                pts_mvp_total = float(df_stats[col_mvp].sum())
+                partidos_jugados = int(d_p['fecha'].nunique()) if 'fecha' in d_p.columns else 1
 
-                    lista_resultados.append({
-                        "Jugador": jug, 
-                        "pm": (len(d_p)*2)-scr, 
-                        "scr": scr,
-                        "avg_putts": avg_putts,
-                        "pts_mvp": pts_mvp_total,
-                        "e": int((d_p['dif'] <= -2).sum()), 
-                        "b": int((d_p['dif'] == -1).sum()), 
-                        "p": int((d_p['dif'] == 0).sum()), 
-                        "bog": int((d_p['dif'] == 1).sum()), 
-                        "db": int((d_p['dif'] == 2).sum()), 
-                        "tb": int((d_p['dif'] >= 3).sum()), 
-                        "hoyos": len(d_p),
-                        "partidos": partidos_jugados,
-                        "gir_cnt": int(d_p['is_gir'].sum()),      
-                        "ud_cnt": int(d_p['is_updown'].sum())
-                    })
+                lista_resultados.append({
+                    "Jugador": jug, 
+                    "pm": (len(d_p)*2)-scr, 
+                    "scr": scr,
+                    "avg_putts": avg_putts, # Calculado solo desde 14/07
+                    "pts_mvp": pts_mvp_total,
+                    "e": int((d_p['dif'] <= -2).sum()), 
+                    "b": int((d_p['dif'] == -1).sum()), 
+                    "p": int((d_p['dif'] == 0).sum()), 
+                    "bog": int((d_p['dif'] == 1).sum()), 
+                    "db": int((d_p['dif'] == 2).sum()), 
+                    "tb": int((d_p['dif'] >= 3).sum()), 
+                    "hoyos": len(d_p),
+                    "partidos": partidos_jugados,
+                    "gir_cnt": int(d_p['is_gir'].sum()),      
+                    "ud_cnt": int(d_p['is_updown'].sum())
+                })
             
             lista_resultados = sorted(lista_resultados, key=lambda x: x['scr'], reverse=True)
 
