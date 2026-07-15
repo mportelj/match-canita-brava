@@ -931,7 +931,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             # Convertimos fecha una sola vez
             if 'fecha' in df_stats.columns:
                 df_stats['fecha'] = pd.to_datetime(df_stats['fecha'], dayfirst=True, errors='coerce')
-
+            # Definimos la fecha de corte de putts
+            fecha_corte_putts = pd.to_datetime('2026-07-14')
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
                 col_p = f'p{i}'
@@ -940,31 +941,26 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 # Aseguramos formato numérico
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
                 
-                # --- 1. FILTRADO: TODOS los datos de la temporada/partido ---
-                # YA NO hay fecha hardcodeada. Toma todo lo que corresponda a la selección.
+                # 1. FILTRADO MASTER (TODOS los hoyos de la selección)
                 d_p = df_stats[df_stats[col_s] > 0].copy()
 
                 if d_p.empty:
                     continue
 
-                # --- 2. CÁLCULOS DE JUEGO (Sobre todo el conjunto) ---
+               # 2. CÁLCULO DE PUTTS (Solo fecha >= 14/07/2026)
+                # Aquí ignoramos deliberadamente cualquier dato previo al 14/07
+                d_p_putts = d_p[(d_p['fecha'] >= fecha_corte_putts) & (pd.to_numeric(d_p[col_p], errors='coerce') > 0)]
+                avg_putts = d_p_putts[col_p].mean() if not d_p_putts.empty else 0
+                
+                # 3. RESTO DE CÁLCULOS (Sobre el MASTER d_p completo)
                 d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
                 d_p['dif'] = d_p[col_s] - d_p['par_h']
                 
-                # Cálculo GIR
+                # GIR y U&D
                 d_p['shots_a_green'] = d_p[col_s] - pd.to_numeric(d_p[col_p], errors='coerce')
                 d_p['is_gir'] = d_p['shots_a_green'] <= (d_p['par_h'] - 2)
-                
-                # Cálculo U&D
                 d_p['is_updown'] = (~d_p['is_gir']) & (pd.to_numeric(d_p[col_p], errors='coerce') == 1) & (d_p['dif'] <= 0)
                 
-                # --- 3. CÁLCULO DE PUTTS (Exclusivamente sobre datos existentes) ---
-                # Convertimos putts a numérico y filtramos solo donde NO es nulo
-                ser_putts = pd.to_numeric(d_p[col_p], errors='coerce')
-                d_p_putts = ser_putts[ser_putts.notna()]
-                avg_putts = d_p_putts.mean() if not d_p_putts.empty else 0
-                
-                # --- 4. MÉTRICAS SCRATCH ---
                 def cs(d):
                     if d <= -2: return 4
                     if d == -1: return 3
@@ -980,7 +976,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     "Jugador": jug, 
                     "pm": (len(d_p)*2)-scr, 
                     "scr": scr,
-                    "avg_putts": avg_putts, # Calculado solo desde 14/07
+                    "avg_putts": avg_putts, 
                     "pts_mvp": pts_mvp_total,
                     "e": int((d_p['dif'] <= -2).sum()), 
                     "b": int((d_p['dif'] == -1).sum()), 
