@@ -964,7 +964,15 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 total_hoyos = len(d_p)
                 gir_pct = (d_p['is_gir'].sum() / total_hoyos * 100) if total_hoyos > 0 else 0
                 ud_pct = (d_p['is_updown'].sum() / total_hoyos * 100) if total_hoyos > 0 else 0
-
+                # --- DENTRO DEL BUCLE DE JUGADORES ---
+                df_jugados = d_p[d_p[col_s] > 0].copy()
+                
+                # AÑADE ESTO PARA VER QUÉ PASA
+                st.write(f"--- Debug Jugador: {jug} ---")
+                st.write(f"Filas detectadas: {len(df_jugados)}")
+                st.write(f"Suma de putts (columna {f'p{i}'}): {df_jugados[f'p{i}'].sum()}")
+                st.write(f"Muestra de datos (primeras 5 filas):")
+                st.write(df_jugados[[f'p{i}', col_s]].head())
                 ###############################
                 
                 if not d_p.empty:
