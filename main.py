@@ -957,7 +957,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     # Usamos la columna col_p directamente del df_stats, sin rellenar ceros
                     # Esto preserva los valores vacíos (NaN)
                     putts_serie = pd.to_numeric(d_p[col_p], errors='coerce')
-                    
+                    putts_serie = putts_serie.where(d_p[col_s] > 0, other=float('nan'))
                     # Ahora, al hacer dropna(), los espacios vacíos desaparecen
                     # y los 0 reales (chip-ins) se mantienen.
                     putts_validos = putts_serie.dropna()
