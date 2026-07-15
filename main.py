@@ -931,7 +931,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             # Convertimos fecha una sola vez
             if 'fecha' in df_stats.columns:
                 df_stats['fecha'] = pd.to_datetime(df_stats['fecha'], dayfirst=True, errors='coerce')
-
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
                 col_p = f'p{i}'
@@ -940,9 +939,10 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 # Aseguramos que la columna de golpes sea numérica
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
 
-                # --- 1. LÓGICA DE FILTRADO CONDICIONAL ---
+                # --- 2. FILTRADO ---
                 if ver_acumulado:
                     fecha_limite = pd.to_datetime('2026-07-07')
+                    # Filtramos por fecha y golpes > 0
                     d_p = df_stats[
                         (df_stats[col_s] > 0) & 
                         (df_stats['fecha'].notna()) & 
@@ -950,30 +950,23 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     ].copy()
                 else:
                     d_p = df_stats[df_stats[col_s] > 0].copy()
-# --- DEBUG: RADIOGRAFÍA DE DATOS ---
-                if ver_acumulado:
-                    st.write(f"--- Datos de {jug} ---")
-                    st.write(f"Total filas detectadas: {len(d_p)}")
-                    # Mostramos las fechas y los putts de esas 26 filas
-                    st.write(d_p[['fecha', col_p]])
-                # --- CÁLCULO DE MEDIA PUTTS (Corregido) ---
+
+                # --- 3. CÁLCULO DE MEDIA PUTTS ---
                 avg_putts = 0
                 if not d_p.empty:
-                    # 1. Convertimos a numérico:
-                    # Los vacíos se vuelven NaN (Not a Number)
-                    # Los "0" reales se mantienen como 0.0
+                    # Usamos la columna col_p directamente del df_stats, sin rellenar ceros
+                    # Esto preserva los valores vacíos (NaN)
                     putts_serie = pd.to_numeric(d_p[col_p], errors='coerce')
                     
-                    # 2. Eliminamos SOLO los NaN (los huecos vacíos)
-                    # Los 0 reales (chip-ins) se quedan y entrarán en el cálculo
+                    # Ahora, al hacer dropna(), los espacios vacíos desaparecen
+                    # y los 0 reales (chip-ins) se mantienen.
                     putts_validos = putts_serie.dropna()
                     
-                    # 3. Calculamos
                     total_putts = putts_validos.sum()
-                    num_hoyos_con_datos = len(putts_validos)
+                    num_hoyos = len(putts_validos)
                     
-                    if num_hoyos_con_datos > 0:
-                        avg_putts = total_putts / num_hoyos_con_datos
+                    if num_hoyos > 0:
+                        avg_putts = total_putts / num_hoyos
                 
                 #########################################
                # 1. Primero calculamos el PAR y la DIFERENCIA (esto debe ir primero)
