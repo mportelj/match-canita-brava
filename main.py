@@ -930,9 +930,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
                 col_mvp = f'p{i+1}_pts'
-                avg_putts = d_p[f'p{i}'].mean() if len(d_p) > 0 else 0
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
                 d_p = df_stats[df_stats[col_s] > 0].copy()
+                avg_putts = d_p[f'p{i}'].mean() if len(d_p) > 0 else 0
                 #########################################
                # 1. Primero calculamos el PAR y la DIFERENCIA (esto debe ir primero)
                 d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
