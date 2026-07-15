@@ -927,13 +927,21 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
             # --- 4. ESTADÍSTICAS JUGADORES ---
             lista_resultados = []
-            df_stats['fecha'] = pd.to_datetime(df_stats['fecha'])
+            df_stats['fecha'] = pd.to_datetime(df_stats['fecha'], dayfirst=True, errors='coerce')
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
                 col_mvp = f'p{i+1}_pts'
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
-                d_p = df_stats[(df_stats[col_s] > 0) & (df_stats['fecha'] >= '2026-07-07')].copy()
-
+                # --- FILTRO SEGURO ---
+                # Convertimos el string a timestamp para comparar
+                fecha_limite = pd.to_datetime('2026-07-07')
+                
+                # Filtramos eliminando los NaT (filas sin fecha válida) y aplicando la fecha
+                d_p = df_stats[
+                    (df_stats[col_s] > 0) & 
+                    (df_stats['fecha'].notna()) & 
+                    (df_stats['fecha'] >= fecha_limite)
+                ].copy()
                 # Ahora calculamos la media con este d_p limpio
                 putts_serie = pd.to_numeric(d_p[f'p{i}'], errors='coerce')
                 putts_validos = putts_serie.dropna()
