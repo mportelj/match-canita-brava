@@ -951,15 +951,24 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 else:
                     d_p = df_stats[df_stats[col_s] > 0].copy()
 
-                # --- 2. CÁLCULO DE MEDIA PUTTS ---
+                # --- CÁLCULO DE MEDIA PUTTS (Corregido) ---
                 avg_putts = 0
                 if not d_p.empty:
+                    # 1. Convertimos a numérico:
+                    # Los vacíos se vuelven NaN (Not a Number)
+                    # Los "0" reales se mantienen como 0.0
                     putts_serie = pd.to_numeric(d_p[col_p], errors='coerce')
+                    
+                    # 2. Eliminamos SOLO los NaN (los huecos vacíos)
+                    # Los 0 reales (chip-ins) se quedan y entrarán en el cálculo
                     putts_validos = putts_serie.dropna()
+                    
+                    # 3. Calculamos
                     total_putts = putts_validos.sum()
-                    num_hoyos = len(putts_validos)
-                    if num_hoyos > 0:
-                        avg_putts = total_putts / num_hoyos
+                    num_hoyos_con_datos = len(putts_validos)
+                    
+                    if num_hoyos_con_datos > 0:
+                        avg_putts = total_putts / num_hoyos_con_datos
                 
                 #########################################
                # 1. Primero calculamos el PAR y la DIFERENCIA (esto debe ir primero)
