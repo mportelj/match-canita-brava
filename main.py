@@ -932,9 +932,17 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 col_mvp = f'p{i+1}_pts'
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
                 d_p = df_stats[df_stats[col_s] > 0].copy()
-                # Calculamos sumando todos los putts y dividiendo por el número de filas (hoyos)
-                total_putts = d_p[f'p{i}'].sum()
-                num_hoyos = len(d_p)
+                # 1. Filtramos solo los hoyos donde realmente se han registrado golpes
+                # Esto elimina hoyos vacíos o mal registrados en el acumulado
+                df_jugados = d_p[d_p[col_s] > 0].copy()
+                
+                # 2. Sumamos los putts (el 0 cuenta correctamente como 0 en la suma)
+                total_putts = df_jugados[f'p{i}'].sum()
+                
+                # 3. Contamos los hoyos jugados usando la longitud de este dataframe filtrado
+                num_hoyos = len(df_jugados)
+                
+                # 4. Calculamos la media
                 avg_putts = total_putts / num_hoyos if num_hoyos > 0 else 0
                 #########################################
                # 1. Primero calculamos el PAR y la DIFERENCIA (esto debe ir primero)
