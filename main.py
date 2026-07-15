@@ -947,9 +947,16 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 if d_p.empty:
                     continue
 
-               # 2. CÁLCULO DE PUTTS (Solo fecha >= 14/07/2026)
-                # Aquí ignoramos deliberadamente cualquier dato previo al 14/07
-                d_p_putts = d_p[(d_p['fecha'] >= fecha_corte_putts) & (pd.to_numeric(d_p[col_p], errors='coerce') > 0)]
+              # --- 2. CÁLCULO DE PUTTS (Corregido) ---
+                # 1. Aseguramos que la columna de putts sea numérica
+                d_p[col_p] = pd.to_numeric(d_p[col_p], errors='coerce')
+                
+                # 2. Creamos la máscara:
+                # - Fecha >= 14/07/2026
+                # - El dato NO es nulo (incluye el 0, excluye celdas vacías)
+                mask_putts = (d_p['fecha'] >= pd.to_datetime('2026-07-14')) & (d_p[col_p].notna())
+                
+                d_p_putts = d_p[mask_putts].copy()
                 avg_putts = d_p_putts[col_p].mean() if not d_p_putts.empty else 0
                 
                 # 3. RESTO DE CÁLCULOS (Sobre el MASTER d_p completo)
