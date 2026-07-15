@@ -941,7 +941,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
 
                 # --- 2. FILTRADO ---
                 if ver_acumulado:
-                    fecha_limite = pd.to_datetime('2026-07-07')
+                    fecha_limite = pd.to_datetime('2026-07-08')
                     # Filtramos por fecha y golpes > 0
                     d_p = df_stats[
                         (df_stats[col_s] > 0) & 
