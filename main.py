@@ -964,8 +964,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                     if num_hoyos > 0:
                         avg_putts = total_putts / num_hoyos
-
-                })
+                
                 #########################################
                # 1. Primero calculamos el PAR y la DIFERENCIA (esto debe ir primero)
                 d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
