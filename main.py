@@ -951,7 +951,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     putts_validos = putts_serie.dropna()
                     total_putts = putts_validos.sum()
                     num_hoyos = len(putts_validos)
-                    
+                    #################
+                    if st.session_state.get('ver_acumulado', False):
+                        st.write(f"DEBUG Modo Acumulado: {len(d_p)} filas detectadas. Rango de fechas: {d_p['fecha'].min()} a {d_p['fecha'].max()}")
+                    else:
+                        st.write(f"DEBUG Modo Jornada: {len(d_p)} filas detectadas.")
+                    ##################
                     if num_hoyos > 0:
                         avg_putts = total_putts / num_hoyos
                 #########################################
