@@ -897,7 +897,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             else:
                 # Al estar 'fechas_unicas' ya en formato 'dd/mm/aaaa', el combo saldrá perfecto y sin mezclas
                 seleccion_filtro = st.selectbox("Seleccionar Jornada:", fechas_unicas, format_func=lambda x: opciones_fecha[x], key="st_v_final_j")
-
+        if ver_acumulado and str(temporada_seleccionada) == '2026':
+            st.caption("ℹ️ Putts, GIR y U&D calculados desde el 14/07/2026")
         # --- 2. FILTRADO ---
         if ver_acumulado:
             temp_actual = str(seleccion_filtro)
