@@ -149,6 +149,10 @@ with st.sidebar:
     st.write("---")
     
     opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
+    menu_seleccionado = st.radio("Navegación:", opciones_menu)
+    es_vista_movil = False
+    if menu_seleccionado == "Estadísticas":
+        es_vista_movil = st.checkbox("📱 Vista reducida (Ocultar Scratch)", False)
     
     # 🎯 LA SOLUCIÓN SEGURO: Calculamos el índice real antes de dibujar el radio
     try:
@@ -932,8 +936,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             # Convertimos fecha una sola vez
             if 'fecha' in df_stats.columns:
                 df_stats['fecha'] = pd.to_datetime(df_stats['fecha'], dayfirst=True, errors='coerce')
+            
             # Definimos la fecha de corte de putts
             fecha_corte_putts = pd.to_datetime('2026-07-14')
+            
+            # Definir la vista móvil (si no está ya en la sidebar, puedes ponerlo aquí)
+            es_vista_movil = st.sidebar.checkbox("📱 Vista reducida (Ocultar Scratch)", False)
+
             for i, jug in enumerate(TODOS):
                 col_s = f's{i}'
                 col_p = f'p{i}'
@@ -948,19 +957,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 if d_p.empty:
                     continue
 
-              # --- 2. CÁLCULO DE PUTTS (Corregido) ---
-                # 1. Aseguramos que la columna de putts sea numérica
+                # --- 2. CÁLCULO DE PUTTS ---
                 d_p[col_p] = pd.to_numeric(d_p[col_p], errors='coerce')
-                
-                # 2. Creamos la máscara:
-                # - Fecha >= 14/07/2026
-                # - El dato NO es nulo (incluye el 0, excluye celdas vacías)
-                mask_putts = (d_p['fecha'] >= pd.to_datetime('2026-07-14')) & (d_p[col_p].notna())
-                
+                mask_putts = (d_p['fecha'] >= fecha_corte_putts) & (d_p[col_p].notna())
                 d_p_putts = d_p[mask_putts].copy()
                 avg_putts = d_p_putts[col_p].mean() if not d_p_putts.empty else 0
                 
-                # 3. RESTO DE CÁLCULOS (Sobre el MASTER d_p completo)
+                # --- 3. RESTO DE CÁLCULOS ---
                 d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
                 d_p['dif'] = d_p[col_s] - d_p['par_h']
                 
@@ -1033,29 +1036,23 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     })
                 
                 df_html_data = pd.DataFrame(stats_rows)
+                
+                # APLICAR LÓGICA DE RENOMBRAMIENTO
                 if ver_acumulado:
                     df_html_data = df_html_data.rename(columns={"+/-": "+/- Med (partido)", "Scratch": "Scratch Med (partido)"})
+                
+                # APLICAR LÓGICA DE VISTA MÓVIL (OCULTAR SCRATCH)
+                if es_vista_movil:
+                    col_a_ocultar = "Scratch Med (partido)" if ver_acumulado else "Scratch"
+                    if col_a_ocultar in df_html_data.columns:
+                        df_html_data = df_html_data.drop(columns=[col_a_ocultar])
 
                 df_html = df_html_data.to_html(escape=False, index=False)
                 df_html = df_html.replace('<td>', '<td style="text-align: center; vertical-align: middle; padding: 10px;">')
                 df_html = df_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
                 st.write(df_html, unsafe_allow_html=True)
                 #####################################
-                # 1. Definimos las columnas que queremos mostrar
-                # Ajusta estos nombres a los que tengas exactamente en tu rename o display
-                columnas_totales = ["Jugador", "+/- Med (partido)", "Scratch Med (partido)", "Media Putts", "GIR", "U&D", "Eagle", "Birdie", "Par", "Bogey", "D.Bogey", "3+ Bogey"]
-                columnas_movil = ["Jugador", "+/- Med (partido)", "Media Putts", "GIR", "U&D", "Eagle", "Birdie", "Par", "Bogey", "D.Bogey", "3+ Bogey"]
-                
-                # 2. Creamos el selector en la barra lateral
-                es_vista_movil = st.sidebar.checkbox("📱 Vista reducida (Ocultar Scratch)", False)
-                
-                # 3. Mostramos la tabla filtrada según la selección
-                if es_vista_movil:
-                    # Usamos la lista de columnas reducida
-                    st.dataframe(df_resultados[columnas_movil])
-                else:
-                    # Mostramos la tabla completa
-                    st.dataframe(df_resultados[columnas_totales])
+               
                 ###############################
                 
                 # --- 5. CLASIFICACIÓN MVP ---
