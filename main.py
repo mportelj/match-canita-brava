@@ -142,8 +142,6 @@ if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
 # --- 2. EL SIDEBAR (MENÚ LATERAL) ---
-# --- 4. SIDEBAR DEFINITIVO ---
-# --- 2. EL SIDEBAR (MENÚ LATERAL) ---
 with st.sidebar:
     st.markdown("# ⛳ Cañita Brava")
     st.write("---")
@@ -165,13 +163,13 @@ with st.sidebar:
         st.session_state.menu_seleccionado = st.session_state.get('nav_radio', 'Inicio')
 
     # El radio utiliza su index dinámico y se sincroniza a la perfección
-    st.radio(
-        "Navegación",
-        opciones_menu,
-        index=idx_actual,
-        key="nav_radio",
-        on_change=cambiar_menu
-    )
+    # st.radio(
+    #    "Navegación",
+    #    opciones_menu,
+    #    index=idx_actual,
+    #    key="nav_radio",
+    #    on_change=cambiar_menu
+    # )
 # Calculamos el índice basándonos en el texto guardado (mantenido por si lo usas en el resto del código)
 try:
     idx_actual = opciones_menu.index(st.session_state.menu_seleccionado)
