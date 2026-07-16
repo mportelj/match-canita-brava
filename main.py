@@ -147,10 +147,10 @@ with st.sidebar:
     st.write("---")
     
     opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
-    menu_seleccionado = st.radio("Navegación:", opciones_menu)
-    es_vista_movil = False
-    if menu_seleccionado == "Estadísticas":
-        es_vista_movil = st.checkbox("📱 Vista reducida (Ocultar Scratch)", False)
+    # menu_seleccionado = st.radio("Navegación:", opciones_menu)
+    # es_vista_movil = False
+    # if menu_seleccionado == "Estadísticas":
+    #     es_vista_movil = st.checkbox("📱 Vista reducida (Ocultar Scratch)", False)
     
     # 🎯 LA SOLUCIÓN SEGURO: Calculamos el índice real antes de dibujar el radio
     try:
