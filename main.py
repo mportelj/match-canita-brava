@@ -170,11 +170,11 @@ with st.sidebar:
         key="nav_radio",
         on_change=cambiar_menu
      )
-# Calculamos el índice basándonos en el texto guardado (mantenido por si lo usas en el resto del código)
-try:
-    idx_actual = opciones_menu.index(st.session_state.menu_seleccionado)
-except ValueError:
-    idx_actual = 0
+    # Calculamos el índice basándonos en el texto guardado (mantenido por si lo usas en el resto del código)
+    try:
+        idx_actual = opciones_menu.index(st.session_state.menu_seleccionado)
+    except ValueError:
+        idx_actual = 0
 
 # --- FUNCIÓN PARA CAMBIO DE PÁGINA ---
 def cambiar_pagina():
