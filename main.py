@@ -1037,7 +1037,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 
                 # APLICAR LÓGICA DE RENOMBRAMIENTO
                 if ver_acumulado:
-                    df_html_data = df_html_data.rename(columns={"+/-": "+/- Med (hoyo)", "Scratch": "Scratch Med (hoyo)"})
+                    df_html_data = df_html_data.rename(columns={"+/-": "+/- Med (partido)", "Scratch": "Scratch Med (hoyo)"})
                 
                 # APLICAR LÓGICA DE VISTA MÓVIL (OCULTAR SCRATCH)
                 if es_vista_movil:
