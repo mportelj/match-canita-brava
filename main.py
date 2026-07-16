@@ -1041,22 +1041,21 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 df_html = df_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
                 st.write(df_html, unsafe_allow_html=True)
                 #####################################
-                import dataframe_image as dfi
+                # 1. Definimos las columnas que queremos mostrar
+                # Ajusta estos nombres a los que tengas exactamente en tu rename o display
+                columnas_totales = ["Jugador", "+/- Med (partido)", "Scratch Med (partido)", "Media Putts", "GIR", "U&D", "Eagle", "Birdie", "Par", "Bogey", "D.Bogey", "3+ Bogey"]
+                columnas_movil = ["Jugador", "+/- Med (partido)", "Media Putts", "GIR", "U&D", "Eagle", "Birdie", "Par", "Bogey", "D.Bogey", "3+ Bogey"]
                 
-                # ... después de crear tu df_resultados ...
+                # 2. Creamos el selector en la barra lateral
+                es_vista_movil = st.sidebar.checkbox("📱 Vista reducida (Ocultar Scratch)", False)
                 
-                if st.button("📸 Descargar Clasificación como Imagen"):
-                    # Convertimos el DataFrame a imagen
-                    dfi.export(df_resultados, 'clasificacion.png')
-                    
-                    # Botón para descargar el archivo generado
-                    with open("clasificacion.png", "rb") as file:
-                        st.download_button(
-                            label="Descargar PNG",
-                            data=file,
-                            file_name="clasificacion.png",
-                            mime="image/png"
-                        )
+                # 3. Mostramos la tabla filtrada según la selección
+                if es_vista_movil:
+                    # Usamos la lista de columnas reducida
+                    st.dataframe(df_resultados[columnas_movil])
+                else:
+                    # Mostramos la tabla completa
+                    st.dataframe(df_resultados[columnas_totales])
                 ###############################
                 
                 # --- 5. CLASIFICACIÓN MVP ---
