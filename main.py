@@ -1014,7 +1014,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                     if ver_acumulado:
                         val_pm = res['pm'] / partidos
-                        val_scr = res['scr'] / partidos
+                        val_scr = res['scr'] / h if h > 0 else 0
                         txt_pm = f"<span style='color:red;'>+{val_pm:.1f}</span>" if val_pm > 0 else (f"<span>{val_pm:.1f}</span>" if val_pm < 0 else "E")
                         txt_scr = f"<b>{val_scr:.1f}</b>"
                     else:
@@ -1037,11 +1037,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 
                 # APLICAR LÓGICA DE RENOMBRAMIENTO
                 if ver_acumulado:
-                    df_html_data = df_html_data.rename(columns={"+/-": "+/- Med (partido)", "Scratch": "Scratch Med (partido)"})
+                    df_html_data = df_html_data.rename(columns={"+/-": "+/- Med (hoyo)", "Scratch": "Scratch Med (hoyo)"})
                 
                 # APLICAR LÓGICA DE VISTA MÓVIL (OCULTAR SCRATCH)
                 if es_vista_movil:
-                    col_a_ocultar = "Scratch Med (partido)" if ver_acumulado else "Scratch"
+                    col_a_ocultar = "Scratch Med (hoyo)" if ver_acumulado else "Scratch"
                     if col_a_ocultar in df_html_data.columns:
                         df_html_data = df_html_data.drop(columns=[col_a_ocultar])
 
