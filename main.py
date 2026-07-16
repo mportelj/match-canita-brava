@@ -1040,7 +1040,25 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 df_html = df_html.replace('<td>', '<td style="text-align: center; vertical-align: middle; padding: 10px;">')
                 df_html = df_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
                 st.write(df_html, unsafe_allow_html=True)
-
+                #####################################
+                import dataframe_image as dfi
+                
+                # ... después de crear tu df_resultados ...
+                
+                if st.button("📸 Descargar Clasificación como Imagen"):
+                    # Convertimos el DataFrame a imagen
+                    dfi.export(df_resultados, 'clasificacion.png')
+                    
+                    # Botón para descargar el archivo generado
+                    with open("clasificacion.png", "rb") as file:
+                        st.download_button(
+                            label="Descargar PNG",
+                            data=file,
+                            file_name="clasificacion.png",
+                            mime="image/png"
+                        )
+                ###############################
+                
                 # --- 5. CLASIFICACIÓN MVP ---
                 st.write("")
                 st.subheader("🏆 Clasificación MVP")
