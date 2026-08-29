@@ -897,10 +897,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             if ver_acumulado:
                 seleccion_filtro = st.selectbox("Seleccionar Temporada:", temporadas_unicas, key="st_v_final_t")
             else:
-                # Al estar 'fechas_unicas' ya en formato 'dd/mm/aaaa', el combo saldrá perfecto y sin mezclas
                 seleccion_filtro = st.selectbox("Seleccionar Jornada:", fechas_unicas, format_func=lambda x: opciones_fecha[x], key="st_v_final_j")
+        
         if ver_acumulado and str(seleccion_filtro) == '2026':
-            st.caption("ℹ️ Putts, GIR y U&D calculados desde el 14/07/2026")
+            st.caption("ℹ️ Putts, GIR y U&D calculados a partir del 08/07/2026")
+
         # --- 2. FILTRADO ---
         if ver_acumulado:
             temp_actual = str(seleccion_filtro)
@@ -933,12 +934,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             
             # Convertimos fecha una sola vez
             if 'fecha' in df_stats.columns:
-                df_stats['fecha'] = pd.to_datetime(df_stats['fecha'], dayfirst=True, errors='coerce')
+                df_stats['fecha_dt_parsed'] = pd.to_datetime(df_stats['fecha'], dayfirst=True, errors='coerce')
             
-            # Definimos la fecha de corte de putts
-            fecha_corte_putts = pd.to_datetime('2026-07-14')
+            # Definimos la fecha de corte estricta para Putts, GIR y U&D en 2026
+            fecha_corte_putts = pd.to_datetime('2026-07-08')
             
-            # Definir la vista móvil (si no está ya en la sidebar, puedes ponerlo aquí)
+            # Definir la vista móvil
             es_vista_movil = st.sidebar.checkbox("📱 Vista reducida (Ocultar Scratch)", False)
 
             for i, jug in enumerate(TODOS):
@@ -949,26 +950,39 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 # Aseguramos formato numérico
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
                 
-                # 1. FILTRADO MASTER (TODOS los hoyos de la selección)
+                # 1. FILTRADO MASTER (TODOS los hoyos de la selección para Scratch, PM, etc.)
                 d_p = df_stats[df_stats[col_s] > 0].copy()
 
                 if d_p.empty:
                     continue
 
-                # --- 2. CÁLCULO DE PUTTS ---
+                # --- 2. CÁLCULO DE PUTTS, GIR y U&D (Con filtro de fecha para 2026) ---
                 d_p[col_p] = pd.to_numeric(d_p[col_p], errors='coerce')
-                mask_putts = (d_p['fecha'] >= fecha_corte_putts) & (d_p[col_p].notna())
-                d_p_putts = d_p[mask_putts].copy()
-                avg_putts = d_p_putts[col_p].mean() if not d_p_putts.empty else 0
                 
-                # --- 3. RESTO DE CÁLCULOS ---
+                # Subconjunto específico para métricas basadas en putts
+                if temp_actual == '2026' or '2026' in str(seleccion_filtro):
+                    d_p_putts = d_p[(d_p['fecha_dt_parsed'] >= fecha_corte_putts) & (d_p[col_p].notna())].copy()
+                else:
+                    d_p_putts = d_p[d_p[col_p].notna()].copy()
+                
+                avg_putts = d_p_putts[col_p].mean() if not d_p_putts.empty else 0
+                hoyos_putts = len(d_p_putts)
+                
+                # Cálculo de GIR y U&D usando exclusivamente los hoyos con registro válido de putts
+                if not d_p_putts.empty:
+                    d_p_putts['par_h'] = d_p_putts['hoyo'].map(PAR_RIA_VIGO)
+                    d_p_putts['shots_a_green'] = d_p_putts[col_s] - pd.to_numeric(d_p_putts[col_p], errors='coerce')
+                    d_p_putts['is_gir'] = d_p_putts['shots_a_green'] <= (d_p_putts['par_h'] - 2)
+                    d_p_putts['is_updown'] = (~d_p_putts['is_gir']) & (pd.to_numeric(d_p_putts[col_p], errors='coerce') == 1) & ((d_p_putts[col_s] - d_p_putts['par_h']) <= 0)
+                    gir_cnt = int(d_p_putts['is_gir'].sum())
+                    ud_cnt = int(d_p_putts['is_updown'].sum())
+                else:
+                    gir_cnt = 0
+                    ud_cnt = 0
+                
+                # --- 3. RESTO DE CÁLCULOS (Scratch y distribución de golpes usan todos los hoyos d_p) ---
                 d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
                 d_p['dif'] = d_p[col_s] - d_p['par_h']
-                
-                # GIR y U&D
-                d_p['shots_a_green'] = d_p[col_s] - pd.to_numeric(d_p[col_p], errors='coerce')
-                d_p['is_gir'] = d_p['shots_a_green'] <= (d_p['par_h'] - 2)
-                d_p['is_updown'] = (~d_p['is_gir']) & (pd.to_numeric(d_p[col_p], errors='coerce') == 1) & (d_p['dif'] <= 0)
                 
                 def cs(d):
                     if d <= -2: return 4
@@ -994,9 +1008,10 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     "db": int((d_p['dif'] == 2).sum()), 
                     "tb": int((d_p['dif'] >= 3).sum()), 
                     "hoyos": len(d_p),
+                    "hoyos_putts": hoyos_putts,  # Denominador específico para GIR y U&D
                     "partidos": partidos_jugados,
-                    "gir_cnt": int(d_p['is_gir'].sum()),      
-                    "ud_cnt": int(d_p['is_updown'].sum())
+                    "gir_cnt": gir_cnt,      
+                    "ud_cnt": ud_cnt
                 })
             
             lista_resultados = sorted(lista_resultados, key=lambda x: x['scr'], reverse=True)
@@ -1010,6 +1025,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         return f"<b>{v}</b><br><span style='color:gray; font-size:0.8em;'>{p:.0f}%</span>"
                     
                     h = res['hoyos']
+                    hp = res['hoyos_putts']
                     partidos = res['partidos']
                     
                     if ver_acumulado:
@@ -1026,11 +1042,11 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         "+/-": txt_pm,
                         "Scratch": txt_scr,
                         "Media Putts": f"{res['avg_putts']:.1f}",
-                        "GIR": f_pct(res['gir_cnt'], res['hoyos']),
-                        "U&D": f_pct(res['ud_cnt'], res['hoyos']),
-                        "Eagle": f_pct(res['e'], res['hoyos']), "Birdie": f_pct(res['b'], res['hoyos']), 
-                        "Par": f_pct(res['p'], res['hoyos']), "Bogey": f_pct(res['bog'], res['hoyos']), 
-                        "D.Bogey": f_pct(res['db'], res['hoyos']), "3+ Bogey": f_pct(res['tb'], res['hoyos'])
+                        "GIR": f_pct(res['gir_cnt'], hp),         # Usamos hoyos_putts como base
+                        "U&D": f_pct(res['ud_cnt'], hp),         # Usamos hoyos_putts como base
+                        "Eagle": f_pct(res['e'], h), "Birdie": f_pct(res['b'], h), 
+                        "Par": f_pct(res['p'], h), "Bogey": f_pct(res['bog'], h), 
+                        "D.Bogey": f_pct(res['db'], h), "3+ Bogey": f_pct(res['tb'], h)
                     })
                 
                 df_html_data = pd.DataFrame(stats_rows)
@@ -1049,9 +1065,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 df_html = df_html.replace('<td>', '<td style="text-align: center; vertical-align: middle; padding: 10px;">')
                 df_html = df_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
                 st.write(df_html, unsafe_allow_html=True)
-                #####################################
-               
-                ###############################
                 
                 # --- 5. CLASIFICACIÓN MVP ---
                 st.write("")
@@ -1078,21 +1091,18 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 tit_w = temp_actual if ver_acumulado else seleccion_filtro
                 
                 if ver_acumulado:
-                    # 🔥 FILTRAMOS LA TEMPORADA ACTUAL
                     df_temp = df_raw[df_raw['t_limpia'] == temp_actual].copy()
                     total_a = st.session_state.get('marcador_acumulado_a', 3.5)
                     total_b = st.session_state.get('marcador_acumulado_b', 3.5)
-                                        
+                                            
                     año_txt = str(temp_actual).strip()
-                    # Fallback de seguridad por si las moscas
                     if total_a == 0.0 and total_b == 0.0:
                         if año_txt=="2026":
                             total_a = 3.5
                             total_b = 3.5
                         else:
                             pass
-                    
-                    
+                
                     titulo_final_marcador = f"Match: Manu & Jose {total_a:g} Roge & Lalo {total_b:g}"
                     
                     if total_a > total_b:
@@ -1125,6 +1135,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 txt_wa += "📊 *ESTADÍSTICAS INDIVIDUALES*\n\n"
                 for res in lista_mvp:
                     h = res['hoyos']
+                    hp = res['hoyos_putts']
                     partidos = res['partidos']
                     
                     if ver_acumulado:
@@ -1136,31 +1147,31 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         texto_scratch = f"{res['scr']} pts scratch"
                         texto_pm = f"+{res['pm']}" if res['pm'] > 0 else (str(res['pm']) if res['pm'] < 0 else "E")
                     
-                    def wf(v): 
-                        return f"{v} ({v/h*100:.0f}%)"
+                    def wf_base(v, base): 
+                        return f"{v} ({v/base*100:.0f}%)" if base > 0 else f"{v} (0%)"
                     
                     txt_wa += f"👤 *{res['Jugador'].upper()}*\n"
                     txt_wa += f"🏆 *{texto_pm}* ({texto_scratch})\n"
-                    txt_wa += f"🎯 *GIR:* {wf(res['gir_cnt'])}\n"
-                    txt_wa += f"⬆️ *U&D:* {wf(res['ud_cnt'])}\n"
+                    txt_wa += f"🎯 *GIR:* {wf_base(res['gir_cnt'], hp)}\n"       # Usando hoyos_putts
+                    txt_wa += f"⬆️ *U&D:* {wf_base(res['ud_cnt'], hp)}\n"       # Usando hoyos_putts
                     
                     s_l = ""
                     if not ver_acumulado:
                         birdie_o_mejor = int(res.get('e', 0)) + int(res.get('b', 0))
                         triple_o_peor = int(res.get('tb', 0))
                         
-                        s_l += f"🐤 *Birdie o mejor:* {wf(birdie_o_mejor)}\n"
-                        s_l += f"🅿️ *Par:* {wf(res['p'])}\n"
-                        s_l += f"⚠️ *Bog:* {wf(res['bog'])}\n"
-                        s_l += f"💀 *D.B:* {wf(res['db'])}\n"
-                        s_l += f"💣 *💥 Triple o peor:* {wf(triple_o_peor)}\n"
+                        s_l += f"🐤 *Birdie o mejor:* {wf_base(birdie_o_mejor, h)}\n"
+                        s_l += f"🅿️ *Par:* {wf_base(res['p'], h)}\n"
+                        s_l += f"⚠️ *Bog:* {wf_base(res['bog'], h)}\n"
+                        s_l += f"💀 *D.B:* {wf_base(res['db'], h)}\n"
+                        s_l += f"💣 *💥 Triple o peor:* {wf_base(triple_o_peor, h)}\n"
                     else:
-                        if res['e'] > 0:  s_l += f"🦅 Egl: {wf(res['e'])}\n"
-                        if res['b'] > 0:  s_l += f"🐤 Bir: {wf(res['b'])}\n"
-                        s_l += f"🅿️ *Par:* {wf(res['p'])}\n"
-                        s_l += f"⚠️ *Bog:* {wf(res['bog'])}\n"
-                        s_l += f"💀 *D.B:* {wf(res['db'])}\n"
-                        if res['tb'] > 0: s_l += f"💣 +3B: {wf(res['tb'])}\n"
+                        if res['e'] > 0:  s_l += f"🦅 Egl: {wf_base(res['e'], h)}\n"
+                        if res['b'] > 0:  s_l += f"🐤 Bir: {wf_base(res['b'], h)}\n"
+                        s_l += f"🅿️ *Par:* {wf_base(res['p'], h)}\n"
+                        s_l += f"⚠️ *Bog:* {wf_base(res['bog'], h)}\n"
+                        s_l += f"💀 *D.B:* {wf_base(res['db'], h)}\n"
+                        if res['tb'] > 0: s_l += f"💣 +3B: {wf_base(res['tb'], h)}\n"
                         
                     txt_wa += s_l + "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
                 
@@ -1180,28 +1191,22 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 st.markdown("### 📈 Análisis Gráfico de Rendimiento")
                 
                 if lista_mvp:
-                    # Convertimos tu lista de resultados a un DataFrame de Pandas para graficar fácilmente
                     df_graficos = pd.DataFrame(lista_mvp)
                     
                     col_graf_1, col_graf_2 = st.columns(2)
                     
                     with col_graf_1:
-                        # 1. GRÁFICO DE BARRAS APILADAS: Distribución de Resultados
-                        # Preparamos los datos aislando los golpes
                         df_dist = df_graficos[['Jugador', 'e', 'b', 'p', 'bog', 'db', 'tb']].copy()
                         df_dist.columns = ['Jugador', 'Eagle', 'Birdie', 'Par', 'Bogey', 'D.Bogey', '+3 Bogey']
-                        
-                        # Transformamos la tabla para que Plotly la entienda (formato largo)
                         df_long = df_dist.melt(id_vars='Jugador', var_name='Resultado', value_name='Cantidad')
                         
-                        # Colores personalizados e intuitivos para el golf
                         colores_golf = {
                             'Eagle': '#FFD700',     # Oro
                             'Birdie': '#00BFFF',    # Azul claro
                             'Par': '#28B463',       # Verde
                             'Bogey': '#F39C12',     # Naranja
                             'D.Bogey': '#E74C3C',   # Rojo
-                            '+3 Bogey': '#7B241C'   # Rojo muy oscuro
+                            '|+3 Bogey': '#7B241C'   # Rojo muy oscuro
                         }
                         
                         fig1 = px.bar(
@@ -1213,15 +1218,10 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                             color_discrete_map=colores_golf,
                             text_auto=True
                         )
-                        # Ocultamos el título del eje Y para que quede más limpio
                         fig1.update_layout(yaxis_title=None, xaxis_title=None) 
                         st.plotly_chart(fig1, use_container_width=True)
-                
+                    
                     with col_graf_2:
-                        # 2. GRÁFICO DE BARRAS AGRUPADAS: Scratch vs Puntos MVP
-                        # Comparamos el rendimiento bruto frente a los puntos de MVP que aporta cada uno
-                        
-                        # Ajustamos los nombres de las columnas que queremos mostrar
                         df_rend = df_graficos[['Jugador', 'scr', 'pts_mvp']].copy()
                         df_rend.rename(columns={'scr': 'Puntos Scratch', 'pts_mvp': 'Puntos MVP'}, inplace=True)
                         df_rend_long = df_rend.melt(id_vars='Jugador', var_name='Métrica', value_name='Valor')
@@ -1238,37 +1238,27 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         )
                         fig2.update_layout(yaxis_title=None, xaxis_title=None, legend_title_text='')
                         st.plotly_chart(fig2, use_container_width=True)
-                        
+                    
                     #PUTT
                     import altair as alt
-                    # --- 📊 ANÁLISIS DE PUTTS (Dinámico y Condicionado) ---
                     st.markdown("---")
                     st.markdown("### 📊 Análisis de Putts")
                     
-                    # 1. DEFINICIÓN DEL DATASET BASE
-                    # Usamos df_raw para filtrar dinámicamente según la selección del usuario
                     if ver_acumulado:
-                        # Si estamos en modo acumulado, filtramos por la temporada seleccionada
                         temp_val = str(seleccion_filtro)
                         df_putts_source = df_raw[df_raw['t_limpia'] == temp_val].copy()
                     else:
-                        # Si estamos en modo jornada, usamos la jornada seleccionada
                         df_putts_source = df_raw[df_raw['fecha'] == seleccion_filtro].copy()
                     
-                    # 2. APLICACIÓN DE LA REGLA ESPECIAL 2026
-                    # Si la temporada es '2026', filtramos estrictamente a partir del 8/07/2026
                     fecha_corte = pd.Timestamp('2026-07-08')
-                    # Aseguramos que tenemos la columna fecha_dt para comparar
                     if 'fecha_dt' not in df_putts_source.columns:
                         df_putts_source['fecha_dt'] = pd.to_datetime(df_putts_source['fecha'], dayfirst=True)
                     
-                    # Filtro: Si la temporada es 2026, solo nos quedamos con fechas >= 08/07/2026
                     if '2026' in df_putts_source['t_limpia'].values:
                         df_putts_source = df_putts_source[
                             (df_putts_source['t_limpia'] != '2026') | (df_putts_source['fecha_dt'] >= fecha_corte)
                         ]
                     
-                    # 3. CÁLCULO DE MÉTRICAS (Si hay datos tras el filtrado)
                     if not df_putts_source.empty:
                         stats_list = []
                         cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
@@ -1288,7 +1278,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         df_consistencia = df_consistencia.sort_values(by='Media Putts', ascending=True).reset_index(drop=True)
                         orden_jugadores = list(df_consistencia['Jugador'])
                     
-                        # 4. GRÁFICO (Altair)
                         chart = alt.Chart(df_consistencia).mark_bar().encode(
                             x=alt.X('Jugador:N', sort=orden_jugadores, axis=alt.Axis(labelAngle=0, title=None)), 
                             y=alt.Y('Media Putts', scale=alt.Scale(domain=[0, 3])), 
@@ -1301,7 +1290,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         
                         st.altair_chart(chart + text, use_container_width=True)
                         
-                        # 5. TABLA DE CONSISTENCIA
                         st.markdown(f"### ⛳ Tabla de Consistencia <span style='color:green; font-size: 0.8em;'>({len(df_putts_source)} hoyos registrados)</span>", unsafe_allow_html=True)
                         
                         estilo = df_consistencia.style.format({
@@ -1316,6 +1304,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         st.table(estilo)
                     else:
                         st.warning("No hay datos de putts disponibles para esta selección (o no cumplen el requisito de fecha > 08/07/2026).")
+
 # SECCIÓN: ADMIN
 # ==========================================
 
