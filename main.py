@@ -1042,8 +1042,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         "+/-": txt_pm,
                         "Scratch": txt_scr,
                         "Media Putts": f"{res['avg_putts']:.1f}",
-                        "GIR": f_pct(res['gir_cnt'], hp),         # Usamos hoyos_putts como base
-                        "U&D": f_pct(res['ud_cnt'], hp),         # Usamos hoyos_putts como base
+                        "GIR": f_pct(res['gir_cnt'], hp),       # Usamos hoyos_putts como base
+                        "U&D": f_pct(res['ud_cnt'], hp),       # Usamos hoyos_putts como base
                         "Eagle": f_pct(res['e'], h), "Birdie": f_pct(res['b'], h), 
                         "Par": f_pct(res['p'], h), "Bogey": f_pct(res['bog'], h), 
                         "D.Bogey": f_pct(res['db'], h), "3+ Bogey": f_pct(res['tb'], h)
@@ -1193,117 +1193,96 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 if lista_mvp:
                     df_graficos = pd.DataFrame(lista_mvp)
                     
-                    col_graf_1, col_graf_2 = st.columns(2)
+                    df_dist = df_graficos[['Jugador', 'e', 'b', 'p', 'bog', 'db', 'tb']].copy()
+                    df_dist.columns = ['Jugador', 'Eagle', 'Birdie', 'Par', 'Bogey', 'D.Bogey', '+3 Bogey']
+                    df_long = df_dist.melt(id_vars='Jugador', var_name='Resultado', value_name='Cantidad')
                     
-                    with col_graf_1:
-                        df_dist = df_graficos[['Jugador', 'e', 'b', 'p', 'bog', 'db', 'tb']].copy()
-                        df_dist.columns = ['Jugador', 'Eagle', 'Birdie', 'Par', 'Bogey', 'D.Bogey', '+3 Bogey']
-                        df_long = df_dist.melt(id_vars='Jugador', var_name='Resultado', value_name='Cantidad')
-                        
-                        colores_golf = {
-                            'Eagle': '#FFD700',     # Oro
-                            'Birdie': '#00BFFF',    # Azul claro
-                            'Par': '#28B463',       # Verde
-                            'Bogey': '#F39C12',     # Naranja
-                            'D.Bogey': '#E74C3C',   # Rojo
-                            '|+3 Bogey': '#7B241C'   # Rojo muy oscuro
-                        }
-                        
-                        fig1 = px.bar(
-                            df_long, 
-                            x='Jugador', 
-                            y='Cantidad', 
-                            color='Resultado',
-                            title="🎯 Radiografía de Hoyos",
-                            color_discrete_map=colores_golf,
-                            text_auto=True
-                        )
-                        fig1.update_layout(yaxis_title=None, xaxis_title=None) 
-                        st.plotly_chart(fig1, use_container_width=True)
+                    colores_golf = {
+                        'Eagle': '#FFD700',    # Oro
+                        'Birdie': '#00BFFF',    # Azul claro
+                        'Par': '#28B463',        # Verde
+                        'Bogey': '#F39C12',     # Naranja
+                        'D.Bogey': '#E74C3C',   # Rojo
+                        '|+3 Bogey': '#7B241C'    # Rojo muy oscuro
+                    }
                     
-                    with col_graf_2:
-                        df_rend = df_graficos[['Jugador', 'scr', 'pts_mvp']].copy()
-                        df_rend.rename(columns={'scr': 'Puntos Scratch', 'pts_mvp': 'Puntos MVP'}, inplace=True)
-                        df_rend_long = df_rend.melt(id_vars='Jugador', var_name='Métrica', value_name='Valor')
-                        
-                        fig2 = px.bar(
-                            df_rend_long, 
-                            x='Jugador', 
-                            y='Valor', 
-                            color='Métrica', 
-                            barmode='group',
-                            title="🏆 Rendimiento: Scratch vs MVP",
-                            color_discrete_map={'Puntos Scratch': '#34495E', 'Puntos MVP': '#F1C40F'},
-                            text_auto='.1f'
-                        )
-                        fig2.update_layout(yaxis_title=None, xaxis_title=None, legend_title_text='')
-                        st.plotly_chart(fig2, use_container_width=True)
+                    fig1 = px.bar(
+                        df_long, 
+                        x='Jugador', 
+                        y='Cantidad', 
+                        color='Resultado',
+                        title="🎯 Radiografía de Hoyos",
+                        color_discrete_map=colores_golf,
+                        text_auto=True
+                    )
+                    fig1.update_layout(yaxis_title=None, xaxis_title=None) 
+                    st.plotly_chart(fig1, use_container_width=True)
+                
+                #PUTT
+                import altair as alt
+                st.markdown("---")
+                st.markdown("### 📊 Análisis de Putts")
+                
+                if ver_acumulado:
+                    temp_val = str(seleccion_filtro)
+                    df_putts_source = df_raw[df_raw['t_limpia'] == temp_val].copy()
+                else:
+                    df_putts_source = df_raw[df_raw['fecha'] == seleccion_filtro].copy()
+                
+                fecha_corte = pd.Timestamp('2026-07-08')
+                if 'fecha_dt' not in df_putts_source.columns:
+                    df_putts_source['fecha_dt'] = pd.to_datetime(df_putts_source['fecha'], dayfirst=True)
+                
+                if '2026' in df_putts_source['t_limpia'].values:
+                    df_putts_source = df_putts_source[
+                        (df_putts_source['t_limpia'] != '2026') | (df_putts_source['fecha_dt'] >= fecha_corte)
+                    ]
+                
+                if not df_putts_source.empty:
+                    stats_list = []
+                    cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
                     
-                    #PUTT
-                    import altair as alt
-                    st.markdown("---")
-                    st.markdown("### 📊 Análisis de Putts")
+                    for col, nombre in cols_putts.items():
+                        if col in df_putts_source.columns:
+                            datos = pd.to_numeric(df_putts_source[col], errors='coerce').fillna(0)
+                            stats_list.append({
+                                'Jugador': nombre,
+                                'Media Putts': datos.mean(),
+                                '% 1-Putt': (datos == 1).mean() * 100,
+                                '% 2-Putts': (datos == 2).mean() * 100,
+                                '💀 % 3-Putts': (datos >= 3).mean() * 100
+                            })
                     
-                    if ver_acumulado:
-                        temp_val = str(seleccion_filtro)
-                        df_putts_source = df_raw[df_raw['t_limpia'] == temp_val].copy()
-                    else:
-                        df_putts_source = df_raw[df_raw['fecha'] == seleccion_filtro].copy()
+                    df_consistencia = pd.DataFrame(stats_list)
+                    df_consistencia = df_consistencia.sort_values(by='Media Putts', ascending=True).reset_index(drop=True)
+                    orden_jugadores = list(df_consistencia['Jugador'])
+                
+                    chart = alt.Chart(df_consistencia).mark_bar().encode(
+                        x=alt.X('Jugador:N', sort=orden_jugadores, axis=alt.Axis(labelAngle=0, title=None)), 
+                        y=alt.Y('Media Putts', scale=alt.Scale(domain=[0, 3])), 
+                        color=alt.Color('Jugador:N', sort=orden_jugadores, legend=None) 
+                    ).properties(height=300)
                     
-                    fecha_corte = pd.Timestamp('2026-07-08')
-                    if 'fecha_dt' not in df_putts_source.columns:
-                        df_putts_source['fecha_dt'] = pd.to_datetime(df_putts_source['fecha'], dayfirst=True)
+                    text = chart.mark_text(align='center', baseline='bottom', dy=-5, color='black').encode(
+                        text=alt.Text('Media Putts', format='.2f')
+                    )
                     
-                    if '2026' in df_putts_source['t_limpia'].values:
-                        df_putts_source = df_putts_source[
-                            (df_putts_source['t_limpia'] != '2026') | (df_putts_source['fecha_dt'] >= fecha_corte)
-                        ]
+                    st.altair_chart(chart + text, use_container_width=True)
                     
-                    if not df_putts_source.empty:
-                        stats_list = []
-                        cols_putts = {'p0': 'MANU', 'p1': 'JOSE', 'p2': 'ROGE', 'p3': 'LALO'}
-                        
-                        for col, nombre in cols_putts.items():
-                            if col in df_putts_source.columns:
-                                datos = pd.to_numeric(df_putts_source[col], errors='coerce').fillna(0)
-                                stats_list.append({
-                                    'Jugador': nombre,
-                                    'Media Putts': datos.mean(),
-                                    '% 1-Putt': (datos == 1).mean() * 100,
-                                    '% 2-Putts': (datos == 2).mean() * 100,
-                                    '💀 % 3-Putts': (datos >= 3).mean() * 100
-                                })
-                        
-                        df_consistencia = pd.DataFrame(stats_list)
-                        df_consistencia = df_consistencia.sort_values(by='Media Putts', ascending=True).reset_index(drop=True)
-                        orden_jugadores = list(df_consistencia['Jugador'])
+                    st.markdown(f"### ⛳ Tabla de Consistencia <span style='color:green; font-size: 0.8em;'>({len(df_putts_source)} hoyos registrados)</span>", unsafe_allow_html=True)
                     
-                        chart = alt.Chart(df_consistencia).mark_bar().encode(
-                            x=alt.X('Jugador:N', sort=orden_jugadores, axis=alt.Axis(labelAngle=0, title=None)), 
-                            y=alt.Y('Media Putts', scale=alt.Scale(domain=[0, 3])), 
-                            color=alt.Color('Jugador:N', sort=orden_jugadores, legend=None) 
-                        ).properties(height=300)
-                        
-                        text = chart.mark_text(align='center', baseline='bottom', dy=-5, color='black').encode(
-                            text=alt.Text('Media Putts', format='.2f')
-                        )
-                        
-                        st.altair_chart(chart + text, use_container_width=True)
-                        
-                        st.markdown(f"### ⛳ Tabla de Consistencia <span style='color:green; font-size: 0.8em;'>({len(df_putts_source)} hoyos registrados)</span>", unsafe_allow_html=True)
-                        
-                        estilo = df_consistencia.style.format({
-                            'Media Putts': '{:.1f}', 
-                            '% 1-Putt': '{:.0f}%', 
-                            '% 2-Putts': '{:.0f}%', 
-                            '💀 % 3-Putts': '{:.0f}%'
-                        }).set_table_styles([
-                            {'selector': 'th', 'props': [('text-align', 'center')]},
-                            {'selector': 'td', 'props': [('text-align', 'center')]}
-                        ])
-                        st.table(estilo)
-                    else:
-                        st.warning("No hay datos de putts disponibles para esta selección (o no cumplen el requisito de fecha > 08/07/2026).")
+                    estilo = df_consistencia.style.format({
+                        'Media Putts': '{:.1f}', 
+                        '% 1-Putt': '{:.0f}%', 
+                        '% 2-Putts': '{:.0f}%', 
+                        '💀 % 3-Putts': '{:.0f}%'
+                    }).set_table_styles([
+                        {'selector': 'th', 'props': [('text-align', 'center')]},
+                        {'selector': 'td', 'props': [('text-align', 'center')]}
+                    ])
+                    st.table(estilo)
+                else:
+                    st.warning("No hay datos de putts disponibles para esta selección (o no cumplen el requisito de fecha > 08/07/2026).")
 
 # SECCIÓN: ADMIN
 # ==========================================
