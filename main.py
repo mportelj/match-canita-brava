@@ -684,7 +684,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     if ra > rb:
                         estado_str = f"🟢 M&J +{ra-rb}"
                     elif rb > ra:
-                        estado_str = f"🔴 R&L +{rb-rb}" # Corregido por si acaso
+                        estado_str = f"🔴 R&L +{rb-ra}"
                     else:
                         estado_str = "⚪ Empate AS"
             return f"Hoyo {x} (Par {par_h}) — {estado_str}"
@@ -812,10 +812,14 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         s0, s1, s2, s3 = inputs_s
         p0, p1, p2, p3 = inputs_p
 
-        # 8. POPOVER DE GUARDADO Y CONFIRMACIÓN (ORDENADO DE MENOR A MAYOR GOLPES)
+        # 8. POPOVER DE GUARDADO CON DISEÑO MODERNO Y BOTÓN DE CANCELAR
         with st.popover("💾 GUARDAR RESULTADO HOYO", use_container_width=True):
-            st.markdown(f"<h4 style='text-align:center; color:#2e7d32; margin-top:0;'>📋 Confirmar Hoyo {h_actual}</h4>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center; font-size:0.9em; color:#555;'>Ordenados de menor a mayor golpes:</p>", unsafe_allow_html=True)
+            st.markdown(f"""
+                <div style="text-align: center; margin-bottom: 12px;">
+                    <h4 style="margin: 0; color: #1f2937; font-size: 1.15rem;">Resumen Hoyo {h_actual}</h4>
+                    <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #6b7280;">Ordenado de menor a mayor golpes</p>
+                </div>
+            """, unsafe_allow_html=True)
             
             datos_confirmar = [
                 ("MANU", s0, p0, config_jugadores["MANU"]["color"]),
@@ -826,17 +830,29 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             datos_ordenados = sorted(datos_confirmar, key=lambda x: x[1])
             
             for idx, (nom, golpes, putts, color_j) in enumerate(datos_ordenados, 1):
-                st.markdown(f"<div style='font-size:1.05rem; font-weight:bold; padding:3px 0; color:{color_j};'>{idx}. {nom}: {golpes} golpes ({putts} putts)</div>", unsafe_allow_html=True)
+                st.markdown(f"""
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 12px; margin-bottom: 6px;">
+                        <span style="font-weight: 600; font-size: 0.95rem; color: {color_j};">{idx}. {nom}</span>
+                        <span style="font-size: 0.9rem; color: #374151;"><b>{golpes}</b> golpes <span style="color: #9ca3af;">({putts}p)</span></span>
+                    </div>
+                """, unsafe_allow_html=True)
             
             st.write("")
-            if st.button("✅ SÍ, GUARDAR", type="primary", use_container_width=True, key=f"btn_conf_pop_{h_actual}"):
-                ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
-                st.session_state.hoyo_modificado = False
-                if h_actual < 18:
-                    st.session_state.game['h_sel'] = h_actual + 1
-                    st.query_params["hoyo"] = st.session_state.game['h_sel']
-                    st.session_state.refresco_id += 1
-                st.rerun()
+            
+            # Botones de confirmación y cancelación dentro del popover
+            col_pop_1, col_pop_2 = st.columns(2)
+            with col_pop_1:
+                if st.button("✅ GUARDAR", type="primary", use_container_width=True, key=f"btn_pop_si_{h_actual}"):
+                    ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
+                    st.session_state.hoyo_modificado = False
+                    if h_actual < 18:
+                        st.session_state.game['h_sel'] = h_actual + 1
+                        st.query_params["hoyo"] = st.session_state.game['h_sel']
+                        st.session_state.refresco_id += 1
+                    st.rerun()
+            with col_pop_2:
+                if st.button("❌ CERRAR", use_container_width=True, key=f"btn_pop_no_{h_actual}"):
+                    st.rerun()
 
         # 9. SECCIÓN MVP
         st.write("---")
