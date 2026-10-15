@@ -659,7 +659,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         g = st.session_state.game
         st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
 
-        # 1. CARGA Y FILTRADO ROBUSTO DE DATOS (¡DEBE IR ANTES DE USAR DF_PARTIDO_ACTUAL!)
+        # 1. CARGA Y FILTRADO ROBUSTO DE DATOS
         try:
             df_p = leer_datos() 
             if df_p is not None and not df_p.empty:
@@ -678,7 +678,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         except Exception as e:
             st.error(f"Error al conectar con la base de datos: {e}")
 
-        # Aseguramos que h_sel exista en el estado del juego
         if 'h_sel' not in g:
             g['h_sel'] = 1
 
@@ -747,7 +746,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
         st.write("---")
 
-        # 3. SELECTOR DE HOYO INTELIGENTE (BAJO LOS BOTONES)
+        # 3. SELECTOR DE HOYO INTELIGENTE (SITUADO BAJO LOS BOTONES)
         st.markdown("""
             <style>
                 div[data-baseweb="select"] > div:first-child {
@@ -792,6 +791,35 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         )
         st.session_state.game['h_sel'] = h_actual
         st.query_params["hoyo"] = h_actual
+
+        # 5. OBTENCIÓN Y SINCRONIZACIÓN DE DATOS DEL HOYO ACTUAL (GOLPES Y PUTTS)
+        try:
+            val_par_hoyo = int(PAR_RIA_VIGO[int(h_actual)])
+        except:
+            val_par_hoyo = 4
+
+        df_hoyo_actual = pd.DataFrame()
+        hay_datos_hoyo = False
+        if not df_partido_actual.empty and 'hoyo_int' in df_partido_actual.columns:
+            df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo_int'] == int(h_actual)]
+            if not df_hoyo_actual.empty:
+                if df_hoyo_actual.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
+                    hay_datos_hoyo = True
+
+        if 'h_cargado_actual' not in st.session_state or st.session_state.h_cargado_actual != h_actual:
+            st.session_state.h_cargado_actual = h_actual
+            if hay_datos_hoyo:
+                try:
+                    for i in range(4):
+                        st.session_state[f"s{i}_h{h_actual}"] = int(df_hoyo_actual[f's{i}'].iloc[0])
+                        st.session_state[f"p{i}_h{h_actual}"] = int(df_hoyo_actual[f'p{i}'].iloc[0])
+                except:
+                    pass
+            else:
+                for i in range(4):
+                    st.session_state[f"s{i}_h{h_actual}"] = val_par_hoyo
+                    st.session_state[f"p{i}_h{h_actual}"] = 2
+            st.session_state.hoyo_modificado = False
 
         def activar_boton_guardar():
             st.session_state.hoyo_modificado = True
