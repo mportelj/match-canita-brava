@@ -545,13 +545,14 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     df_p = pd.DataFrame()
     df_partido_actual = pd.DataFrame()
 
-    # --- FUNCIÓN AUXILIAR DE GUARDADO (BLINDADA CON SESSION_STATE) ---
+    # --- FUNCIÓN AUXILIAR DE GUARDADO (CONECTADA A GOOGLE SHEETS) ---
     def ejecutar_guardado_automatico(hoyo_num):
         try:
+            hoja = st.session_state.sh
             g_actual = st.session_state.game
-            id_p = g_actual['id']
-            f_p = g_actual['fecha']
-            t_p = g_actual['temporada']
+            id_p = str(g_actual['id']).split('.')[0].strip()
+            f_p = pd.to_datetime(g_actual['fecha'], dayfirst=True).strftime('%d/%m/%Y')
+            t_p = int(g_actual.get('temporada', 2026))
             
             # Recuperación directa y segura de los valores desde st.session_state
             s0_v = int(st.session_state.get(f"s0_h{hoyo_num}", 4))
@@ -564,61 +565,71 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             p2_v = int(st.session_state.get(f"p2_h{hoyo_num}", 2))
             p3_v = int(st.session_state.get(f"p3_h{hoyo_num}", 2))
             
-            # Cálculo de resultado del hoyo (Match Play)
-            neto_a = min(s0_v, s1_v)
-            neto_b = min(s2_v, s3_v)
-            
-            res_a = 1 if neto_a < neto_b else 0
-            res_b = 1 if neto_b < neto_a else 0
-            
-            # Cálculo Puntos MVP (Stableford invertido/Scramble)
-            par_h = int(PAR_RIA_VIGO.get(int(hoyo_num), 4))
-            
-            def calc_pts(golpes, par_val):
-                dif = golpes - par_val
-                if dif <= -2: return 4.0
-                elif dif == -1: return 3.0
-                elif dif == 0: return 2.0
-                elif dif == 1: return 1.0
-                else: return 0.0
-
-            pts_p1 = calc_pts(s0_v, par_h)
-            pts_p2 = calc_pts(s1_v, par_h)
-            pts_p3 = calc_pts(s2_v, par_h)
-            pts_p4 = calc_pts(s3_v, par_h)
-
-            # Preparación de fila para guardar
-            nueva_fila = {
-                'partido_id': str(id_p),
-                'fecha': str(f_p),
-                'temporada': str(t_p),
-                'hoyo': int(hoyo_num),
-                's0': s0_v, 's1': s1_v, 's2': s2_v, 's3': s3_v,
-                'p0': p0_v, 'p1': p1_v, 'p2': p2_v, 'p3': p3_v,
-                'resultado_a': res_a,
-                'resultado_b': res_b,
-                'p1_pts': pts_p1, 'p2_pts': pts_p2, 'p3_pts': pts_p3, 'p4_pts': pts_p4
-            }
-
-            df_base = leer_datos()
-            if df_base is not None and not df_base.empty:
-                df_base['p_id_str'] = df_base['partido_id'].astype(str).str.strip()
-                df_base['hoyo_int'] = pd.to_numeric(df_base['hoyo'], errors='coerce').fillna(-1).astype(int)
-                
-                target_id = str(id_p).strip()
-                target_hoyo = int(hoyo_num)
-                
-                # Eliminamos registro previo de este hoyo para actualizarlo limpiamente
-                mask = (df_base['p_id_str'] == target_id) & (df_base['hoyo_int'] == target_hoyo)
-                df_base = df_base[~mask].drop(columns=['p_id_str', 'hoyo_int'], errors='ignore')
-                
-                df_final = pd.concat([df_base, pd.DataFrame([nueva_fila])], ignore_index=True)
+            hoyo_cronologico = int(hoyo_num)
+            if g_actual.get('modo_9_hoyos', False):
+                vuelta_base = 1 if g_actual.get('vuelta_repetida') == "1ª Vuelta (Hoyos 1-9)" else 10
+                hoyo_real_campo = ((hoyo_cronologico - 1) % 9) + vuelta_base
             else:
-                df_final = pd.DataFrame([nueva_fila])
+                hoyo_real_campo = hoyo_cronologico
 
-            guardar_datos(df_final)
+            par_hoyo = int(PAR_RIA_VIGO[hoyo_real_campo])
+            golpes = [s0_v, s1_v, s2_v, s3_v]
+            
+            # --- CÁLCULO MATCH PLAY ---
+            mejor_a = min(golpes[0], golpes[1])
+            mejor_b = min(golpes[2], golpes[3])
+            peor_a = max(golpes[0], golpes[1])
+            peor_b = max(golpes[2], golpes[3])
+            
+            res_a, res_b = 0, 0
+            if mejor_a < mejor_b:   res_a += 1
+            elif mejor_b < mejor_a: res_b += 1
+            if peor_a < peor_b:     res_a += 1
+            elif peor_b < peor_a:   res_b += 1
+            
+            res_a += calcular_bonus_hoyo(golpes[0], par_hoyo)
+            res_a += calcular_bonus_hoyo(golpes[1], par_hoyo)
+            res_b += calcular_bonus_hoyo(golpes[2], par_hoyo)
+            res_b += calcular_bonus_hoyo(golpes[3], par_hoyo)
+            
+            # --- CÁLCULO PUNTOS MVP ---
+            p_mvp = [0.0, 0.0, 0.0, 0.0]
+            for i in range(4):
+                puntos_victoria = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
+                puntos_par = 0.0
+                dif = golpes[i] - par_hoyo
+                if dif == 0:    puntos_par = 0.5
+                elif dif == -1: puntos_par = 1.5
+                elif dif == -2: puntos_par = 3.0
+                elif dif <= -3: puntos_par = 4.0
+                p_mvp[i] = float(puntos_victoria + puntos_par)
+
+            nueva_fila = [
+                f"{id_p}_H{hoyo_cronologico}", int(id_p), int(hoyo_cronologico), f_p, 
+                t_p, int(res_a), int(res_b), 
+                p_mvp[0], p_mvp[1], p_mvp[2], p_mvp[3], 
+                golpes[0], golpes[1], golpes[2], golpes[3],
+                int(p0_v), int(p1_v), int(p2_v), int(p3_v),
+                int(hoyo_real_campo)
+            ]
+
+            filas = hoja.get_all_values()
+            header = filas[0]
+            if 'hoyo_real' not in header:
+                header.append('hoyo_real')
+
+            # Filtramos para eliminar registro previo de este mismo hoyo y actualizarlo limpiamente
+            datos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_p and str(f[2]) == str(hoyo_cronologico))]
+            for f in datos:
+                if len(f) < len(header):
+                    f.append(f[2])
+
+            datos.append(nueva_fila)
+            
+            hoja.clear()
+            hoja.update('A1', [header] + datos, value_input_option='USER_ENTERED')
             st.cache_data.clear()
-            st.toast(f"✅ Hoyo {hoyo_num} guardado correctamente", icon="💾")
+            st.toast(f"✅ Hoyo {hoyo_cronologico} guardado correctamente", icon="💾")
             return True
         except Exception as err:
             st.error(f"Error al guardar los datos: {err}")
@@ -902,7 +913,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         st.markdown(f"<p style='text-align: center; color: gray; font-size: 0.9em;'>📅 Fecha del partido: <b>{g.get('fecha', 'S/F')}</b></p>", unsafe_allow_html=True)
         
         with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
-            st.warning("⚠️ Эта acción cerrará la sesión actual.")
+            st.warning("⚠️ Esta acción cerrará la sesión actual.")
             if st.button("Confirmar y Salir", type="primary", use_container_width=True):
                 st.session_state.game = None
                 st.query_params.clear()
