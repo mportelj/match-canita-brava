@@ -33,7 +33,7 @@ def cargar_datos_golf():
 if 'sh' not in st.session_state:
     st.session_state.sh = cargar_datos_golf()
 
-# 1. Primero determinamos si hay una partida incompleta en Google Sheets ANTES de fijar el menú por defecto
+# 1. Determinamos si hay una partida incompleta en Google Sheets ANTES de fijar el menú
 menu_inicial = "Inicio"
 game_detectado = None
 
@@ -46,9 +46,8 @@ if "partida_id" in st.query_params:
         'temporada': str(datetime.now().year)
     }
 else:
-    # Si no hay URL, comprobamos si hay un partido abierto (menos de 18 hoyos) en la BD
+    # Comprobamos en la BD si hay un partido abierto (menos de 18 hoyos jugados)
     try:
-        # Hacemos una lectura rápida para comprobar partidos en curso
         hoja_temp = st.session_state.sh
         datos_temp = hoja_temp.get_all_values()
         if len(datos_temp) > 1:
@@ -70,18 +69,16 @@ else:
                         'fecha': fecha_p,
                         'temporada': temp_p
                     }
-                    # Actualizamos la URL automáticamente para futuras recargas
                     st.query_params["partida_id"] = ultimo_p_id
                     st.query_params["hoyo"] = siguiente_hoyo
     except:
         pass
 
-# 2. Inicializamos los estados respetando lo que acabamos de detectar
+# 2. Inicializamos los estados (ELIMINAMOS 'nav_radio' de default_states para evitar la excepción)
 default_states = {
     'refresco_id': 0,
     'hoyo_modificado': False,
     'menu_seleccionado': menu_inicial,
-    'nav_radio': menu_inicial,
     'game': game_detectado if game_detectado else {"h_sel": 1}
 }
 
@@ -214,7 +211,7 @@ with st.sidebar:
         idx_actual = 0
 
     def cambiar_menu():
-        st.session_state.menu_seleccionado = st.session_state.get('nav_radio', 'Inicio')
+        st.session_state.menu_seleccionado = st.session_state.nav_radio
 
     st.radio(
         "Navegación",
