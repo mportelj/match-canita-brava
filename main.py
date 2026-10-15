@@ -205,21 +205,23 @@ with st.sidebar:
     
     opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
     
+    # Obtenemos el índice actual de forma segura
     try:
         idx_actual = opciones_menu.index(st.session_state.menu_seleccionado)
     except ValueError:
         idx_actual = 0
 
-    def cambiar_menu():
-        st.session_state.menu_seleccionado = st.session_state.nav_radio
-
-    st.radio(
+    # Capturamos la selección directamente sin usar 'key' ni 'on_change' para evitar duplicidades
+    nuevo_menu = st.radio(
         "Navegación",
         opciones_menu,
-        index=idx_actual,
-        key="nav_radio",
-        on_change=cambiar_menu
+        index=idx_actual
     )
+    
+    # Si el usuario cambia de opción en el menú, actualizamos y recargamos la app al instante
+    if nuevo_menu != st.session_state.menu_seleccionado:
+        st.session_state.menu_seleccionado = nuevo_menu
+        st.rerun()
 
     def cambiar_menu():
         st.session_state.menu_seleccionado = st.session_state.get('nav_radio', 'Inicio')
