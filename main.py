@@ -532,330 +532,256 @@ if st.session_state.menu_seleccionado == "Inicio":
     st.session_state['marcador_acumulado_b'] = pb_t  # O la variable que uses para Roge/Lalo
 # ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
-        # --- BLOQUE 0: INICIALIZACIÓN DE ESTADO ---
-        if 'refresco_id' not in st.session_state: 
-            st.session_state.refresco_id = 0
-        
-        # 🎯 NUEVA VARIABLE DE CONTROL PARA EL BOTÓN GUARDAR
-        if 'hoyo_modificado' not in st.session_state:
-            st.session_state.hoyo_modificado = False
-        
-        # Inicializamos DataFrames vacíos para evitar errores de referencia
-        df_p = pd.DataFrame()
-        df_partido_actual = pd.DataFrame()
+    # --- BLOQUE 0: INICIALIZACIÓN DE ESTADO ---
+    if 'refresco_id' not in st.session_state: 
+        st.session_state.refresco_id = 0
+    
+    if 'hoyo_modificado' not in st.session_state:
+        st.session_state.hoyo_modificado = False
+    
+    df_p = pd.DataFrame()
+    df_partido_actual = pd.DataFrame()
 
-        # --- BLOQUE A: CONFIGURACIÓN DE INICIO (PANTALLA DE BIENVENIDA) ---
-        game_activo = st.session_state.get('game')
-        if not game_activo or not isinstance(game_activo, dict) or 'id' not in game_activo:
-            st.title("⛳ Nueva Partida")
-            fecha_nueva = st.date_input("Fecha del partido", key="fecha_nueva_p")
-            if st.button("🚀 INICIAR PARTIDO", type="primary", use_container_width=True):
-                # 1. Generamos el ID único
-                nuevo_id = datetime.now().strftime("%Y%m%d%H%M%S")
-                
-                # 2. Inicializamos el estado del juego solo con el nuevo ID
-                st.session_state.game = {
-                    "id": nuevo_id,
-                    "fecha": fecha_nueva.strftime("%d/%m/%Y"),
-                    "temporada": str(fecha_nueva.year),
-                    "h_sel": 1
-                }
-                
-                # 3. Preparamos el entorno para la nueva partida
-                st.session_state.refresco_id += 1
-                st.cache_data.clear()
-                
-                # 4. Actualizamos la URL para el "Motor de Resurrección"
-                st.query_params["partida_id"] = nuevo_id
-                st.query_params["hoyo"] = 1
-                
-                # 5. Recargamos la app
-                st.rerun()
-        
-        # --- BLOQUE B: INTERFAZ DE JUEGO (PARTIDO EN CURSO) ---
-        else:
-            g = st.session_state.game
-            # Reducción de márgenes superiores para visualización móvil
-            st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
-            st.title(f"⛳ {g.get('fecha', 'S/F')}")
-
-            # 1. CARGA Y FILTRADO ULTRA-SEGURO DE DATOS
-            try:
-                df_p = leer_datos() 
-                if df_p is not None and not df_p.empty:
-                    # Normalizamos el ID de la sesión (quitando decimales si los hay)
-                    id_sesion = str(int(float(g['id'])))
-                    
-                    # Normalizamos la columna de la base de datos para que coincida 100%
-                    def normalizar_id(val):
-                        try:
-                            return str(int(float(val)))
-                        except:
-                            return ""
-                    
-                    df_p['partido_id_str'] = df_p['partido_id'].apply(normalizar_id)
-                    
-                    # Creamos el dataset exclusivo de la jornada de hoy
-                    df_partido_actual = df_p[df_p['partido_id_str'] == id_sesion].copy()
-            except Exception as e:
-                st.error(f"Error al conectar con la base de datos: {e}")
-
-            # 2. CÁLCULO DE MARCADOR GLOBAL (MATCH PLAY)
-            # Sumamos los hoyos ganados por cada equipo en la jornada
-            puntos_equipo_a = 0
-            puntos_equipo_b = 0
-            if not df_partido_actual.empty:
-                puntos_equipo_a = df_partido_actual['resultado_a'].sum()
-                puntos_equipo_b = df_partido_actual['resultado_b'].sum()
+    # --- BLOQUE A: CONFIGURACIÓN DE INICIO (PANTALLA DE BIENVENIDA) ---
+    game_activo = st.session_state.get('game')
+    if not game_activo or not isinstance(game_activo, dict) or 'id' not in game_activo:
+        st.title("⛳ Nueva Partida")
+        fecha_nueva = st.date_input("Fecha del partido", key="fecha_nueva_p")
+        if st.button("🚀 INICIAR PARTIDO", type="primary", use_container_width=True):
+            nuevo_id = datetime.now().strftime("%Y%m%d%H%M%S")
             
-            diferencia_global = puntos_equipo_a - puntos_equipo_b
-            marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
-
-            # 3. ESTILOS CSS PARA BOTONES E INPUTS GIGANTES
-            st.markdown("""
-                <style>
-                    div[data-testid="stNumberInput"] label { font-size: 1.3rem !important; font-weight: bold !important; color: #2e7d32; }
-                    div[data-testid="stNumberInput"] input { font-size: 2.2rem !important; height: 75px !important; }
-                    .stButton button { height: 70px !important; font-size: 1.4rem !important; font-weight: bold !important; }
-                </style>
-            """, unsafe_allow_html=True)
-
-            
-            # 5. SELECTOR DE HOYO Y NAVEGACIÓN
-            h_actual = st.selectbox(
-                "📍 HOYO SELECCIONADO", 
-                options=list(range(1, 19)), 
-                index=int(st.session_state.game['h_sel']) - 1,
-                key=f"sb_hoyo_{st.session_state.refresco_id}"
-            )
-            st.session_state.game['h_sel'] = h_actual
-            st.query_params["hoyo"] = h_actual
-            
-            
-            # 6. OBTENCIÓN DE DATOS DEL HOYO ESPECÍFICO (CORREGIDO)
-           # --- OBTENER GOLPES (COLUMNAS s0, s1, s2, s3) ---
-            # --- LÓGICA DE OBTENCIÓN DE DATOS DEL HOYO ---
-            # --- OBTENER EL PAR DEL HOYO ACTUAL ---
-            try:
-                val_par_hoyo = int(PAR_RIA_VIGO[int(h_actual)])
-            except:
-                val_par_hoyo = 4 # Valor de seguridad
-
-            # --- LÓGICA DE GOLPES POR DEFECTO ---
-            # --- 1. DETERMINAR SI EL HOYO TIENE DATOS ---
-            # --- 1. DATOS DEL HOYO Y VALORES POR DEFECTO ---
-            df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
-            hay_datos_hoyo = not df_hoyo_actual.empty
-
-            try:
-                val_par_hoyo = int(PAR_RIA_VIGO[int(h_actual)])
-            except:
-                val_par_hoyo = 4
-
-            # Inicializamos siempre con el Par
-            golpes_anteriores = [val_par_hoyo] * 4
-
-            # --- 2. CARGAR DATOS SI EXISTEN ---
-            if hay_datos_hoyo:
-                try:
-                    golpes_anteriores = [
-                        int(df_hoyo_actual['s0'].iloc[0]),
-                        int(df_hoyo_actual['s1'].iloc[0]),
-                        int(df_hoyo_actual['s2'].iloc[0]),
-                        int(df_hoyo_actual['s3'].iloc[0])
-                    ]
-                except (KeyError, IndexError):
-                    # Si las columnas no existen, mantenemos el Par definido arriba
-                    pass
-
-          
-            # --- 3. INTERFAZ DE USUARIO (INPUTS) ---
-            # 🎯 INDICADOR VISUAL: Si existe en la base de datos está JUGADO, si no, PENDIENTE
-            
-            if hay_datos_hoyo:
-                badge_estado = "<span style='font-size:13px; font-weight:bold; vertical-align:middle;'>🟢 JUGADO</span>"
-            else:
-                badge_estado = "<span style='font-size:13px; font-weight:bold; vertical-align:middle;'>🟡 PENDIENTE</span>"
-            
-           # --- TÍTULO ---
-            st.markdown(
-                f"### ⛳ Hoyo {h_actual} "
-                f"<span style='font-size:20px; color:gray; font-weight:normal;'>*(Par {val_par_hoyo})*</span> "
-                f"<span style='color:#ccc; font-size:14px;'>&nbsp;|&nbsp;</span> "
-                f"{badge_estado}", 
-                unsafe_allow_html=True
-            )
-            
-            def activar_boton_guardar():
-                st.session_state.hoyo_modificado = True
-
-           # --- 1. CONFIGURACIÓN DE COLORES Y CSS ---
-            config_jugadores = {
-                "MANU": {"color": "#2E8B57", "clase": "borde-manu"},
-                "JOSE": {"color": "#1E90FF", "clase": "borde-jose"},
-                "ROGE": {"color": "#DC143C", "clase": "borde-roge"},
-                "LALO": {"color": "#000000", "clase": "borde-lalo"}
+            st.session_state.game = {
+                "id": nuevo_id,
+                "fecha": fecha_nueva.strftime("%d/%m/%Y"),
+                "temporada": str(fecha_nueva.year),
+                "h_sel": 1
             }
             
-           # --- CSS AGRESIVO PARA COMPACTAR AL MÁXIMO ---
-            st.markdown("""
-                <style>
-                    .nombre-jugador { font-size: 18px !important; font-weight: bold !important; margin: 0; }
-                    .stNumberInput { margin-top: -10px !important; margin-bottom: 0px !important; }
-                    /* Ajuste de columnas para que estén pegadas */
-                    div[data-testid="column"] { padding: 0 2px !important; }
-                </style>
-            """, unsafe_allow_html=True)
-                        
-            # --- 2. INPUTS (MANTENIENDO TU LÓGICA DE VALORES) ---
-            jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
-            inputs_s = []
-            inputs_p = []
+            st.session_state.refresco_id += 1
+            st.cache_data.clear()
             
-            # Si NO hay datos, usamos el PAR del hoyo. Si hay datos, usamos los de la BD.
-            if hay_datos_hoyo:
+            st.query_params["partida_id"] = nuevo_id
+            st.query_params["hoyo"] = 1
+            
+            st.rerun()
+    
+    # --- BLOQUE B: INTERFAZ DE JUEGO (PARTIDO EN CURSO) ---
+    else:
+        g = st.session_state.game
+        # Reducción de márgenes superiores para visualización móvil
+        st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
+
+        # 1. CARGA Y FILTRADO ULTRA-SEGURO DE DATOS
+        try:
+            df_p = leer_datos() 
+            if df_p is not None and not df_p.empty:
+                id_sesion = str(int(float(g['id'])))
+                
+                def normalizar_id(val):
+                    try: return str(int(float(val)))
+                    except: return ""
+                
+                df_p['partido_id_str'] = df_p['partido_id'].apply(normalizar_id)
+                df_partido_actual = df_p[df_p['partido_id_str'] == id_sesion].copy()
+        except Exception as e:
+            st.error(f"Error al conectar con la base de datos: {e}")
+
+        # 2. CÁLCULO DE MARCADOR GLOBAL (MATCH PLAY)
+        puntos_equipo_a = 0
+        puntos_equipo_b = 0
+        if not df_partido_actual.empty:
+            puntos_equipo_a = df_partido_actual['resultado_a'].sum()
+            puntos_equipo_b = df_partido_actual['resultado_b'].sum()
+        
+        diferencia_global = puntos_equipo_a - puntos_equipo_b
+        marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
+
+        # 3. SELECTOR DE HOYO COMPACTO
+        h_actual = st.selectbox(
+            "Hoyo", 
+            options=list(range(1, 19)), 
+            index=int(st.session_state.game['h_sel']) - 1,
+            key=f"sb_hoyo_{st.session_state.refresco_id}",
+            label_visibility="collapsed"
+        )
+        st.session_state.game['h_sel'] = h_actual
+        st.query_params["hoyo"] = h_actual
+        st.write("---")
+
+        # 4. RENDERIZADO DEL MARCADOR VISUAL GLOBAL
+        st.markdown(f"""
+            <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 10px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
+                <div style="display: flex; justify-content: space-around; align-items: center;">
+                    <div style="flex: 1;"><p style="margin:0; font-size:0.9em; font-weight:bold;">MANU & JOSE</p><h1 style="margin:0; font-size:4.5em; color:{COLOR_A if marcador_a > 0 else '#333'};">{marcador_a:g}</h1></div>
+                    <div style="background:#ccc; border-radius:50%; width:35px; height:35px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#666; font-size:0.8em;">VS</div>
+                    <div style="flex: 1;"><p style="margin:0; font-size:0.9em; font-weight:bold;">ROGE & LALO</p><h1 style="margin:0; font-size:4.5em; color:{COLOR_B if marcador_b > 0 else '#333'};">{marcador_b:g}</h1></div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # 5. OBTENCIÓN DE DATOS Y ESTADO DEL HOYO ACTUAL
+        try:
+            val_par_hoyo = int(PAR_RIA_VIGO[int(h_actual)])
+        except:
+            val_par_hoyo = 4
+
+        df_hoyo_actual = pd.DataFrame()
+        hay_datos_hoyo = False
+        res_hoyo_a, res_hoyo_b = 0, 0
+
+        if not df_partido_actual.empty:
+            df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
+            if not df_hoyo_actual.empty:
+                if df_hoyo_actual.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
+                    hay_datos_hoyo = True
+                    res_hoyo_a = int(df_hoyo_actual.iloc[0]['resultado_a'])
+                    res_hoyo_b = int(df_hoyo_actual.iloc[0]['resultado_b'])
+
+        # Mensaje de estado del hoyo
+        if hay_datos_hoyo:
+            if res_hoyo_a > res_hoyo_b:
+                st.success(f"✅ Hoyo {h_actual} (Par {val_par_hoyo}) | Manu & Jose +{int(res_hoyo_a - res_hoyo_b)} ({res_hoyo_a} - {res_hoyo_b})")
+            elif res_hoyo_b > res_hoyo_a:
+                st.error(f"✅ Hoyo {h_actual} (Par {val_par_hoyo}) | Roge & Lalo +{int(res_hoyo_b - res_hoyo_a)} ({res_hoyo_b} - {res_hoyo_a})")
+            else:
+                st.warning(f"✅ Hoyo {h_actual} (Par {val_par_hoyo}) | Empatado AS ({res_hoyo_a} - {res_hoyo_b})")
+        else:
+            st.info(f"⏳ Hoyo {h_actual} (Par {val_par_hoyo}) - Pendiente de juego")
+
+        def activar_boton_guardar():
+            st.session_state.hoyo_modificado = True
+
+        # 6. CONFIGURACIÓN DE JUGADORES Y ESTILOS CSS COMPLETOS
+        config_jugadores = {
+            "MANU": {"color": "#2E8B57", "clase": "borde-manu"},
+            "JOSE": {"color": "#1E90FF", "clase": "borde-jose"},
+            "ROGE": {"color": "#DC143C", "clase": "borde-roge"},
+            "LALO": {"color": "#000000", "clase": "borde-lalo"}
+        }
+        
+        st.markdown("""
+            <style>
+                div[data-testid="stNumberInput"] label { font-size: 1.3rem !important; font-weight: bold !important; color: #2e7d32; }
+                div[data-testid="stNumberInput"] input { font-size: 2.2rem !important; height: 75px !important; }
+                .stButton button { height: 70px !important; font-size: 1.4rem !important; font-weight: bold !important; }
+                .nombre-jugador { font-size: 18px !important; font-weight: bold !important; margin: 0; }
+                .stNumberInput { margin-top: -10px !important; margin-bottom: 0px !important; }
+                div[data-testid="column"] { padding: 0 2px !important; }
+                .borde-manu input { border: 2px solid #2E8B57 !important; }
+                .borde-jose input { border: 2px solid #1E90FF !important; }
+                .borde-roge input { border: 2px solid #DC143C !important; }
+                .borde-lalo input { border: 2px solid #000000 !important; }
+            </style>
+        """, unsafe_allow_html=True)
+        
+        jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
+        inputs_s = []
+        inputs_p = []
+        
+        if hay_datos_hoyo:
+            try:
                 g_defaults = [int(df_hoyo_actual[f's{i}'].iloc[0]) for i in range(4)]
                 p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
-            else:
-                # AQUÍ ESTÁ EL CAMBIO: Usamos val_par_hoyo como valor inicial
-                g_defaults = [val_par_hoyo] * 4 
-                p_defaults = [2] * 4 # O el valor por defecto que prefieras
+            except:
+                g_defaults = [val_par_hoyo] * 4
+                p_defaults = [2] * 4
+        else:
+            g_defaults = [val_par_hoyo] * 4
+            p_defaults = [2] * 4
+        
+        for i in range(4):
+            nombre = jugadores[i]
+            cfg = config_jugadores[nombre]
             
-           
-            for i in range(4):
-                nombre = jugadores[i]
-                cfg = config_jugadores[nombre]
+            c1, c2, c3 = st.columns([0.6, 1, 1], vertical_alignment="center")
+            
+            with c1:
+                st.markdown(f"<p class='nombre-jugador' style='color:{cfg['color']};'>{nombre}</p>", unsafe_allow_html=True)
+            
+            with c2:
+                st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
+                val_s = st.number_input(f"G{i}", min_value=1, value=g_defaults[i], 
+                                        on_change=activar_boton_guardar, key=f"s{i}_h{h_actual}", label_visibility="collapsed")
+                st.markdown('</div>', unsafe_allow_html=True)
+                inputs_s.append(val_s)
                 
-                # Columna 1: Nombre (más ancho), Columna 2: Golpes, Columna 3: Putts
-                c1, c2, c3 = st.columns([0.6, 1, 1], vertical_alignment="center")
-                
-                with c1:
-                    st.markdown(f"<p class='nombre-jugador' style='color:{cfg['color']};'>{nombre}</p>", unsafe_allow_html=True)
-                
-                with c2:
-                    st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
-                    val_s = st.number_input(f"G{i}", min_value=1, value=g_defaults[i], 
-                                            on_change=activar_boton_guardar, key=f"s{i}_h{h_actual}", label_visibility="collapsed")
-                    st.markdown('</div>', unsafe_allow_html=True)
-                    inputs_s.append(val_s)
-                    
-                with c3:
-                    st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
-                    val_p = st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
-                                            on_change=activar_boton_guardar, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
-                    st.markdown('</div>', unsafe_allow_html=True)
-                    inputs_p.append(val_p)
-                    
-                               
-            # Desempaquetado
-            s0, s1, s2, s3 = inputs_s
-            p0, p1, p2, p3 = inputs_p
-            
-            
-                        
-           # --- 3. BOTÓN DE GUARDADO ---
-            no_hay_cambios = not st.session_state.hoyo_modificado
-            if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, key=f"btn_guardar_h{h_actual}", disabled=no_hay_cambios):
-                ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
-                st.session_state.hoyo_modificado = False
-                if h_actual < 18:
-                    st.session_state.game['h_sel'] = h_actual + 1
-                    st.query_params["hoyo"] = st.session_state.game['h_sel']
-                    st.session_state.refresco_id += 1
-                st.rerun()
-            
-            st.write("---")
-            
-            # Calculamos los hoyos adyacentes
-            hoyo_anterior = max(1, h_actual - 1)
-            hoyo_siguiente = min(18, h_actual + 1)
-            
-            col_nav_1, col_nav_2 = st.columns(2)
-            
-            if col_nav_1.button(f"⬅️ ANTERIOR (Hoyo {hoyo_anterior})" if h_actual > 1 else "⬅️ ANTERIOR", use_container_width=True, disabled=(h_actual == 1)):
-                st.session_state.game['h_sel'] = hoyo_anterior
-                st.query_params["hoyo"] = hoyo_anterior
-                st.session_state.refresco_id += 1
-                st.rerun()
-            
-            if col_nav_2.button(f"SIGUIENTE (Hoyo {hoyo_siguiente}) ➡️" if h_actual < 18 else "SIGUIENTE ➡️", use_container_width=True, disabled=(h_actual == 18)):
-                st.session_state.game['h_sel'] = hoyo_siguiente
-                st.query_params["hoyo"] = hoyo_siguiente
-                st.session_state.refresco_id += 1
-                st.rerun()
+            with c3:
+                st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
+                val_p = st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
+                                        on_change=activar_boton_guardar, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
+                st.markdown('</div>', unsafe_allow_html=True)
+                inputs_p.append(val_p)
 
-            # 4. RENDERIZADO DEL MARCADOR VISUAL (HTML)
-            st.markdown(f"""
-                <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 10px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
-                    <div style="display: flex; justify-content: space-around; align-items: center;">
-                        <div style="flex: 1;"><p style="margin:0; font-size:0.9em; font-weight:bold;">MANU & JOSE</p><h1 style="margin:0; font-size:4.5em; color:{COLOR_A if marcador_a > 0 else '#333'};">{marcador_a:g}</h1></div>
-                        <div style="background:#ccc; border-radius:50%; width:35px; height:35px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#666; font-size:0.8em;">VS</div>
-                        <div style="flex: 1;"><p style="margin:0; font-size:0.9em; font-weight:bold;">ROGE & LALO</p><h1 style="margin:0; font-size:4.5em; color:{COLOR_B if marcador_b > 0 else '#333'};">{marcador_b:g}</h1></div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
+        s0, s1, s2, s3 = inputs_s
+        p0, p1, p2, p3 = inputs_p
 
-            res_hoyo_a, res_hoyo_b = 0, 0
+        # 7. BOTÓN DE GUARDADO
+        no_hay_cambios = not st.session_state.hoyo_modificado
+        if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, key=f"btn_guardar_h{h_actual}", disabled=no_hay_cambios):
+            ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
+            st.session_state.hoyo_modificado = False
+            if h_actual < 18:
+                st.session_state.game['h_sel'] = h_actual + 1
+                st.query_params["hoyo"] = st.session_state.game['h_sel']
+                st.session_state.refresco_id += 1
+            st.rerun()
+
+        st.write("---")
+
+        # 8. BOTONES DE NAVEGACIÓN
+        hoyo_anterior = max(1, h_actual - 1)
+        hoyo_siguiente = min(18, h_actual + 1)
+
+        col_nav_1, col_nav_2 = st.columns(2)
+        if col_nav_1.button(f"⬅️ ANTERIOR (Hoyo {hoyo_anterior})" if h_actual > 1 else "⬅️ ANTERIOR", use_container_width=True, disabled=(h_actual == 1)):
+            st.session_state.game['h_sel'] = hoyo_anterior
+            st.query_params["hoyo"] = hoyo_anterior
+            st.session_state.refresco_id += 1
+            st.rerun()
+            
+        if col_nav_2.button(f"SIGUIENTE (Hoyo {hoyo_siguiente}) ➡️" if h_actual < 18 else "SIGUIENTE ➡️", use_container_width=True, disabled=(h_actual == 18)):
+            st.session_state.game['h_sel'] = hoyo_siguiente
+            st.query_params["hoyo"] = hoyo_siguiente
+            st.session_state.refresco_id += 1
+            st.rerun()
+
+        # 9. SECCIÓN MVP
+        st.write("---")
+        if st.checkbox("📊 Ver Clasificación MVP"):
             if not df_partido_actual.empty:
-                reg = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
-                if not reg.empty:
-                    if reg.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
-                        hay_datos_hoyo = True
-                        res_hoyo_a = int(reg.iloc[0]['resultado_a'])
-                        res_hoyo_b = int(reg.iloc[0]['resultado_b'])
-                                    
-            # Pintamos el resultado real leído del Excel
-            if hay_datos_hoyo:
-                if res_hoyo_a > res_hoyo_b:
-                    st.success(f"✅ Manu & Jose +{int(res_hoyo_a - res_hoyo_b)} en este Hoyo ({res_hoyo_a} - {res_hoyo_b})")
-                elif res_hoyo_b > res_hoyo_a:
-                    st.error(f"✅ Roge & Lalo +{int(res_hoyo_b - res_hoyo_a)} en este Hoyo ({res_hoyo_b} - {res_hoyo_a})")
-                else:
-                    st.warning(f"✅ Hoyo Empatado AS ({res_hoyo_a} - {res_hoyo_b})")
-            else:
-                st.info(f"⏳ Hoyo {h_actual} pendiente de juego")
+                df_mvp = df_partido_actual.sort_values('hoyo').drop_duplicates('hoyo', keep='last')
                 
-          # 9. SECCIÓN MVP (CON BOTÓN Y CÁLCULO LIMPIO)
-            st.write("---")
-            
-            # Usamos un checkbox con apariencia de botón o un expander
-            if st.checkbox("📊 Ver Clasificación MVP"):
-                if not df_partido_actual.empty:
-                    # Limpiamos duplicados por si acaso
-                    df_mvp = df_partido_actual.sort_values('hoyo').drop_duplicates('hoyo', keep='last')
-                    
-                    nombres = ["MANU", "JOSE", "ROGE", "LALO"]
-                    
-                    # Mostrar puntos del hoyo actual
-                    st.write(f"**🌟 Puntos Hoyo {h_actual}**")
-                    c1, c2, c3, c4 = st.columns(4)
-                    for i, col_obj in enumerate([c1, c2, c3, c4]):
-                        # Buscamos el valor real guardado
-                        h_reg = df_mvp[df_mvp['hoyo'].astype(int) == h_actual]
-                        val = float(h_reg[f'p{i+1}_pts'].iloc[0]) if not h_reg.empty else 0.0
-                        col_obj.metric(nombres[i], f"{val:.1f}")
+                nombres = ["MANU", "JOSE", "ROGE", "LALO"]
+                
+                st.write(f"**🌟 Puntos Hoyo {h_actual}**")
+                c1, c2, c3, c4 = st.columns(4)
+                for i, col_obj in enumerate([c1, c2, c3, c4]):
+                    h_reg = df_mvp[df_mvp['hoyo'].astype(int) == h_actual]
+                    val = float(h_reg[f'p{i+1}_pts'].iloc[0]) if not h_reg.empty else 0.0
+                    col_obj.metric(nombres[i], f"{val:.1f}")
 
-                    # Mostrar Acumulado
-                    st.write("**🏆 Acumulado Jornada**")
-                    totales = []
-                    for i in range(1, 5):
-                        totales.append(df_mvp[f'p{i}_pts'].sum())
-                    
-                    ranking = sorted(zip(nombres, totales), key=lambda x: x[1], reverse=True)
-                    cols_r = st.columns(4)
-                    for idx, (nom, pts) in enumerate(ranking):
-                        cols_r[idx].write(f"**{nom}**")
-                        cols_r[idx].write(f"{pts:.1f}")
+                st.write("**🏆 Acumulado Jornada**")
+                totales = []
+                for i in range(1, 5):
+                    totales.append(df_mvp[f'p{i}_pts'].sum())
+                
+                ranking = sorted(zip(nombres, totales), key=lambda x: x[1], reverse=True)
+                cols_r = st.columns(4)
+                for idx, (nom, pts) in enumerate(ranking):
+                    cols_r[idx].write(f"**{nom}**")
+                    cols_r[idx].write(f"{pts:.1f}")
 
-            # 10. FINALIZAR PARTIDA
-            st.write("---")
-            with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
-                st.warning("⚠️ Esta acción cerrará la sesión actual.")
-                if st.button("Confirmar y Salir", type="primary", use_container_width=True):
-                    st.session_state.game = None
-                    st.query_params.clear()
-                    st.cache_data.clear()
-                    st.rerun()
+        # 10. FECHA AL FINAL Y FINALIZAR PARTIDA
+        st.write("---")
+        st.markdown(f"<p style='text-align: center; color: gray; font-size: 0.9em;'>📅 Fecha del partido: <b>{g.get('fecha', 'S/F')}</b></p>", unsafe_allow_html=True)
+        
+        with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
+            st.warning("⚠️ Esta acción cerrará la sesión actual.")
+            if st.button("Confirmar y Salir", type="primary", use_container_width=True):
+                st.session_state.game = None
+                st.query_params.clear()
+                st.cache_data.clear()
+                st.rerun()
 
 #ESTADISTICAS ==============
 
