@@ -538,6 +538,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     
     if 'hoyo_modificado' not in st.session_state:
         st.session_state.hoyo_modificado = False
+
+    if 'confirmando_hoyo' not in st.session_state:
+        st.session_state.confirmando_hoyo = False
     
     df_p = pd.DataFrame()
     df_partido_actual = pd.DataFrame()
@@ -798,15 +801,44 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         s0, s1, s2, s3 = inputs_s
         p0, p1, p2, p3 = inputs_p
 
+        # --- CUADRO DE CONFIRMACIÓN ANTES DE GUARDAR ---
+        if st.session_state.confirmando_hoyo:
+            st.markdown(f"""
+                <div style="border: 2px solid #ff9800; border-radius: 12px; padding: 15px; background-color: #fff8e1; margin-bottom: 15px;">
+                    <h3 style="margin-top:0; color:#e65100; text-align:center;">📋 Confirmar Resultados - Hoyo {h_actual}</h3>
+                    <p style="text-align:center; font-size:0.95em; color:#555; margin-bottom:10px;">Ordenados de menor a mayor número de golpes:</p>
+            """, unsafe_allow_html=True)
+            
+            # Ordenamos los jugadores por golpes (menor a mayor)
+            datos_hoyo_crudo = list(zip(jugadores, [s0, s1, s2, s3], [p0, p1, p2, p3], [cfg_j["color"] for cfg_j in config_jugadores.values()]))
+            datos_ordenados = sorted(datos_hoyo_crudo, key=lambda x: x[1])
+            
+            for idx, (nom, golpes, putts, color_j) in enumerate(datos_ordenados, 1):
+                st.markdown(f"<div style='font-size:1.1rem; font-weight:bold; padding:4px 0; color:{color_j};'>&nbsp;&nbsp;{idx}. {nom}: {golpes} golpes ({putts} putts)</div>", unsafe_allow_html=True)
+            
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            col_conf_1, col_conf_2 = st.columns(2)
+            if col_conf_1.button("✅ SÍ, GUARDAR", type="primary", use_container_width=True, key="btn_conf_si"):
+                ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
+                st.session_state.confirmando_hoyo = False
+                st.session_state.hoyo_modificado = False
+                if h_actual < 18:
+                    st.session_state.game['h_sel'] = h_actual + 1
+                    st.query_params["hoyo"] = st.session_state.game['h_sel']
+                    st.session_state.refresco_id += 1
+                st.rerun()
+                
+            if col_conf_2.button("❌ CANCELAR", use_container_width=True, key="btn_conf_no"):
+                st.session_state.confirmando_hoyo = False
+                st.rerun()
+                
+            st.stop() # Detenemos la ejecución para mostrar únicamente el cuadro de confirmación
+
         # 8. BOTÓN DE GUARDADO DEL HOYO
         no_hay_cambios = not st.session_state.hoyo_modificado
         if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, key=f"btn_guardar_h{h_actual}", disabled=no_hay_cambios):
-            ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
-            st.session_state.hoyo_modificado = False
-            if h_actual < 18:
-                st.session_state.game['h_sel'] = h_actual + 1
-                st.query_params["hoyo"] = st.session_state.game['h_sel']
-                st.session_state.refresco_id += 1
+            st.session_state.confirmando_hoyo = True
             st.rerun()
 
         # 9. SECCIÓN MVP
