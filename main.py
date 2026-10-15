@@ -542,6 +542,72 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     df_p = pd.DataFrame()
     df_partido_actual = pd.DataFrame()
 
+    # --- FUNCIÓN AUXILIAR DE GUARDADO ---
+    def ejecutar_guardado_automatico(hoyo_num, s0_v, s1_v, s2_v, s3_v, p0_v, p1_v, p2_v, p3_v):
+        try:
+            g_actual = st.session_state.game
+            id_p = g_actual['id']
+            f_p = g_actual['fecha']
+            t_p = g_actual['temporada']
+            
+            # Cálculo de resultado del hoyo (Match Play)
+            neto_a = min(s0_v, s1_v)
+            neto_b = min(s2_v, s3_v)
+            
+            res_a = 1 if neto_a < neto_b else 0
+            res_b = 1 if neto_b < neto_a else 0
+            
+            # Cálculo Puntos MVP (Stableford invertido/Scramble)
+            par_h = int(PAR_RIA_VIGO.get(int(hoyo_num), 4))
+            
+            def calc_pts(golpes, par_val):
+                dif = golpes - par_val
+                if dif <= -2: return 4.0
+                elif dif == -1: return 3.0
+                elif dif == 0: return 2.0
+                elif dif == 1: return 1.0
+                else: return 0.0
+
+            pts_p1 = calc_pts(s0_v, par_h)
+            pts_p2 = calc_pts(s1_v, par_h)
+            pts_p3 = calc_pts(s2_v, par_h)
+            pts_p4 = calc_pts(s3_v, par_h)
+
+            # Preparación de fila para guardar
+            nueva_fila = {
+                'partido_id': id_p,
+                'fecha': f_p,
+                'temporada': t_p,
+                'hoyo': int(hoyo_num),
+                's0': int(s0_v), 's1': int(s1_v), 's2': int(s2_v), 's3': int(s3_v),
+                'p0': int(p0_v), 'p1': int(p1_v), 'p2': int(p2_v), 'p3': int(p3_v),
+                'resultado_a': res_a,
+                'resultado_b': res_b,
+                'p1_pts': pts_p1, 'p2_pts': pts_p2, 'p3_pts': pts_p3, 'p4_pts': pts_p4
+            }
+
+            df_base = leer_datos()
+            if not df_base.empty:
+                # Eliminamos versión previa del hoyo si existía
+                def norm_id(v):
+                    try: return str(int(float(v)))
+                    except: return ""
+                
+                df_base['p_id_temp'] = df_base['partido_id'].apply(norm_id)
+                id_target = str(int(float(id_p)))
+                
+                mask = (df_base['p_id_temp'] == id_target) & (df_base['hoyo'].astype(int) == int(hoyo_num))
+                df_base = df_base[~mask].drop(columns=['p_id_temp'], errors='ignore')
+                
+                df_final = pd.concat([df_base, pd.DataFrame([nueva_fila])], ignore_index=True)
+            else:
+                df_final = pd.DataFrame([nueva_fila])
+
+            guardar_datos(df_final)
+            st.toast(f"✅ Hoyo {hoyo_num} guardado correctamente", icon="💾")
+        except Exception as err:
+            st.error(f"Error al guardar los datos: {err}")
+
     # --- BLOQUE A: CONFIGURACIÓN DE INICIO (PANTALLA DE BIENVENIDA) ---
     game_activo = st.session_state.get('game')
     if not game_activo or not isinstance(game_activo, dict) or 'id' not in game_activo:
@@ -568,10 +634,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     # --- BLOQUE B: INTERFAZ DE JUEGO (PARTIDO EN CURSO) ---
     else:
         g = st.session_state.game
-        # Reducción de márgenes superiores para visualización móvil
         st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
 
-        # 1. CARGA Y FILTRADO ULTRA-SEGURO DE DATOS
+        # 1. CARGA Y FILTRADO DE DATOS
         try:
             df_p = leer_datos() 
             if df_p is not None and not df_p.empty:
@@ -596,7 +661,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
 
-        # 3. SELECTOR DE HOYO COMPACTO
+        # 3. SELECTOR DE HOYO (COMBO DESPLEGABLE DE SELECCIÓN RÁPIDA)
         h_actual = st.selectbox(
             "Ir al Hoyo:", 
             options=list(range(1, 19)), 
@@ -608,7 +673,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         st.query_params["hoyo"] = h_actual
         st.write("---")
 
-        # 4. RENDERIZADO DEL MARCADOR VISUAL GLOBAL
+        # 4. MARCADOR VISUAL GLOBAL
         st.markdown(f"""
             <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 10px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
                 <div style="display: flex; justify-content: space-around; align-items: center;">
@@ -637,7 +702,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     res_hoyo_a = int(df_hoyo_actual.iloc[0]['resultado_a'])
                     res_hoyo_b = int(df_hoyo_actual.iloc[0]['resultado_b'])
 
-        # Mensaje de estado del hoyo
+        # Mensaje del resultado/estado del hoyo
         if hay_datos_hoyo:
             if res_hoyo_a > res_hoyo_b:
                 st.success(f"✅ Hoyo {h_actual} (Par {val_par_hoyo}) | Manu & Jose +{int(res_hoyo_a - res_hoyo_b)} ({res_hoyo_a} - {res_hoyo_b})")
@@ -648,7 +713,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         else:
             st.info(f"⏳ Hoyo {h_actual} (Par {val_par_hoyo}) - Pendiente de juego")
 
-        # 6. BOTONES DE NAVEGACIÓN (UBICADOS BAJO EL ESTADO DEL HOYO)
+        # 6. BOTONES DE NAVEGACIÓN (SITUADOS BAJO EL MARCADOR DEL HOYO)
         hoyo_anterior = max(1, h_actual - 1)
         hoyo_siguiente = min(18, h_actual + 1)
 
@@ -670,7 +735,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         def activar_boton_guardar():
             st.session_state.hoyo_modificado = True
 
-        # 7. CONFIGURACIÓN DE JUGADORES Y ESTILOS CSS COMPLETOS
+        # 7. CONFIGURACIÓN DE JUGADORES Y ESTILOS CSS DE BORDES/INPUTS
         config_jugadores = {
             "MANU": {"color": "#2E8B57", "clase": "borde-manu"},
             "JOSE": {"color": "#1E90FF", "clase": "borde-jose"},
@@ -734,7 +799,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         s0, s1, s2, s3 = inputs_s
         p0, p1, p2, p3 = inputs_p
 
-        # 8. BOTÓN DE GUARDADO
+        # 8. BOTÓN DE GUARDADO DEL HOYO
         no_hay_cambios = not st.session_state.hoyo_modificado
         if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, key=f"btn_guardar_h{h_actual}", disabled=no_hay_cambios):
             ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
@@ -771,11 +836,17 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     cols_r[idx].write(f"**{nom}**")
                     cols_r[idx].write(f"{pts:.1f}")
 
-        # 10. FECHA AL FINAL Y FINALIZAR PARTIDA
+        # 10. FECHA AL FINAL Y BOTÓN FINALIZAR PARTIDA
         st.write("---")
         st.markdown(f"<p style='text-align: center; color: gray; font-size: 0.9em;'>📅 Fecha del partido: <b>{g.get('fecha', 'S/F')}</b></p>", unsafe_allow_html=True)
         
-        with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=
+        with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
+            st.warning("⚠️ Esta acción cerrará la sesión actual.")
+            if st.button("Confirmar y Salir", type="primary", use_container_width=True):
+                st.session_state.game = None
+                st.query_params.clear()
+                st.cache_data.clear()
+                st.rerun()
 
 #ESTADISTICAS ==============
 
