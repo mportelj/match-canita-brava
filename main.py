@@ -535,9 +535,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     # --- BLOQUE 0: INICIALIZACIÓN DE ESTADO ---
     if 'refresco_id' not in st.session_state: 
         st.session_state.refresco_id = 0
-    
-    if 'hoyo_modificado' not in st.session_state:
-        st.session_state.hoyo_modificado = False
 
     if 'confirmando_hoyo' not in st.session_state:
         st.session_state.confirmando_hoyo = False
@@ -603,7 +600,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 
                 id_target = str(int(float(id_p)))
                 
-                # Eliminamos cualquier registro previo de este hoyo para asegurar actualización limpia
+                # Eliminamos cualquier registro previo de este hoyo para actualizarlo limpiamente
                 mask = (df_base['p_id_temp'] == id_target) & (df_base['hoyo_temp'] == int(hoyo_num))
                 df_base = df_base[~mask].drop(columns=['p_id_temp', 'hoyo_temp'], errors='ignore')
                 
@@ -614,7 +611,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             guardar_datos(df_final)
             st.cache_data.clear()
             
-            st.toast(f"✅ Hoyo {hoyo_num} actualizado correctamente", icon="💾")
+            st.toast(f"✅ Hoyo {hoyo_num} guardado correctamente", icon="💾")
         except Exception as err:
             st.error(f"Error al guardar los datos: {err}")
 
@@ -646,7 +643,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         g = st.session_state.game
         st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
 
-        # 1. CARGA Y FILTRADO ROBUSTO DE DATOS (CON DEDUPLICACIÓN)
+        # 1. CARGA Y FILTRADO ROBUSTO DE DATOS
         try:
             df_p = leer_datos() 
             if df_p is not None and not df_p.empty:
@@ -713,7 +710,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             </div>
         """, unsafe_allow_html=True)
 
-        # 5. OBTENCIÓN DE DATOS DEL HOYO ACTUAL Y SINCRONIZACIÓN DE SESSION_STATE
+        # 5. OBTENCIÓN DE DATOS DEL HOYO ACTUAL Y SINCRONIZACIÓN
         try:
             val_par_hoyo = int(PAR_RIA_VIGO[int(h_actual)])
         except:
@@ -727,7 +724,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 if df_hoyo_actual.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
                     hay_datos_hoyo = True
 
-        # 🔄 SINCRONIZACIÓN CLAVE: Forzar actualización de session_state con los valores reales al cambiar de hoyo
         if 'h_cargado_actual' not in st.session_state or st.session_state.h_cargado_actual != h_actual:
             st.session_state.h_cargado_actual = h_actual
             if hay_datos_hoyo:
@@ -741,7 +737,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 for i in range(4):
                     st.session_state[f"s{i}_h{h_actual}"] = val_par_hoyo
                     st.session_state[f"p{i}_h{h_actual}"] = 2
-            st.session_state.hoyo_modificado = False
 
         # 6. BOTONES DE NAVEGACIÓN
         hoyo_anterior = max(1, h_actual - 1)
@@ -761,9 +756,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.rerun()
 
         st.write("---")
-
-        def activar_boton_guardar():
-            st.session_state.hoyo_modificado = True
 
         # 7. CONFIGURACIÓN DE JUGADORES Y ESTILOS CSS
         config_jugadores = {
@@ -803,15 +795,13 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             
             with c2:
                 st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
-                val_s = st.number_input(f"G{i}", min_value=1, 
-                                        on_change=activar_boton_guardar, key=f"s{i}_h{h_actual}", label_visibility="collapsed")
+                val_s = st.number_input(f"G{i}", min_value=1, key=f"s{i}_h{h_actual}", label_visibility="collapsed")
                 st.markdown('</div>', unsafe_allow_html=True)
                 inputs_s.append(val_s)
                 
             with c3:
                 st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
-                val_p = st.number_input(f"P{i}", min_value=0, 
-                                        on_change=activar_boton_guardar, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
+                val_p = st.number_input(f"P{i}", min_value=0, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
                 st.markdown('</div>', unsafe_allow_html=True)
                 inputs_p.append(val_p)
 
@@ -838,7 +828,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             if col_conf_1.button("✅ SÍ, GUARDAR", type="primary", use_container_width=True, key="btn_conf_si"):
                 ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
                 st.session_state.confirmando_hoyo = False
-                st.session_state.hoyo_modificado = False
                 if h_actual < 18:
                     st.session_state.game['h_sel'] = h_actual + 1
                     st.query_params["hoyo"] = st.session_state.game['h_sel']
@@ -851,9 +840,8 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 
             st.stop()
 
-        # 8. BOTÓN DE GUARDADO DEL HOYO
-        no_hay_cambios = not st.session_state.hoyo_modificado
-        if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, key=f"btn_guardar_h{h_actual}", disabled=no_hay_cambios):
+        # 8. BOTÓN DE GUARDADO DEL HOYO (SIEMPRE ACTIVO)
+        if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, key=f"btn_guardar_h{h_actual}"):
             st.session_state.confirmando_hoyo = True
             st.rerun()
 
