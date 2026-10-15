@@ -588,7 +588,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             df_base = leer_datos()
             if not df_base.empty:
-                # Eliminamos versión previa del hoyo si existía
                 def norm_id(v):
                     try: return str(int(float(v)))
                     except: return ""
@@ -661,17 +660,33 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
 
-        # 3. SELECTOR DE HOYO (COMBO DESPLEGABLE DE SELECCIÓN RÁPIDA)
+        # 3. SELECTOR DE HOYO INTELIGENTE (CON ESTADO INTEGRADO)
+        def format_hoyo(x):
+            par_h = int(PAR_RIA_VIGO.get(int(x), 4))
+            estado_str = "⏳ Pendiente"
+            if not df_partido_actual.empty:
+                df_h = df_partido_actual[df_partido_actual['hoyo'].astype(int) == x]
+                if not df_h.empty and df_h.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
+                    ra = int(df_h.iloc[0]['resultado_a'])
+                    rb = int(df_h.iloc[0]['resultado_b'])
+                    if ra > rb:
+                        estado_str = f"✅ M&J +{ra-rb}"
+                    elif rb > ra:
+                        estado_str = f"✅ R&L +{rb-ra}"
+                    else:
+                        estado_str = "✅ AS"
+            return f"Hoyo {x} (Par {par_h}) | {estado_str}"
+
         h_actual = st.selectbox(
-            "Ir al Hoyo:", 
+            "Hoyo", 
             options=list(range(1, 19)), 
             index=int(st.session_state.game['h_sel']) - 1,
-            format_func=lambda x: f"⛳ Hoyo {x}",
-            key=f"sb_hoyo_{st.session_state.refresco_id}"
+            format_func=format_hoyo,
+            key=f"sb_hoyo_{st.session_state.refresco_id}",
+            label_visibility="collapsed"
         )
         st.session_state.game['h_sel'] = h_actual
         st.query_params["hoyo"] = h_actual
-        st.write("---")
 
         # 4. MARCADOR VISUAL GLOBAL
         st.markdown(f"""
@@ -684,7 +699,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             </div>
         """, unsafe_allow_html=True)
 
-        # 5. OBTENCIÓN DE DATOS Y ESTADO DEL HOYO ACTUAL
+        # 5. OBTENCIÓN DE DATOS DEL HOYO ACTUAL PARA LOS INPUTS
         try:
             val_par_hoyo = int(PAR_RIA_VIGO[int(h_actual)])
         except:
@@ -692,28 +707,13 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
         df_hoyo_actual = pd.DataFrame()
         hay_datos_hoyo = False
-        res_hoyo_a, res_hoyo_b = 0, 0
-
         if not df_partido_actual.empty:
             df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
             if not df_hoyo_actual.empty:
                 if df_hoyo_actual.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
                     hay_datos_hoyo = True
-                    res_hoyo_a = int(df_hoyo_actual.iloc[0]['resultado_a'])
-                    res_hoyo_b = int(df_hoyo_actual.iloc[0]['resultado_b'])
 
-        # Mensaje del resultado/estado del hoyo
-        if hay_datos_hoyo:
-            if res_hoyo_a > res_hoyo_b:
-                st.success(f"✅ Hoyo {h_actual} (Par {val_par_hoyo}) | Manu & Jose +{int(res_hoyo_a - res_hoyo_b)} ({res_hoyo_a} - {res_hoyo_b})")
-            elif res_hoyo_b > res_hoyo_a:
-                st.error(f"✅ Hoyo {h_actual} (Par {val_par_hoyo}) | Roge & Lalo +{int(res_hoyo_b - res_hoyo_a)} ({res_hoyo_b} - {res_hoyo_a})")
-            else:
-                st.warning(f"✅ Hoyo {h_actual} (Par {val_par_hoyo}) | Empatado AS ({res_hoyo_a} - {res_hoyo_b})")
-        else:
-            st.info(f"⏳ Hoyo {h_actual} (Par {val_par_hoyo}) - Pendiente de juego")
-
-        # 6. BOTONES DE NAVEGACIÓN (SITUADOS BAJO EL MARCADOR DEL HOYO)
+        # 6. BOTONES DE NAVEGACIÓN
         hoyo_anterior = max(1, h_actual - 1)
         hoyo_siguiente = min(18, h_actual + 1)
 
