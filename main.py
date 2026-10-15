@@ -690,7 +690,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
-
+        st.write("---------------------------")
+        st.write("-----------------")
+        st.write("------------------")
         # 4. MARCADOR VISUAL GLOBAL (CORREGIDO Y VISIBLE)
         st.markdown(f"""
             <div style="border: 2px solid #2e7d32; border-radius: 12px; padding: 10px; background-color: #f0f4f0; margin-bottom: 10px; text-align: center;">
