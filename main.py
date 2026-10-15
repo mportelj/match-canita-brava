@@ -545,7 +545,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     df_p = pd.DataFrame()
     df_partido_actual = pd.DataFrame()
 
-    # --- FUNCIÓN AUXILIAR DE GUARDADO (CONECTADA A GOOGLE SHEETS) ---
+    # --- FUNCIÓN AUXILIAR DE GUARDADO ---
     def ejecutar_guardado_automatico(hoyo_num):
         try:
             hoja = st.session_state.sh
@@ -554,7 +554,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             f_p = pd.to_datetime(g_actual['fecha'], dayfirst=True).strftime('%d/%m/%Y')
             t_p = int(g_actual.get('temporada', 2026))
             
-            # Recuperación directa y segura de los valores desde st.session_state
             s0_v = int(st.session_state.get(f"s0_h{hoyo_num}", 4))
             s1_v = int(st.session_state.get(f"s1_h{hoyo_num}", 4))
             s2_v = int(st.session_state.get(f"s2_h{hoyo_num}", 4))
@@ -575,7 +574,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             par_hoyo = int(PAR_RIA_VIGO[hoyo_real_campo])
             golpes = [s0_v, s1_v, s2_v, s3_v]
             
-            # --- CÁLCULO MATCH PLAY ---
             mejor_a = min(golpes[0], golpes[1])
             mejor_b = min(golpes[2], golpes[3])
             peor_a = max(golpes[0], golpes[1])
@@ -592,7 +590,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             res_b += calcular_bonus_hoyo(golpes[2], par_hoyo)
             res_b += calcular_bonus_hoyo(golpes[3], par_hoyo)
             
-            # --- CÁLCULO PUNTOS MVP ---
             p_mvp = [0.0, 0.0, 0.0, 0.0]
             for i in range(4):
                 puntos_victoria = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
@@ -618,7 +615,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             if 'hoyo_real' not in header:
                 header.append('hoyo_real')
 
-            # Filtramos para eliminar registro previo de este mismo hoyo y actualizarlo limpiamente
             datos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_p and str(f[2]) == str(hoyo_cronologico))]
             for f in datos:
                 if len(f) < len(header):
@@ -663,7 +659,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         g = st.session_state.game
         st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
 
-        # 1. CARGA Y FILTRADO ROBUSTO DE DATOS
+        # 1. CARGA Y FILTRADO ROBUSTO DE DATOS (¡DEBE IR ANTES DE USAR DF_PARTIDO_ACTUAL!)
         try:
             df_p = leer_datos() 
             if df_p is not None and not df_p.empty:
@@ -682,6 +678,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         except Exception as e:
             st.error(f"Error al conectar con la base de datos: {e}")
 
+        # Aseguramos que h_sel exista en el estado del juego
+        if 'h_sel' not in g:
+            g['h_sel'] = 1
+
         # 2. CÁLCULO DE MARCADOR GLOBAL (MATCH PLAY)
         puntos_equipo_a = 0
         puntos_equipo_b = 0
@@ -691,8 +691,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
-
-        
 
         # 4. MARCADOR VISUAL GLOBAL
         st.markdown(f"""
@@ -705,41 +703,13 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             </div>
         """, unsafe_allow_html=True)
 
-        # 5. OBTENCIÓN DE DATOS DEL HOYO ACTUAL Y SINCRONIZACIÓN
-        try:
-            val_par_hoyo = int(PAR_RIA_VIGO[int(h_actual)])
-        except:
-            val_par_hoyo = 4
-
-        df_hoyo_actual = pd.DataFrame()
-        hay_datos_hoyo = False
-        if not df_partido_actual.empty:
-            df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo_int'] == int(h_actual)]
-            if not df_hoyo_actual.empty:
-                if df_hoyo_actual.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
-                    hay_datos_hoyo = True
-
-        if 'h_cargado_actual' not in st.session_state or st.session_state.h_cargado_actual != h_actual:
-            st.session_state.h_cargado_actual = h_actual
-            if hay_datos_hoyo:
-                try:
-                    for i in range(4):
-                        st.session_state[f"s{i}_h{h_actual}"] = int(df_hoyo_actual[f's{i}'].iloc[0])
-                        st.session_state[f"p{i}_h{h_actual}"] = int(df_hoyo_actual[f'p{i}'].iloc[0])
-                except:
-                    pass
-            else:
-                for i in range(4):
-                    st.session_state[f"s{i}_h{h_actual}"] = val_par_hoyo
-                    st.session_state[f"p{i}_h{h_actual}"] = 2
-            st.session_state.hoyo_modificado = False
-
-        # 6. BOTONES DE NAVEGACIÓN CON ESTADO DE JUEGO
+        # 6. BOTONES DE NAVEGACIÓN
+        h_actual = int(g['h_sel'])
         hoyo_anterior = max(1, h_actual - 1)
         hoyo_siguiente = min(18, h_actual + 1)
 
         def obtener_icono_estado(h_num):
-            if df_partido_actual.empty:
+            if df_partido_actual.empty or 'hoyo_int' not in df_partido_actual.columns:
                 return "⏳"
             df_h = df_partido_actual[df_partido_actual['hoyo_int'] == h_num]
             if df_h.empty or df_h.iloc[0][['s0', 's1', 's2', 's3']].sum() == 0:
@@ -758,9 +728,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         icono_siguiente = obtener_icono_estado(hoyo_siguiente)
 
         col_nav_1, col_nav_2 = st.columns(2)
+        
         espacios = "\u00A0\u00A0\u00A0"
-        texto_btn_anterior = f"⬅️ {espacios} Hoyo {hoyo_anterior} {espacios} {icono_anterior}" if h_actual > 1 else "⬅️ ANTERIOR"
-        texto_btn_siguiente = f"Hoyo {hoyo_siguiente} {espacios} {icono_siguiente} {espacios}➡️" if h_actual < 18 else "SIGUIENTE ➡️"
+        texto_btn_anterior = f"⬅️ Hoyo {hoyo_anterior}{espacios}{icono_anterior}" if h_actual > 1 else "⬅️ ANTERIOR"
+        texto_btn_siguiente = f"Hoyo {hoyo_siguiente}{espacios}{icono_siguiente} ➡️" if h_actual < 18 else "SIGUIENTE ➡️"
 
         if col_nav_1.button(texto_btn_anterior, use_container_width=True, disabled=(h_actual == 1)):
             st.session_state.game['h_sel'] = hoyo_anterior
@@ -776,10 +747,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
         st.write("---")
 
-        # 3. SELECTOR DE HOYO INTELIGENTE (TEXTO EN NEGRITA UNICODE + TAMAÑO DE FUENTE AMPLIADO)
+        # 3. SELECTOR DE HOYO INTELIGENTE (BAJO LOS BOTONES)
         st.markdown("""
             <style>
-                /* Ampliamos el tamaño de la fuente y mantenemos negrita en el elemento seleccionado en reposo */
                 div[data-baseweb="select"] > div:first-child {
                     font-size: 1.2rem !important;
                 }
@@ -789,7 +759,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         def format_hoyo(x):
             par_h = int(PAR_RIA_VIGO.get(int(x), 4))
             
-            # Conversión segura de números a negrita Unicode
             def to_bold(num):
                 bold_digits = {"0": "𝟬", "1": "𝟭", "2": "𝟮", "3": "𝟯", "4": "𝟰", "5": "𝟱", "6": "𝟲", "7": "𝟳", "8": "𝟴", "9": "𝟵"}
                 return "".join(bold_digits.get(c, c) for c in str(num))
@@ -798,7 +767,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             par_bold = to_bold(par_h)
 
             estado_str = "⏳ 𝗣𝗲𝗻𝗱𝗶𝗲𝗻𝘁𝗲"
-            if not df_partido_actual.empty:
+            if not df_partido_actual.empty and 'hoyo_int' in df_partido_actual.columns:
                 df_h = df_partido_actual[df_partido_actual['hoyo_int'] == x]
                 if not df_h.empty and df_h.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
                     ra = int(df_h.iloc[0]['resultado_a'])
