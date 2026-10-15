@@ -545,13 +545,24 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     df_p = pd.DataFrame()
     df_partido_actual = pd.DataFrame()
 
-    # --- FUNCIÓN AUXILIAR DE GUARDADO ---
-    def ejecutar_guardado_automatico(hoyo_num, s0_v, s1_v, s2_v, s3_v, p0_v, p1_v, p2_v, p3_v):
+    # --- FUNCIÓN AUXILIAR DE GUARDADO (BLINDADA CON SESSION_STATE) ---
+    def ejecutar_guardado_automatico(hoyo_num):
         try:
             g_actual = st.session_state.game
             id_p = g_actual['id']
             f_p = g_actual['fecha']
             t_p = g_actual['temporada']
+            
+            # Recuperación directa y segura de los valores desde st.session_state
+            s0_v = int(st.session_state.get(f"s0_h{hoyo_num}", 4))
+            s1_v = int(st.session_state.get(f"s1_h{hoyo_num}", 4))
+            s2_v = int(st.session_state.get(f"s2_h{hoyo_num}", 4))
+            s3_v = int(st.session_state.get(f"s3_h{hoyo_num}", 4))
+            
+            p0_v = int(st.session_state.get(f"p0_h{hoyo_num}", 2))
+            p1_v = int(st.session_state.get(f"p1_h{hoyo_num}", 2))
+            p2_v = int(st.session_state.get(f"p2_h{hoyo_num}", 2))
+            p3_v = int(st.session_state.get(f"p3_h{hoyo_num}", 2))
             
             # Cálculo de resultado del hoyo (Match Play)
             neto_a = min(s0_v, s1_v)
@@ -578,12 +589,12 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             # Preparación de fila para guardar
             nueva_fila = {
-                'partido_id': id_p,
-                'fecha': f_p,
-                'temporada': t_p,
+                'partido_id': str(id_p),
+                'fecha': str(f_p),
+                'temporada': str(t_p),
                 'hoyo': int(hoyo_num),
-                's0': int(s0_v), 's1': int(s1_v), 's2': int(s2_v), 's3': int(s3_v),
-                'p0': int(p0_v), 'p1': int(p1_v), 'p2': int(p2_v), 'p3': int(p3_v),
+                's0': s0_v, 's1': s1_v, 's2': s2_v, 's3': s3_v,
+                'p0': p0_v, 'p1': p1_v, 'p2': p2_v, 'p3': p3_v,
                 'resultado_a': res_a,
                 'resultado_b': res_b,
                 'p1_pts': pts_p1, 'p2_pts': pts_p2, 'p3_pts': pts_p3, 'p4_pts': pts_p4
@@ -591,22 +602,15 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             df_base = leer_datos()
             if df_base is not None and not df_base.empty:
-                def norm_id(v):
-                    try: return str(int(float(v)))
-                    except: return str(v)
-
-                def norm_hoyo(v):
-                    try: return int(float(v))
-                    except: return -1
+                df_base['p_id_str'] = df_base['partido_id'].astype(str).str.strip()
+                df_base['hoyo_int'] = pd.to_numeric(df_base['hoyo'], errors='coerce').fillna(-1).astype(int)
                 
-                df_base['p_id_temp'] = df_base['partido_id'].apply(norm_id)
-                df_base['hoyo_temp'] = df_base['hoyo'].apply(norm_hoyo)
-                
-                id_target = str(int(float(id_p)))
+                target_id = str(id_p).strip()
+                target_hoyo = int(hoyo_num)
                 
                 # Eliminamos registro previo de este hoyo para actualizarlo limpiamente
-                mask = (df_base['p_id_temp'] == id_target) & (df_base['hoyo_temp'] == int(hoyo_num))
-                df_base = df_base[~mask].drop(columns=['p_id_temp', 'hoyo_temp'], errors='ignore')
+                mask = (df_base['p_id_str'] == target_id) & (df_base['hoyo_int'] == target_hoyo)
+                df_base = df_base[~mask].drop(columns=['p_id_str', 'hoyo_int'], errors='ignore')
                 
                 df_final = pd.concat([df_base, pd.DataFrame([nueva_fila])], ignore_index=True)
             else:
@@ -615,8 +619,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             guardar_datos(df_final)
             st.cache_data.clear()
             st.toast(f"✅ Hoyo {hoyo_num} guardado correctamente", icon="💾")
+            return True
         except Exception as err:
             st.error(f"Error al guardar los datos: {err}")
+            return False
 
     # --- BLOQUE A: CONFIGURACIÓN DE INICIO (PANTALLA DE BIENVENIDA) ---
     game_activo = st.session_state.get('game')
@@ -788,8 +794,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         """, unsafe_allow_html=True)
         
         jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
-        inputs_s = []
-        inputs_p = []
         
         for i in range(4):
             nombre = jugadores[i]
@@ -802,20 +806,15 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             
             with c2:
                 st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
-                val_s = st.number_input(f"G{i}", min_value=1, on_change=activar_boton_guardar, key=f"s{i}_h{h_actual}", label_visibility="collapsed")
+                st.number_input(f"G{i}", min_value=1, on_change=activar_boton_guardar, key=f"s{i}_h{h_actual}", label_visibility="collapsed")
                 st.markdown('</div>', unsafe_allow_html=True)
-                inputs_s.append(val_s)
                 
             with c3:
                 st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
-                val_p = st.number_input(f"P{i}", min_value=0, on_change=activar_boton_guardar, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
+                st.number_input(f"P{i}", min_value=0, on_change=activar_boton_guardar, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
                 st.markdown('</div>', unsafe_allow_html=True)
-                inputs_p.append(val_p)
 
-        s0, s1, s2, s3 = inputs_s
-        p0, p1, p2, p3 = inputs_p
-
-        # --- PANEL DE CONFIRMACIÓN INTEGRADO (10% FIABLE) ---
+        # --- PANEL DE CONFIRMACIÓN INTEGRADO (LECTURA DIRECTA DE SESSION_STATE) ---
         if st.session_state.confirmando_hoyo:
             st.markdown(f"""
                 <div style="border: 2px solid #2e7d32; border-radius: 12px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px;">
@@ -823,11 +822,21 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     <p style="text-align:center; font-size:0.95em; color:#555; margin-bottom:10px;">Ordenado de menor a mayor número de golpes:</p>
             """, unsafe_allow_html=True)
             
+            s0_v = int(st.session_state.get(f"s0_h{h_actual}", 4))
+            s1_v = int(st.session_state.get(f"s1_h{h_actual}", 4))
+            s2_v = int(st.session_state.get(f"s2_h{h_actual}", 4))
+            s3_v = int(st.session_state.get(f"s3_h{h_actual}", 4))
+            
+            p0_v = int(st.session_state.get(f"p0_h{h_actual}", 2))
+            p1_v = int(st.session_state.get(f"p1_h{h_actual}", 2))
+            p2_v = int(st.session_state.get(f"p2_h{h_actual}", 2))
+            p3_v = int(st.session_state.get(f"p3_h{h_actual}", 2))
+
             datos_confirmar = [
-                ("MANU", s0, p0, config_jugadores["MANU"]["color"]),
-                ("JOSE", s1, p1, config_jugadores["JOSE"]["color"]),
-                ("ROGE", s2, p2, config_jugadores["ROGE"]["color"]),
-                ("LALO", s3, p3, config_jugadores["LALO"]["color"])
+                ("MANU", s0_v, p0_v, config_jugadores["MANU"]["color"]),
+                ("JOSE", s1_v, p1_v, config_jugadores["JOSE"]["color"]),
+                ("ROGE", s2_v, p2_v, config_jugadores["ROGE"]["color"]),
+                ("LALO", s3_v, p3_v, config_jugadores["LALO"]["color"])
             ]
             datos_ordenados = sorted(datos_confirmar, key=lambda x: x[1])
             
@@ -843,14 +852,14 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             
             col_conf_1, col_conf_2 = st.columns(2)
             if col_conf_1.button("✅ SÍ, GUARDAR", type="primary", use_container_width=True, key="btn_conf_si"):
-                ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
-                st.session_state.confirmando_hoyo = False
-                st.session_state.hoyo_modificado = False
-                if h_actual < 18:
-                    st.session_state.game['h_sel'] = h_actual + 1
-                    st.query_params["hoyo"] = st.session_state.game['h_sel']
-                    st.session_state.refresco_id += 1
-                st.rerun()
+                if ejecutar_guardado_automatico(h_actual):
+                    st.session_state.confirmando_hoyo = False
+                    st.session_state.hoyo_modificado = False
+                    if h_actual < 18:
+                        st.session_state.game['h_sel'] = h_actual + 1
+                        st.query_params["hoyo"] = st.session_state.game['h_sel']
+                        st.session_state.refresco_id += 1
+                    st.rerun()
                 
             if col_conf_2.button("❌ CANCELAR", use_container_width=True, key="btn_conf_no"):
                 st.session_state.confirmando_hoyo = False
