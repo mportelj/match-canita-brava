@@ -691,24 +691,24 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
 
-        # 4. MARCADOR VISUAL GLOBAL (ADAPTADO Y RESPONSIVE)
+        # 4. MARCADOR VISUAL GLOBAL (CORREGIDO Y VISIBLE)
         st.markdown(f"""
-            <div style="border: 2px solid #2e7d32; border-radius: 12px; padding: 8px; background-color: #f0f4f0; margin-bottom: 12px; text-align: center; overflow: hidden;">
+            <div style="border: 2px solid #2e7d32; border-radius: 12px; padding: 10px; background-color: #f0f4f0; margin-bottom: 10px; text-align: center;">
                 <div style="display: flex; justify-content: space-around; align-items: center; width: 100%;">
-                    <div style="flex: 1; padding: 0 2px;">
+                    <div style="flex: 1; padding: 0;">
                         <p style="margin:0; font-size:0.75em; font-weight:bold; white-space: nowrap;">MANU & JOSE</p>
-                        <h1 style="margin:0; font-size:3.5rem; line-height:1.1; color:{COLOR_A if marcador_a > 0 else '#333'};">{marcador_a:g}</h1>
+                        <h1 style="margin:0; font-size:2.8rem; line-height:1.1; color:{COLOR_A if marcador_a > 0 else '#333'};">{marcador_a:g}</h1>
                     </div>
-                    <div style="background:#ccc; border-radius:50%; width:30px; height:30px; min-width:30px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#666; font-size:0.75em; margin: 0 4px;">VS</div>
-                    <div style="flex: 1; padding: 0 2px;">
+                    <div style="background:#ccc; border-radius:50%; width:26px; height:26px; min-width:26px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#666; font-size:0.7em; margin: 0 4px;">VS</div>
+                    <div style="flex: 1; padding: 0;">
                         <p style="margin:0; font-size:0.75em; font-weight:bold; white-space: nowrap;">ROGE & LALO</p>
-                        <h1 style="margin:0; font-size:3.5rem; line-height:1.1; color:{COLOR_B if marcador_b > 0 else '#333'};">{marcador_b:g}</h1>
+                        <h1 style="margin:0; font-size:2.8rem; line-height:1.1; color:{COLOR_B if marcador_b > 0 else '#333'};">{marcador_b:g}</h1>
                     </div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
-        # 6. BOTONES DE NAVEGACIÓN
+        # 6. BOTONES DE NAVEGACIÓN MÁS ESTRECHOS
         h_actual = int(g['h_sel'])
         hoyo_anterior = max(1, h_actual - 1)
         hoyo_siguiente = min(18, h_actual + 1)
@@ -732,11 +732,22 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         icono_anterior = obtener_icono_estado(hoyo_anterior)
         icono_siguiente = obtener_icono_estado(hoyo_siguiente)
 
+        # Reducimos la altura de los botones de navegación mediante CSS dedicado
+        st.markdown("""
+            <style>
+                div.stButton > button {
+                    height: 45px !important;
+                    font-size: 1rem !important;
+                    font-weight: bold !important;
+                }
+            </style>
+        """, unsafe_allow_html=True)
+
         col_nav_1, col_nav_2 = st.columns(2)
         
         espacios = "\u00A0\u00A0\u00A0"
-        texto_btn_anterior = f"⬅️ Hoyo {hoyo_anterior}{espacios}{icono_anterior}" if h_actual > 1 else "⬅️ ANTERIOR"
-        texto_btn_siguiente = f"Hoyo {hoyo_siguiente}{espacios}{icono_siguiente} ➡️" if h_actual < 18 else "SIGUIENTE ➡️"
+        texto_btn_anterior = f"⬅️ H.{hoyo_anterior}{espacios}{icono_anterior}" if h_actual > 1 else "⬅️ ANT."
+        texto_btn_siguiente = f"H.{hoyo_siguiente}{espacios}{icono_siguiente} ➡️" if h_actual < 18 else "SIG. ➡️"
 
         if col_nav_1.button(texto_btn_anterior, use_container_width=True, disabled=(h_actual == 1)):
             st.session_state.game['h_sel'] = hoyo_anterior
@@ -750,9 +761,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.session_state.refresco_id += 1
             st.rerun()
 
-        st.write("---")
+        # (Se han eliminado las líneas st.write("---") que había antes del selector)
 
-        # 3. SELECTOR DE HOYO INTELIGENTE (SITUADO BAJO LOS BOTONES)
+        # 3. SELECTOR DE HOYO INTELIGENTE
         st.markdown("""
             <style>
                 div[data-baseweb="select"] > div:first-child {
