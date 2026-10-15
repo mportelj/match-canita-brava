@@ -695,7 +695,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     if ra > rb:
                         estado_str = f"🟢 M&J +{ra-rb}"
                     elif rb > ra:
-                        estado_str = f"🔴 R&L +{rb-rb}"
+                        estado_str = f"🔴 R&L +{rb-ra}"
                     else:
                         estado_str = "⚪ Empate AS"
             return f"Hoyo {x} (Par {par_h}) — {estado_str}"
@@ -816,12 +816,11 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.number_input(f"P{i}", min_value=0, on_change=activar_boton_guardar, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
                 st.markdown('</div>', unsafe_allow_html=True)
 
-        # 8. VENTANA MODAL DE CONFIRMACIÓN (CON PUTTS RESALTADOS EN COLOR)
+        # 8. VENTANA MODAL DE CONFIRMACIÓN (CON BOTONES CLAVE ÚNICA Y PUTTS RESALTADOS)
         @st.dialog(f"📋 Confirmar Hoyo {h_actual}")
         def mostrar_dialogo_confirmacion(h_num):
             st.markdown("<p style='margin-top: 0; font-size: 0.9rem; color: #6b7280;'>Ordenado de menor a mayor golpes:</p>", unsafe_allow_html=True)
             
-            # Recogemos los valores actuales desde session_state
             s0_v = int(st.session_state.get(f"s0_h{h_num}", 4))
             s1_v = int(st.session_state.get(f"s1_h{h_num}", 4))
             s2_v = int(st.session_state.get(f"s2_h{h_num}", 4))
@@ -852,7 +851,8 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             
             col_d1, col_d2 = st.columns(2)
             with col_d1:
-                if st.button("✅ GUARDAR", type="primary", use_container_width=True):
+                # 🔑 IMPORTANTE: Se añade key única para que el botón de guardar responda al clic dentro del diálogo
+                if st.button("✅ GUARDAR", type="primary", use_container_width=True, key=f"btn_dlg_guardar_{h_num}"):
                     ejecutar_guardado_automatico(h_num)
                     st.session_state.hoyo_modificado = False
                     if h_num < 18:
@@ -861,7 +861,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                         st.session_state.refresco_id += 1
                     st.rerun()
             with col_d2:
-                if st.button("❌ CERRAR", use_container_width=True):
+                if st.button("❌ CERRAR", use_container_width=True, key=f"btn_dlg_cerrar_{h_num}"):
                     st.rerun()
 
         if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True):
