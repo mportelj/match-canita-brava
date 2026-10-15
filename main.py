@@ -660,56 +660,32 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
 
-        # 3. CABECERA COMPACTA: SELECTOR DE HOYO + ESTADO EN LA MISMA LÍNEA
-        h_actual = st.session_state.game['h_sel']
-        
-        try:
-            val_par_hoyo = int(PAR_RIA_VIGO[int(h_actual)])
-        except:
-            val_par_hoyo = 4
+        # 3. SELECTOR DE HOYO INTELIGENTE (CON ESTADO EN EL DESPLEGABLE)
+        def format_hoyo(x):
+            par_h = int(PAR_RIA_VIGO.get(int(x), 4))
+            estado_str = "⏳ Pendiente"
+            if not df_partido_actual.empty:
+                df_h = df_partido_actual[df_partido_actual['hoyo'].astype(int) == x]
+                if not df_h.empty and df_h.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
+                    ra = int(df_h.iloc[0]['resultado_a'])
+                    rb = int(df_h.iloc[0]['resultado_b'])
+                    if ra > rb:
+                        estado_str = f"🟢 M&J +{ra-rb}"
+                    elif rb > ra:
+                        estado_str = f"🔴 R&L +{rb-ra}"
+                    else:
+                        estado_str = "⚪ Empate AS"
+            return f"Hoyo {x} (Par {par_h}) — {estado_str}"
 
-        # Comprobamos estado del hoyo actual para mostrarlo al lado
-        df_hoyo_actual = pd.DataFrame()
-        hay_datos_hoyo = False
-        res_hoyo_a, res_hoyo_b = 0, 0
-        
-        if not df_partido_actual.empty:
-            df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
-            if not df_hoyo_actual.empty:
-                if df_hoyo_actual.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
-                    hay_datos_hoyo = True
-                    res_hoyo_a = int(df_hoyo_actual.iloc[0]['resultado_a'])
-                    res_hoyo_b = int(df_hoyo_actual.iloc[0]['resultado_b'])
-
-        # Creamos dos columnas arriba para que el combo y el estado compartan fila
-        col_c1, col_c2 = st.columns([1.1, 0.9], vertical_alignment="center")
-        
-        with col_c1:
-            h_sel_nuevo = st.selectbox(
-                "Hoyo", 
-                options=list(range(1, 19)), 
-                index=int(h_actual) - 1,
-                format_func=lambda x: f"⛳ Hoyo {x} (Par {int(PAR_RIA_VIGO.get(int(x), 4))})",
-                key=f"sb_hoyo_{st.session_state.refresco_id}",
-                label_visibility="collapsed"
-            )
-            if h_sel_nuevo != h_actual:
-                st.session_state.game['h_sel'] = h_sel_nuevo
-                st.query_params["hoyo"] = h_sel_nuevo
-                st.rerun()
-
-        with col_c2:
-            if hay_datos_hoyo:
-                if res_hoyo_a > res_hoyo_b:
-                    st.markdown(f"<div style='text-align:right; font-weight:bold; font-size:1rem; color:#2E8B57;'>🟢 M&J +{res_hoyo_a - res_hoyo_b}</div>", unsafe_allow_html=True)
-                elif res_hoyo_b > res_hoyo_a:
-                    st.markdown(f"<div style='text-align:right; font-weight:bold; font-size:1rem; color:#DC143C;'>🔴 R&L +{res_hoyo_b - res_hoyo_a}</div>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<div style='text-align:right; font-weight:bold; font-size:1rem; color:#555;'>⚪ Empate AS</div>", unsafe_allow_html=True)
-            else:
-                st.markdown(f"<div style='text-align:right; font-weight:bold; font-size:0.95rem; color:#888;'>⏳ Pendiente</div>", unsafe_allow_html=True)
-
-        st.write("") # Pequeño espacio limpio
+        h_actual = st.selectbox(
+            "📍 Seleccionar Hoyo:", 
+            options=list(range(1, 19)), 
+            index=int(st.session_state.game['h_sel']) - 1,
+            format_func=format_hoyo,
+            key=f"sb_hoyo_{st.session_state.refresco_id}"
+        )
+        st.session_state.game['h_sel'] = h_actual
+        st.query_params["hoyo"] = h_actual
 
         # 4. MARCADOR VISUAL GLOBAL
         st.markdown(f"""
@@ -722,7 +698,21 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             </div>
         """, unsafe_allow_html=True)
 
-        # 5. BOTONES DE NAVEGACIÓN (SITUADOS JUSTO BAJO EL MARCADOR GLOBAL)
+        # 5. OBTENCIÓN DE DATOS DEL HOYO ACTUAL PARA LOS INPUTS
+        try:
+            val_par_hoyo = int(PAR_RIA_VIGO[int(h_actual)])
+        except:
+            val_par_hoyo = 4
+
+        df_hoyo_actual = pd.DataFrame()
+        hay_datos_hoyo = False
+        if not df_partido_actual.empty:
+            df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
+            if not df_hoyo_actual.empty:
+                if df_hoyo_actual.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
+                    hay_datos_hoyo = True
+
+        # 6. BOTONES DE NAVEGACIÓN
         hoyo_anterior = max(1, h_actual - 1)
         hoyo_siguiente = min(18, h_actual + 1)
 
@@ -744,7 +734,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         def activar_boton_guardar():
             st.session_state.hoyo_modificado = True
 
-        # 6. CONFIGURACIÓN DE JUGADORES Y ESTILOS CSS
+        # 7. CONFIGURACIÓN DE JUGADORES Y ESTILOS CSS
         config_jugadores = {
             "MANU": {"color": "#2E8B57", "clase": "borde-manu"},
             "JOSE": {"color": "#1E90FF", "clase": "borde-jose"},
@@ -754,10 +744,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         
         st.markdown("""
             <style>
-                div[data-testid="stSelectbox"] div[data-baseweb="select"] span {
-                    font-size: 1.15rem !important;
-                    font-weight: bold !important;
-                }
                 div[data-testid="stNumberInput"] label { font-size: 1.3rem !important; font-weight: bold !important; color: #2e7d32; }
                 div[data-testid="stNumberInput"] input { font-size: 2.2rem !important; height: 75px !important; }
                 .stButton button { height: 70px !important; font-size: 1.4rem !important; font-weight: bold !important; }
@@ -812,7 +798,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         s0, s1, s2, s3 = inputs_s
         p0, p1, p2, p3 = inputs_p
 
-        # 7. BOTÓN DE GUARDADO DEL HOYO
+        # 8. BOTÓN DE GUARDADO DEL HOYO
         no_hay_cambios = not st.session_state.hoyo_modificado
         if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, key=f"btn_guardar_h{h_actual}", disabled=no_hay_cambios):
             ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
@@ -823,7 +809,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.session_state.refresco_id += 1
             st.rerun()
 
-        # 8. SECCIÓN MVP
+        # 9. SECCIÓN MVP
         st.write("---")
         if st.checkbox("📊 Ver Clasificación MVP"):
             if not df_partido_actual.empty:
@@ -849,7 +835,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     cols_r[idx].write(f"**{nom}**")
                     cols_r[idx].write(f"{pts:.1f}")
 
-        # 9. FECHA AL FINAL Y BOTÓN FINALIZAR PARTIDA
+        # 10. FECHA AL FINAL Y BOTÓN FINALIZAR PARTIDA
         st.write("---")
         st.markdown(f"<p style='text-align: center; color: gray; font-size: 0.9em;'>📅 Fecha del partido: <b>{g.get('fecha', 'S/F')}</b></p>", unsafe_allow_html=True)
         
