@@ -545,7 +545,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     df_p = pd.DataFrame()
     df_partido_actual = pd.DataFrame()
 
-    # --- FUNCIÓN AUXILIAR DE GUARDADO ---
+    # --- FUNCIÓN AUXILIAR DE GUARDADO (CORREGIDA CON CACHE CLEAR) ---
     def ejecutar_guardado_automatico(hoyo_num, s0_v, s1_v, s2_v, s3_v, p0_v, p1_v, p2_v, p3_v):
         try:
             g_actual = st.session_state.game
@@ -590,23 +590,34 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             }
 
             df_base = leer_datos()
-            if not df_base.empty:
+            if not df_base is not None and not df_base.empty:
                 def norm_id(v):
                     try: return str(int(float(v)))
                     except: return ""
+
+                def norm_hoyo(v):
+                    try: return int(float(v))
+                    except: return -1
                 
                 df_base['p_id_temp'] = df_base['partido_id'].apply(norm_id)
+                df_base['hoyo_temp'] = df_base['hoyo'].apply(norm_hoyo)
+                
                 id_target = str(int(float(id_p)))
                 
-                mask = (df_base['p_id_temp'] == id_target) & (df_base['hoyo'].astype(int) == int(hoyo_num))
-                df_base = df_base[~mask].drop(columns=['p_id_temp'], errors='ignore')
+                # Excluimos el registro anterior de este mismo hoyo y partido
+                mask = (df_base['p_id_temp'] == id_target) & (df_base['hoyo_temp'] == int(hoyo_num))
+                df_base = df_base[~mask].drop(columns=['p_id_temp', 'hoyo_temp'], errors='ignore')
                 
                 df_final = pd.concat([df_base, pd.DataFrame([nueva_fila])], ignore_index=True)
             else:
                 df_final = pd.DataFrame([nueva_fila])
 
             guardar_datos(df_final)
-            st.toast(f"✅ Hoyo {hoyo_num} guardado correctamente", icon="💾")
+            
+            # 🎯 CRUCIAL: Limpiamos la caché para forzar la lectura del nuevo archivo en disco
+            st.cache_data.clear()
+            
+            st.toast(f"✅ Hoyo {hoyo_num} actualizado correctamente", icon="💾")
         except Exception as err:
             st.error(f"Error al guardar los datos: {err}")
 
@@ -833,7 +844,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.session_state.confirmando_hoyo = False
                 st.rerun()
                 
-            st.stop() # Detenemos la ejecución para mostrar únicamente el cuadro de confirmación
+            st.stop()
 
         # 8. BOTÓN DE GUARDADO DEL HOYO
         no_hay_cambios = not st.session_state.hoyo_modificado
