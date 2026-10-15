@@ -28,16 +28,61 @@ def cargar_datos_golf():
     client = gspread.authorize(creds)
     return client.open_by_url(s["url"]).sheet1
 
-# --- 3. INICIALIZACIÓN DE ESTADOS Y RESURRECCIÓN ---
+# --- 3. INICIALIZACIÓN DE ESTADOS Y RESURRECCIÓN AUTOMÁTICA ---
 
 if 'sh' not in st.session_state:
     st.session_state.sh = cargar_datos_golf()
 
+# 1. Primero determinamos si hay una partida incompleta en Google Sheets ANTES de fijar el menú por defecto
+menu_inicial = "Inicio"
+game_detectado = None
+
+if "partida_id" in st.query_params:
+    menu_inicial = "Nueva Partida"
+    game_detectado = {
+        'id': st.query_params["partida_id"],
+        'h_sel': int(st.query_params.get("hoyo", 1)),
+        'fecha': datetime.now().strftime("%d/%m/%Y"), 
+        'temporada': str(datetime.now().year)
+    }
+else:
+    # Si no hay URL, comprobamos si hay un partido abierto (menos de 18 hoyos) en la BD
+    try:
+        # Hacemos una lectura rápida para comprobar partidos en curso
+        hoja_temp = st.session_state.sh
+        datos_temp = hoja_temp.get_all_values()
+        if len(datos_temp) > 1:
+            df_check = pd.DataFrame(datos_temp[1:], columns=datos_temp[0])
+            if not df_check.empty and 'partido_id' in df_check.columns:
+                ultimo_p_id = str(df_check['partido_id'].iloc[-1]).split('.')[0].strip()
+                df_ultimo = df_check[df_check['partido_id'].astype(str).str.split('.').str[0] == ultimo_p_id]
+                hoyos_jugados = df_ultimo['hoyo'].nunique() if 'hoyo' in df_ultimo.columns else 0
+                
+                if hoyos_jugados < 18:
+                    menu_inicial = "Nueva Partida"
+                    siguiente_hoyo = hoyos_jugados + 1
+                    fecha_p = df_ultimo['fecha'].iloc[0] if 'fecha' in df_ultimo.columns else datetime.now().strftime("%d/%m/%Y")
+                    temp_p = str(df_ultimo['temporada'].iloc[0]) if 'temporada' in df_ultimo.columns else str(datetime.now().year)
+                    
+                    game_detectado = {
+                        'id': ultimo_p_id,
+                        'h_sel': siguiente_hoyo,
+                        'fecha': fecha_p,
+                        'temporada': temp_p
+                    }
+                    # Actualizamos la URL automáticamente para futuras recargas
+                    st.query_params["partida_id"] = ultimo_p_id
+                    st.query_params["hoyo"] = siguiente_hoyo
+    except:
+        pass
+
+# 2. Inicializamos los estados respetando lo que acabamos de detectar
 default_states = {
     'refresco_id': 0,
     'hoyo_modificado': False,
-    'menu_seleccionado': 'Inicio',
-    'nav_radio': 'Inicio'
+    'menu_seleccionado': menu_inicial,
+    'nav_radio': menu_inicial,
+    'game': game_detectado if game_detectado else {"h_sel": 1}
 }
 
 for key, value in default_states.items():
@@ -163,25 +208,21 @@ with st.sidebar:
     
     opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
     
-    # 🔥 Forzamos que si hay una partida activa incompleta, el menú seleccione "Nueva Partida" por defecto al arrancar
-    game_actual = st.session_state.get('game')
-    if game_actual and isinstance(game_actual, dict) and game_actual.get('id') and st.session_state.menu_seleccionado == "Inicio":
-        # Verificamos si realmente le quedan hoyos pendientes en la BD
-        try:
-            df_chk = leer_datos()
-            if not df_chk.empty:
-                id_s = str(int(float(game_actual['id'])))
-                df_chk['p_id_str'] = df_chk['partido_id'].astype(str).str.split('.').str[0]
-                df_part = df_chk[df_chk['p_id_str'] == id_s]
-                if len(df_part['hoyo'].unique()) < 18:
-                    st.session_state.menu_seleccionado = "Nueva Partida"
-        except:
-            pass
-
     try:
         idx_actual = opciones_menu.index(st.session_state.menu_seleccionado)
     except ValueError:
         idx_actual = 0
+
+    def cambiar_menu():
+        st.session_state.menu_seleccionado = st.session_state.get('nav_radio', 'Inicio')
+
+    st.radio(
+        "Navegación",
+        opciones_menu,
+        index=idx_actual,
+        key="nav_radio",
+        on_change=cambiar_menu
+    )
 
     def cambiar_menu():
         st.session_state.menu_seleccionado = st.session_state.get('nav_radio', 'Inicio')
