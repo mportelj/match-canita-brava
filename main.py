@@ -660,7 +660,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
 
-        # 3. SELECTOR DE HOYO INTELIGENTE
+        # 3. SELECTOR DE HOYO INTELIGENTE OPTIMIZADO
         def format_hoyo(x):
             par_h = int(PAR_RIA_VIGO.get(int(x), 4))
             estado_str = "⏳ Pendiente"
@@ -670,12 +670,12 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     ra = int(df_h.iloc[0]['resultado_a'])
                     rb = int(df_h.iloc[0]['resultado_b'])
                     if ra > rb:
-                        estado_str = f"🟢 M&J +{ra-rb}"
+                        estado_str = f"M&J +{ra-rb}"
                     elif rb > ra:
-                        estado_str = f"🔴 R&L +{rb-ra}"
+                        estado_str = f"R&L +{rb-ra}"
                     else:
-                        estado_str = "⚪ Empate AS"
-            return f"Hoyo {x} (Par {par_h}) — {estado_str}"
+                        estado_str = "Empate AS"
+            return f"Hoyo {x} (Par {par_h}) ➔ {estado_str}"
 
         h_actual = st.selectbox(
             "📍 Seleccionar Hoyo:", 
@@ -734,7 +734,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         def activar_boton_guardar():
             st.session_state.hoyo_modificado = True
 
-        # 7. CONFIGURACIÓN DE JUGADORES Y ESTILOS CSS (INCLUYENDO COMBO EN NEGRITA/GRANDE)
+        # 7. CONFIGURACIÓN DE JUGADORES Y ESTILOS CSS REFORZADOS
         config_jugadores = {
             "MANU": {"color": "#2E8B57", "clase": "borde-manu"},
             "JOSE": {"color": "#1E90FF", "clase": "borde-jose"},
@@ -744,9 +744,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         
         st.markdown("""
             <style>
-                /* Estilo para poner el texto del combo selector en negrita y más grande */
-                div[data-testid="stSelectbox"] div[data-baseweb="select"] span {
-                    font-size: 1.15rem !important;
+                /* Forzamos tamaño grande y negrita en el texto visible del selectbox en reposo y abierto */
+                div[data-testid="stSelectbox"] div[data-baseweb="select"] span,
+                div[data-testid="stSelectbox"] div[data-baseweb="select"] div {
+                    font-size: 1.2rem !important;
                     font-weight: bold !important;
                 }
                 div[data-testid="stNumberInput"] label { font-size: 1.3rem !important; font-weight: bold !important; color: #2e7d32; }
