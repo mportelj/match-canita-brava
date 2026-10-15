@@ -74,7 +74,7 @@ else:
     except:
         pass
 
-# 2. Inicializamos los estados (ELIMINAMOS 'nav_radio' de default_states para evitar la excepción)
+# 2. Inicializamos los estados
 default_states = {
     'refresco_id': 0,
     'hoyo_modificado': False,
@@ -85,57 +85,6 @@ default_states = {
 for key, value in default_states.items():
     if key not in st.session_state:
         st.session_state[key] = value
-
-# 🚀 MOTOR DE RESURRECCIÓN ROBUSTO (URL + Detección Automática de Partida en Curso)
-if 'sh' not in st.session_state:
-    st.session_state.sh = cargar_datos_golf()
-
-if "partida_id" in st.query_params:
-    st.session_state.menu_seleccionado = "Nueva Partida"
-    st.session_state.nav_radio = "Nueva Partida"
-    
-    if 'game' not in st.session_state or st.session_state.game is None:
-        p_id_url = st.query_params["partida_id"]
-        h_url = int(st.query_params.get("hoyo", 1))
-        st.session_state.game = {
-            'id': p_id_url,
-            'h_sel': h_url,
-            'fecha': datetime.now().strftime("%d/%m/%Y"), 
-            'temporada': str(datetime.now().year)
-        }
-elif 'game' not in st.session_state:
-    # Si no hay parámetros en la URL, comprobamos si hay una partida abierta en Google Sheets (menos de 18 hoyos completados)
-    try:
-        df_check = leer_datos()
-        if not df_check.empty and 'partido_id' in df_check.columns:
-            # Buscamos el ID del último partido registrado
-            ultimo_p_id = str(df_check['partido_id'].iloc[-1]).split('.')[0].strip()
-            df_ultimo_partido = df_check[df_check['partido_id'].astype(str).str.split('.').str[0] == ultimo_p_id]
-            
-            # Si ese partido tiene menos de 18 hoyos jugados, asumimos que es el partido en curso
-            hoyos_jugados = df_ultimo_partido['hoyo'].nunique() if 'hoyo' in df_ultimo_partido.columns else 0
-            if hoyos_jugados < 18:
-                siguiente_hoyo = hoyos_jugados + 1
-                fecha_partido = df_ultimo_partido['fecha'].iloc[0] if 'fecha' in df_ultimo_partido.columns else datetime.now().strftime("%d/%m/%Y")
-                temporada_partido = str(df_ultimo_partido['temporada'].iloc[0]) if 'temporada' in df_ultimo_partido.columns else str(datetime.now().year)
-                
-                st.session_state.game = {
-                    'id': ultimo_p_id,
-                    'h_sel': siguiente_hoyo,
-                    'fecha': fecha_partido,
-                    'temporada': temporada_partido
-                }
-                st.session_state.menu_seleccionado = "Nueva Partida"
-                st.session_state.nav_radio = "Nueva Partida"
-                # Actualizamos la URL para que refleje el estado actual
-                st.query_params["partida_id"] = ultimo_p_id
-                st.query_params["hoyo"] = siguiente_hoyo
-            else:
-                st.session_state.game = {"h_sel": 1}
-        else:
-            st.session_state.game = {"h_sel": 1}
-    except:
-        st.session_state.game = {"h_sel": 1}
     
 def borrar_partido_completo(partido_id):
     try:
@@ -192,13 +141,12 @@ def cb_editar_partido(p_id, fecha, temporada):
         "temporada": str(temporada),
         "h_sel": 1
     }
-    st.session_state.nav_radio = "Nueva Partida"
     st.session_state.menu_seleccionado = "Nueva Partida"
 
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-# --- EL SIDEBAR (MENÚ LATERAL ÚNICO) ---
+# --- EL SIDEBAR (MENÚ LATERAL ÚNICO Y LIMPIO) ---
 with st.sidebar:
     st.markdown("# ⛳ Cañita Brava")
     st.write("---")
@@ -219,17 +167,6 @@ with st.sidebar:
     if nuevo_menu != st.session_state.menu_seleccionado:
         st.session_state.menu_seleccionado = nuevo_menu
         st.rerun()
-
-    def cambiar_menu():
-        st.session_state.menu_seleccionado = st.session_state.get('nav_radio', 'Inicio')
-
-    st.radio(
-        "Navegación",
-        opciones_menu,
-        index=idx_actual,
-        key="nav_radio",
-        on_change=cambiar_menu
-    )
 
 def cambiar_pagina():
     if "selector_menu" in st.session_state:
