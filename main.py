@@ -692,16 +692,20 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
 
-        # 3. SELECTOR DE HOYO INTELIGENTE (TEXTO EN NEGRITA MEDIANTE UNICODE)
+        # 3. SELECTOR DE HOYO INTELIGENTE (TEXTO EN NEGRITA UNICODE + TAMAÑO DE FUENTE AMPLIADO)
+        st.markdown("""
+            <style>
+                /* Ampliamos el tamaño de la fuente y mantenemos negrita en el elemento seleccionado en reposo */
+                div[data-baseweb="select"] > div:first-child {
+                    font-size: 1.2rem !important;
+                }
+            </style>
+        """, unsafe_allow_html=True)
+
         def format_hoyo(x):
             par_h = int(PAR_RIA_VIGO.get(int(x), 4))
             
-            # Mapas de conversión a negrita Unicode para números
-            n_bold = {
-                1: "𝟭", 2: "𝟮", 3: "𝟯", 4: "𝟰", 5: "𝟱", 6: "𝟲", 7: "𝟳", 8: "𝟴", 9: "𝟵",
-                10: "𝟭𝟬", 11: "𝟭𝟭", 12: "𝟭𝟮", 13: "𝟭𝟯", 14: "𝟭𝟰", 15: "𝟭𝟱", 16: "𝟭𝟲", 17: "𝟭十七章"[0:2] if x==17 else "𝟭十七章"[:2], # Usaremos formato seguro abajo
-            }
-            # Conversión segura de números a negrita
+            # Conversión segura de números a negrita Unicode
             def to_bold(num):
                 bold_digits = {"0": "𝟬", "1": "𝟭", "2": "𝟮", "3": "𝟯", "4": "𝟰", "5": "𝟱", "6": "𝟲", "7": "𝟳", "8": "𝟴", "9": "𝟵"}
                 return "".join(bold_digits.get(c, c) for c in str(num))
