@@ -545,7 +545,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     df_p = pd.DataFrame()
     df_partido_actual = pd.DataFrame()
 
-    # --- FUNCIÓN AUXILIAR DE GUARDADO (CORREGIDA CON CACHE CLEAR) ---
+    # --- FUNCIÓN AUXILIAR DE GUARDADO (CONDICIÓN CORREGIDA) ---
     def ejecutar_guardado_automatico(hoyo_num, s0_v, s1_v, s2_v, s3_v, p0_v, p1_v, p2_v, p3_v):
         try:
             g_actual = st.session_state.game
@@ -590,7 +590,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             }
 
             df_base = leer_datos()
-            if not df_base is not None and not df_base.empty:
+            
+            # CORRECCIÓN AQUÍ: Verificación correcta de DataFrame existente
+            if df_base is not None and not df_base.empty:
                 def norm_id(v):
                     try: return str(int(float(v)))
                     except: return ""
@@ -604,7 +606,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 
                 id_target = str(int(float(id_p)))
                 
-                # Excluimos el registro anterior de este mismo hoyo y partido
+                # Excluimos el registro anterior de este mismo hoyo para actualizarlo
                 mask = (df_base['p_id_temp'] == id_target) & (df_base['hoyo_temp'] == int(hoyo_num))
                 df_base = df_base[~mask].drop(columns=['p_id_temp', 'hoyo_temp'], errors='ignore')
                 
@@ -614,7 +616,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             guardar_datos(df_final)
             
-            # 🎯 CRUCIAL: Limpiamos la caché para forzar la lectura del nuevo archivo en disco
+            # Limpiamos la caché de lectura para forzar la actualización inmediata
             st.cache_data.clear()
             
             st.toast(f"✅ Hoyo {hoyo_num} actualizado correctamente", icon="💾")
