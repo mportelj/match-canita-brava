@@ -780,18 +780,41 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.session_state[f"p{i}_h{h_actual}"] = 2
             st.session_state.hoyo_modificado = False
 
-        # 6. BOTONES DE NAVEGACIÓN
+        # 6. BOTONES DE NAVEGACIÓN CON ESTADO DE JUEGO
         hoyo_anterior = max(1, h_actual - 1)
         hoyo_siguiente = min(18, h_actual + 1)
 
+        def obtener_icono_estado(h_num):
+            if df_partido_actual.empty:
+                return "⏳"
+            df_h = df_partido_actual[df_partido_actual['hoyo_int'] == h_num]
+            if df_h.empty or df_h.iloc[0][['s0', 's1', 's2', 's3']].sum() == 0:
+                return "⏳"
+            
+            ra = int(df_h.iloc[0]['resultado_a'])
+            rb = int(df_h.iloc[0]['resultado_b'])
+            if ra > rb:
+                return "🟢"
+            elif rb > ra:
+                return "🔴"
+            else:
+                return "⚪"
+
+        icono_anterior = obtener_icono_estado(hoyo_anterior)
+        icono_siguiente = obtener_icono_estado(hoyo_siguiente)
+
         col_nav_1, col_nav_2 = st.columns(2)
-        if col_nav_1.button(f"⬅️ ANTERIOR (Hoyo {hoyo_anterior})" if h_actual > 1 else "⬅️ ANTERIOR", use_container_width=True, disabled=(h_actual == 1)):
+        
+        texto_btn_anterior = f"⬅️ Hoyo {hoyo_anterior} {icono_anterior}" if h_actual > 1 else "⬅️ ANTERIOR"
+        texto_btn_siguiente = f"Hoyo {hoyo_siguiente} {icono_siguiente} ➡️" if h_actual < 18 else "SIGUIENTE ➡️"
+
+        if col_nav_1.button(texto_btn_anterior, use_container_width=True, disabled=(h_actual == 1)):
             st.session_state.game['h_sel'] = hoyo_anterior
             st.query_params["hoyo"] = hoyo_anterior
             st.session_state.refresco_id += 1
             st.rerun()
             
-        if col_nav_2.button(f"SIGUIENTE (Hoyo {hoyo_siguiente}) ➡️" if h_actual < 18 else "SIGUIENTE ➡️", use_container_width=True, disabled=(h_actual == 18)):
+        if col_nav_2.button(texto_btn_siguiente, use_container_width=True, disabled=(h_actual == 18)):
             st.session_state.game['h_sel'] = hoyo_siguiente
             st.query_params["hoyo"] = hoyo_siguiente
             st.session_state.refresco_id += 1
