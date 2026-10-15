@@ -691,8 +691,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
         st.write("---------------------------")
-        st.write("-----------------")
-        st.write("------------------")
+
         # 4. MARCADOR VISUAL GLOBAL (CORREGIDO Y VISIBLE)
         st.markdown(f"""
             <div style="border: 2px solid #2e7d32; border-radius: 12px; padding: 10px; background-color: #f0f4f0; margin-bottom: 10px; text-align: center;">
@@ -748,8 +747,8 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         col_nav_1, col_nav_2 = st.columns(2)
         
         espacios = "\u00A0\u00A0\u00A0"
-        texto_btn_anterior = f"⬅️ H.{hoyo_anterior}{espacios}{icono_anterior}" if h_actual > 1 else "⬅️ ANT."
-        texto_btn_siguiente = f"H.{hoyo_siguiente}{espacios}{icono_siguiente} ➡️" if h_actual < 18 else "SIG. ➡️"
+        texto_btn_anterior = f"⬅️ Hoyo: {hoyo_anterior}{espacios}{icono_anterior}" if h_actual > 1 else "⬅️ ANT."
+        texto_btn_siguiente = f"Hoyo: {hoyo_siguiente}{espacios}{icono_siguiente} ➡️" if h_actual < 18 else "SIG. ➡️"
 
         if col_nav_1.button(texto_btn_anterior, use_container_width=True, disabled=(h_actual == 1)):
             st.session_state.game['h_sel'] = hoyo_anterior
