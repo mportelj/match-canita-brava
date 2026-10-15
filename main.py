@@ -692,9 +692,15 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
 
-        # 3. SELECTOR DE HOYO INTELIGENTE
+        # 3. SELECTOR DE HOYO INTELIGENTE (TEXTO EN NEGRITA)
         def format_hoyo(x):
             par_h = int(PAR_RIA_VIGO.get(int(x), 4))
+            
+            # Usamos números y símbolos en negrita Unicode para destacar en el desplegable
+            negrita_nums = {1: "𝟏", 2: "𝟐", 3: "𝟑", 4: "𝟒", 5: "𝟓", 6: "𝟔", 7: "𝟕", 8: "𝟖", 9: "𝟗", 
+                            10: "𝟏𝟎", 11: "𝟏𝟏", 12: "𝟏𝟐", 13: "𝟏𝟑", 14: "𝟏𝟒", 15: "𝟏𝟓", 16: "𝟏𝟔", 17: "𝟏𝟕", 18: "𝟏𝟖"}
+            h_str = negrita_nums.get(int(x), str(x))
+            
             estado_str = "⏳ Pendiente"
             if not df_partido_actual.empty:
                 df_h = df_partido_actual[df_partido_actual['hoyo_int'] == x]
@@ -707,7 +713,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                         estado_str = f"🔴 R&L +{rb-ra}"
                     else:
                         estado_str = "⚪ Empate AS"
-            return f"Hoyo {x} (Par {par_h}) — {estado_str}"
+            return f"Hoyo {h_str} (Par {par_h}) — {estado_str}"
 
         h_actual = st.selectbox(
             "📍 Seleccionar Hoyo:", 
