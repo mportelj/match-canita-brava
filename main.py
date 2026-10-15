@@ -571,7 +571,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         # Reducción de márgenes superiores para visualización móvil
         st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
 
-        # 1. CARGA Y FILTRADO ULTRA-SEGURO DE DATOS
+        # 1. CARGA Y FILTRADO DE DATOS
         try:
             df_p = leer_datos() 
             if df_p is not None and not df_p.empty:
@@ -648,10 +648,29 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         else:
             st.info(f"⏳ Hoyo {h_actual} (Par {val_par_hoyo}) - Pendiente de juego")
 
+        # 6. BOTONES DE NAVEGACIÓN (UBICADOS BAJO EL ESTADO DEL HOYO)
+        hoyo_anterior = max(1, h_actual - 1)
+        hoyo_siguiente = min(18, h_actual + 1)
+
+        col_nav_1, col_nav_2 = st.columns(2)
+        if col_nav_1.button(f"⬅️ ANTERIOR (Hoyo {hoyo_anterior})" if h_actual > 1 else "⬅️ ANTERIOR", use_container_width=True, disabled=(h_actual == 1)):
+            st.session_state.game['h_sel'] = hoyo_anterior
+            st.query_params["hoyo"] = hoyo_anterior
+            st.session_state.refresco_id += 1
+            st.rerun()
+            
+        if col_nav_2.button(f"SIGUIENTE (Hoyo {hoyo_siguiente}) ➡️" if h_actual < 18 else "SIGUIENTE ➡️", use_container_width=True, disabled=(h_actual == 18)):
+            st.session_state.game['h_sel'] = hoyo_siguiente
+            st.query_params["hoyo"] = hoyo_siguiente
+            st.session_state.refresco_id += 1
+            st.rerun()
+
+        st.write("---")
+
         def activar_boton_guardar():
             st.session_state.hoyo_modificado = True
 
-        # 6. CONFIGURACIÓN DE JUGADORES Y ESTILOS CSS COMPLETOS
+        # 7. CONFIGURACIÓN DE JUGADORES Y ESTILOS CSS COMPLETOS
         config_jugadores = {
             "MANU": {"color": "#2E8B57", "clase": "borde-manu"},
             "JOSE": {"color": "#1E90FF", "clase": "borde-jose"},
@@ -715,7 +734,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         s0, s1, s2, s3 = inputs_s
         p0, p1, p2, p3 = inputs_p
 
-        # 7. BOTÓN DE GUARDADO
+        # 8. BOTÓN DE GUARDADO
         no_hay_cambios = not st.session_state.hoyo_modificado
         if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, key=f"btn_guardar_h{h_actual}", disabled=no_hay_cambios):
             ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
@@ -724,25 +743,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.session_state.game['h_sel'] = h_actual + 1
                 st.query_params["hoyo"] = st.session_state.game['h_sel']
                 st.session_state.refresco_id += 1
-            st.rerun()
-
-        st.write("---")
-
-        # 8. BOTONES DE NAVEGACIÓN
-        hoyo_anterior = max(1, h_actual - 1)
-        hoyo_siguiente = min(18, h_actual + 1)
-
-        col_nav_1, col_nav_2 = st.columns(2)
-        if col_nav_1.button(f"⬅️ ANTERIOR (Hoyo {hoyo_anterior})" if h_actual > 1 else "⬅️ ANTERIOR", use_container_width=True, disabled=(h_actual == 1)):
-            st.session_state.game['h_sel'] = hoyo_anterior
-            st.query_params["hoyo"] = hoyo_anterior
-            st.session_state.refresco_id += 1
-            st.rerun()
-            
-        if col_nav_2.button(f"SIGUIENTE (Hoyo {hoyo_siguiente}) ➡️" if h_actual < 18 else "SIGUIENTE ➡️", use_container_width=True, disabled=(h_actual == 18)):
-            st.session_state.game['h_sel'] = hoyo_siguiente
-            st.query_params["hoyo"] = hoyo_siguiente
-            st.session_state.refresco_id += 1
             st.rerun()
 
         # 9. SECCIÓN MVP
