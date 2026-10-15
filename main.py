@@ -545,7 +545,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     df_p = pd.DataFrame()
     df_partido_actual = pd.DataFrame()
 
-    # --- FUNCIÓN AUXILIAR DE GUARDADO (CONDICIÓN CORREGIDA) ---
+    # --- FUNCIÓN AUXILIAR DE GUARDADO ---
     def ejecutar_guardado_automatico(hoyo_num, s0_v, s1_v, s2_v, s3_v, p0_v, p1_v, p2_v, p3_v):
         try:
             g_actual = st.session_state.game
@@ -576,7 +576,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             pts_p3 = calc_pts(s2_v, par_h)
             pts_p4 = calc_pts(s3_v, par_h)
 
-            # Preparación de fila para guardar
             nueva_fila = {
                 'partido_id': id_p,
                 'fecha': f_p,
@@ -590,8 +589,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             }
 
             df_base = leer_datos()
-            
-            # CORRECCIÓN AQUÍ: Verificación correcta de DataFrame existente
             if df_base is not None and not df_base.empty:
                 def norm_id(v):
                     try: return str(int(float(v)))
@@ -606,7 +603,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 
                 id_target = str(int(float(id_p)))
                 
-                # Excluimos el registro anterior de este mismo hoyo para actualizarlo
+                # Eliminamos cualquier registro previo de este hoyo para asegurar actualización limpia
                 mask = (df_base['p_id_temp'] == id_target) & (df_base['hoyo_temp'] == int(hoyo_num))
                 df_base = df_base[~mask].drop(columns=['p_id_temp', 'hoyo_temp'], errors='ignore')
                 
@@ -615,8 +612,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 df_final = pd.DataFrame([nueva_fila])
 
             guardar_datos(df_final)
-            
-            # Limpiamos la caché de lectura para forzar la actualización inmediata
             st.cache_data.clear()
             
             st.toast(f"✅ Hoyo {hoyo_num} actualizado correctamente", icon="💾")
@@ -651,7 +646,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         g = st.session_state.game
         st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
 
-        # 1. CARGA Y FILTRADO DE DATOS
+        # 1. CARGA Y FILTRADO ROBUSTO DE DATOS (CON DEDUPLICACIÓN)
         try:
             df_p = leer_datos() 
             if df_p is not None and not df_p.empty:
@@ -663,6 +658,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 
                 df_p['partido_id_str'] = df_p['partido_id'].apply(normalizar_id)
                 df_partido_actual = df_p[df_p['partido_id_str'] == id_sesion].copy()
+                
+                if not df_partido_actual.empty:
+                    df_partido_actual['hoyo_int'] = df_partido_actual['hoyo'].apply(lambda x: int(float(x)) if pd.notnull(x) else 0)
+                    df_partido_actual = df_partido_actual.drop_duplicates(subset=['hoyo_int'], keep='last')
         except Exception as e:
             st.error(f"Error al conectar con la base de datos: {e}")
 
@@ -676,12 +675,12 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
 
-        # 3. SELECTOR DE HOYO INTELIGENTE (CON ESTADO EN EL DESPLEGABLE)
+        # 3. SELECTOR DE HOYO INTELIGENTE
         def format_hoyo(x):
             par_h = int(PAR_RIA_VIGO.get(int(x), 4))
             estado_str = "⏳ Pendiente"
             if not df_partido_actual.empty:
-                df_h = df_partido_actual[df_partido_actual['hoyo'].astype(int) == x]
+                df_h = df_partido_actual[df_partido_actual['hoyo_int'] == x]
                 if not df_h.empty and df_h.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
                     ra = int(df_h.iloc[0]['resultado_a'])
                     rb = int(df_h.iloc[0]['resultado_b'])
@@ -714,7 +713,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             </div>
         """, unsafe_allow_html=True)
 
-        # 5. OBTENCIÓN DE DATOS DEL HOYO ACTUAL PARA LOS INPUTS
+        # 5. OBTENCIÓN DE DATOS DEL HOYO ACTUAL Y SINCRONIZACIÓN DE SESSION_STATE
         try:
             val_par_hoyo = int(PAR_RIA_VIGO[int(h_actual)])
         except:
@@ -723,10 +722,26 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         df_hoyo_actual = pd.DataFrame()
         hay_datos_hoyo = False
         if not df_partido_actual.empty:
-            df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo'].astype(int) == h_actual]
+            df_hoyo_actual = df_partido_actual[df_partido_actual['hoyo_int'] == int(h_actual)]
             if not df_hoyo_actual.empty:
                 if df_hoyo_actual.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
                     hay_datos_hoyo = True
+
+        # 🔄 SINCRONIZACIÓN CLAVE: Forzar actualización de session_state con los valores reales al cambiar de hoyo
+        if 'h_cargado_actual' not in st.session_state or st.session_state.h_cargado_actual != h_actual:
+            st.session_state.h_cargado_actual = h_actual
+            if hay_datos_hoyo:
+                try:
+                    for i in range(4):
+                        st.session_state[f"s{i}_h{h_actual}"] = int(df_hoyo_actual[f's{i}'].iloc[0])
+                        st.session_state[f"p{i}_h{h_actual}"] = int(df_hoyo_actual[f'p{i}'].iloc[0])
+                except:
+                    pass
+            else:
+                for i in range(4):
+                    st.session_state[f"s{i}_h{h_actual}"] = val_par_hoyo
+                    st.session_state[f"p{i}_h{h_actual}"] = 2
+            st.session_state.hoyo_modificado = False
 
         # 6. BOTONES DE NAVEGACIÓN
         hoyo_anterior = max(1, h_actual - 1)
@@ -777,17 +792,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         inputs_s = []
         inputs_p = []
         
-        if hay_datos_hoyo:
-            try:
-                g_defaults = [int(df_hoyo_actual[f's{i}'].iloc[0]) for i in range(4)]
-                p_defaults = [int(df_hoyo_actual[f'p{i}'].iloc[0]) for i in range(4)]
-            except:
-                g_defaults = [val_par_hoyo] * 4
-                p_defaults = [2] * 4
-        else:
-            g_defaults = [val_par_hoyo] * 4
-            p_defaults = [2] * 4
-        
         for i in range(4):
             nombre = jugadores[i]
             cfg = config_jugadores[nombre]
@@ -799,14 +803,14 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             
             with c2:
                 st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
-                val_s = st.number_input(f"G{i}", min_value=1, value=g_defaults[i], 
+                val_s = st.number_input(f"G{i}", min_value=1, 
                                         on_change=activar_boton_guardar, key=f"s{i}_h{h_actual}", label_visibility="collapsed")
                 st.markdown('</div>', unsafe_allow_html=True)
                 inputs_s.append(val_s)
                 
             with c3:
                 st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
-                val_p = st.number_input(f"P{i}", min_value=0, value=p_defaults[i], 
+                val_p = st.number_input(f"P{i}", min_value=0, 
                                         on_change=activar_boton_guardar, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
                 st.markdown('</div>', unsafe_allow_html=True)
                 inputs_p.append(val_p)
@@ -822,7 +826,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     <p style="text-align:center; font-size:0.95em; color:#555; margin-bottom:10px;">Ordenados de menor a mayor número de golpes:</p>
             """, unsafe_allow_html=True)
             
-            # Ordenamos los jugadores por golpes (menor a mayor)
             datos_hoyo_crudo = list(zip(jugadores, [s0, s1, s2, s3], [p0, p1, p2, p3], [cfg_j["color"] for cfg_j in config_jugadores.values()]))
             datos_ordenados = sorted(datos_hoyo_crudo, key=lambda x: x[1])
             
@@ -858,14 +861,14 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         st.write("---")
         if st.checkbox("📊 Ver Clasificación MVP"):
             if not df_partido_actual.empty:
-                df_mvp = df_partido_actual.sort_values('hoyo').drop_duplicates('hoyo', keep='last')
+                df_mvp = df_partido_actual.sort_values('hoyo_int').drop_duplicates('hoyo_int', keep='last')
                 
                 nombres = ["MANU", "JOSE", "ROGE", "LALO"]
                 
                 st.write(f"**🌟 Puntos Hoyo {h_actual}**")
                 c1, c2, c3, c4 = st.columns(4)
                 for i, col_obj in enumerate([c1, c2, c3, c4]):
-                    h_reg = df_mvp[df_mvp['hoyo'].astype(int) == h_actual]
+                    h_reg = df_mvp[df_mvp['hoyo_int'] == h_actual]
                     val = float(h_reg[f'p{i+1}_pts'].iloc[0]) if not h_reg.empty else 0.0
                     col_obj.metric(nombres[i], f"{val:.1f}")
 
