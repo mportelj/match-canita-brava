@@ -198,27 +198,24 @@ def cb_editar_partido(p_id, fecha, temporada):
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-# --- EL SIDEBAR (MENÚ LATERAL) ---
+# --- EL SIDEBAR (MENÚ LATERAL ÚNICO) ---
 with st.sidebar:
     st.markdown("# ⛳ Cañita Brava")
     st.write("---")
     
     opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
     
-    # Obtenemos el índice actual de forma segura
     try:
         idx_actual = opciones_menu.index(st.session_state.menu_seleccionado)
     except ValueError:
         idx_actual = 0
 
-    # Capturamos la selección directamente sin usar 'key' ni 'on_change' para evitar duplicidades
     nuevo_menu = st.radio(
         "Navegación",
         opciones_menu,
         index=idx_actual
     )
     
-    # Si el usuario cambia de opción en el menú, actualizamos y recargamos la app al instante
     if nuevo_menu != st.session_state.menu_seleccionado:
         st.session_state.menu_seleccionado = nuevo_menu
         st.rerun()
