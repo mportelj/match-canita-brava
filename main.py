@@ -589,7 +589,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             if df_base is not None and not df_base.empty:
                 def norm_id(v):
                     try: return str(int(float(v)))
-                    except: return ""
+                    except: return str(v)
 
                 def norm_hoyo(v):
                     try: return int(float(v))
@@ -600,7 +600,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 
                 id_target = str(int(float(id_p)))
                 
-                # Eliminamos cualquier registro previo de este hoyo para actualizarlo limpiamente
+                # Eliminamos registro previo de este hoyo para actualizarlo limpiamente
                 mask = (df_base['p_id_temp'] == id_target) & (df_base['hoyo_temp'] == int(hoyo_num))
                 df_base = df_base[~mask].drop(columns=['p_id_temp', 'hoyo_temp'], errors='ignore')
                 
@@ -610,7 +610,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             guardar_datos(df_final)
             st.cache_data.clear()
-            
             st.toast(f"✅ Hoyo {hoyo_num} guardado correctamente", icon="💾")
         except Exception as err:
             st.error(f"Error al guardar los datos: {err}")
@@ -840,7 +839,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 
             st.stop()
 
-        # 8. BOTÓN DE GUARDADO DEL HOYO (SIEMPRE ACTIVO)
+        # 8. BOTÓN DE GUARDADO DEL HOYO
         if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, key=f"btn_guardar_h{h_actual}"):
             st.session_state.confirmando_hoyo = True
             st.rerun()
