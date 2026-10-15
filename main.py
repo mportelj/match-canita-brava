@@ -33,10 +33,10 @@ def cargar_datos_golf():
 if 'sh' not in st.session_state:
     st.session_state.sh = cargar_datos_golf()
 
-# 1. Determinamos si hay una partida incompleta en Google Sheets ANTES de fijar el menú
 menu_inicial = "Inicio"
 game_detectado = None
 
+# SOLO resucitamos si el navegador mantiene explícitamente el parámetro de la partida en curso
 if "partida_id" in st.query_params:
     menu_inicial = "Nueva Partida"
     game_detectado = {
@@ -46,40 +46,15 @@ if "partida_id" in st.query_params:
         'temporada': str(datetime.now().year)
     }
 else:
-    # Comprobamos en la BD si hay un partido abierto (menos de 18 hoyos jugados)
-    try:
-        hoja_temp = st.session_state.sh
-        datos_temp = hoja_temp.get_all_values()
-        if len(datos_temp) > 1:
-            df_check = pd.DataFrame(datos_temp[1:], columns=datos_temp[0])
-            if not df_check.empty and 'partido_id' in df_check.columns:
-                ultimo_p_id = str(df_check['partido_id'].iloc[-1]).split('.')[0].strip()
-                df_ultimo = df_check[df_check['partido_id'].astype(str).str.split('.').str[0] == ultimo_p_id]
-                hoyos_jugados = df_ultimo['hoyo'].nunique() if 'hoyo' in df_ultimo.columns else 0
-                
-                if hoyos_jugados < 18:
-                    menu_inicial = "Nueva Partida"
-                    siguiente_hoyo = hoyos_jugados + 1
-                    fecha_p = df_ultimo['fecha'].iloc[0] if 'fecha' in df_ultimo.columns else datetime.now().strftime("%d/%m/%Y")
-                    temp_p = str(df_ultimo['temporada'].iloc[0]) if 'temporada' in df_ultimo.columns else str(datetime.now().year)
-                    
-                    game_detectado = {
-                        'id': ultimo_p_id,
-                        'h_sel': siguiente_hoyo,
-                        'fecha': fecha_p,
-                        'temporada': temp_p
-                    }
-                    st.query_params["partida_id"] = ultimo_p_id
-                    st.query_params["hoyo"] = siguiente_hoyo
-    except:
-        pass
+    # Si la URL viene limpia (porque abriste la app de cero o porque finalizaste la partida correctamente),
+    # arrancamos siempre en el menú principal (Inicio) sin buscar en la base de datos.
+    game_detectado = {"h_sel": 1}
 
-# 2. Inicializamos los estados
 default_states = {
     'refresco_id': 0,
     'hoyo_modificado': False,
     'menu_seleccionado': menu_inicial,
-    'game': game_detectado if game_detectado else {"h_sel": 1}
+    'game': game_detectado
 }
 
 for key, value in default_states.items():
