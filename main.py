@@ -163,6 +163,21 @@ with st.sidebar:
     
     opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
     
+    # 🔥 Forzamos que si hay una partida activa incompleta, el menú seleccione "Nueva Partida" por defecto al arrancar
+    game_actual = st.session_state.get('game')
+    if game_actual and isinstance(game_actual, dict) and game_actual.get('id') and st.session_state.menu_seleccionado == "Inicio":
+        # Verificamos si realmente le quedan hoyos pendientes en la BD
+        try:
+            df_chk = leer_datos()
+            if not df_chk.empty:
+                id_s = str(int(float(game_actual['id'])))
+                df_chk['p_id_str'] = df_chk['partido_id'].astype(str).str.split('.').str[0]
+                df_part = df_chk[df_chk['p_id_str'] == id_s]
+                if len(df_part['hoyo'].unique()) < 18:
+                    st.session_state.menu_seleccionado = "Nueva Partida"
+        except:
+            pass
+
     try:
         idx_actual = opciones_menu.index(st.session_state.menu_seleccionado)
     except ValueError:
@@ -178,11 +193,6 @@ with st.sidebar:
         key="nav_radio",
         on_change=cambiar_menu
     )
-
-try:
-    idx_actual = opciones_menu.index(st.session_state.menu_seleccionado)
-except ValueError:
-    idx_actual = 0
 
 def cambiar_pagina():
     if "selector_menu" in st.session_state:
