@@ -691,13 +691,19 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
 
-        # 4. MARCADOR VISUAL GLOBAL
+        # 4. MARCADOR VISUAL GLOBAL (ADAPTADO Y RESPONSIVE)
         st.markdown(f"""
-            <div style="border: 2px solid #2e7d32; border-radius: 15px; padding: 10px; background-color: #f0f4f0; margin-bottom: 15px; text-align: center;">
-                <div style="display: flex; justify-content: space-around; align-items: center;">
-                    <div style="flex: 1;"><p style="margin:0; font-size:0.9em; font-weight:bold;">MANU & JOSE</p><h1 style="margin:0; font-size:4.5em; color:{COLOR_A if marcador_a > 0 else '#333'};">{marcador_a:g}</h1></div>
-                    <div style="background:#ccc; border-radius:50%; width:35px; height:35px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#666; font-size:0.8em;">VS</div>
-                    <div style="flex: 1;"><p style="margin:0; font-size:0.9em; font-weight:bold;">ROGE & LALO</p><h1 style="margin:0; font-size:4.5em; color:{COLOR_B if marcador_b > 0 else '#333'};">{marcador_b:g}</h1></div>
+            <div style="border: 2px solid #2e7d32; border-radius: 12px; padding: 8px; background-color: #f0f4f0; margin-bottom: 12px; text-align: center; overflow: hidden;">
+                <div style="display: flex; justify-content: space-around; align-items: center; width: 100%;">
+                    <div style="flex: 1; padding: 0 2px;">
+                        <p style="margin:0; font-size:0.75em; font-weight:bold; white-space: nowrap;">MANU & JOSE</p>
+                        <h1 style="margin:0; font-size:3.5rem; line-height:1.1; color:{COLOR_A if marcador_a > 0 else '#333'};">{marcador_a:g}</h1>
+                    </div>
+                    <div style="background:#ccc; border-radius:50%; width:30px; height:30px; min-width:30px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#666; font-size:0.75em; margin: 0 4px;">VS</div>
+                    <div style="flex: 1; padding: 0 2px;">
+                        <p style="margin:0; font-size:0.75em; font-weight:bold; white-space: nowrap;">ROGE & LALO</p>
+                        <h1 style="margin:0; font-size:3.5rem; line-height:1.1; color:{COLOR_B if marcador_b > 0 else '#333'};">{marcador_b:g}</h1>
+                    </div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
