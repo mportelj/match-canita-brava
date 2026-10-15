@@ -542,13 +542,24 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     df_p = pd.DataFrame()
     df_partido_actual = pd.DataFrame()
 
-    # --- FUNCIÓN AUXILIAR DE GUARDADO ---
-    def ejecutar_guardado_automatico(hoyo_num, s0_v, s1_v, s2_v, s3_v, p0_v, p1_v, p2_v, p3_v):
+    # --- FUNCIÓN AUXILIAR DE GUARDADO (DIRECTA DESDE SESSION_STATE) ---
+    def ejecutar_guardado_automatico(hoyo_num):
         try:
             g_actual = st.session_state.game
             id_p = g_actual['id']
             f_p = g_actual['fecha']
             t_p = g_actual['temporada']
+            
+            # Leemos los valores directamente de st.session_state para garantizar que sean los actuales
+            s0_v = int(st.session_state.get(f"s0_h{hoyo_num}", 4))
+            s1_v = int(st.session_state.get(f"s1_h{hoyo_num}", 4))
+            s2_v = int(st.session_state.get(f"s2_h{hoyo_num}", 4))
+            s3_v = int(st.session_state.get(f"s3_h{hoyo_num}", 4))
+            
+            p0_v = int(st.session_state.get(f"p0_h{hoyo_num}", 2))
+            p1_v = int(st.session_state.get(f"p1_h{hoyo_num}", 2))
+            p2_v = int(st.session_state.get(f"p2_h{hoyo_num}", 2))
+            p3_v = int(st.session_state.get(f"p3_h{hoyo_num}", 2))
             
             # Cálculo de resultado del hoyo (Match Play)
             neto_a = min(s0_v, s1_v)
@@ -579,8 +590,8 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 'fecha': f_p,
                 'temporada': t_p,
                 'hoyo': int(hoyo_num),
-                's0': int(s0_v), 's1': int(s1_v), 's2': int(s2_v), 's3': int(s3_v),
-                'p0': int(p0_v), 'p1': int(p1_v), 'p2': int(p2_v), 'p3': int(p3_v),
+                's0': s0_v, 's1': s1_v, 's2': s2_v, 's3': s3_v,
+                'p0': p0_v, 'p1': p1_v, 'p2': p2_v, 'p3': p3_v,
                 'resultado_a': res_a,
                 'resultado_b': res_b,
                 'p1_pts': pts_p1, 'p2_pts': pts_p2, 'p3_pts': pts_p3, 'p4_pts': pts_p4
@@ -672,7 +683,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
 
-        # 3. SELECTOR DE HOYO INTELIGENTE (CON ESTADO EN EL DESPLEGABLE)
+        # 3. SELECTOR DE HOYO INTELIGENTE
         def format_hoyo(x):
             par_h = int(PAR_RIA_VIGO.get(int(x), 4))
             estado_str = "⏳ Pendiente"
@@ -684,7 +695,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     if ra > rb:
                         estado_str = f"🟢 M&J +{ra-rb}"
                     elif rb > ra:
-                        estado_str = f"🔴 R&L +{rb-ra}"
+                        estado_str = f"🔴 R&L +{rb-rb}"
                     else:
                         estado_str = "⚪ Empate AS"
             return f"Hoyo {x} (Par {par_h}) — {estado_str}"
@@ -785,8 +796,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         """, unsafe_allow_html=True)
         
         jugadores = ["MANU", "JOSE", "ROGE", "LALO"]
-        inputs_s = []
-        inputs_p = []
         
         for i in range(4):
             nombre = jugadores[i]
@@ -799,24 +808,30 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             
             with c2:
                 st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
-                val_s = st.number_input(f"G{i}", min_value=1, on_change=activar_boton_guardar, key=f"s{i}_h{h_actual}", label_visibility="collapsed")
+                st.number_input(f"G{i}", min_value=1, on_change=activar_boton_guardar, key=f"s{i}_h{h_actual}", label_visibility="collapsed")
                 st.markdown('</div>', unsafe_allow_html=True)
-                inputs_s.append(val_s)
                 
             with c3:
                 st.markdown(f'<div class="{cfg["clase"]}">', unsafe_allow_html=True)
-                val_p = st.number_input(f"P{i}", min_value=0, on_change=activar_boton_guardar, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
+                st.number_input(f"P{i}", min_value=0, on_change=activar_boton_guardar, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
                 st.markdown('</div>', unsafe_allow_html=True)
-                inputs_p.append(val_p)
 
-        s0, s1, s2, s3 = inputs_s
-        p0, p1, p2, p3 = inputs_p
-
-        # 8. VENTANA MODAL DE CONFIRMACIÓN (DIÁLOGO LIMPIO QUE SE CIERRA AUTOMÁTICAMENTE)
+        # 8. VENTANA MODAL DE CONFIRMACIÓN (CON PUTTS RESALTADOS EN COLOR)
         @st.dialog(f"📋 Confirmar Hoyo {h_actual}")
-        def mostrar_dialogo_confirmacion(h_num, s0_v, s1_v, s2_v, s3_v, p0_v, p1_v, p2_v, p3_v):
+        def mostrar_dialogo_confirmacion(h_num):
             st.markdown("<p style='margin-top: 0; font-size: 0.9rem; color: #6b7280;'>Ordenado de menor a mayor golpes:</p>", unsafe_allow_html=True)
             
+            # Recogemos los valores actuales desde session_state
+            s0_v = int(st.session_state.get(f"s0_h{h_num}", 4))
+            s1_v = int(st.session_state.get(f"s1_h{h_num}", 4))
+            s2_v = int(st.session_state.get(f"s2_h{h_num}", 4))
+            s3_v = int(st.session_state.get(f"s3_h{h_num}", 4))
+            
+            p0_v = int(st.session_state.get(f"p0_h{h_num}", 2))
+            p1_v = int(st.session_state.get(f"p1_h{h_num}", 2))
+            p2_v = int(st.session_state.get(f"p2_h{h_num}", 2))
+            p3_v = int(st.session_state.get(f"p3_h{h_num}", 2))
+
             datos_confirmar = [
                 ("MANU", s0_v, p0_v, config_jugadores["MANU"]["color"]),
                 ("JOSE", s1_v, p1_v, config_jugadores["JOSE"]["color"]),
@@ -829,7 +844,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.markdown(f"""
                     <div style="display: flex; justify-content: space-between; align-items: center; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 12px; margin-bottom: 6px;">
                         <span style="font-weight: 600; font-size: 0.95rem; color: {color_j};">{idx}. {nom}</span>
-                        <span style="font-size: 0.9rem; color: #374151;"><b>{golpes}</b> golpes <span style="color: #9ca3af;">({putts}p)</span></span>
+                        <span style="font-size: 0.9rem; color: #374151;"><b>{golpes}</b> golpes — <span style="color: {color_j}; font-weight: bold;">{putts} putts</span></span>
                     </div>
                 """, unsafe_allow_html=True)
             
@@ -838,7 +853,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             col_d1, col_d2 = st.columns(2)
             with col_d1:
                 if st.button("✅ GUARDAR", type="primary", use_container_width=True):
-                    ejecutar_guardado_automatico(h_num, s0_v, s1_v, s2_v, s3_v, p0_v, p1_v, p2_v, p3_v)
+                    ejecutar_guardado_automatico(h_num)
                     st.session_state.hoyo_modificado = False
                     if h_num < 18:
                         st.session_state.game['h_sel'] = h_num + 1
@@ -850,7 +865,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.rerun()
 
         if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True):
-            mostrar_dialogo_confirmacion(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
+            mostrar_dialogo_confirmacion(h_actual)
 
         # 9. SECCIÓN MVP
         st.write("---")
