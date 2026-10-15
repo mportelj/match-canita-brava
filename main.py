@@ -804,9 +804,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         icono_siguiente = obtener_icono_estado(hoyo_siguiente)
 
         col_nav_1, col_nav_2 = st.columns(2)
-        
-        texto_btn_anterior = f"⬅️ Hoyo {hoyo_anterior}    {icono_anterior}" if h_actual > 1 else "⬅️ ANTERIOR"
-        texto_btn_siguiente = f"Hoyo {hoyo_siguiente}    {icono_siguiente} ➡️" if h_actual < 18 else "SIGUIENTE ➡️"
+        espacios = "\u00A0\u00A0\u00A0"
+        texto_btn_anterior = f"⬅️ {espacios} Hoyo {hoyo_anterior} {espacios} {icono_anterior}" if h_actual > 1 else "⬅️ ANTERIOR"
+        texto_btn_siguiente = f"Hoyo {hoyo_siguiente} {espacios} {icono_siguiente} {espacios}➡️" if h_actual < 18 else "SIGUIENTE ➡️"
 
         if col_nav_1.button(texto_btn_anterior, use_container_width=True, disabled=(h_actual == 1)):
             st.session_state.game['h_sel'] = hoyo_anterior
