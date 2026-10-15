@@ -745,9 +745,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             
             for idx, (nom, golpes, putts, color_j) in enumerate(datos_ordenados, 1):
                 st.markdown(f"""
-                    <div style="display: flex; justify-content: space-between; align-items: center; background: #ffffff; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 12px; margin-bottom: 6px;">
-                        <span style="font-weight: bold; font-size: 1rem; color: {color_j};">{idx}. {nom}</span>
-                        <span style="font-size: 0.95rem; color: #374151;"><b>{golpes}</b> golpes — <span style="color: {color_j}; font-weight: bold;">{putts} putts</span></span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: #ffffff; border: 2px solid {color_j}; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; box-shadow: 1px 1px 4px rgba(0,0,0,0.05);">
+                        <span style="font-weight: bold; font-size: 1.1rem; color: {color_j};">{idx}. {nom}</span>
+                        <span style="font-size: 1rem; color: {color_j}; font-weight: bold;">{golpes} golpes &nbsp;|&nbsp; {putts} putts</span>
                     </div>
                 """, unsafe_allow_html=True)
             
