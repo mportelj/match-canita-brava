@@ -571,7 +571,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         # Reducción de márgenes superiores para visualización móvil
         st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
 
-        # 1. CARGA Y FILTRADO DE DATOS
+        # 1. CARGA Y FILTRADO ULTRA-SEGURO DE DATOS
         try:
             df_p = leer_datos() 
             if df_p is not None and not df_p.empty:
@@ -598,11 +598,11 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
         # 3. SELECTOR DE HOYO COMPACTO
         h_actual = st.selectbox(
-            "Hoyo", 
+            "Ir al Hoyo:", 
             options=list(range(1, 19)), 
             index=int(st.session_state.game['h_sel']) - 1,
-            key=f"sb_hoyo_{st.session_state.refresco_id}",
-            label_visibility="collapsed"
+            format_func=lambda x: f"⛳ Hoyo {x}",
+            key=f"sb_hoyo_{st.session_state.refresco_id}"
         )
         st.session_state.game['h_sel'] = h_actual
         st.query_params["hoyo"] = h_actual
@@ -775,13 +775,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         st.write("---")
         st.markdown(f"<p style='text-align: center; color: gray; font-size: 0.9em;'>📅 Fecha del partido: <b>{g.get('fecha', 'S/F')}</b></p>", unsafe_allow_html=True)
         
-        with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
-            st.warning("⚠️ Esta acción cerrará la sesión actual.")
-            if st.button("Confirmar y Salir", type="primary", use_container_width=True):
-                st.session_state.game = None
-                st.query_params.clear()
-                st.cache_data.clear()
-                st.rerun()
+        with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=
 
 #ESTADISTICAS ==============
 
