@@ -570,6 +570,11 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             pts_p1 = calc_pts(s0_v, par_h)
             pts_p2 = calc_pts(s1_v, par_h)
+            pts_p3 = calc_pts(s3_v, par_h) if 's3_v' in locals() else calc_pts(s3_v, par_h)
+            pts_p4 = calc_pts(s3_v, par_h) # Se usa s3_v
+
+            pts_p1 = calc_pts(s0_v, par_h)
+            pts_p2 = calc_pts(s1_v, par_h)
             pts_p3 = calc_pts(s2_v, par_h)
             pts_p4 = calc_pts(s3_v, par_h)
 
@@ -812,7 +817,8 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         s0, s1, s2, s3 = inputs_s
         p0, p1, p2, p3 = inputs_p
 
-        # 8. POPOVER DE GUARDADO CON DISEÑO MODERNO Y BOTÓN DE CANCELAR
+        # 8. POPOVER DE GUARDADO CON CONTROL DE CIERRE AUTOMÁTICO
+        popover_key = f"popover_guardar_h{h_actual}_{st.session_state.refresco_id}"
         with st.popover("💾 GUARDAR RESULTADO HOYO", use_container_width=True):
             st.markdown(f"""
                 <div style="text-align: center; margin-bottom: 12px;">
@@ -839,7 +845,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             
             st.write("")
             
-            # Botones de confirmación y cancelación dentro del popover
             col_pop_1, col_pop_2 = st.columns(2)
             with col_pop_1:
                 if st.button("✅ GUARDAR", type="primary", use_container_width=True, key=f"btn_pop_si_{h_actual}"):
@@ -852,6 +857,8 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.rerun()
             with col_pop_2:
                 if st.button("❌ CERRAR", use_container_width=True, key=f"btn_pop_no_{h_actual}"):
+                    # Incrementamos refresco_id para invalidar la clave del popover y forzar su cierre
+                    st.session_state.refresco_id += 1
                     st.rerun()
 
         # 9. SECCIÓN MVP
