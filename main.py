@@ -692,18 +692,18 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
 
-        # 3. SELECTOR DE HOYO INTELIGENTE (CSS REFORZADO PARA TEXTO SELECCIONADO)
+        # 3. SELECTOR DE HOYO INTELIGENTE (CSS CORREGIDO Y SEGURO)
         st.markdown("""
             <style>
-                /* Forzar tamaño y negrita en la caja principal del selectbox */
-                div[data-testid="stSelectbox"] div[data-baseweb="select"] {
-                    font-size: 1.15rem !important;
-                    font-weight: bold !important;
+                /* Restauramos y protegemos el contenedor principal y su etiqueta */
+                div[data-testid="stSelectbox"] {
+                    margin-bottom: 10px !important;
                 }
-                /* Asegurar que el texto interno también herede el estilo */
-                div[data-testid="stSelectbox"] div[data-baseweb="select"] span {
+                /* Forzamos tamaño y negrita EXCLUSIVAMENTE en el texto de la caja en reposo */
+                div[data-testid="stSelectbox"] [data-baseweb="select"] span {
                     font-size: 1.15rem !important;
                     font-weight: bold !important;
+                    color: #111827 !important;
                 }
             </style>
         """, unsafe_allow_html=True)
