@@ -3,6 +3,8 @@ import pandas as pd
 from google.oauth2.service_account import Credentials
 import gspread
 from datetime import datetime
+import streamlit as st
+
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="CAÑITA BRAVA", page_icon="⛳", layout="centered")
@@ -761,18 +763,26 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     st.query_params["hoyo"] = st.session_state.game['h_sel']
                     st.session_state.refresco_id += 1
                 st.rerun()
+            
             st.write("---")
+            
+            # Calculamos los hoyos adyacentes
+            hoyo_anterior = max(1, h_actual - 1)
+            hoyo_siguiente = min(18, h_actual + 1)
+            
             col_nav_1, col_nav_2 = st.columns(2)
-            if col_nav_1.button("⬅️ ANTERIOR", use_container_width=True):
-                st.session_state.game['h_sel'] = max(1, int(st.session_state.game['h_sel']) - 1)
-                st.query_params["hoyo"] = st.session_state.game['h_sel']
+            
+            if col_nav_1.button(f"⬅️ ANTERIOR (Hoyo {hoyo_anterior})" if h_actual > 1 else "⬅️ ANTERIOR", use_container_width=True, disabled=(h_actual == 1)):
+                st.session_state.game['h_sel'] = hoyo_anterior
+                st.query_params["hoyo"] = hoyo_anterior
                 st.session_state.refresco_id += 1
                 st.rerun()
-            if col_nav_2.button("SIGUIENTE ➡️", use_container_width=True):
-                st.session_state.game['h_sel'] = min(18, int(st.session_state.game['h_sel']) + 1)
-                st.query_params["hoyo"] = st.session_state.game['h_sel']
+            
+            if col_nav_2.button(f"SIGUIENTE (Hoyo {hoyo_siguiente}) ➡️" if h_actual < 18 else "SIGUIENTE ➡️", use_container_width=True, disabled=(h_actual == 18)):
+                st.session_state.game['h_sel'] = hoyo_siguiente
+                st.query_params["hoyo"] = hoyo_siguiente
                 st.session_state.refresco_id += 1
-                st.rerun()      
+                st.rerun()
 
             # 4. RENDERIZADO DEL MARCADOR VISUAL (HTML)
             st.markdown(f"""
