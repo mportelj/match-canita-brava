@@ -3,7 +3,6 @@ import pandas as pd
 from google.oauth2.service_account import Credentials
 import gspread
 from datetime import datetime
-import streamlit as st
 
 
 # --- CONFIGURACIÓN DE PÁGINA ---
@@ -29,13 +28,11 @@ def cargar_datos_golf():
     client = gspread.authorize(creds)
     return client.open_by_url(s["url"]).sheet1
 
-# --- 3. INICIALIZACIÓN DE ESTADOS ---
+# --- 3. INICIALIZACIÓN DE ESTADOS Y RESURRECCIÓN ---
 
-# 1. Variables base del sistema (que requieren lógica o carga previa)
 if 'sh' not in st.session_state:
     st.session_state.sh = cargar_datos_golf()
 
-# 2. Inicializamos todos los estados por defecto de una sola vez
 default_states = {
     'refresco_id': 0,
     'hoyo_modificado': False,
@@ -47,8 +44,7 @@ for key, value in default_states.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
-# 3. 🚀 MOTOR DE RESURRECCIÓN TRAS BLOQUEO
-# Esta parte es correcta y necesaria, ya que sobrescribe los valores si venimos de una URL
+# 🚀 MOTOR ÚNICO DE RESURRECCIÓN (Lee de la URL si se cerró la app sin finalizar)
 if "partida_id" in st.query_params:
     st.session_state.menu_seleccionado = "Nueva Partida"
     st.session_state.nav_radio = "Nueva Partida"
@@ -68,7 +64,6 @@ def borrar_partido_completo(partido_id):
         hoja = st.session_state.sh
         id_p_buscar = str(partido_id).split('.')[0].strip()
         
-        # 1. Leemos todas las filas actuales
         filas = hoja.get_all_values()
         if not filas:
             return False
@@ -76,17 +71,13 @@ def borrar_partido_completo(partido_id):
         header = filas[0]
         datos_originales = filas[1:]
         
-        # 2. Filtramos dejando fuera las filas del partido que queremos borrar
         nuevos_datos = []
         for fila in datos_originales:
             if len(fila) > 1:
                 id_fila = str(fila[1]).split('.')[0].strip()
                 if id_fila == id_p_buscar:
-                    continue # Nos saltamos las filas de este partido (borrado)
+                    continue
             
-            # --- 🔥 FORMATEO DE TIPOS ELEMENTO POR ELEMENTO ---
-            # Para evitar que Google Sheets lo guarde todo como texto plano,
-            # convertimos cada columna a su tipo correcto basándonos en tu estructura de la hoja:
             fila_tipada = []
             for idx, valor in enumerate(fila):
                 val_str = str(valor).strip()
@@ -95,30 +86,19 @@ def borrar_partido_completo(partido_id):
                     continue
                 
                 try:
-                    # Columnas de ID, hoyo, temporada, resultados, golpes (s0-s3) y hoyo_real deben ser enteros (INT)
-                    # Índices: 1 (id_partido), 2 (hoyo), 4 (temporada), 5 (res_a), 6 (res_b), 11, 12, 13, 14 (golpes), 15 (hoyo_real)
                     if idx in [1, 2, 4, 5, 6, 11, 12, 13, 14, 15]:
-                        fila_tipada.append(int(float(val_str))) # Pasamos por float primero por si viene con un .0
-                    
-                    # Columnas de puntos MVP (p1_pts a p4_pts) deben ser números decimales (FLOAT)
-                    # Índices: 7, 8, 9, 10
+                        fila_tipada.append(int(float(val_str)))
                     elif idx in [7, 8, 9, 10]:
                         fila_tipada.append(float(val_str.replace(',', '.')))
-                    
-                    # El resto de columnas (0: ID_Hoyo compuesto, 3: Fecha texto) se quedan como texto plano
                     else:
                         fila_tipada.append(val_str)
                 except ValueError:
-                    # Si falla cualquier conversión por un caso extraño, dejamos el string original
                     fila_tipada.append(val_str)
                     
             nuevos_datos.append(fila_tipada)
             
-        # 3. Limpiamos y reescribimos la hoja con la opción USER_ENTERED para que respete los tipos numéricos
         hoja.clear()
         hoja.update('A1', [header] + nuevos_datos, value_input_option='USER_ENTERED')
-        
-        # Limpiamos caché de Streamlit para que los cambios se vean en el acto
         st.cache_data.clear()
         return True
     except Exception as e:
@@ -128,43 +108,33 @@ def borrar_partido_completo(partido_id):
 # --- CONFIGURACIÓN DE NAVEGACIÓN ---
 
 def cb_editar_partido(p_id, fecha, temporada):
-    # Esto prepara los datos de la partida
     st.session_state.game = {
         "id": str(p_id),
         "fecha": fecha,
         "temporada": str(temporada),
         "h_sel": 1
     }
-    # Esto cambia el menú lateral automáticamente
     st.session_state.nav_radio = "Nueva Partida"
     st.session_state.menu_seleccionado = "Nueva Partida"
 
-# 🎯 CORRECCIÓN 1: Inicializamos la variable principal ANTES de dibujar el menú
 if 'menu_seleccionado' not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-# --- 2. EL SIDEBAR (MENÚ LATERAL) ---
+# --- EL SIDEBAR (MENÚ LATERAL) ---
 with st.sidebar:
     st.markdown("# ⛳ Cañita Brava")
     st.write("---")
     
     opciones_menu = ["Inicio", "Nueva Partida", "Admin", "Estadísticas"]
-    # menu_seleccionado = st.radio("Navegación:", opciones_menu)
-    # es_vista_movil = False
-    # if menu_seleccionado == "Estadísticas":
-    #     es_vista_movil = st.checkbox("📱 Vista reducida (Ocultar Scratch)", False)
     
-    # 🎯 LA SOLUCIÓN SEGURO: Calculamos el índice real antes de dibujar el radio
     try:
         idx_actual = opciones_menu.index(st.session_state.menu_seleccionado)
     except ValueError:
         idx_actual = 0
 
-    # Función limpia para actualizar el estado al hacer clic manual
     def cambiar_menu():
         st.session_state.menu_seleccionado = st.session_state.get('nav_radio', 'Inicio')
 
-    # El radio utiliza su index dinámico y se sincroniza a la perfección
     st.radio(
         "Navegación",
         opciones_menu,
@@ -172,13 +142,12 @@ with st.sidebar:
         key="nav_radio",
         on_change=cambiar_menu
     )
-# Calculamos el índice basándonos en el texto guardado (mantenido por si lo usas en el resto del código)
+
 try:
     idx_actual = opciones_menu.index(st.session_state.menu_seleccionado)
 except ValueError:
     idx_actual = 0
 
-# --- FUNCIÓN PARA CAMBIO DE PÁGINA ---
 def cambiar_pagina():
     if "selector_menu" in st.session_state:
         st.session_state.menu_seleccionado = st.session_state.selector_menu
@@ -199,10 +168,6 @@ def leer_datos():
         df_raw = pd.DataFrame(datos[1:], columns=datos[0])
         
         if not df_raw.empty:
-            # --- LIMPIEZA Y CONVERSIÓN DE TIPOS ESTRICTA ---
-            
-            # 1. Puntos MVP: Deben ser decimales (float)
-            # Reemplazamos coma por punto, quitamos espacios y forzamos número
             cols_mvp = ['p1_pts', 'p2_pts', 'p3_pts', 'p4_pts']
             for col in cols_mvp:
                 if col in df_raw.columns:
@@ -211,7 +176,6 @@ def leer_datos():
                         errors='coerce'
                     ).fillna(0.0)
 
-            # 2. Resultados y Golpes: Deben ser enteros (int)
             cols_int = [
                 'resultado_a', 'resultado_b', 
                 's0', 's1', 's2', 's3',
@@ -220,13 +184,11 @@ def leer_datos():
             ]
             for col in cols_int:
                 if col in df_raw.columns:
-                    # Primero a numérico por si hay texto, luego a entero
                     df_raw[col] = pd.to_numeric(
                         df_raw[col].astype(str).str.replace(',', '.').str.strip(), 
                         errors='coerce'
                     ).fillna(0).astype(int)
             
-            # 3. Fecha: Aseguramos que sea string limpio
             if 'fecha' in df_raw.columns:
                 df_raw['fecha'] = df_raw['fecha'].astype(str).str.strip()
 
@@ -236,7 +198,6 @@ def leer_datos():
         st.error(f"Error al leer la base de datos: {e}")
         return pd.DataFrame()
 
-# --- 1. CONFIGURACIÓN CORREGIDA DEL CAMPO ---
 PAR_RIA_VIGO = {
     1: 4, 2: 5, 3: 3, 4: 4, 5: 4, 6: 5, 7: 3, 8: 4, 9: 4,
     10: 4, 11: 3, 12: 4, 13: 3, 14: 5, 15: 4, 16: 5, 17: 4, 18: 4
@@ -248,25 +209,21 @@ COLOR_A, COLOR_B = "#2e7d32", "#c62828"
 COL_NECESARIAS = ['id', 'partido_id', 'hoyo', 'fecha', 'temporada', 'resultado_a', 'resultado_b', 'p1_pts', 'p2_pts', 'p3_pts', 'p4_pts', 's0', 's1', 's2', 's3']
 
 def calcular_puntos_hoyo(s0, s2, s1, s3, par):
-    # s0/s2: Equipo A | s1/s3: Equipo B
     e1 = [s0, s2]
     e2 = [s1, s3]
     pts_e1, pts_e2 = 0, 0
     
-    # --- A) PUNTOS POR HOYO (MATCH PLAY) ---
     if min(e1) < min(e2): pts_e1 += 1
     elif min(e2) < min(e1): pts_e2 += 1
     
-    # Punto por Peor Bola (opcional, si vuestras reglas lo usan)
     if max(e1) < max(e2): pts_e1 += 1
     elif max(e2) < max(e1): pts_e2 += 1
     
-    # --- B) BONUS DE CALIDAD (ALBATROS, EAGLE, BIRDIE) ---
     def get_bonus(golpes, p):
         dif = golpes - p
-        if dif <= -3: return 3 # Albatros
-        if dif == -2: return 2 # Eagle
-        if dif == -1: return 1 # Birdie
+        if dif <= -3: return 3
+        if dif == -2: return 2
+        if dif == -1: return 1
         return 0
 
     pts_e1 += sum([get_bonus(g, par) for g in e1])
@@ -277,166 +234,18 @@ def calcular_puntos_hoyo(s0, s2, s1, s3, par):
 if "menu_seleccionado" not in st.session_state:
     st.session_state.menu_seleccionado = "Inicio"
 
-
-def actualizar_o_insertar_hoyo(datos):
-    """
-    datos: [fecha, hoyo, s0, s1, s2, s3]
-    """
-    # 1. Leemos los datos actuales
-    df = leer_datos()
-    
-    fecha_nueva = str(datos[0])
-    hoyo_nuevo = int(datos[1])
-    
-    # Creamos un nuevo DataFrame con la fila que queremos guardar
-    nueva_fila = pd.DataFrame([datos], columns=['fecha', 'hoyo', 's0', 's1', 's2', 's3'])
-
-    if not df.empty:
-        # 2. Buscamos si ya existe el hoyo para esa fecha
-        # Aseguramos tipos para comparar bien
-        df['hoyo'] = pd.to_numeric(df['hoyo'], errors='coerce')
-        mask = (df['fecha'].astype(str) == fecha_nueva) & (df['hoyo'] == hoyo_nuevo)
-        
-        if mask.any():
-            # EDITAR: Si existe, actualizamos esa fila
-            df.loc[mask, ['s0', 's1', 's2', 's3']] = datos[2:]
-        else:
-            # AÑADIR: Si no existe, concatenamos la nueva fila
-            df = pd.concat([df, nueva_fila], ignore_index=True)
-    else:
-        # Si el Excel está vacío, el nuevo DF es simplemente la nueva fila
-        df = nueva_fila
-
-    # 3. Subimos todo el DataFrame actualizado a Google Sheets
-    # Usamos clear=True para que no duplique datos si el rango cambia
-    conn.update(spreadsheet=st.secrets["gsheets"]["url"], data=df)
-    
-    # Limpiamos caché para que la app lea los datos nuevos inmediatamente
-    st.cache_data.clear()
-
-# --- 2. FUNCIONES DE DATOS ---
-
-# 🔥 BONUS: +1 por Birdie, +2 por Eagle, +3 por Albatros
 def calcular_bonus_hoyo(golpes_jugador, par):
-    if golpes_jugador <= 0:  # Por si hay algún valor vacío o cero
+    if golpes_jugador <= 0:
         return 0
             
     diferencia = par - golpes_jugador
-    if diferencia == 1:    # Birdie
+    if diferencia == 1:
         return 1
-    elif diferencia == 2:  # Eagle
+    elif diferencia == 2:
         return 2
-    elif diferencia >= 3:  # Albatros o mejor
+    elif diferencia >= 3:
         return 3
     return 0
-
-        
-
-def ejecutar_guardado_automatico(hoyo_id, g0, g1, g2, g3, p0, p1, p2, p3):
-    try:
-        hoja = st.session_state.sh
-        g = st.session_state.game
-        
-        hoyo_cronologico = int(hoyo_id)
-        if g.get('modo_9_hoyos', False):
-            vuelta_base = 1 if g.get('vuelta_repetida') == "1ª Vuelta (Hoyos 1-9)" else 10
-            hoyo_real_campo = ((hoyo_cronologico - 1) % 9) + vuelta_base
-        else:
-            hoyo_real_campo = hoyo_cronologico
-
-        par_hoyo = int(PAR_RIA_VIGO[hoyo_real_campo])
-        golpes = [int(g0), int(g1), int(g2), int(g3)]
-        
-        # --- CÁLCULO MATCH PLAY ---
-        mejor_a = min(golpes[0], golpes[1]) # Manu, Jose
-        mejor_b = min(golpes[2], golpes[3]) # Roge, Lalo
-        peor_a = max(golpes[0], golpes[1])
-        peor_b = max(golpes[2], golpes[3])
-        
-        res_a, res_b = 0, 0
-        
-        # 1 Punto por Mejor Bola
-        if mejor_a < mejor_b:   res_a += 1
-        elif mejor_b < mejor_a: res_b += 1
-        
-        # 1 Punto por Peor Bola
-        if peor_a < peor_b:     res_a += 1
-        elif peor_b < peor_a:   res_b += 1
-        
-        # 🔥 BONUS: +1 punto por cada Birdie o mejor (menor o igual a Par - 1)
-        # Aplicamos el bonus acumulado a cada bando
-        res_a += calcular_bonus_hoyo(golpes[0], par_hoyo)
-        res_a += calcular_bonus_hoyo(golpes[1], par_hoyo)
-        res_b += calcular_bonus_hoyo(golpes[2], par_hoyo)
-        res_b += calcular_bonus_hoyo(golpes[3], par_hoyo)
-        
-        # --- CÁLCULO PUNTOS MVP ---
-        p_mvp = [0.0, 0.0, 0.0, 0.0]
-        for i in range(4):
-            puntos_victoria = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
-            puntos_par = 0.0
-            dif = golpes[i] - par_hoyo
-            if dif == 0:    puntos_par = 0.5
-            elif dif == -1: puntos_par = 1.5
-            elif dif == -2: puntos_par = 3.0
-            elif dif <= -3: puntos_par = 4.0
-            p_mvp[i] = float(puntos_victoria + puntos_par)
-
-        id_p = str(g['id']).split('.')[0]
-        fecha = pd.to_datetime(g['fecha'], dayfirst=True).strftime('%d/%m/%Y')
-        
-        nueva_fila = [
-            f"{id_p}_H{hoyo_cronologico}", int(id_p), int(hoyo_cronologico), fecha, 
-            int(g.get('temporada', 2026)), int(res_a), int(res_b), 
-            p_mvp[0], p_mvp[1], p_mvp[2], p_mvp[3], 
-            golpes[0], golpes[1], golpes[2], golpes[3],
-            int(p0), int(p1), int(p2), int(p3),
-            int(hoyo_real_campo)
-        ]
-
-        filas = hoja.get_all_values()
-        header = filas[0]
-        
-        if 'hoyo_real' not in header:
-            header.append('hoyo_real')
-
-        datos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_p and str(f[2]) == str(hoyo_cronologico))]
-        
-        for f in datos:
-            if len(f) < len(header):
-                f.append(f[2])
-
-        datos.append(nueva_fila)
-        
-        hoja.clear()
-        hoja.update('A1', [header] + datos, value_input_option='USER_ENTERED')
-        st.cache_data.clear()
-        st.success(f"Guardado Hoyo {hoyo_cronologico} (Match: {res_a} vs {res_b})")
-    except Exception as e:
-        st.error(f"Error al guardar: {e}")
-        
-# --- CÁLCULO DEL MARCADOR ACUMULADO DE LA TEMPORADA ---
-
-def calcular_marcador_acumulado(df):
-    if df.empty:
-        return 0.0, 0.0
-    
-    # 1. Sumamos los puntos ganados en el campo (de todos los partidos)
-    # Aseguramos que sean numéricos por si hay textos en el Excel
-    pts_a_campo = pd.to_numeric(df['resultado_a'], errors='coerce').sum()
-    pts_b_campo = pd.to_numeric(df['resultado_b'], errors='coerce').sum()
-    
-    # 2. REGLA ESPECIAL TEMPORADA 2026
-    # Verificamos si en los datos existe la temporada 2026
-    # Si el DataFrame tiene registros de 2026, aplicamos el bono
-    tiene_2026 = (df['temporada'].astype(str) == "2026").any()
-    
-    bono = 3.5 if tiene_2026 else 0.0
-    
-    total_a = pts_a_campo + bono
-    total_b = pts_b_campo + bono
-    
-    return total_a, total_b
 
 def borrar_hoyo_especifico(partido_id, hoyo_id):
     try:
@@ -445,10 +254,8 @@ def borrar_hoyo_especifico(partido_id, hoyo_id):
         header = filas[0]
         datos = filas[1:]
         
-        # Filtramos: guardamos todas las filas MENOS la del partido y hoyo específico
         nuevos_datos = []
         for f in datos:
-            # Comparamos partido_id y hoyo (asegurando tipos)
             if str(f[1]).split('.')[0].strip() == str(partido_id).split('.')[0].strip() and str(f[2]).strip() == str(hoyo_id).strip():
                 continue
             nuevos_datos.append(f)
@@ -464,20 +271,16 @@ def borrar_hoyo_especifico(partido_id, hoyo_id):
 
 # --- 4. PANTALLAS ---
 # ==========================================
-# SECCIÓN: INICIO (Marcador de Temporada)
+# SECCIÓN: INICIO
 # ==========================================
 if st.session_state.menu_seleccionado == "Inicio":
     st.title("⛳ CAÑITA BRAVA")
     df = leer_datos()
     if not df.empty:
-        # Aquí también saldrá en formato dd/mm/aaaa
         st.write(f"Último partido registrado: {df['fecha'].iloc[-1]}")
     
-    # Definimos la temporada actual
-    # Obtenemos el año actual automáticamente
     anio_actual = datetime.now().year
 
-# 2. Obtenemos las temporadas disponibles
     if not df.empty:
         temps = sorted(df['temporada'].unique().tolist(), reverse=True)
     else:
@@ -486,17 +289,14 @@ if st.session_state.menu_seleccionado == "Inicio":
     if str(anio_actual) not in [str(t) for t in temps]:
         temps.insert(0, str(anio_actual))
     
-    # 3. Selector de temporada (el valor se guarda en st.session_state.sel_temp)
     st.selectbox("Temporada:", temps, key="sel_temp")
     
-    # 4. Lógica de puntos acumulados
     pa_t, pb_t = (3.5, 3.5) if str(st.session_state.sel_temp) == "2026" else (0.0, 0.0)
         
     if not df.empty:
         df_t = df[df['temporada'].astype(str) == str(st.session_state.sel_temp)]
         
         if not df_t.empty:
-            # Agrupamos por partido_id (que ya limpiamos en leer_datos)
             partidos = df_t.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
             
             for _, r in partidos.iterrows():
@@ -505,10 +305,8 @@ if st.session_state.menu_seleccionado == "Inicio":
                 elif r['resultado_b'] > r['resultado_a']: 
                     pb_t += 1
                 else:
-                    # Empate en la jornada
                     pa_t += 0.5; pb_t += 0.5
             
-    # 5. Diseño de la tarjeta (CORREGIDO con st.session_state)
     st.markdown(f"""
         <div style="border: 2px solid #ccc; border-radius: 15px; padding: 20px; text-align: center; background: #f9f9f9; margin-top: 10px; box-shadow: 2px 2px 10px rgba(0,0,0,0.1);">
             <h3 style="margin: 0; color: #555; text-transform: uppercase; letter-spacing: 2px;">
@@ -527,12 +325,11 @@ if st.session_state.menu_seleccionado == "Inicio":
             </div>
         </div>
     """, unsafe_allow_html=True)
-   # Pon esto en tu pantalla de inicio justo donde se calculan los totales correctos:
-    st.session_state['marcador_acumulado_a'] = pa_t  # O la variable que uses para Manu/Jose
-    st.session_state['marcador_acumulado_b'] = pb_t  # O la variable que uses para Roge/Lalo
+    st.session_state['marcador_acumulado_a'] = pa_t
+    st.session_state['marcador_acumulado_b'] = pb_t
+
 # ==========================================
 elif st.session_state.menu_seleccionado == "Nueva Partida":
-    # --- BLOQUE 0: INICIALIZACIÓN DE ESTADO ---
     if 'refresco_id' not in st.session_state: 
         st.session_state.refresco_id = 0
     
@@ -545,7 +342,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     df_p = pd.DataFrame()
     df_partido_actual = pd.DataFrame()
 
-    # --- FUNCIÓN AUXILIAR DE GUARDADO ---
     def ejecutar_guardado_automatico(hoyo_num):
         try:
             hoja = st.session_state.sh
@@ -631,7 +427,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.error(f"Error al guardar los datos: {err}")
             return False
 
-    # --- BLOQUE A: CONFIGURACIÓN DE INICIO (PANTALLA DE BIENVENIDA) ---
     game_activo = st.session_state.get('game')
     if not game_activo or not isinstance(game_activo, dict) or 'id' not in game_activo:
         st.title("⛳ Nueva Partida")
@@ -654,12 +449,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             
             st.rerun()
     
-    # --- BLOQUE B: INTERFAZ DE JUEGO (PARTIDO EN CURSO) ---
     else:
         g = st.session_state.game
         st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
 
-        # 1. CARGA Y FILTRADO ROBUSTO DE DATOS
         try:
             df_p = leer_datos() 
             if df_p is not None and not df_p.empty:
@@ -681,7 +474,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         if 'h_sel' not in g:
             g['h_sel'] = 1
 
-        # 2. CÁLCULO DE MARCADOR GLOBAL (MATCH PLAY)
         puntos_equipo_a = 0
         puntos_equipo_b = 0
         if not df_partido_actual.empty:
@@ -690,7 +482,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
-        st.write("---------------------------")
 
         # 4. MARCADOR VISUAL GLOBAL (CORREGIDO Y VISIBLE)
         st.markdown(f"""
@@ -709,7 +500,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             </div>
         """, unsafe_allow_html=True)
 
-        # 6. BOTONES DE NAVEGACIÓN MÁS ESTRECHOS
         h_actual = int(g['h_sel'])
         hoyo_anterior = max(1, h_actual - 1)
         hoyo_siguiente = min(18, h_actual + 1)
@@ -733,7 +523,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         icono_anterior = obtener_icono_estado(hoyo_anterior)
         icono_siguiente = obtener_icono_estado(hoyo_siguiente)
 
-        # Reducimos la altura de los botones de navegación mediante CSS dedicado
         st.markdown("""
             <style>
                 div.stButton > button {
@@ -762,9 +551,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             st.session_state.refresco_id += 1
             st.rerun()
 
-        # (Se han eliminado las líneas st.write("---") que había antes del selector)
-
-        # 3. SELECTOR DE HOYO INTELIGENTE
         st.markdown("""
             <style>
                 div[data-baseweb="select"] > div:first-child {
@@ -810,7 +596,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         st.session_state.game['h_sel'] = h_actual
         st.query_params["hoyo"] = h_actual
 
-        # 5. OBTENCIÓN Y SINCRONIZACIÓN DE DATOS DEL HOYO ACTUAL (GOLPES Y PUTTS)
         try:
             val_par_hoyo = int(PAR_RIA_VIGO[int(h_actual)])
         except:
@@ -842,7 +627,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         def activar_boton_guardar():
             st.session_state.hoyo_modificado = True
 
-        # 7. CONFIGURACIÓN DE JUGADORES Y ESTILOS CSS
         config_jugadores = {
             "MANU": {"color": "#2E8B57", "clase": "borde-manu"},
             "JOSE": {"color": "#1E90FF", "clase": "borde-jose"},
@@ -886,7 +670,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.number_input(f"P{i}", min_value=0, on_change=activar_boton_guardar, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
                 st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- PANEL DE CONFIRMACIÓN INTEGRADO ---
         if st.session_state.confirmando_hoyo:
             st.markdown(f"""
                 <div style="border: 2px solid #2e7d32; border-radius: 12px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px;">
@@ -938,12 +721,10 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.rerun()
 
         else:
-            # 8. BOTÓN DE GUARDADO DEL HOYO
             if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True, key=f"btn_guardar_h{h_actual}"):
                 st.session_state.confirmando_hoyo = True
                 st.rerun()
 
-        # 9. SECCIÓN MVP
         st.write("---")
         if st.checkbox("📊 Ver Clasificación MVP"):
             if not df_partido_actual.empty:
@@ -969,7 +750,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     cols_r[idx].write(f"**{nom}**")
                     cols_r[idx].write(f"{pts:.1f}")
 
-        # 10. FECHA AL FINAL Y BOTÓN FINALIZAR PARTIDA
         st.write("---")
         st.markdown(f"<p style='text-align: center; color: gray; font-size: 0.9em;'>📅 Fecha del partido: <b>{g.get('fecha', 'S/F')}</b></p>", unsafe_allow_html=True)
         
@@ -981,8 +761,9 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.cache_data.clear()
                 st.rerun()
 
-#ESTADISTICAS ==============
-
+# ==========================================
+# SECCIÓN: ESTADÍSTICAS
+# ==========================================
 elif st.session_state.menu_seleccionado == "Estadísticas":
     st.title("📊 Estadísticas y Clasificación")
     
@@ -990,7 +771,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
     if df_raw.empty:
         st.warning("No hay datos para procesar.")
     else:
-        # --- 1. LIMPIEZA Y PREPARACIÓN DE DATOS ---
         def limpiar_valor(v):
             return str(v).split('.')[0].strip()
 
@@ -998,18 +778,13 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         df_raw['res_a'] = pd.to_numeric(df_raw['resultado_a'], errors='coerce').fillna(0)
         df_raw['res_b'] = pd.to_numeric(df_raw['resultado_b'], errors='coerce').fillna(0)
         
-        # Limpiar columnas MVP (p1_pts a p4_pts)
         for i in range(1, 5):
             c_pts = f'p{i}_pts'
             df_raw[c_pts] = pd.to_numeric(df_raw.get(c_pts, 0), errors='coerce').fillna(0)
 
-        # 🔥 CORRECCIÓN CRÍTICA: Forzamos que lea primero el día (dayfirst=True)
         df_raw['fecha_dt'] = pd.to_datetime(df_raw['fecha'], dayfirst=True, errors='coerce')
-        
-        # Reescribimos la columna 'fecha' en un formato de texto estandarizado DD/MM/YYYY para que no haya duplicados raros
         df_raw['fecha'] = df_raw['fecha_dt'].dt.strftime('%d/%m/%Y')
         
-        # Ahora extraemos las fechas únicas basándonos en el orden cronológico real de 'fecha_dt'
         df_raw_ordenado = df_raw.dropna(subset=['fecha_dt']).sort_values('fecha_dt', ascending=False)
         fechas_unicas = []
         for f in df_raw_ordenado['fecha']:
@@ -1018,7 +793,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 
         temporadas_unicas = sorted(df_raw['t_limpia'].unique().tolist(), reverse=True)
 
-        # Construimos el mapeo visual para el selectbox
         opciones_fecha = {}
         for f in fechas_unicas:
             num_hoyos = len(df_raw[df_raw['fecha'] == f])
@@ -1036,7 +810,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
         if ver_acumulado and str(seleccion_filtro) == '2026':
             st.caption("ℹ️ Putts, GIR y U&D calculados a partir del 08/07/2026")
 
-        # --- 2. FILTRADO ---
         if ver_acumulado:
             temp_actual = str(seleccion_filtro)
             df_stats = df_raw[df_raw['t_limpia'] == temp_actual].copy()
@@ -1045,7 +818,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             temp_actual = df_stats['t_limpia'].iloc[0] if not df_stats.empty else "2026"
 
         if not df_stats.empty:
-            # --- 3. MARCADOR DISCRETO ---
             h_a, h_b = df_stats['res_a'].sum(), df_stats['res_b'].sum()
             if ver_acumulado:
                 titulo_marcador = f"Temporada {temp_actual}"
@@ -1063,17 +835,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- 4. ESTADÍSTICAS JUGADORES ---
             lista_resultados = []
             
-            # Convertimos fecha una sola vez
             if 'fecha' in df_stats.columns:
                 df_stats['fecha_dt_parsed'] = pd.to_datetime(df_stats['fecha'], dayfirst=True, errors='coerce')
             
-            # Definimos la fecha de corte estricta para Putts, GIR y U&D en 2026
             fecha_corte_putts = pd.to_datetime('2026-07-08')
-            
-            # Definir la vista móvil
             es_vista_movil = st.sidebar.checkbox("📱 Vista reducida (Ocultar Scratch)", False)
 
             for i, jug in enumerate(TODOS):
@@ -1081,19 +848,15 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 col_p = f'p{i}'
                 col_mvp = f'p{i+1}_pts'
                 
-                # Aseguramos formato numérico
                 df_stats[col_s] = pd.to_numeric(df_stats[col_s], errors='coerce').fillna(0)
                 
-                # 1. FILTRADO MASTER (TODOS los hoyos de la selección para Scratch, PM, etc.)
                 d_p = df_stats[df_stats[col_s] > 0].copy()
 
                 if d_p.empty:
                     continue
 
-                # --- 2. CÁLCULO DE PUTTS, GIR y U&D (Con filtro de fecha para 2026) ---
                 d_p[col_p] = pd.to_numeric(d_p[col_p], errors='coerce')
                 
-                # Subconjunto específico para métricas basadas en putts
                 if temp_actual == '2026' or '2026' in str(seleccion_filtro):
                     d_p_putts = d_p[(d_p['fecha_dt_parsed'] >= fecha_corte_putts) & (d_p[col_p].notna())].copy()
                 else:
@@ -1102,7 +865,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 avg_putts = d_p_putts[col_p].mean() if not d_p_putts.empty else 0
                 hoyos_putts = len(d_p_putts)
                 
-                # Cálculo de GIR y U&D usando exclusivamente los hoyos con registro válido de putts
                 if not d_p_putts.empty:
                     d_p_putts['par_h'] = d_p_putts['hoyo'].map(PAR_RIA_VIGO)
                     d_p_putts['shots_a_green'] = d_p_putts[col_s] - pd.to_numeric(d_p_putts[col_p], errors='coerce')
@@ -1114,7 +876,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     gir_cnt = 0
                     ud_cnt = 0
                 
-                # --- 3. RESTO DE CÁLCULOS (Scratch y distribución de golpes usan todos los hoyos d_p) ---
                 d_p['par_h'] = d_p['hoyo'].map(PAR_RIA_VIGO)
                 d_p['dif'] = d_p[col_s] - d_p['par_h']
                 
@@ -1142,7 +903,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     "db": int((d_p['dif'] == 2).sum()), 
                     "tb": int((d_p['dif'] >= 3).sum()), 
                     "hoyos": len(d_p),
-                    "hoyos_putts": hoyos_putts,  # Denominador específico para GIR y U&D
+                    "hoyos_putts": hoyos_putts,
                     "partidos": partidos_jugados,
                     "gir_cnt": gir_cnt,      
                     "ud_cnt": ud_cnt
@@ -1151,7 +912,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
             lista_resultados = sorted(lista_resultados, key=lambda x: x['scr'], reverse=True)
 
             if lista_resultados:
-                # TABLA PRINCIPAL (PANTALLA)
                 stats_rows = []
                 for res in lista_resultados:
                     def f_pct(v, th):
@@ -1176,8 +936,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         "+/-": txt_pm,
                         "Scratch": txt_scr,
                         "Media Putts": f"{res['avg_putts']:.1f}",
-                        "GIR": f_pct(res['gir_cnt'], hp),       # Usamos hoyos_putts como base
-                        "U&D": f_pct(res['ud_cnt'], hp),       # Usamos hoyos_putts como base
+                        "GIR": f_pct(res['gir_cnt'], hp),
+                        "U&D": f_pct(res['ud_cnt'], hp),
                         "Eagle": f_pct(res['e'], h), "Birdie": f_pct(res['b'], h), 
                         "Par": f_pct(res['p'], h), "Bogey": f_pct(res['bog'], h), 
                         "D.Bogey": f_pct(res['db'], h), "3+ Bogey": f_pct(res['tb'], h)
@@ -1185,11 +945,9 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 
                 df_html_data = pd.DataFrame(stats_rows)
                 
-                # APLICAR LÓGICA DE RENOMBRAMIENTO
                 if ver_acumulado:
                     df_html_data = df_html_data.rename(columns={"+/-": "+/- Med (partido)", "Scratch": "Scratch Med (hoyo)"})
                 
-                # APLICAR LÓGICA DE VISTA MÓVIL (OCULTAR SCRATCH)
                 if es_vista_movil:
                     col_a_ocultar = "Scratch Med (hoyo)" if ver_acumulado else "Scratch"
                     if col_a_ocultar in df_html_data.columns:
@@ -1200,7 +958,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 df_html = df_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
                 st.write(df_html, unsafe_allow_html=True)
                 
-                # --- 5. CLASIFICACIÓN MVP ---
                 st.write("")
                 st.subheader("🏆 Clasificación MVP")
                 lista_mvp = sorted(lista_resultados, key=lambda x: float(x.get('pts_mvp', 0.0)), reverse=True)
@@ -1218,7 +975,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 df_mvp_html = df_mvp_html.replace('<th>', '<th style="text-align: center; background-color: #f8f9fa;">')
                 st.write(df_mvp_html, unsafe_allow_html=True)
 
-                # --- 6. WHATSAPP DETALLADO ---
                 import urllib.parse
                 
                 w_icon = "📂" if ver_acumulado else "📅"
@@ -1234,8 +990,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                         if año_txt=="2026":
                             total_a = 3.5
                             total_b = 3.5
-                        else:
-                            pass
                 
                     titulo_final_marcador = f"Match: Manu & Jose {total_a:g} Roge & Lalo {total_b:g}"
                     
@@ -1252,7 +1006,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     sub_final_marcador = sub_marcador
                     año_txt = str(temp_actual).strip()
                 
-                # Construcción del texto para WhatsApp
                 txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n"
                 txt_wa += f"{w_icon} *{tit_w}*\n"
                 txt_wa += f"🏆 *{titulo_final_marcador}*\n"
@@ -1286,8 +1039,8 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     
                     txt_wa += f"👤 *{res['Jugador'].upper()}*\n"
                     txt_wa += f"🏆 *{texto_pm}* ({texto_scratch})\n"
-                    txt_wa += f"🎯 *GIR:* {wf_base(res['gir_cnt'], hp)}\n"       # Usando hoyos_putts
-                    txt_wa += f"⬆️ *U&D:* {wf_base(res['ud_cnt'], hp)}\n"       # Usando hoyos_putts
+                    txt_wa += f"🎯 *GIR:* {wf_base(res['gir_cnt'], hp)}\n"
+                    txt_wa += f"⬆️ *U&D:* {wf_base(res['ud_cnt'], hp)}\n"
                     
                     s_l = ""
                     if not ver_acumulado:
@@ -1316,10 +1069,7 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     use_container_width=True
                 )
 
-                # --- 📊 NUEVA SECCIÓN DE GRÁFICOS ---
-                import pandas as pd
                 import plotly.express as px
-                import plotly.graph_objects as go
                 
                 st.markdown("---")
                 st.markdown("### 📈 Análisis Gráfico de Rendimiento")
@@ -1332,12 +1082,12 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     df_long = df_dist.melt(id_vars='Jugador', var_name='Resultado', value_name='Cantidad')
                     
                     colores_golf = {
-                        'Eagle': '#FFD700',    # Oro
-                        'Birdie': '#00BFFF',    # Azul claro
-                        'Par': '#28B463',        # Verde
-                        'Bogey': '#F39C12',     # Naranja
-                        'D.Bogey': '#E74C3C',   # Rojo
-                        '|+3 Bogey': '#7B241C'    # Rojo muy oscuro
+                        'Eagle': '#FFD700',
+                        'Birdie': '#00BFFF',
+                        'Par': '#28B463',
+                        'Bogey': '#F39C12',
+                        'D.Bogey': '#E74C3C',
+                        '|+3 Bogey': '#7B241C'
                     }
                     
                     fig1 = px.bar(
@@ -1352,7 +1102,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                     fig1.update_layout(yaxis_title=None, xaxis_title=None) 
                     st.plotly_chart(fig1, use_container_width=True)
                 
-                #PUTT
                 import altair as alt
                 st.markdown("---")
                 st.markdown("### 📊 Análisis de Putts")
@@ -1418,29 +1167,24 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 else:
                     st.warning("No hay datos de putts disponibles para esta selección (o no cumplen el requisito de fecha > 08/07/2026).")
 
+# ==========================================
 # SECCIÓN: ADMIN
 # ==========================================
-
 elif st.session_state.menu_seleccionado == "Admin":
     st.title("⚙️ Panel de Administración")
     
-    # 1. Cargamos datos actualizados
     df_admin = leer_datos()
     
     if df_admin.empty:
         st.info("No hay partidos registrados en la base de datos.")
     else:
-        # 2. Aseguramos la existencia de la columna id_clean para agrupar
         df_admin['id_clean'] = df_admin['partido_id'].astype(str).str.split('.').str[0]
         
-        # Obtenemos las temporadas disponibles para filtrar en Admin también
         temps_admin = sorted(df_admin['temporada'].unique().tolist(), reverse=True)
         sel_temp_admin = st.selectbox("Filtrar por temporada:", temps_admin, key="sb_admin_temp")
         
-        # Filtramos el DF por la temporada seleccionada en este menú
         df_filtrado = df_admin[df_admin['temporada'].astype(str) == str(sel_temp_admin)]
 
-        # Ahora agrupamos usando el DF filtrado
         partidos = df_filtrado.groupby('id_clean').agg({
             'fecha': 'first',
             'temporada': 'first',
@@ -1452,10 +1196,9 @@ elif st.session_state.menu_seleccionado == "Admin":
         st.subheader(f"Partidos Registrados ({len(partidos)})")
 
         for p_id, row in partidos.iterrows():
-            # Cálculos de marcador
             pts_a = float(row['resultado_a'])
             pts_b = float(row['resultado_b'])
-            num_hoyos = int(row['hoyo']) # Variable para el número de hoyos
+            num_hoyos = int(row['hoyo'])
             
             if pts_a > pts_b:
                 marcador = f"🏆 MANU/JOSE +{int(pts_a - pts_b)}"
@@ -1464,16 +1207,11 @@ elif st.session_state.menu_seleccionado == "Admin":
             else:
                 marcador = "🤝 Empate (AS)"
 
-            # 4. INTERFAZ: Título con Fecha, Resultado y Hoyos Jugados
-            # Ejemplo: 📅 10/05/2026 | 🏆 MANU/JOSE +2 (18 hoyos)
             titulo_expander = f"📅 {row['fecha']}  |  {marcador}  |  ({num_hoyos} hoyos)"
             
             with st.expander(titulo_expander):
-                
-                # Datos específicos de este partido para la tabla
                 df_partido = df_admin[df_admin['id_clean'] == p_id].sort_values('hoyo')
                 
-                # Fila de métricas resumen
                 m1, m2, m3, m4 = st.columns(4)
                 m1.metric("Hoyos", f"{num_hoyos}/18")
                 m2.metric("MANU & JOSE", int(pts_a))
@@ -1488,7 +1226,6 @@ elif st.session_state.menu_seleccionado == "Admin":
                 col_p4.metric("Lalo", int(row['p3']))
                 st.write("---")
                 
-                # Tabla detallada con nombres de jugadores
                 st.dataframe(
                     df_partido[['hoyo', 's0', 's1', 's2', 's3', 'p0', 'p1', 'p2', 'p3', 'resultado_a', 'resultado_b']],
                     column_config={
@@ -1502,10 +1239,8 @@ elif st.session_state.menu_seleccionado == "Admin":
                     use_container_width=True
                 )
 
-                # --- BOTONES DE GESTIÓN (Ajustados a 3 columnas) ---
                 col_ed, col_bor, col_bor_h = st.columns(3)
                 
-                # 1. BOTÓN EDITAR
                 if col_ed.button("📝 Seguir/Editar", key=f"ed_{p_id}", use_container_width=True):
                     st.session_state.game = {
                         "id": p_id,
@@ -1516,8 +1251,6 @@ elif st.session_state.menu_seleccionado == "Admin":
                     st.session_state.menu_seleccionado = "Nueva Partida"
                     st.rerun()
 
-                # 2. BOTÓN BORRAR JORNADA
-                key_popover = f"popover_del_{p_id}"
                 with col_bor:
                     with st.popover("🗑️ Borrar Día", use_container_width=True):
                         st.error("¿Seguro? Se eliminarán todos los registros de este día.")
@@ -1529,7 +1262,6 @@ elif st.session_state.menu_seleccionado == "Admin":
                             else:
                                 st.error("No se pudo eliminar.")
 
-                # 3. BOTÓN ELIMINAR HOYO (Integrado en la 3ª columna)
                 with col_bor_h:
                     with st.popover("🗑️ Borrar Hoyo", use_container_width=True):
                         hoyos_disponibles = sorted(df_partido['hoyo'].astype(int).tolist())
@@ -1538,16 +1270,5 @@ elif st.session_state.menu_seleccionado == "Admin":
                         if st.button(f"Confirmar Hoyo {hoyo_sel}", key=f"btn_del_h_{p_id}_{hoyo_sel}", type="primary", use_container_width=True):
                             if borrar_hoyo_especifico(p_id, hoyo_sel):
                                 st.success(f"Hoyo {hoyo_sel} eliminado.")
-                                st.cache_data.clear() # Limpiamos caché para refrescar la tabla
+                                st.cache_data.clear()
                                 st.rerun()
-
-
-                                
-
-
-                            
-
-
-                                
-
-
