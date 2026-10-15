@@ -814,7 +814,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                 st.number_input(f"P{i}", min_value=0, on_change=activar_boton_guardar, key=f"p{i}_h{h_actual}", label_visibility="collapsed")
                 st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- PANEL DE CONFIRMACIÓN INTEGRADO (LECTURA DIRECTA DE SESSION_STATE) ---
+        # --- PANEL DE CONFIRMACIÓN INTEGRADO ---
         if st.session_state.confirmando_hoyo:
             st.markdown(f"""
                 <div style="border: 2px solid #2e7d32; border-radius: 12px; padding: 15px; background-color: #f0f4f0; margin-bottom: 15px;">
@@ -902,7 +902,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         st.markdown(f"<p style='text-align: center; color: gray; font-size: 0.9em;'>📅 Fecha del partido: <b>{g.get('fecha', 'S/F')}</b></p>", unsafe_allow_html=True)
         
         with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
-            st.warning("⚠️ Esta acción cerrará la sesión actual.")
+            st.warning("⚠️ Эта acción cerrará la sesión actual.")
             if st.button("Confirmar y Salir", type="primary", use_container_width=True):
                 st.session_state.game = None
                 st.query_params.clear()
