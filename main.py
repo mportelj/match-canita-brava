@@ -660,7 +660,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
 
-        # 3. SELECTOR DE HOYO INTELIGENTE (CON ESTADO INTEGRADO)
+        # 3. SELECTOR DE HOYO INTELIGENTE (VISIBLE EN REPOSO Y AL DESPLEGAR)
         def format_hoyo(x):
             par_h = int(PAR_RIA_VIGO.get(int(x), 4))
             estado_str = "⏳ Pendiente"
@@ -670,20 +670,19 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
                     ra = int(df_h.iloc[0]['resultado_a'])
                     rb = int(df_h.iloc[0]['resultado_b'])
                     if ra > rb:
-                        estado_str = f"✅ M&J +{ra-rb}"
+                        estado_str = f"🟢 M&J +{ra-rb}"
                     elif rb > ra:
-                        estado_str = f"✅ R&L +{rb-ra}"
+                        estado_str = f"🔴 R&L +{rb-ra}"
                     else:
-                        estado_str = "✅ AS"
-            return f"Hoyo {x} (Par {par_h}) | {estado_str}"
+                        estado_str = "⚪ Empate AS"
+            return f"Hoyo {x} (Par {par_h}) — {estado_str}"
 
         h_actual = st.selectbox(
-            "Hoyo", 
+            "📍 Seleccionar Hoyo:", 
             options=list(range(1, 19)), 
             index=int(st.session_state.game['h_sel']) - 1,
             format_func=format_hoyo,
-            key=f"sb_hoyo_{st.session_state.refresco_id}",
-            label_visibility="collapsed"
+            key=f"sb_hoyo_{st.session_state.refresco_id}"
         )
         st.session_state.game['h_sel'] = h_actual
         st.query_params["hoyo"] = h_actual
