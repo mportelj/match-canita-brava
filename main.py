@@ -36,22 +36,19 @@ if 'sh' not in st.session_state:
 menu_inicial = "Inicio"
 game_detectado = None
 
+# Comprobamos si hay un partido con estado "activo" en Google Sheets
 try:
     hoja_temp = st.session_state.sh
     datos_temp = hoja_temp.get_all_values()
     if len(datos_temp) > 1:
         df_check = pd.DataFrame(datos_temp[1:], columns=datos_temp[0])
-        
-        # Verificamos si existe la columna 'estado' en la hoja
         if not df_check.empty and 'partido_id' in df_check.columns and 'estado' in df_check.columns:
-            # Filtramos estrictamente los partidos que estén marcados como "activo"
             df_activos = df_check[df_check['estado'].astype(str).str.lower() == 'activo']
             
             if not df_activos.empty:
                 ultimo_p_id = str(df_activos['partido_id'].iloc[-1]).split('.')[0].strip()
                 df_ultimo = df_activos[df_activos['partido_id'].astype(str).str.split('.').str[0] == ultimo_p_id]
                 
-                # Determinamos el siguiente hoyo a jugar (el siguiente al último registrado en este partido activo)
                 max_hoyo_jugado = int(df_ultimo['hoyo'].astype(int).max()) if 'hoyo' in df_ultimo.columns else 0
                 siguiente_hoyo = min(18, max_hoyo_jugado + 1)
                 
@@ -126,6 +123,38 @@ def borrar_partido_completo(partido_id):
     except Exception as e:
         st.error(f"Error interno al borrar: {e}")
         return False
+
+def marcar_partido_finalizado(partido_id):
+    try:
+        hoja = st.session_state.sh
+        id_p = str(partido_id).split('.')[0].strip()
+        filas = hoja.get_all_values()
+        if not filas:
+            return False
+        header = filas[0]
+        if 'estado' not in header:
+            header.append('estado')
+            
+        idx_estado = header.index('estado')
+        idx_partido = header.index('partido_id')
+        
+        nuevos_datos = []
+        for f in filas[1:]:
+            while len(f) < len(header):
+                f.append("activo")
+            
+            id_fila = str(f[idx_partido]).split('.')[0].strip()
+            if id_fila == id_p:
+                f[idx_estado] = "finalizado"
+            nuevos_datos.append(f)
+            
+        hoja.clear()
+        hoja.update('A1', [header] + nuevos_datos, value_input_option='USER_ENTERED')
+        st.cache_data.clear()
+        return True
+    except Exception as e:
+        st.error(f"Error al finalizar partido: {e}")
+        return False
         
 # --- CONFIGURACIÓN DE NAVEGACIÓN ---
 
@@ -163,38 +192,6 @@ with st.sidebar:
         st.session_state.menu_seleccionado = nuevo_menu
         st.rerun()
 
-def marcar_partido_finalizado(partido_id):
-    try:
-        hoja = st.session_state.sh
-        id_p = str(partido_id).split('.')[0].strip()
-        filas = hoja.get_all_values()
-        if not filas:
-            return False
-        header = filas[0]
-        if 'estado' not in header:
-            header.append('estado')
-            
-        idx_estado = header.index('estado')
-        idx_partido = header.index('partido_id')
-        
-        nuevos_datos = []
-        for f in filas[1:]:
-            while len(f) < len(header):
-                f.append("activo")
-            
-            id_fila = str(f[idx_partido]).split('.')[0].strip()
-            if id_fila == id_p:
-                f[idx_estado] = "finalizado"  # <-- Cambiamos a finalizado
-            nuevos_datos.append(f)
-            
-        hoja.clear()
-        hoja.update('A1', [header] + nuevos_datos, value_input_option='USER_ENTERED')
-        st.cache_data.clear()
-        return True
-    except Exception as e:
-        st.error(f"Error al finalizar partido: {e}")
-        return False
-        
 def cambiar_pagina():
     if "selector_menu" in st.session_state:
         st.session_state.menu_seleccionado = st.session_state.selector_menu
@@ -344,7 +341,7 @@ if st.session_state.menu_seleccionado == "Inicio":
         df_t = df[df['temporada'].astype(str) == str(st.session_state.sel_temp)]
         
         if not df_t.empty:
-            partidos = df_t.groupby('partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
+            partidos = df_t.groupby('id_clean' if 'id_clean' in df_t.columns else 'partido_id').agg({'resultado_a':'sum','resultado_b':'sum'})
             
             for _, r in partidos.iterrows():
                 if r['resultado_a'] > r['resultado_b']: 
@@ -390,93 +387,93 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
     df_partido_actual = pd.DataFrame()
 
     def ejecutar_guardado_automatico(hoyo_num):
-    try:
-        hoja = st.session_state.sh
-        g_actual = st.session_state.game
-        id_p = str(g_actual['id']).split('.')[0].strip()
-        f_p = pd.to_datetime(g_actual['fecha'], dayfirst=True).strftime('%d/%m/%Y')
-        t_p = int(g_actual.get('temporada', 2026))
-        
-        s0_v = int(st.session_state.get(f"s0_h{hoyo_num}", 4))
-        s1_v = int(st.session_state.get(f"s1_h{hoyo_num}", 4))
-        s2_v = int(st.session_state.get(f"s2_h{hoyo_num}", 4))
-        s3_v = int(st.session_state.get(f"s3_h{hoyo_num}", 4))
-        
-        p0_v = int(st.session_state.get(f"p0_h{hoyo_num}", 2))
-        p1_v = int(st.session_state.get(f"p1_h{hoyo_num}", 2))
-        p2_v = int(st.session_state.get(f"p2_h{hoyo_num}", 2))
-        p3_v = int(st.session_state.get(f"p3_h{hoyo_num}", 2))
-        
-        hoyo_cronologico = int(hoyo_num)
-        if g_actual.get('modo_9_hoyos', False):
-            vuelta_base = 1 if g_actual.get('vuelta_repetida') == "1ª Vuelta (Hoyos 1-9)" else 10
-            hoyo_real_campo = ((hoyo_cronologico - 1) % 9) + vuelta_base
-        else:
-            hoyo_real_campo = hoyo_cronologico
+        try:
+            hoja = st.session_state.sh
+            g_actual = st.session_state.game
+            id_p = str(g_actual['id']).split('.')[0].strip()
+            f_p = pd.to_datetime(g_actual['fecha'], dayfirst=True).strftime('%d/%m/%Y')
+            t_p = int(g_actual.get('temporada', 2026))
+            
+            s0_v = int(st.session_state.get(f"s0_h{hoyo_num}", 4))
+            s1_v = int(st.session_state.get(f"s1_h{hoyo_num}", 4))
+            s2_v = int(st.session_state.get(f"s2_h{hoyo_num}", 4))
+            s3_v = int(st.session_state.get(f"s3_h{hoyo_num}", 4))
+            
+            p0_v = int(st.session_state.get(f"p0_h{hoyo_num}", 2))
+            p1_v = int(st.session_state.get(f"p1_h{hoyo_num}", 2))
+            p2_v = int(st.session_state.get(f"p2_h{hoyo_num}", 2))
+            p3_v = int(st.session_state.get(f"p3_h{hoyo_num}", 2))
+            
+            hoyo_cronologico = int(hoyo_num)
+            if g_actual.get('modo_9_hoyos', False):
+                vuelta_base = 1 if g_actual.get('vuelta_repetida') == "1ª Vuelta (Hoyos 1-9)" else 10
+                hoyo_real_campo = ((hoyo_cronologico - 1) % 9) + vuelta_base
+            else:
+                hoyo_real_campo = hoyo_cronologico
 
-        par_hoyo = int(PAR_RIA_VIGO[hoyo_real_campo])
-        golpes = [s0_v, s1_v, s2_v, s3_v]
-        
-        mejor_a = min(golpes[0], golpes[1])
-        mejor_b = min(golpes[2], golpes[3])
-        peor_a = max(golpes[0], golpes[1])
-        peor_b = max(golpes[2], golpes[3])
-        
-        res_a, res_b = 0, 0
-        if mejor_a < mejor_b:   res_a += 1
-        elif mejor_b < mejor_a: res_b += 1
-        if peor_a < peor_b:     res_a += 1
-        elif peor_b < peor_a:   res_b += 1
-        
-        res_a += calcular_bonus_hoyo(golpes[0], par_hoyo)
-        res_a += calcular_bonus_hoyo(golpes[1], par_hoyo)
-        res_b += calcular_bonus_hoyo(golpes[2], par_hoyo)
-        res_b += calcular_bonus_hoyo(golpes[3], par_hoyo)
-        
-        p_mvp = [0.0, 0.0, 0.0, 0.0]
-        for i in range(4):
-            puntos_victoria = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
-            puntos_par = 0.0
-            dif = golpes[i] - par_hoyo
-            if dif == 0:    puntos_par = 0.5
-            elif dif == -1: puntos_par = 1.5
-            elif dif == -2: puntos_par = 3.0
-            elif dif <= -3: puntos_par = 4.0
-            p_mvp[i] = float(puntos_victoria + puntos_par)
+            par_hoyo = int(PAR_RIA_VIGO[hoyo_real_campo])
+            golpes = [s0_v, s1_v, s2_v, s3_v]
+            
+            mejor_a = min(golpes[0], golpes[1])
+            mejor_b = min(golpes[2], golpes[3])
+            peor_a = max(golpes[0], golpes[1])
+            peor_b = max(golpes[2], golpes[3])
+            
+            res_a, res_b = 0, 0
+            if mejor_a < mejor_b:   res_a += 1
+            elif mejor_b < mejor_a: res_b += 1
+            if peor_a < peor_b:     res_a += 1
+            elif peor_b < peor_a:   res_b += 1
+            
+            res_a += calcular_bonus_hoyo(golpes[0], par_hoyo)
+            res_a += calcular_bonus_hoyo(golpes[1], par_hoyo)
+            res_b += calcular_bonus_hoyo(golpes[2], par_hoyo)
+            res_b += calcular_bonus_hoyo(golpes[3], par_hoyo)
+            
+            p_mvp = [0.0, 0.0, 0.0, 0.0]
+            for i in range(4):
+                puntos_victoria = sum(0.5 for j in range(4) if i != j and golpes[i] < golpes[j])
+                puntos_par = 0.0
+                dif = golpes[i] - par_hoyo
+                if dif == 0:    puntos_par = 0.5
+                elif dif == -1: puntos_par = 1.5
+                elif dif == -2: puntos_par = 3.0
+                elif dif <= -3: puntos_par = 4.0
+                p_mvp[i] = float(puntos_victoria + puntos_par)
 
-        nueva_fila = [
-            f"{id_p}_H{hoyo_cronologico}", int(id_p), int(hoyo_cronologico), f_p, 
-            t_p, int(res_a), int(res_b), 
-            p_mvp[0], p_mvp[1], p_mvp[2], p_mvp[3], 
-            golpes[0], golpes[1], golpes[2], golpes[3],
-            int(p0_v), int(p1_v), int(p2_v), int(p3_v),
-            int(hoyo_real_campo),
-            "activo"
-        ]
+            nueva_fila = [
+                f"{id_p}_H{hoyo_cronologico}", int(id_p), int(hoyo_cronologico), f_p, 
+                t_p, int(res_a), int(res_b), 
+                p_mvp[0], p_mvp[1], p_mvp[2], p_mvp[3], 
+                golpes[0], golpes[1], golpes[2], golpes[3],
+                int(p0_v), int(p1_v), int(p2_v), int(p3_v),
+                int(hoyo_real_campo),
+                "activo"
+            ]
 
-        filas = hoja.get_all_values()
-        header = filas[0]
-        if 'hoyo_real' not in header:
-            header.append('hoyo_real')
-        if 'estado' not in header:
-            header.append('estado')
+            filas = hoja.get_all_values()
+            header = filas[0]
+            if 'hoyo_real' not in header:
+                header.append('hoyo_real')
+            if 'estado' not in header:
+                header.append('estado')
 
-        datos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_p and str(f[2]) == str(hoyo_cronologico))]
-        
-        for f in datos:
-            while len(f) < len(header):
-                f.append("activo")
+            datos = [f for f in filas[1:] if not (str(f[1]).split('.')[0] == id_p and str(f[2]) == str(hoyo_cronologico))]
+            
+            for f in datos:
+                while len(f) < len(header):
+                    f.append("activo")
 
-        datos.append(nueva_fila)
-        
-        hoja.clear()
-        hoja.update('A1', [header] + datos, value_input_option='USER_ENTERED')
-        st.cache_data.clear()
-        st.toast(f"✅ Hoyo {hoyo_cronologico} guardado correctamente", icon="💾")
-        return True
-    except Exception as err:
-        st.error(f"Error al guardar los datos: {err}")
-        return False
+            datos.append(nueva_fila)
+            
+            hoja.clear()
+            hoja.update('A1', [header] + datos, value_input_option='USER_ENTERED')
+            st.cache_data.clear()
+            st.toast(f"✅ Hoyo {hoyo_cronologico} guardado correctamente", icon="💾")
+            return True
+        except Exception as err:
+            st.error(f"Error al guardar los datos: {err}")
+            return False
 
     game_activo = st.session_state.get('game')
     if not game_activo or not isinstance(game_activo, dict) or 'id' not in game_activo:
@@ -534,7 +531,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
 
-        # 4. MARCADOR VISUAL GLOBAL (CORREGIDO Y VISIBLE)
+        # 4. MARCADOR VISUAL GLOBAL
         st.markdown(f"""
             <div style="border: 2px solid #2e7d32; border-radius: 12px; padding: 10px; background-color: #f0f4f0; margin-bottom: 10px; text-align: center;">
                 <div style="display: flex; justify-content: space-around; align-items: center; width: 100%;">
@@ -805,7 +802,7 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         st.markdown(f"<p style='text-align: center; color: gray; font-size: 0.9em;'>📅 Fecha del partido: <b>{g.get('fecha', 'S/F')}</b></p>", unsafe_allow_html=True)
         
         with st.popover("🏁 FINALIZAR PARTIDA", use_container_width=True):
-            st.warning("⚠️ Esta acción cerrará la sesión actual y marcará el partido como finalizado.")
+            st.warning("⚠️ Esta acción cerrará la sesión actual.")
             if st.button("Confirmar y Salir", type="primary", use_container_width=True):
                 if g and 'id' in g:
                     marcar_partido_finalizado(g['id'])
@@ -1034,7 +1031,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 tit_w = temp_actual if ver_acumulado else seleccion_filtro
                 
                 if ver_acumulado:
-                    df_temp = df_raw[df_raw['t_limpia'] == temp_actual].copy()
                     total_a = st.session_state.get('marcador_acumulado_a', 3.5)
                     total_b = st.session_state.get('marcador_acumulado_b', 3.5)
                                             
@@ -1057,7 +1053,6 @@ elif st.session_state.menu_seleccionado == "Estadísticas":
                 else:
                     titulo_final_marcador = titulo_marcador.upper()
                     sub_final_marcador = sub_marcador
-                    año_txt = str(temp_actual).strip()
                 
                 txt_wa = f"🍺 *CAÑITA BRAVA* 🍺\n"
                 txt_wa += f"{w_icon} *{tit_w}*\n"
