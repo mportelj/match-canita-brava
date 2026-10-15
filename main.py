@@ -692,37 +692,39 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         diferencia_global = puntos_equipo_a - puntos_equipo_b
         marcador_a, marcador_b = (diferencia_global, 0) if diferencia_global > 0 else (0, abs(diferencia_global))
 
-        # 3. SELECTOR DE HOYO INTELIGENTE (CSS CORREGIDO Y SEGURO)
-        st.markdown("""
-            <style>
-                /* Restauramos y protegemos el contenedor principal y su etiqueta */
-                div[data-testid="stSelectbox"] {
-                    margin-bottom: 10px !important;
-                }
-                /* Forzamos tamaño y negrita EXCLUSIVAMENTE en el texto de la caja en reposo */
-                div[data-testid="stSelectbox"] [data-baseweb="select"] span {
-                    font-size: 1.15rem !important;
-                    font-weight: bold !important;
-                    color: #111827 !important;
-                }
-            </style>
-        """, unsafe_allow_html=True)
-
+        # 3. SELECTOR DE HOYO INTELIGENTE (TEXTO EN NEGRITA MEDIANTE UNICODE)
         def format_hoyo(x):
             par_h = int(PAR_RIA_VIGO.get(int(x), 4))
-            estado_str = "⏳ Pendiente"
+            
+            # Mapas de conversión a negrita Unicode para números
+            n_bold = {
+                1: "𝟭", 2: "𝟮", 3: "𝟯", 4: "𝟰", 5: "𝟱", 6: "𝟲", 7: "𝟳", 8: "𝟴", 9: "𝟵",
+                10: "𝟭𝟬", 11: "𝟭𝟭", 12: "𝟭𝟮", 13: "𝟭𝟯", 14: "𝟭𝟰", 15: "𝟭𝟱", 16: "𝟭𝟲", 17: "𝟭十七章"[0:2] if x==17 else "𝟭十七章"[:2], # Usaremos formato seguro abajo
+            }
+            # Conversión segura de números a negrita
+            def to_bold(num):
+                bold_digits = {"0": "𝟬", "1": "𝟭", "2": "𝟮", "3": "𝟯", "4": "𝟰", "5": "𝟱", "6": "𝟲", "7": "𝟳", "8": "𝟴", "9": "𝟵"}
+                return "".join(bold_digits.get(c, c) for c in str(num))
+
+            h_bold = to_bold(x)
+            par_bold = to_bold(par_h)
+
+            estado_str = "⏳ 𝗣𝗲𝗻𝗱𝗶𝗲𝗻𝘁𝗲"
             if not df_partido_actual.empty:
                 df_h = df_partido_actual[df_partido_actual['hoyo_int'] == x]
                 if not df_h.empty and df_h.iloc[0][['s0', 's1', 's2', 's3']].sum() > 0:
                     ra = int(df_h.iloc[0]['resultado_a'])
                     rb = int(df_h.iloc[0]['resultado_b'])
                     if ra > rb:
-                        estado_str = f"🟢 M&J +{ra-rb}"
+                        diff_bold = to_bold(ra - rb)
+                        estado_str = f"🟢 𝗠&𝗝 +{diff_bold}"
                     elif rb > ra:
-                        estado_str = f"🔴 R&L +{rb-ra}"
+                        diff_bold = to_bold(rb - ra)
+                        estado_str = f"🔴 𝗥&𝗟 +{diff_bold}"
                     else:
-                        estado_str = "⚪ Empate AS"
-            return f"Hoyo {x} (Par {par_h}) — {estado_str}"
+                        estado_str = "⚪ 𝗘𝗺𝗽𝗮𝘁𝗲 𝗔𝗦"
+            
+            return f"𝗛𝗼𝘆𝗼 {h_bold} (𝗣𝗮𝗿 {par_bold}) — {estado_str}"
 
         h_actual = st.selectbox(
             "📍 Seleccionar Hoyo:", 
