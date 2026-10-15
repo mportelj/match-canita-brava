@@ -570,11 +570,6 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
 
             pts_p1 = calc_pts(s0_v, par_h)
             pts_p2 = calc_pts(s1_v, par_h)
-            pts_p3 = calc_pts(s3_v, par_h) if 's3_v' in locals() else calc_pts(s3_v, par_h)
-            pts_p4 = calc_pts(s3_v, par_h) # Se usa s3_v
-
-            pts_p1 = calc_pts(s0_v, par_h)
-            pts_p2 = calc_pts(s1_v, par_h)
             pts_p3 = calc_pts(s2_v, par_h)
             pts_p4 = calc_pts(s3_v, par_h)
 
@@ -817,21 +812,16 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
         s0, s1, s2, s3 = inputs_s
         p0, p1, p2, p3 = inputs_p
 
-        # 8. POPOVER DE GUARDADO CON CONTROL DE CIERRE AUTOMÁTICO
-        popover_key = f"popover_guardar_h{h_actual}_{st.session_state.refresco_id}"
-        with st.popover("💾 GUARDAR RESULTADO HOYO", use_container_width=True):
-            st.markdown(f"""
-                <div style="text-align: center; margin-bottom: 12px;">
-                    <h4 style="margin: 0; color: #1f2937; font-size: 1.15rem;">Resumen Hoyo {h_actual}</h4>
-                    <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #6b7280;">Ordenado de menor a mayor golpes</p>
-                </div>
-            """, unsafe_allow_html=True)
+        # 8. VENTANA MODAL DE CONFIRMACIÓN (DIÁLOGO LIMPIO QUE SE CIERRA AUTOMÁTICAMENTE)
+        @st.dialog(f"📋 Confirmar Hoyo {h_actual}")
+        def mostrar_dialogo_confirmacion(h_num, s0_v, s1_v, s2_v, s3_v, p0_v, p1_v, p2_v, p3_v):
+            st.markdown("<p style='margin-top: 0; font-size: 0.9rem; color: #6b7280;'>Ordenado de menor a mayor golpes:</p>", unsafe_allow_html=True)
             
             datos_confirmar = [
-                ("MANU", s0, p0, config_jugadores["MANU"]["color"]),
-                ("JOSE", s1, p1, config_jugadores["JOSE"]["color"]),
-                ("ROGE", s2, p2, config_jugadores["ROGE"]["color"]),
-                ("LALO", s3, p3, config_jugadores["LALO"]["color"])
+                ("MANU", s0_v, p0_v, config_jugadores["MANU"]["color"]),
+                ("JOSE", s1_v, p1_v, config_jugadores["JOSE"]["color"]),
+                ("ROGE", s2_v, p2_v, config_jugadores["ROGE"]["color"]),
+                ("LALO", s3_v, p3_v, config_jugadores["LALO"]["color"])
             ]
             datos_ordenados = sorted(datos_confirmar, key=lambda x: x[1])
             
@@ -845,21 +835,22 @@ elif st.session_state.menu_seleccionado == "Nueva Partida":
             
             st.write("")
             
-            col_pop_1, col_pop_2 = st.columns(2)
-            with col_pop_1:
-                if st.button("✅ GUARDAR", type="primary", use_container_width=True, key=f"btn_pop_si_{h_actual}"):
-                    ejecutar_guardado_automatico(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
+            col_d1, col_d2 = st.columns(2)
+            with col_d1:
+                if st.button("✅ GUARDAR", type="primary", use_container_width=True):
+                    ejecutar_guardado_automatico(h_num, s0_v, s1_v, s2_v, s3_v, p0_v, p1_v, p2_v, p3_v)
                     st.session_state.hoyo_modificado = False
-                    if h_actual < 18:
-                        st.session_state.game['h_sel'] = h_actual + 1
+                    if h_num < 18:
+                        st.session_state.game['h_sel'] = h_num + 1
                         st.query_params["hoyo"] = st.session_state.game['h_sel']
                         st.session_state.refresco_id += 1
                     st.rerun()
-            with col_pop_2:
-                if st.button("❌ CERRAR", use_container_width=True, key=f"btn_pop_no_{h_actual}"):
-                    # Incrementamos refresco_id para invalidar la clave del popover y forzar su cierre
-                    st.session_state.refresco_id += 1
+            with col_d2:
+                if st.button("❌ CERRAR", use_container_width=True):
                     st.rerun()
+
+        if st.button("💾 GUARDAR RESULTADO HOYO", use_container_width=True):
+            mostrar_dialogo_confirmacion(h_actual, s0, s1, s2, s3, p0, p1, p2, p3)
 
         # 9. SECCIÓN MVP
         st.write("---")
